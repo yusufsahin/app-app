@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from alm.auth.domain.events import PasswordChanged, UserRegistered
 from alm.shared.domain.aggregate import AggregateRoot
@@ -44,6 +45,14 @@ class User(AggregateRoot):
     def deactivate(self) -> None:
         self.is_active = False
         self.touch()
+
+    _audit_excluded_fields: frozenset[str] = frozenset({"password_hash"})
+
+    def to_snapshot_dict(self) -> dict[str, Any]:
+        data = super().to_snapshot_dict()
+        for field in self._audit_excluded_fields:
+            data.pop(field, None)
+        return data
 
 
 class RefreshToken(BaseEntity):

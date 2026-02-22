@@ -47,6 +47,6 @@ class CreateTenantHandler(CommandHandler[TenantDTO]):
         return TenantDTO(
             id=provisioned.tenant_id,
             name=command.name,
-            slug=command.name.lower().replace(" ", "-"),
-            tier="free",
+            slug=provisioned.slug,
+            tier=provisioned.tier,
         )

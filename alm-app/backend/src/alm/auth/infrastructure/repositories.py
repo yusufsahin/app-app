@@ -106,6 +106,15 @@ class SqlAlchemyRefreshTokenRepository(RefreshTokenRepository):
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
+    async def revoke(self, token: RefreshToken) -> None:
+        await self._session.execute(
+            update(RefreshTokenModel)
+            .where(RefreshTokenModel.id == token.id)
+            .values(revoked_at=token.revoked_at)
+        )
+        await self._session.flush()
+        buffer_audit(self._session, "RefreshToken", token.id, token.to_snapshot_dict(), ChangeType.UPDATE)
+
     async def revoke_all_for_user(self, user_id: uuid.UUID) -> None:
         await self._session.execute(
             update(RefreshTokenModel)

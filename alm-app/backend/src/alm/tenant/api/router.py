@@ -114,13 +114,10 @@ async def get_tenant(
     user: CurrentUser = Depends(get_current_user),
     mediator: Mediator = Depends(get_mediator),
 ) -> TenantResponse:
-    from alm.tenant.infrastructure.repositories import SqlAlchemyTenantRepository
+    from alm.tenant.application.queries.get_tenant import GetTenant
 
-    tenant_repo = SqlAlchemyTenantRepository(mediator._session)
-    tenant = await tenant_repo.find_by_id(tenant_id)
-    if tenant is None:
-        raise EntityNotFound("Tenant", tenant_id)
-    return TenantResponse(id=tenant.id, name=tenant.name, slug=tenant.slug, tier=tenant.tier)
+    dto: TenantDTO = await mediator.query(GetTenant(tenant_id=tenant_id))
+    return TenantResponse(id=dto.id, name=dto.name, slug=dto.slug, tier=dto.tier)
 
 
 @router.put("/{tenant_id}", response_model=TenantResponse)
@@ -219,33 +216,16 @@ async def get_member_roles(
     user: CurrentUser = Depends(get_current_user),
     mediator: Mediator = Depends(get_mediator),
 ) -> list[RoleInfoSchema]:
-    from alm.tenant.infrastructure.repositories import (
-        SqlAlchemyMembershipRepository,
-        SqlAlchemyRoleRepository,
-    )
+    from alm.tenant.application.queries.get_member_roles import GetMemberRoles
 
-    membership_repo = SqlAlchemyMembershipRepository(mediator._session)
-    role_repo = SqlAlchemyRoleRepository(mediator._session)
-
-    membership = await membership_repo.find_by_user_and_tenant(user_id, tenant_id)
-    if membership is None:
-        raise EntityNotFound("TenantMembership", user_id)
-
-    role_ids = await membership_repo.get_role_ids(membership.id)
-    roles: list[RoleInfoSchema] = []
-    for role_id in role_ids:
-        role = await role_repo.find_by_id(role_id)
-        if role is not None:
-            roles.append(
-                RoleInfoSchema(
-                    id=role.id,
-                    name=role.name,
-                    slug=role.slug,
-                    is_system=role.is_system,
-                    hierarchy_level=role.hierarchy_level,
-                )
-            )
-    return roles
+    dtos = await mediator.query(GetMemberRoles(tenant_id=tenant_id, user_id=user_id))
+    return [
+        RoleInfoSchema(
+            id=d.id, name=d.name, slug=d.slug,
+            is_system=d.is_system, hierarchy_level=d.hierarchy_level,
+        )
+        for d in dtos
+    ]
 
 
 @router.put("/{tenant_id}/members/{user_id}/roles", response_model=MessageResponse)

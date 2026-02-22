@@ -39,6 +39,8 @@ from alm.tenant.application.queries.list_members import ListTenantMembers, ListT
 from alm.tenant.application.queries.list_roles import ListTenantRoles, ListTenantRolesHandler
 from alm.tenant.application.queries.get_role import GetRole, GetRoleHandler
 from alm.tenant.application.queries.list_privileges import ListPrivileges, ListPrivilegesHandler
+from alm.tenant.application.queries.get_tenant import GetTenant, GetTenantHandler
+from alm.tenant.application.queries.get_member_roles import GetMemberRoles, GetMemberRolesHandler
 from alm.tenant.application.queries.get_member_permissions import (
     GetMemberEffectivePermissions,
     GetMemberEffectivePermissionsHandler,
@@ -197,6 +199,15 @@ def register_all_handlers() -> None:
 
     register_query_handler(ListPrivileges, lambda s: ListPrivilegesHandler(
         privilege_repo=SqlAlchemyPrivilegeRepository(s),
+    ))
+
+    register_query_handler(GetTenant, lambda s: GetTenantHandler(
+        tenant_repo=SqlAlchemyTenantRepository(s),
+    ))
+
+    register_query_handler(GetMemberRoles, lambda s: GetMemberRolesHandler(
+        membership_repo=SqlAlchemyMembershipRepository(s),
+        role_repo=SqlAlchemyRoleRepository(s),
     ))
 
     register_query_handler(GetMemberEffectivePermissions, lambda s: GetMemberEffectivePermissionsHandler(

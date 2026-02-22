@@ -49,6 +49,7 @@ class RefreshTokenHandler(CommandHandler[TokenPairDTO]):
             raise ValidationError("Refresh token is invalid or expired.")
 
         stored.revoke()
+        await self._refresh_token_repo.revoke(stored)
         user = await self._user_repo.find_by_id(stored.user_id)
         if user is None or not user.is_active:
             raise AccessDenied("User account is inactive or deleted.")

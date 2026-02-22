@@ -17,8 +17,8 @@ class SnapshotDTO:
     state: dict[str, Any]
     changed_properties: list[str]
     version: int
-    committed_at: datetime
-    author_id: uuid.UUID | None
+    committed_at: datetime | None = None
+    author_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True)

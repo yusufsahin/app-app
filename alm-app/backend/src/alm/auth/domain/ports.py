@@ -12,6 +12,8 @@ class ProvisionedTenant:
     """Result of tenant provisioning — returned by OnboardingPort."""
 
     tenant_id: uuid.UUID
+    slug: str
+    tier: str
     roles: list[str]
 
 
@@ -45,6 +47,9 @@ class RefreshTokenRepository(ABC):
 
     @abstractmethod
     async def find_by_token_hash(self, token_hash: str) -> RefreshToken | None: ...
+
+    @abstractmethod
+    async def revoke(self, token: RefreshToken) -> None: ...
 
     @abstractmethod
     async def revoke_all_for_user(self, user_id: uuid.UUID) -> None: ...

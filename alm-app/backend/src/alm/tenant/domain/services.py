@@ -49,7 +49,9 @@ class TenantOnboardingSaga(OnboardingPort):
         membership = TenantMembership(user_id=admin_user_id, tenant_id=tenant.id)
         membership = await self._membership_repo.add(membership)
         await self._membership_repo.add_role(membership.id, admin_role.id, assigned_by=admin_user_id)
-        return ProvisionedTenant(tenant_id=tenant.id, roles=["admin"])
+        return ProvisionedTenant(
+            tenant_id=tenant.id, slug=tenant.slug, tier=tenant.tier, roles=["admin"],
+        )
 
     async def _seed_system_roles(self, tenant_id: uuid.UUID) -> dict[str, Role]:
         with open(_SEED_DIR / "default_roles.yaml") as f:
