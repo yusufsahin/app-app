@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Depends
 
-from alm.auth.api.schemas import MessageResponse
+from alm.shared.api.schemas import MessageResponse
 from alm.config.dependencies import get_mediator
 from alm.shared.application.mediator import Mediator
 from alm.shared.domain.exceptions import EntityNotFound

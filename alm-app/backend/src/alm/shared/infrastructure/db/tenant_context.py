@@ -4,7 +4,7 @@ import uuid
 from contextvars import ContextVar
 
 from sqlalchemy import event, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 _current_tenant_id: ContextVar[uuid.UUID | None] = ContextVar("current_tenant_id", default=None)
 
@@ -17,7 +17,7 @@ def set_current_tenant_id(tenant_id: uuid.UUID | None) -> None:
     _current_tenant_id.set(tenant_id)
 
 
-def setup_tenant_rls(session_factory: type[AsyncSession]) -> None:
+def setup_tenant_rls(session_factory: async_sessionmaker[AsyncSession]) -> None:
     """Register after_begin hook to SET LOCAL tenant_id for RLS."""
 
     @event.listens_for(session_factory.sync_session_class, "after_begin")

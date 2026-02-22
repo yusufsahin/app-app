@@ -107,7 +107,7 @@ class MembershipRoleModel(Base):
     role: Mapped[RoleModel] = relationship(lazy="joined")
 
 
-class InvitationModel(Base, TimestampMixin):
+class InvitationModel(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "invitations"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)

@@ -164,10 +164,13 @@ def upgrade() -> None:
         sa.Column("created_by", sa.Uuid(), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_by", sa.Uuid(), nullable=True),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("deleted_by", sa.Uuid(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_invitations_tenant_id", "invitations", ["tenant_id"])
     op.create_index("ix_invitations_token", "invitations", ["token"], unique=True)
+    op.create_index("ix_invitations_deleted_at", "invitations", ["deleted_at"])
 
     # ── Invitation Roles (N:N) ──
     op.create_table(

@@ -483,4 +483,6 @@ class SqlAlchemyInvitationRepository(InvitationRepository):
         inv.created_by = m.created_by
         inv.updated_at = m.updated_at
         inv.updated_by = m.updated_by
+        inv.deleted_at = m.deleted_at
+        inv.deleted_by = m.deleted_by
         return inv

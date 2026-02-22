@@ -47,11 +47,6 @@ class TenantInfoSchema(BaseModel):
     roles: list[str]
 
 
-class TenantSelectResponse(BaseModel):
-    tenants: list[TenantInfoSchema]
-    temp_token: str
-
-
 class LoginResponse(BaseModel):
     """Union response: either a token pair or a tenant selection prompt."""
 
@@ -72,5 +67,4 @@ class UserResponse(BaseModel):
     permissions: list[str]
 
 
-class MessageResponse(BaseModel):
-    message: str
+from alm.shared.api.schemas import MessageResponse as MessageResponse  # noqa: F811

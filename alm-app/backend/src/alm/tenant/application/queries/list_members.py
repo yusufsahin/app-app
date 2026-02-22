@@ -3,10 +3,9 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from alm.auth.domain.ports import UserRepository
 from alm.shared.application.query import Query, QueryHandler
 from alm.tenant.application.dtos import MemberDTO, RoleInfoDTO
-from alm.tenant.domain.ports import MembershipRepository, RoleRepository
+from alm.tenant.domain.ports import MembershipRepository, RoleRepository, UserLookupPort
 
 
 @dataclass(frozen=True)
@@ -19,11 +18,11 @@ class ListTenantMembersHandler(QueryHandler[list[MemberDTO]]):
         self,
         membership_repo: MembershipRepository,
         role_repo: RoleRepository,
-        user_repo: UserRepository,
+        user_lookup: UserLookupPort,
     ) -> None:
         self._membership_repo = membership_repo
         self._role_repo = role_repo
-        self._user_repo = user_repo
+        self._user_lookup = user_lookup
 
     async def handle(self, query: Query) -> list[MemberDTO]:
         assert isinstance(query, ListTenantMembers)
@@ -31,8 +30,8 @@ class ListTenantMembersHandler(QueryHandler[list[MemberDTO]]):
         result: list[MemberDTO] = []
 
         for membership in memberships:
-            user = await self._user_repo.find_by_id(membership.user_id)
-            if user is None:
+            user_info = await self._user_lookup.find_by_id(membership.user_id)
+            if user_info is None:
                 continue
 
             role_ids = await self._membership_repo.get_role_ids(membership.id)
@@ -50,8 +49,8 @@ class ListTenantMembersHandler(QueryHandler[list[MemberDTO]]):
 
             result.append(MemberDTO(
                 user_id=membership.user_id,
-                email=user.email,
-                display_name=user.display_name,
+                email=user_info.email,
+                display_name=user_info.display_name,
                 roles=roles,
                 joined_at=membership.joined_at,
             ))

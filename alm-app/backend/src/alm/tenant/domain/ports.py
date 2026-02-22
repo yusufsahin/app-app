@@ -2,8 +2,25 @@ from __future__ import annotations
 
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 from alm.tenant.domain.entities import Invitation, Privilege, Role, Tenant, TenantMembership
+
+
+@dataclass(frozen=True)
+class UserInfo:
+    """Minimal read-only user view for Tenant BC (Anti-Corruption Layer)."""
+
+    id: uuid.UUID
+    email: str
+    display_name: str
+
+
+class UserLookupPort(ABC):
+    """Read-only port to resolve user details from Auth BC."""
+
+    @abstractmethod
+    async def find_by_id(self, user_id: uuid.UUID) -> UserInfo | None: ...
 
 
 class TenantRepository(ABC):

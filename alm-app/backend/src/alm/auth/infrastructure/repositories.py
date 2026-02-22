@@ -12,6 +12,7 @@ from alm.auth.infrastructure.models import RefreshTokenModel, UserModel
 from alm.shared.application.mediator import buffer_events
 from alm.shared.audit.core import ChangeType
 from alm.shared.audit.interceptor import buffer_audit
+from alm.tenant.domain.ports import UserInfo, UserLookupPort
 
 
 class SqlAlchemyUserRepository(UserRepository):
@@ -140,3 +141,19 @@ class SqlAlchemyRefreshTokenRepository(RefreshTokenRepository):
         token.updated_at = model.updated_at
         token.updated_by = model.updated_by
         return token
+
+
+class SqlAlchemyUserLookupAdapter(UserLookupPort):
+    """Adapter that fulfils Tenant BC's UserLookupPort via Auth infrastructure."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def find_by_id(self, user_id: uuid.UUID) -> UserInfo | None:
+        result = await self._session.execute(
+            select(UserModel).where(UserModel.id == user_id, UserModel.deleted_at.is_(None))
+        )
+        model = result.scalar_one_or_none()
+        if model is None:
+            return None
+        return UserInfo(id=model.id, email=model.email, display_name=model.display_name)
