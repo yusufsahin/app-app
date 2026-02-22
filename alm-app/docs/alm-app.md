@@ -232,8 +232,6 @@ backend/
 │   │   │   └── mpc_workflow_adapter.py  # GuardPort + AuthPort concrete impls
 │   │   └── api/                       # /api/v1/workflows/*
 │   │
-│   └── audit/                         # ── Audit Log BC (deprecated → shared/audit/) ──
-│       └── (Moved to shared/audit/ — JaVers-inspired snapshot/commit model)
 │
 ├── tests/
 │   ├── unit/                          # Domain + application layer tests
