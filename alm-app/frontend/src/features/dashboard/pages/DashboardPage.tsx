@@ -1,4 +1,5 @@
-import { Box, Container, Typography, Card, CardContent, Grid } from "@mui/material";
+import { Container, Typography, Card, CardContent } from "@mui/material";
+import Grid from "@mui/material/Grid2";
 
 export default function DashboardPage() {
   return (

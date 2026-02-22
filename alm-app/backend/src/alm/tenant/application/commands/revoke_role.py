@@ -36,3 +36,10 @@ class RevokeRoleHandler(CommandHandler[None]):
             raise ValidationError("Cannot revoke the last role from a member")
 
         await self._membership_repo.remove_role(membership.id, command.role_id)
+
+        from alm.shared.infrastructure.cache import PermissionCache
+
+        try:
+            await PermissionCache().invalidate_user(command.tenant_id, command.user_id)
+        except Exception:
+            pass

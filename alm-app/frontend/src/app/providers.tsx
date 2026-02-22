@@ -1,7 +1,9 @@
 import { type ReactNode } from "react";
 import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Snackbar, Alert } from "@mui/material";
 import { theme } from "./theme";
+import { useNotificationStore } from "../shared/stores/notificationStore";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,10 +22,38 @@ interface ProvidersProps {
   children: ReactNode;
 }
 
+function GlobalSnackbar() {
+  const notification = useNotificationStore((s) => s.notification);
+  const clearNotification = useNotificationStore((s) => s.clearNotification);
+
+  return (
+    <Snackbar
+      open={!!notification}
+      autoHideDuration={4000}
+      onClose={clearNotification}
+      anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+    >
+      {notification ? (
+        <Alert
+          onClose={clearNotification}
+          severity={notification.severity}
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {notification.message}
+        </Alert>
+      ) : undefined}
+    </Snackbar>
+  );
+}
+
 export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>{children}</ThemeProvider>
+      <ThemeProvider theme={theme}>
+        {children}
+        <GlobalSnackbar />
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

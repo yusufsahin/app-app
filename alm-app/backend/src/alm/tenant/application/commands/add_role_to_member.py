@@ -41,3 +41,10 @@ class AddRoleToMemberHandler(CommandHandler[None]):
         await self._membership_repo.add_role(
             membership.id, command.role_id, assigned_by=command.assigned_by
         )
+
+        from alm.shared.infrastructure.cache import PermissionCache
+
+        try:
+            await PermissionCache().invalidate_user(command.tenant_id, command.user_id)
+        except Exception:
+            pass

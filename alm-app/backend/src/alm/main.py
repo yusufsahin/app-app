@@ -9,6 +9,7 @@ from alm.auth.api.router import router as auth_router
 from alm.config.settings import settings
 from alm.shared.audit.api.router import router as audit_router
 from alm.shared.infrastructure.correlation import CorrelationIdMiddleware
+from alm.shared.infrastructure.tenant_middleware import TenantContextMiddleware
 from alm.shared.infrastructure.db.session import async_session_factory
 from alm.shared.infrastructure.db.tenant_context import setup_tenant_rls
 from alm.shared.infrastructure.error_handler import register_exception_handlers
@@ -27,6 +28,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     register_all_handlers()
     logger.info("handler_registry_initialized")
 
+    from alm.config.seed import seed_privileges
+    await seed_privileges(async_session_factory)
+
     yield
     logger.info("application_shutting_down")
 
@@ -40,6 +44,7 @@ def create_app() -> FastAPI:
         redoc_url="/api/redoc" if settings.debug else None,
     )
 
+    app.add_middleware(TenantContextMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

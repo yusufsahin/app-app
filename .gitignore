@@ -33,6 +33,7 @@ Thumbs.db
 node_modules/
 .next/
 out/
+*.tsbuildinfo
 
 # Ruff
 .ruff_cache/

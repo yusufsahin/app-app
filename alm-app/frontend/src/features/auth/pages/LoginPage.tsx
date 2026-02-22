@@ -1,0 +1,163 @@
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
+import {
+  Box,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Link,
+  CircularProgress,
+  InputAdornment,
+  IconButton,
+} from "@mui/material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { useLogin } from "../../../shared/api/authApi";
+import { useAuthStore } from "../../../shared/stores/authStore";
+import { useTenantStore } from "../../../shared/stores/tenantStore";
+
+const loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+
+export default function LoginPage() {
+  const navigate = useNavigate();
+  const login = useLogin();
+  const setTokens = useAuthStore((s) => s.setTokens);
+  const setTenant = useTenantStore((s) => s.setTenant);
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
+    setError(null);
+    try {
+      const result = await login.mutateAsync(data);
+
+      if (result.requires_tenant_selection && result.tenants && result.temp_token) {
+        navigate("/select-tenant", {
+          state: { tempToken: result.temp_token, tenants: result.tenants },
+        });
+      } else if (result.access_token && result.refresh_token) {
+        setTokens(result.access_token, result.refresh_token);
+        if (result.tenants?.length === 1) {
+          setTenant(result.tenants[0]!);
+        }
+        navigate("/");
+      }
+    } catch (err: unknown) {
+      const problem = err as { detail?: string; message?: string };
+      setError(problem.detail ?? problem.message ?? "Login failed. Please try again.");
+    }
+  };
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        bgcolor: "background.default",
+        p: 2,
+      }}
+    >
+      <Card sx={{ maxWidth: 440, width: "100%", p: 2 }}>
+        <CardContent>
+          <Box sx={{ textAlign: "center", mb: 4 }}>
+            <Typography variant="h4" fontWeight={700} color="primary.main">
+              ALM Manifest
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Sign in to your account
+            </Typography>
+          </Box>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <TextField
+              {...register("email")}
+              label="Email"
+              type="email"
+              fullWidth
+              error={!!errors.email}
+              helperText={errors.email?.message}
+              sx={{ mb: 2.5 }}
+              autoComplete="email"
+              autoFocus
+            />
+
+            <TextField
+              {...register("password")}
+              label="Password"
+              type={showPassword ? "text" : "password"}
+              fullWidth
+              error={!!errors.password}
+              helperText={errors.password?.message}
+              sx={{ mb: 3 }}
+              autoComplete="current-password"
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword((v) => !v)}
+                        edge="end"
+                        size="small"
+                        aria-label="toggle password visibility"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+
+            <Button
+              type="submit"
+              variant="contained"
+              fullWidth
+              size="large"
+              disabled={login.isPending}
+              sx={{ mb: 2, py: 1.5 }}
+            >
+              {login.isPending ? (
+                <CircularProgress size={24} color="inherit" />
+              ) : (
+                "Sign In"
+              )}
+            </Button>
+          </Box>
+
+          <Typography variant="body2" align="center" color="text.secondary">
+            Don&apos;t have an account?{" "}
+            <Link component={RouterLink} to="/register" underline="hover">
+              Register
+            </Link>
+          </Typography>
+        </CardContent>
+      </Card>
+    </Box>
+  );
+}

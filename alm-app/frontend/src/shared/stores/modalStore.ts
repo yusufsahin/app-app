@@ -1,4 +1,4 @@
-import { type ComponentType, type ReactNode } from "react";
+import { type ComponentType } from "react";
 import { create } from "zustand";
 
 interface ModalEntry {

@@ -52,6 +52,13 @@ class SetRolePrivilegesHandler(CommandHandler[RoleDetailDTO]):
                     description=priv.description,
                 ))
 
+        from alm.shared.infrastructure.cache import PermissionCache
+
+        try:
+            await PermissionCache().invalidate_tenant(role.tenant_id)
+        except Exception:
+            pass
+
         return RoleDetailDTO(
             id=role.id,
             name=role.name,
