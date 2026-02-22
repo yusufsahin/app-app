@@ -1,0 +1,75 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: alm
+      POSTGRES_PASSWORD: alm_dev_password
+      POSTGRES_DB: alm
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      ALM_DEBUG: "true"
+      ALM_DATABASE_URL: "postgresql+asyncpg://alm:alm_dev_password@db:5432/alm"
+      ALM_REDIS_URL: "redis://redis:6379/0"
+      ALM_JWT_SECRET_KEY: "docker-dev-secret-change-in-prod"
+      ALM_CORS_ORIGINS: '["http://localhost:3000","http://localhost:5173"]'
+      ALM_SMTP_HOST: "mailhog"
+      ALM_SMTP_PORT: "1025"
+      ALM_SMTP_FROM: "noreply@alm.local"
+      ALM_BASE_URL: "http://localhost:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/liveness')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:

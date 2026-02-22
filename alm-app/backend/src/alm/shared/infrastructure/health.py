@@ -9,6 +9,7 @@ health_router = APIRouter(tags=["health"])
 
 
 @health_router.get("/health/live")
+@health_router.get("/health/liveness")
 async def liveness() -> dict[str, str]:
     return {"status": "ok"}
 

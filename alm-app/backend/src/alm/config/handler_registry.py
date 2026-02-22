@@ -50,7 +50,11 @@ from alm.tenant.application.queries.get_member_permissions import (
 from alm.shared.audit.queries import GetEntityHistory, GetEntityHistoryHandler
 
 # ── Repository imports ──
-from alm.auth.infrastructure.repositories import SqlAlchemyUserRepository, SqlAlchemyRefreshTokenRepository
+from alm.auth.infrastructure.repositories import (
+    SqlAlchemyRefreshTokenRepository,
+    SqlAlchemyUserLookupAdapter,
+    SqlAlchemyUserRepository,
+)
 from alm.tenant.infrastructure.repositories import (
     SqlAlchemyTenantRepository,
     SqlAlchemyMembershipRepository,
@@ -127,6 +131,8 @@ def register_all_handlers() -> None:
     register_command_handler(InviteMember, lambda s: InviteMemberHandler(
         invitation_repo=SqlAlchemyInvitationRepository(s),
         role_repo=SqlAlchemyRoleRepository(s),
+        tenant_repo=SqlAlchemyTenantRepository(s),
+        user_lookup=SqlAlchemyUserLookupAdapter(s),
     ))
 
     register_command_handler(AcceptInvite, lambda s: AcceptInviteHandler(
@@ -184,7 +190,6 @@ def register_all_handlers() -> None:
         role_repo=SqlAlchemyRoleRepository(s),
     ))
 
-    from alm.auth.infrastructure.repositories import SqlAlchemyUserLookupAdapter
     register_query_handler(ListTenantMembers, lambda s: ListTenantMembersHandler(
         membership_repo=SqlAlchemyMembershipRepository(s),
         role_repo=SqlAlchemyRoleRepository(s),

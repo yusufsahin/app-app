@@ -16,5 +16,7 @@ COPY src/ src/
 COPY migrations/ migrations/
 COPY alembic.ini .
 COPY alm_meta/ alm_meta/
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
 EXPOSE 8000
-CMD ["uvicorn", "alm.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["./entrypoint.sh"]

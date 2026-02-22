@@ -22,5 +22,13 @@ class Settings(BaseSettings):
 
     rate_limit_requests_per_minute: int = 60
 
+    smtp_host: str = "localhost"
+    smtp_port: int = 1025
+    smtp_from: str = "noreply@alm.local"
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_tls: bool = False
+    base_url: str = "http://localhost:5173"
+
 
 settings = Settings()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -7,10 +8,17 @@ from datetime import UTC, datetime, timedelta
 
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ConflictError, EntityNotFound
+from alm.shared.infrastructure.email import send_email
+from alm.shared.infrastructure.email_templates import invitation_email_html
 from alm.tenant.application.dtos import InvitationDTO, RoleInfoDTO
 from alm.tenant.domain.entities import Invitation
 from alm.tenant.domain.events import MemberInvited
-from alm.tenant.domain.ports import InvitationRepository, RoleRepository
+from alm.tenant.domain.ports import (
+    InvitationRepository,
+    RoleRepository,
+    TenantRepository,
+    UserLookupPort,
+)
 
 
 @dataclass(frozen=True)
@@ -26,9 +34,13 @@ class InviteMemberHandler(CommandHandler[InvitationDTO]):
         self,
         invitation_repo: InvitationRepository,
         role_repo: RoleRepository,
+        tenant_repo: TenantRepository,
+        user_lookup: UserLookupPort,
     ) -> None:
         self._invitation_repo = invitation_repo
         self._role_repo = role_repo
+        self._tenant_repo = tenant_repo
+        self._user_lookup = user_lookup
 
     async def handle(self, command: Command) -> InvitationDTO:
         assert isinstance(command, InviteMember)
@@ -69,6 +81,21 @@ class InviteMemberHandler(CommandHandler[InvitationDTO]):
             role_ids=list(command.role_ids),
         ))
         inv = await self._invitation_repo.add(invitation)
+
+        # Fire-and-forget email
+        tenant = await self._tenant_repo.find_by_id(command.tenant_id)
+        inviter = await self._user_lookup.find_by_id(command.invited_by)
+        tenant_name = tenant.name if tenant else "Unknown"
+        inviter_name = inviter.display_name if inviter else "Someone"
+        role_names = [r.name for r in roles]
+        subject, html = invitation_email_html(
+            email=command.email,
+            tenant_name=tenant_name,
+            inviter_name=inviter_name,
+            invite_token=token,
+            roles=role_names,
+        )
+        asyncio.create_task(send_email(command.email, subject, html))
 
         return InvitationDTO(
             id=inv.id,
