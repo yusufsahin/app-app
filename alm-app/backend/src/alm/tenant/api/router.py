@@ -130,16 +130,12 @@ async def update_tenant(
     user: CurrentUser = require_permission("tenant:update"),
     mediator: Mediator = Depends(get_mediator),
 ) -> TenantResponse:
-    from alm.tenant.infrastructure.repositories import SqlAlchemyTenantRepository
+    from alm.tenant.application.commands.update_tenant import UpdateTenant
 
-    tenant_repo = SqlAlchemyTenantRepository(mediator._session)
-    tenant = await tenant_repo.find_by_id(tenant_id)
-    if tenant is None:
-        raise EntityNotFound("Tenant", tenant_id)
-    tenant.update_settings(name=body.name, settings=body.settings)
-    tenant = await tenant_repo.update(tenant)
-    await mediator._session.commit()
-    return TenantResponse(id=tenant.id, name=tenant.name, slug=tenant.slug, tier=tenant.tier)
+    dto: TenantDTO = await mediator.send(
+        UpdateTenant(tenant_id=tenant_id, name=body.name, settings=body.settings)
+    )
+    return TenantResponse(id=dto.id, name=dto.name, slug=dto.slug, tier=dto.tier)
 
 
 # ── Members ──
@@ -279,24 +275,16 @@ async def add_role_to_member(
     user: CurrentUser = Depends(get_current_user),
     mediator: Mediator = Depends(get_mediator),
 ) -> MessageResponse:
-    from alm.tenant.infrastructure.repositories import (
-        SqlAlchemyMembershipRepository,
-        SqlAlchemyRoleRepository,
+    from alm.tenant.application.commands.add_role_to_member import AddRoleToMember
+
+    await mediator.send(
+        AddRoleToMember(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            role_id=body.role_id,
+            assigned_by=user.id,
+        )
     )
-
-    membership_repo = SqlAlchemyMembershipRepository(mediator._session)
-    role_repo = SqlAlchemyRoleRepository(mediator._session)
-
-    membership = await membership_repo.find_by_user_and_tenant(user_id, tenant_id)
-    if membership is None:
-        raise EntityNotFound("TenantMembership", user_id)
-
-    role = await role_repo.find_by_id(body.role_id)
-    if role is None or role.tenant_id != tenant_id:
-        raise EntityNotFound("Role", body.role_id)
-
-    await membership_repo.add_role(membership.id, body.role_id, assigned_by=user.id)
-    await mediator._session.commit()
     return MessageResponse(message="Role added")
 
 

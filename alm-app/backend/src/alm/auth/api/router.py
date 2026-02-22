@@ -173,20 +173,14 @@ async def update_me(
     user: CurrentUser = Depends(get_current_user),
     mediator: Mediator = Depends(get_mediator),
 ) -> UserResponse:
-    from alm.auth.infrastructure.repositories import SqlAlchemyUserRepository
-    from alm.shared.domain.exceptions import EntityNotFound
+    from alm.auth.application.commands.update_profile import UpdateProfile
 
-    user_repo = SqlAlchemyUserRepository(mediator._session)
-    entity = await user_repo.find_by_id(user.id)
-    if entity is None:
-        raise EntityNotFound("User", user.id)
-
-    entity.update_profile(display_name=body.display_name)
-    await user_repo.update(entity)
-    await mediator._session.commit()
-
-    dto: CurrentUserDTO = await mediator.query(
-        GetCurrentUser(user_id=user.id, tenant_id=user.tenant_id)
+    dto: CurrentUserDTO = await mediator.send(
+        UpdateProfile(
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+            display_name=body.display_name,
+        )
     )
     return UserResponse(
         id=dto.id,

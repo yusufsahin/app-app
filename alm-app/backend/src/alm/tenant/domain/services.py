@@ -14,7 +14,7 @@ from alm.tenant.domain.ports import (
     TenantRepository,
 )
 
-_SEED_DIR = Path(__file__).resolve().parents[3] / "alm_meta" / "seed"
+_SEED_DIR = Path(__file__).resolve().parents[4] / "alm_meta" / "seed"
 
 
 class TenantOnboardingSaga(OnboardingPort):

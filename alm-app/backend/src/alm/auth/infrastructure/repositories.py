@@ -79,6 +79,7 @@ class SqlAlchemyUserRepository(UserRepository):
         user.updated_at = model.updated_at
         user.updated_by = model.updated_by
         user.deleted_at = model.deleted_at
+        user.deleted_by = model.deleted_by
         return user
 
 
@@ -127,5 +128,6 @@ class SqlAlchemyRefreshTokenRepository(RefreshTokenRepository):
         token.revoked_at = model.revoked_at
         token.created_at = model.created_at
         token.created_by = model.created_by
+        token.updated_at = model.updated_at
         token.updated_by = model.updated_by
         return token

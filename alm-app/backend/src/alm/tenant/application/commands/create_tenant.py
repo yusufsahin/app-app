@@ -4,9 +4,7 @@ import uuid
 from dataclasses import dataclass
 
 from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.value_objects import Slug
 from alm.tenant.application.dtos import TenantDTO
-from alm.tenant.domain.entities import Tenant
 from alm.tenant.domain.ports import (
     MembershipRepository,
     PrivilegeRepository,
@@ -37,8 +35,6 @@ class CreateTenantHandler(CommandHandler[TenantDTO]):
 
     async def handle(self, command: Command) -> TenantDTO:
         assert isinstance(command, CreateTenant)
-        slug = Slug.from_string(command.name)
-        tenant = Tenant.create(name=command.name, slug=slug.value)
 
         saga = TenantOnboardingSaga(
             tenant_repo=self._tenant_repo,
@@ -46,6 +42,11 @@ class CreateTenantHandler(CommandHandler[TenantDTO]):
             privilege_repo=self._privilege_repo,
             membership_repo=self._membership_repo,
         )
-        await saga.execute(tenant, admin_user_id=command.admin_user_id)
+        provisioned = await saga.provision_tenant(command.name, command.admin_user_id)
 
-        return TenantDTO(id=tenant.id, name=tenant.name, slug=tenant.slug, tier=tenant.tier)
+        return TenantDTO(
+            id=provisioned.tenant_id,
+            name=command.name,
+            slug=command.name.lower().replace(" ", "-"),
+            tier="free",
+        )

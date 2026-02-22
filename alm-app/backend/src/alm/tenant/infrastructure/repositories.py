@@ -79,6 +79,7 @@ class SqlAlchemyTenantRepository(TenantRepository):
         t.updated_at = m.updated_at
         t.updated_by = m.updated_by
         t.deleted_at = m.deleted_at
+        t.deleted_by = m.deleted_by
         return t
 
 
@@ -202,6 +203,7 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
         ms.updated_at = m.updated_at
         ms.updated_by = m.updated_by
         ms.deleted_at = m.deleted_at
+        ms.deleted_by = m.deleted_by
         return ms
 
 
@@ -336,6 +338,7 @@ class SqlAlchemyRoleRepository(RoleRepository):
         role.updated_at = m.updated_at
         role.updated_by = m.updated_by
         role.deleted_at = m.deleted_at
+        role.deleted_by = m.deleted_by
         return role
 
 
@@ -478,5 +481,6 @@ class SqlAlchemyInvitationRepository(InvitationRepository):
         inv.accepted_at = m.accepted_at
         inv.created_at = m.created_at
         inv.created_by = m.created_by
+        inv.updated_at = m.updated_at
         inv.updated_by = m.updated_by
         return inv

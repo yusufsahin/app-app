@@ -14,6 +14,7 @@ from alm.auth.application.commands.login import Login, LoginHandler
 from alm.auth.application.commands.switch_tenant import SwitchTenant, SwitchTenantHandler
 from alm.auth.application.commands.refresh_token import RefreshTokenCommand, RefreshTokenHandler
 from alm.auth.application.commands.change_password import ChangePassword, ChangePasswordHandler
+from alm.auth.application.commands.update_profile import UpdateProfile, UpdateProfileHandler
 
 # ── Auth queries ──
 from alm.auth.application.queries.get_current_user import GetCurrentUser, GetCurrentUserHandler
@@ -29,6 +30,8 @@ from alm.tenant.application.commands.create_role import CreateRole, CreateRoleHa
 from alm.tenant.application.commands.update_role import UpdateRole, UpdateRoleHandler
 from alm.tenant.application.commands.delete_role import DeleteRole, DeleteRoleHandler
 from alm.tenant.application.commands.set_role_privileges import SetRolePrivileges, SetRolePrivilegesHandler
+from alm.tenant.application.commands.update_tenant import UpdateTenant, UpdateTenantHandler
+from alm.tenant.application.commands.add_role_to_member import AddRoleToMember, AddRoleToMemberHandler
 
 # ── Tenant queries ──
 from alm.tenant.application.queries.list_tenants import ListMyTenants, ListMyTenantsHandler
@@ -93,6 +96,12 @@ def register_all_handlers() -> None:
         refresh_token_repo=SqlAlchemyRefreshTokenRepository(s),
     ))
 
+    register_command_handler(UpdateProfile, lambda s: UpdateProfileHandler(
+        user_repo=SqlAlchemyUserRepository(s),
+        membership_repo=SqlAlchemyMembershipRepository(s),
+        role_repo=SqlAlchemyRoleRepository(s),
+    ))
+
     # ── Auth Queries ──
 
     register_query_handler(GetCurrentUser, lambda s: GetCurrentUserHandler(
@@ -151,6 +160,15 @@ def register_all_handlers() -> None:
     register_command_handler(SetRolePrivileges, lambda s: SetRolePrivilegesHandler(
         role_repo=SqlAlchemyRoleRepository(s),
         privilege_repo=SqlAlchemyPrivilegeRepository(s),
+    ))
+
+    register_command_handler(UpdateTenant, lambda s: UpdateTenantHandler(
+        tenant_repo=SqlAlchemyTenantRepository(s),
+    ))
+
+    register_command_handler(AddRoleToMember, lambda s: AddRoleToMemberHandler(
+        membership_repo=SqlAlchemyMembershipRepository(s),
+        role_repo=SqlAlchemyRoleRepository(s),
     ))
 
     # ── Tenant Queries ──
