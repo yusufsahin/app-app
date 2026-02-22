@@ -10,6 +10,7 @@ from alm.shared.infrastructure.db.base_model import Base
 
 import alm.auth.infrastructure.models  # noqa: F401
 import alm.tenant.infrastructure.models  # noqa: F401
+import alm.shared.audit.models  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", str(settings.database_url))

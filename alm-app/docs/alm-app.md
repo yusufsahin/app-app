@@ -89,7 +89,7 @@ backend/
 │   │
 │   ├── shared/                        # ── Shared Kernel ──
 │   │   ├── domain/
-│   │   │   ├── entity.py              # BaseEntity(id, created_at, updated_at, deleted_at)
+│   │   │   ├── entity.py              # BaseEntity(id, created_at, created_by, updated_at, updated_by, deleted_at, deleted_by, to_snapshot_dict)
 │   │   │   ├── aggregate.py           # AggregateRoot + domain events
 │   │   │   ├── value_objects.py       # TenantId, UserId, Email, Slug
 │   │   │   ├── repository.py          # Repository[T] port (ABC) — soft-delete aware
@@ -124,6 +124,17 @@ backend/
 │   │           ├── rbac.py            # MPC ACLEngine adapter
 │   │           ├── csrf.py            # CSRF protection (SPA double-submit cookie)
 │   │           └── sanitizer.py       # Input sanitization (XSS koruması, DSL content)
+│   │   ├── audit/                     # ── JaVers-Inspired Audit/Snapshot System ──
+│   │   │   ├── core.py               # ChangeType, GlobalId, PropertyChange, DiffEngine, AuditCommit, AuditSnapshot
+│   │   │   ├── ports.py              # AuditStore, AuditReader ABCs
+│   │   │   ├── interceptor.py        # buffer_audit(), AuditInterceptor (session-scoped)
+│   │   │   ├── models.py             # audit_commits, audit_snapshots (PostgreSQL JSONB + ARRAY)
+│   │   │   ├── repository.py         # SqlAlchemyAuditStore, SqlAlchemyAuditReader
+│   │   │   ├── dtos.py               # SnapshotDTO, ChangeDTO, EntityHistoryDTO
+│   │   │   ├── queries.py            # GetEntityHistory query handler
+│   │   │   └── api/
+│   │   │       ├── router.py         # GET /audit/{type}/{id}/history, .../snapshots/{version}
+│   │   │       └── schemas.py        # Pydantic response schemas
 │   │
 │   ├── auth/                          # ── Auth Bounded Context ──
 │   │   ├── domain/
@@ -221,13 +232,8 @@ backend/
 │   │   │   └── mpc_workflow_adapter.py  # GuardPort + AuthPort concrete impls
 │   │   └── api/                       # /api/v1/workflows/*
 │   │
-│   └── audit/                         # ── Audit Log BC ──
-│       ├── domain/
-│       │   └── entities.py            # AuditEntry (immutable, APPEND-ONLY — hard delete yok)
-│       ├── infrastructure/
-│       │   ├── models.py             # Partitioned audit_log table (by month)
-│       │   └── repositories.py
-│       └── api/                       # /api/v1/audit/* (read-only)
+│   └── audit/                         # ── Audit Log BC (deprecated → shared/audit/) ──
+│       └── (Moved to shared/audit/ — JaVers-inspired snapshot/commit model)
 │
 ├── tests/
 │   ├── unit/                          # Domain + application layer tests
@@ -336,7 +342,97 @@ Handler constructor'ina SADECE repository port'lari (ABC) gecirilir — concrete
 5. `{bc}/api/schemas.py`'ye Pydantic response schema ekle (yoksa)
 6. Router endpoint'inde `mediator.send/query` kullan, DTO→schema mapping yap
 
-### 3.3 Multi-Tenancy Stratejisi (PostgreSQL RLS)
+### 3.3 JaVers-Inspired Audit System (Object Change Tracking)
+
+Her entity degisikligi (create/update/delete) otomatik olarak izlenir. JaVers'in Python implementasyonu.
+
+#### Temel Kavramlar
+
+| Kavram | Aciklama |
+|--------|----------|
+| `AuditCommit` | Bir islem grubundaki tum snapshot'lari gruplar (author, tenant, timestamp) |
+| `AuditSnapshot` | Bir entity'nin belirli andaki tam serializasyonu (JSONB state, version) |
+| `GlobalId` | Entity tipi + UUID: `"Role/550e8400-..."` |
+| `ChangeType` | `INITIAL` (ilk kayit), `UPDATE`, `DELETE` (soft-delete) |
+| `DiffEngine` | Iki snapshot arasi property-level fark hesaplama |
+| `PropertyChange` | Tek bir field degisikligi: `(property_name, left, right)` |
+
+#### Veri Akisi
+
+```
+Repository.add(entity)
+  ├─ session.flush()
+  ├─ buffer_events(session, entity.collect_events())    ← domain events
+  └─ buffer_audit(session, "Role", id, state, INITIAL)  ← audit snapshot
+          │
+Mediator.send(command)
+  ├─ handler.handle(command)
+  ├─ _process_audit()  ←── AuditInterceptor:
+  │     ├─ prev_snapshot = SELECT ... ORDER BY version DESC
+  │     ├─ changed_props = DiffEngine.changed_property_names(prev, current)
+  │     ├─ INSERT audit_commits (author_id, tenant_id, committed_at)
+  │     └─ INSERT audit_snapshots (global_id, state, changed_properties, version)
+  ├─ session.commit()  ←── tumu TEK transaction
+  └─ _dispatch_collected_events()
+```
+
+#### BaseEntity Audit Field'lari
+
+```python
+class BaseEntity:
+    id: uuid.UUID
+    created_at: datetime
+    created_by: uuid.UUID | None    # ← kim olusturdu
+    updated_at: datetime
+    updated_by: uuid.UUID | None    # ← kim guncelledi
+    deleted_at: datetime | None
+    deleted_by: uuid.UUID | None
+    
+    def to_snapshot_dict(self) -> dict:  # ← audit icin otomatik serialize
+```
+
+#### DB Semasi
+
+```sql
+-- audit_commits: islem grubu
+CREATE TABLE audit_commits (
+    id UUID PRIMARY KEY,
+    author_id UUID,          -- JWT'den otomatik (session.info["_actor_id"])
+    tenant_id UUID,
+    committed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    properties JSONB DEFAULT '{}'
+);
+
+-- audit_snapshots: entity state at a point in time
+CREATE TABLE audit_snapshots (
+    id UUID PRIMARY KEY,
+    commit_id UUID REFERENCES audit_commits(id),
+    global_id VARCHAR(500),  -- "Role/uuid"
+    entity_type VARCHAR(128),
+    entity_id UUID,
+    change_type VARCHAR(16), -- INITIAL, UPDATE, DELETE
+    state JSONB,             -- tam entity state
+    changed_properties TEXT[],
+    version INT DEFAULT 1
+);
+-- Composite index: (entity_type, entity_id, version) for fast history
+```
+
+#### API Endpoint'leri
+
+| Method | Path | Aciklama |
+|--------|------|----------|
+| `GET` | `/api/v1/audit/{entity_type}/{entity_id}/history` | Paginated history + diff |
+| `GET` | `/api/v1/audit/{entity_type}/{entity_id}/snapshots/{version}` | Specific version snapshot |
+
+#### Yeni Entity Icin Audit Ekleme Checklist
+
+1. Entity `BaseEntity` veya `AggregateRoot` extend etsin
+2. Repository `add()` / `update()` / `soft_delete()` sonrasi `buffer_audit()` cagir
+3. `_to_entity()` metodunda `created_by` ve `updated_by` field'larini map et
+4. Audit otomatik olarak Mediator tarafindan commit oncesi islenir (ek kod gerekmez)
+
+### 3.4 Multi-Tenancy Stratejisi (PostgreSQL RLS)
 
 ```sql
 -- Her tablo tenant_id iceriyor
@@ -384,7 +480,7 @@ CI pipeline'da her run'da calisacak test suite:
 - **Deleted record invisibility**: Soft-delete edilmis kayitlarin RLS policy ile filtrelendigini dogrula
 - **Connection pool reuse test**: Farkli tenant'lar icin art arda gelen request'lerde veri sizintisi olmadigini dogrula
 
-### 3.4 Frontend - Feature-Sliced Architecture
+### 3.5 Frontend - Feature-Sliced Architecture
 
 ```
 frontend/
@@ -499,7 +595,7 @@ useMutation({
 - **Color contrast**: MUI theme'de minimum 4.5:1 ratio enforce
 - **Test**: `axe-core` integration testlerde, `eslint-plugin-jsx-a11y` lint'te
 
-### 3.5 ModalManager Tasarimi (Zustand)
+### 3.6 ModalManager Tasarimi (Zustand)
 
 ```typescript
 // modalStore.ts

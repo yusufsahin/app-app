@@ -1,10 +1,10 @@
 ---
-description: CQRS + DTO + Mediator mimari kuralları. Handler, router ve application layer kodlarında uyulması gereken zorunlu pattern'lar.
-globs: backend/src/alm/**/application/**/*.py, backend/src/alm/**/api/router.py
+description: CQRS + DTO + Mediator + Audit mimari kuralları. Handler, router, repository ve application layer kodlarında uyulması gereken zorunlu pattern'lar.
+globs: backend/src/alm/**/application/**/*.py, backend/src/alm/**/api/router.py, backend/src/alm/**/infrastructure/repositories.py
 alwaysApply: false
 ---
 
-# CQRS + DTO + Mediator Mimari Kuralları
+# CQRS + DTO + Mediator + Audit Mimari Kuralları
 
 ## 1. Katman Akışı (zorunlu)
 
@@ -121,3 +121,62 @@ def _role_detail_to_response(dto: RoleDetailDTO) -> RoleDetailResponse:
 4. `config/handler_registry.py`'ye factory kaydet
 5. `{bc}/api/schemas.py`'ye Pydantic response schema ekle (yoksa)
 6. Router endpoint'inde `mediator.send/query` kullan, DTO→schema mapping yap
+7. Repository `add/update/soft_delete` içinde `buffer_audit()` çağrısı ekle
+8. `_to_entity()` metodunda `created_by`, `updated_by` map et
+
+## 7. Audit (JaVers-Inspired Object Change Tracking)
+
+Her entity değişikliği otomatik olarak snapshot'lanır. Repositories audit buffering yapar, Mediator commit öncesi işler.
+
+### Repository Kuralları
+
+```python
+# ✅ DOĞRU — her add/update/soft_delete sonrası buffer_audit çağır
+from alm.shared.audit.interceptor import buffer_audit
+from alm.shared.audit.core import ChangeType
+
+async def add(self, entity: Role) -> Role:
+    model = RoleModel(...)
+    self._session.add(model)
+    await self._session.flush()
+    buffer_events(self._session, entity.collect_events())      # domain events
+    buffer_audit(self._session, "Role", entity.id, entity.to_snapshot_dict(), ChangeType.INITIAL)  # audit
+    return entity
+
+async def update(self, entity: Role) -> Role:
+    await self._session.execute(update(RoleModel)...)
+    await self._session.flush()
+    buffer_events(self._session, entity.collect_events())
+    buffer_audit(self._session, "Role", entity.id, entity.to_snapshot_dict(), ChangeType.UPDATE)
+    return entity
+```
+
+```python
+# ❌ YANLIŞ — audit buffer unutulmuş
+async def add(self, role: Role) -> Role:
+    model = RoleModel(...)
+    self._session.add(model)
+    await self._session.flush()
+    buffer_events(self._session, role.collect_events())
+    return role  # audit kaydı oluşmaz!
+```
+
+### BaseEntity Kuralları
+
+- Tüm entity'ler `BaseEntity` veya `AggregateRoot` extend etmeli
+- `_to_entity()` metodlarında `created_by` ve `updated_by` map edilmeli
+- `touch(by=user_id)` çağrılarında actor bilgisi geçirilmeli (mümkünse)
+- `to_snapshot_dict()` otomatik olarak BaseEntity'den gelir — override etmeye gerek yok
+
+### Audit Otomatik İşleme
+
+Mediator `send()` içinde `_process_audit()` çağrılır — handler'da veya router'da ek kod gerekmez:
+
+```
+send(command) → handler.handle() → _process_audit() → session.commit() → dispatch_events()
+```
+
+### İzlenmemesi Gereken Entity'ler
+
+- Immutable seed data (Privilege) — değişmez, audit gereksiz
+- Transient nesneler (RefreshToken gibi) — opsiyonel, iş gereksinimine göre
