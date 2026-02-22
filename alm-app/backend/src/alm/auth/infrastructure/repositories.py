@@ -10,6 +10,8 @@ from alm.auth.domain.entities import RefreshToken, User
 from alm.auth.domain.ports import RefreshTokenRepository, UserRepository
 from alm.auth.infrastructure.models import RefreshTokenModel, UserModel
 from alm.shared.application.mediator import buffer_events
+from alm.shared.audit.core import ChangeType
+from alm.shared.audit.interceptor import buffer_audit
 
 
 class SqlAlchemyUserRepository(UserRepository):
@@ -42,6 +44,7 @@ class SqlAlchemyUserRepository(UserRepository):
         self._session.add(model)
         await self._session.flush()
         buffer_events(self._session, user.collect_events())
+        buffer_audit(self._session, "User", user.id, user.to_snapshot_dict(), ChangeType.INITIAL)
         return user
 
     async def update(self, user: User) -> User:
@@ -58,6 +61,7 @@ class SqlAlchemyUserRepository(UserRepository):
         )
         await self._session.flush()
         buffer_events(self._session, user.collect_events())
+        buffer_audit(self._session, "User", user.id, user.to_snapshot_dict(), ChangeType.UPDATE)
         return user
 
     @staticmethod
@@ -71,7 +75,9 @@ class SqlAlchemyUserRepository(UserRepository):
             email_verified=model.email_verified,
         )
         user.created_at = model.created_at
+        user.created_by = model.created_by
         user.updated_at = model.updated_at
+        user.updated_by = model.updated_by
         user.deleted_at = model.deleted_at
         return user
 
@@ -89,6 +95,7 @@ class SqlAlchemyRefreshTokenRepository(RefreshTokenRepository):
         )
         self._session.add(model)
         await self._session.flush()
+        buffer_audit(self._session, "RefreshToken", token.id, token.to_snapshot_dict(), ChangeType.INITIAL)
         return token
 
     async def find_by_token_hash(self, token_hash: str) -> RefreshToken | None:
@@ -119,4 +126,6 @@ class SqlAlchemyRefreshTokenRepository(RefreshTokenRepository):
         )
         token.revoked_at = model.revoked_at
         token.created_at = model.created_at
+        token.created_by = model.created_by
+        token.updated_by = model.updated_by
         return token

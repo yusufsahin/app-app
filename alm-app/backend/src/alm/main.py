@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from alm.auth.api.router import router as auth_router
 from alm.config.settings import settings
+from alm.shared.audit.api.router import router as audit_router
 from alm.shared.infrastructure.correlation import CorrelationIdMiddleware
 from alm.shared.infrastructure.db.session import async_session_factory
 from alm.shared.infrastructure.db.tenant_context import setup_tenant_rls
@@ -53,5 +54,6 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(tenant_router)
+    app.include_router(audit_router, prefix="/api/v1")
 
     return app

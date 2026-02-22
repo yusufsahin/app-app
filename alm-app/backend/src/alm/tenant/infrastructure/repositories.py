@@ -7,6 +7,8 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alm.shared.application.mediator import buffer_events
+from alm.shared.audit.core import ChangeType
+from alm.shared.audit.interceptor import buffer_audit
 from alm.tenant.domain.entities import Invitation, Privilege, Role, Tenant, TenantMembership
 from alm.tenant.domain.ports import (
     InvitationRepository,
@@ -55,6 +57,7 @@ class SqlAlchemyTenantRepository(TenantRepository):
         self._session.add(model)
         await self._session.flush()
         buffer_events(self._session, tenant.collect_events())
+        buffer_audit(self._session, "Tenant", tenant.id, tenant.to_snapshot_dict(), ChangeType.INITIAL)
         return tenant
 
     async def update(self, tenant: Tenant) -> Tenant:
@@ -65,13 +68,16 @@ class SqlAlchemyTenantRepository(TenantRepository):
         )
         await self._session.flush()
         buffer_events(self._session, tenant.collect_events())
+        buffer_audit(self._session, "Tenant", tenant.id, tenant.to_snapshot_dict(), ChangeType.UPDATE)
         return tenant
 
     @staticmethod
     def _to_entity(m: TenantModel) -> Tenant:
         t = Tenant(name=m.name, slug=m.slug, id=m.id, tier=m.tier, settings=m.settings)
         t.created_at = m.created_at
+        t.created_by = m.created_by
         t.updated_at = m.updated_at
+        t.updated_by = m.updated_by
         t.deleted_at = m.deleted_at
         return t
 
@@ -133,6 +139,10 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
         )
         self._session.add(model)
         await self._session.flush()
+        buffer_audit(
+            self._session, "TenantMembership", membership.id,
+            membership.to_snapshot_dict(), ChangeType.INITIAL,
+        )
         return membership
 
     async def soft_delete(self, membership_id: uuid.UUID, deleted_by: uuid.UUID) -> None:
@@ -142,6 +152,11 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
             .values(deleted_at=datetime.now(UTC), deleted_by=deleted_by)
         )
         await self._session.flush()
+        buffer_audit(
+            self._session, "TenantMembership", membership_id,
+            {"id": str(membership_id), "deleted_at": datetime.now(UTC).isoformat(), "deleted_by": str(deleted_by)},
+            ChangeType.DELETE,
+        )
 
     # ── Role assignment ──
 
@@ -183,7 +198,9 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
         ms = TenantMembership(user_id=m.user_id, tenant_id=m.tenant_id, id=m.id, invited_by=m.invited_by)
         ms.joined_at = m.joined_at
         ms.created_at = m.created_at
+        ms.created_by = m.created_by
         ms.updated_at = m.updated_at
+        ms.updated_by = m.updated_by
         ms.deleted_at = m.deleted_at
         return ms
 
@@ -234,6 +251,7 @@ class SqlAlchemyRoleRepository(RoleRepository):
         self._session.add(model)
         await self._session.flush()
         buffer_events(self._session, role.collect_events())
+        buffer_audit(self._session, "Role", role.id, role.to_snapshot_dict(), ChangeType.INITIAL)
         return role
 
     async def update(self, role: Role) -> Role:
@@ -249,6 +267,7 @@ class SqlAlchemyRoleRepository(RoleRepository):
         )
         await self._session.flush()
         buffer_events(self._session, role.collect_events())
+        buffer_audit(self._session, "Role", role.id, role.to_snapshot_dict(), ChangeType.UPDATE)
         return role
 
     async def soft_delete(self, role_id: uuid.UUID, deleted_by: uuid.UUID) -> None:
@@ -258,6 +277,11 @@ class SqlAlchemyRoleRepository(RoleRepository):
             .values(deleted_at=datetime.now(UTC), deleted_by=deleted_by)
         )
         await self._session.flush()
+        buffer_audit(
+            self._session, "Role", role_id,
+            {"id": str(role_id), "deleted_at": datetime.now(UTC).isoformat(), "deleted_by": str(deleted_by)},
+            ChangeType.DELETE,
+        )
 
     async def set_privileges(self, role_id: uuid.UUID, privilege_ids: list[uuid.UUID]) -> None:
         await self._session.execute(
@@ -308,7 +332,9 @@ class SqlAlchemyRoleRepository(RoleRepository):
         )
         role.privilege_ids = [rp.privilege_id for rp in m.role_privileges]
         role.created_at = m.created_at
+        role.created_by = m.created_by
         role.updated_at = m.updated_at
+        role.updated_by = m.updated_by
         role.deleted_at = m.deleted_at
         return role
 
@@ -418,6 +444,10 @@ class SqlAlchemyInvitationRepository(InvitationRepository):
         self._session.add(model)
         await self._session.flush()
         buffer_events(self._session, invitation.collect_events())
+        buffer_audit(
+            self._session, "Invitation", invitation.id,
+            invitation.to_snapshot_dict(), ChangeType.INITIAL,
+        )
         return invitation
 
     async def update(self, invitation: Invitation) -> Invitation:
@@ -428,6 +458,10 @@ class SqlAlchemyInvitationRepository(InvitationRepository):
         )
         await self._session.flush()
         buffer_events(self._session, invitation.collect_events())
+        buffer_audit(
+            self._session, "Invitation", invitation.id,
+            invitation.to_snapshot_dict(), ChangeType.UPDATE,
+        )
         return invitation
 
     @staticmethod
@@ -443,4 +477,6 @@ class SqlAlchemyInvitationRepository(InvitationRepository):
         )
         inv.accepted_at = m.accepted_at
         inv.created_at = m.created_at
+        inv.created_by = m.created_by
+        inv.updated_by = m.updated_by
         return inv

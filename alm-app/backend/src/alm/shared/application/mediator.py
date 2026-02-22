@@ -57,6 +57,7 @@ class Mediator:
             raise ValueError(f"No handler registered for command {type(command).__name__}")
         handler = factory(self._session)
         result = await handler.handle(command)
+        await self._process_audit()
         await self._session.commit()
         self._dispatch_collected_events()
         return result
@@ -67,6 +68,12 @@ class Mediator:
             raise ValueError(f"No handler registered for query {type(query).__name__}")
         handler = factory(self._session)
         return await handler.handle(query)
+
+    async def _process_audit(self) -> None:
+        from alm.shared.audit.interceptor import AuditInterceptor
+
+        interceptor = AuditInterceptor(self._session)
+        await interceptor.process()
 
     def _dispatch_collected_events(self) -> None:
         events: list[DomainEvent] = self._session.info.pop(SESSION_EVENTS_KEY, [])
