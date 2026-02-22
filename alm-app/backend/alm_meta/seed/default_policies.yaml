@@ -1,0 +1,32 @@
+policies:
+  - name: require_title
+    description: All artifacts and tasks must have a title
+    effect: deny
+    priority: 100
+    condition: "len(title) == 0"
+    event: [create, update]
+    kind: [Requirement, Defect, Epic, Task]
+
+  - name: prevent_close_with_open_children
+    description: Cannot close epic with open child artifacts
+    effect: deny
+    priority: 90
+    condition: "kind == 'Epic' and open_children > 0"
+    event: [transition]
+    kind: [Epic]
+
+  - name: prevent_close_artifact_with_open_tasks
+    description: Cannot close artifact if linked tasks are still open
+    effect: deny
+    priority: 85
+    condition: "openTaskCount(self) > 0"
+    event: [transition]
+    kind: [Requirement, Defect]
+
+  - name: task_requires_assignee_to_start
+    description: Task must have an assignee before starting
+    effect: deny
+    priority: 80
+    condition: "len(assignee) == 0"
+    event: [transition]
+    kind: [Task]

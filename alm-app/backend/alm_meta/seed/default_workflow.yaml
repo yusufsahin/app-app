@@ -1,0 +1,57 @@
+workflows:
+  # Artifact lifecycle (Requirement, Defect, Epic)
+  - name: default_artifact_workflow
+    description: Standard artifact lifecycle
+    aggregate: Artifact
+    initial: open
+    states:
+      - open
+      - in_progress
+      - in_review
+      - done
+      - closed
+    transitions:
+      - from: open
+        to: in_progress
+        event: start
+      - from: in_progress
+        to: in_review
+        event: submit_review
+      - from: in_review
+        to: in_progress
+        event: request_changes
+      - from: in_review
+        to: done
+        event: approve
+      - from: done
+        to: closed
+        event: close
+      - from: open
+        to: closed
+        event: close
+      - from: closed
+        to: open
+        event: reopen
+
+  # Task lifecycle (simpler, action-oriented)
+  - name: default_task_workflow
+    description: Task work lifecycle
+    aggregate: Task
+    initial: todo
+    states:
+      - todo
+      - in_progress
+      - done
+    transitions:
+      - from: todo
+        to: in_progress
+        event: start
+      - from: in_progress
+        to: todo
+        event: pause
+      - from: in_progress
+        to: done
+        event: complete
+      - from: done
+        to: todo
+        event: reopen

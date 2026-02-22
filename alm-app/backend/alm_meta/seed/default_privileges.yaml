@@ -1,0 +1,166 @@
+privileges:
+  # Project
+  - code: "project:create"
+    resource: project
+    action: create
+    description: Create new projects
+  - code: "project:read"
+    resource: project
+    action: read
+    description: View projects and their details
+  - code: "project:update"
+    resource: project
+    action: update
+    description: Update project information
+  - code: "project:delete"
+    resource: project
+    action: delete
+    description: Delete projects (soft-delete)
+
+  # Artifact
+  - code: "artifact:create"
+    resource: artifact
+    action: create
+    description: Create new artifacts (requirements, defects, epics)
+  - code: "artifact:read"
+    resource: artifact
+    action: read
+    description: View artifacts and their details
+  - code: "artifact:update"
+    resource: artifact
+    action: update
+    description: Update artifact information
+  - code: "artifact:delete"
+    resource: artifact
+    action: delete
+    description: Delete artifacts (soft-delete)
+  - code: "artifact:comment"
+    resource: artifact
+    action: comment
+    description: Add comments to artifacts
+  - code: "artifact:assign"
+    resource: artifact
+    action: assign
+    description: Assign artifacts to team members
+  - code: "artifact:transition"
+    resource: artifact
+    action: transition
+    description: Change artifact workflow state
+
+  # Task
+  - code: "task:create"
+    resource: task
+    action: create
+    description: Create new tasks
+  - code: "task:read"
+    resource: task
+    action: read
+    description: View tasks and their details
+  - code: "task:update"
+    resource: task
+    action: update
+    description: Update task information
+  - code: "task:delete"
+    resource: task
+    action: delete
+    description: Delete tasks (soft-delete)
+  - code: "task:assign"
+    resource: task
+    action: assign
+    description: Assign tasks to team members
+
+  # Workflow
+  - code: "workflow:create"
+    resource: workflow
+    action: create
+    description: Create workflow definitions
+  - code: "workflow:read"
+    resource: workflow
+    action: read
+    description: View workflow definitions and instances
+  - code: "workflow:update"
+    resource: workflow
+    action: update
+    description: Update workflow definitions
+  - code: "workflow:delete"
+    resource: workflow
+    action: delete
+    description: Delete workflow definitions
+
+  # Manifest
+  - code: "manifest:create"
+    resource: manifest
+    action: create
+    description: Create manifest documents
+  - code: "manifest:read"
+    resource: manifest
+    action: read
+    description: View manifest documents and versions
+  - code: "manifest:update"
+    resource: manifest
+    action: update
+    description: Update manifest documents
+  - code: "manifest:delete"
+    resource: manifest
+    action: delete
+    description: Delete manifest documents
+  - code: "manifest:activate"
+    resource: manifest
+    action: activate
+    description: Activate manifest versions
+
+  # Member Management
+  - code: "member:read"
+    resource: member
+    action: read
+    description: View tenant members and their roles
+  - code: "member:invite"
+    resource: member
+    action: invite
+    description: Invite new members to the tenant
+  - code: "member:remove"
+    resource: member
+    action: remove
+    description: Remove members from the tenant
+  - code: "member:change_role"
+    resource: member
+    action: change_role
+    description: Change member role assignments
+
+  # Role Management
+  - code: "role:create"
+    resource: role
+    action: create
+    description: Create custom roles
+  - code: "role:read"
+    resource: role
+    action: read
+    description: View roles and their privileges
+  - code: "role:update"
+    resource: role
+    action: update
+    description: Update roles and their privilege assignments
+  - code: "role:delete"
+    resource: role
+    action: delete
+    description: Delete custom roles
+
+  # Tenant
+  - code: "tenant:read"
+    resource: tenant
+    action: read
+    description: View tenant information and settings
+  - code: "tenant:update"
+    resource: tenant
+    action: update
+    description: Update tenant settings
+  - code: "tenant:delete"
+    resource: tenant
+    action: delete
+    description: Delete the tenant (soft-delete)
+
+  # Audit
+  - code: "audit:read"
+    resource: audit
+    action: read
+    description: View audit log entries

@@ -1,0 +1,64 @@
+roles:
+  - name: admin
+    slug: admin
+    description: Full access to all resources
+    is_system: true
+    hierarchy_level: 0
+    privileges: ["*"]
+
+  - name: Project Manager
+    slug: project_manager
+    description: Manage projects, artifacts, and tasks
+    is_system: true
+    hierarchy_level: 10
+    privileges:
+      - "project:create"
+      - "project:read"
+      - "project:update"
+      - "project:delete"
+      - "artifact:create"
+      - "artifact:read"
+      - "artifact:update"
+      - "artifact:delete"
+      - "artifact:comment"
+      - "artifact:assign"
+      - "artifact:transition"
+      - "task:create"
+      - "task:read"
+      - "task:update"
+      - "task:delete"
+      - "task:assign"
+      - "workflow:read"
+      - "manifest:read"
+      - "member:read"
+      - "member:invite"
+
+  - name: Developer
+    slug: developer
+    description: Work on assigned artifacts and tasks
+    is_system: true
+    hierarchy_level: 20
+    privileges:
+      - "project:read"
+      - "artifact:read"
+      - "artifact:update"
+      - "artifact:comment"
+      - "artifact:transition"
+      - "task:create"
+      - "task:read"
+      - "task:update"
+      - "task:delete"
+      - "task:assign"
+      - "workflow:read"
+      - "manifest:read"
+
+  - name: Viewer
+    slug: viewer
+    description: Read-only access
+    is_system: true
+    hierarchy_level: 30
+    privileges:
+      - "project:read"
+      - "artifact:read"
+      - "task:read"
+      - "workflow:read"

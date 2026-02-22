@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+import uuid
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+from alm.auth.domain.entities import RefreshToken, User
+
+
+@dataclass(frozen=True)
+class ProvisionedTenant:
+    """Result of tenant provisioning — returned by OnboardingPort."""
+
+    tenant_id: uuid.UUID
+    roles: list[str]
+
+
+class OnboardingPort(ABC):
+    """Port for tenant provisioning. Implemented by Tenant BC's TenantOnboardingSaga.
+    Auth BC depends on this port, NOT on Tenant domain directly."""
+
+    @abstractmethod
+    async def provision_tenant(
+        self, name: str, admin_user_id: uuid.UUID
+    ) -> ProvisionedTenant: ...
+
+
+class UserRepository(ABC):
+    @abstractmethod
+    async def find_by_id(self, user_id: uuid.UUID) -> User | None: ...
+
+    @abstractmethod
+    async def find_by_email(self, email: str) -> User | None: ...
+
+    @abstractmethod
+    async def add(self, user: User) -> User: ...
+
+    @abstractmethod
+    async def update(self, user: User) -> User: ...
+
+
+class RefreshTokenRepository(ABC):
+    @abstractmethod
+    async def add(self, token: RefreshToken) -> RefreshToken: ...
+
+    @abstractmethod
+    async def find_by_token_hash(self, token_hash: str) -> RefreshToken | None: ...
+
+    @abstractmethod
+    async def revoke_all_for_user(self, user_id: uuid.UUID) -> None: ...

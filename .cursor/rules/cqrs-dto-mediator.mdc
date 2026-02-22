@@ -1,0 +1,123 @@
+---
+description: CQRS + DTO + Mediator mimari kuralları. Handler, router ve application layer kodlarında uyulması gereken zorunlu pattern'lar.
+globs: backend/src/alm/**/application/**/*.py, backend/src/alm/**/api/router.py
+alwaysApply: false
+---
+
+# CQRS + DTO + Mediator Mimari Kuralları
+
+## 1. Katman Akışı (zorunlu)
+
+```
+Router (API) → Mediator.send / Mediator.query → Handler → DTO → Router → Pydantic Schema → JSON
+```
+
+- Router ASLA doğrudan handler veya repository oluşturmaz
+- Router ASLA domain entity döndürmez veya entity property'lerine erişmez
+- Handler ASLA Pydantic schema kullanmaz (application layer framework-agnostic)
+
+## 2. Application-Level DTO
+
+Her handler'ın dönüş tipi `frozen dataclass` DTO olmalı:
+
+```python
+# ✅ DOĞRU — auth/application/dtos.py
+@dataclass(frozen=True)
+class TokenPairDTO:
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+class RegisterUserHandler(CommandHandler[TokenPairDTO]):
+    async def handle(self, command: Command) -> TokenPairDTO:
+        ...
+        return TokenPairDTO(access_token=..., refresh_token=...)
+```
+
+```python
+# ❌ YANLIŞ — dict döndürme
+class ListRolesHandler(QueryHandler[list[dict[str, Any]]]):
+    async def handle(self, query: Query) -> list[dict[str, Any]]:
+        return [{"id": r.id, "name": r.name}]
+```
+
+```python
+# ❌ YANLIŞ — domain entity döndürme
+class CreateRoleHandler(CommandHandler[Role]):
+    async def handle(self, command: Command) -> Role:
+        return role  # domain entity API'ye sızar
+```
+
+DTO dosya konumları:
+- `{bc}/application/dtos.py` — her BC kendi DTO'larını tanımlar
+- DTO'lar immutable: `@dataclass(frozen=True)`
+- Collection field'lar: `field(default_factory=list)`
+
+## 3. Mediator Kullanımı
+
+Router'larda handler wiring yerine Mediator dependency kullan:
+
+```python
+# ✅ DOĞRU
+from alm.config.dependencies import get_mediator
+from alm.shared.application.mediator import Mediator
+
+@router.post("/register", response_model=TokenResponse)
+async def register(body: RegisterRequest, mediator: Mediator = Depends(get_mediator)):
+    result: TokenPairDTO = await mediator.send(RegisterUser(email=body.email, ...))
+    return TokenResponse(access_token=result.access_token, ...)
+```
+
+```python
+# ❌ YANLIŞ — manual handler wiring
+@router.post("/register")
+async def register(body: RegisterRequest):
+    async with async_session_factory() as session:
+        user_repo = SqlAlchemyUserRepository(session)
+        handler = RegisterUserHandler(user_repo=user_repo, ...)
+        result = await handler.handle(RegisterUser(...))
+```
+
+- `mediator.send(command)` — write işlemleri, otomatik commit
+- `mediator.query(query)` — read işlemleri, commit yok
+
+## 4. Handler Registry
+
+Yeni handler eklerken `config/handler_registry.py`'ye factory kaydet:
+
+```python
+register_command_handler(CreateRole, lambda s: CreateRoleHandler(
+    role_repo=SqlAlchemyRoleRepository(s),
+    privilege_repo=SqlAlchemyPrivilegeRepository(s),
+))
+```
+
+Handler constructor'ına SADECE repository port'ları (ABC) geçirilir — concrete implementation registry'de resolve edilir.
+
+## 5. Router → DTO → Schema Mapping
+
+Router'da DTO'yu Pydantic schema'ya dönüştür:
+
+```python
+dto: RoleDetailDTO = await mediator.send(CreateRole(...))
+return RoleDetailResponse(
+    id=dto.id, name=dto.name, slug=dto.slug,
+    privileges=[PrivilegeSchema(id=p.id, code=p.code, ...) for p in dto.privileges],
+)
+```
+
+Tekrarlayan mapping'ler için helper fonksiyon kullan:
+
+```python
+def _role_detail_to_response(dto: RoleDetailDTO) -> RoleDetailResponse:
+    ...
+```
+
+## 6. Checklist — Yeni Command/Query Eklerken
+
+1. `{bc}/application/commands/` veya `queries/` altında `@dataclass(frozen=True)` command/query + handler
+2. `{bc}/application/dtos.py`'ye dönüş DTO'su ekle (yoksa)
+3. Handler dönüş tipi: `CommandHandler[MyDTO]` / `QueryHandler[MyDTO]`
+4. `config/handler_registry.py`'ye factory kaydet
+5. `{bc}/api/schemas.py`'ye Pydantic response schema ekle (yoksa)
+6. Router endpoint'inde `mediator.send/query` kullan, DTO→schema mapping yap

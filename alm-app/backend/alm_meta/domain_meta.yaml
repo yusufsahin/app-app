@@ -1,0 +1,62 @@
+schema_version: 2
+
+kinds:
+  # ── Artifact BC (traceable items: "what needs to be done") ──
+  - name: Requirement
+    aggregate: Artifact
+    required_props: [title, priority, status]
+    allowed_types: [string, int, bool, array]
+  - name: Defect
+    aggregate: Artifact
+    required_props: [title, severity, status, reported_by]
+    allowed_types: [string, int, bool, array]
+  - name: Epic
+    aggregate: Artifact
+    required_props: [title, status]
+    allowed_types: [string, int, bool, array]
+
+  # ── Task BC (actionable work units: "how it gets done") ──
+  - name: Task
+    aggregate: Task
+    required_props: [title, status, assignee]
+    allowed_types: [string, int, bool, date]
+
+  # ── Supporting kinds ──
+  - name: Sprint
+    required_props: [name, start_date, end_date, status]
+    allowed_types: [string, int, date]
+  - name: Policy
+    required_props: [effect, priority]
+    allowed_types: [string, int, bool]
+  - name: Workflow
+    required_props: [states, transitions, initial]
+    allowed_types: [string, array, object]
+  - name: ACL
+    required_props: [roles, permissions]
+    allowed_types: [string, array]
+
+allowed_events:
+  - create
+  - update
+  - delete
+  - transition
+  - assign
+  - comment
+  - attach
+  - close
+  - reopen
+  - soft_delete
+  - restore
+  - link
+  - unlink
+
+allowed_types: [string, int, bool, date, array, object]
+
+allowed_functions:
+  - { name: len, args: [string], returns: int, cost: 1 }
+  - { name: contains, args: [string, string], returns: bool, cost: 1 }
+  - { name: now, args: [], returns: string, cost: 1 }
+  - { name: daysBetween, args: [string, string], returns: int, cost: 2 }
+  - { name: isDeleted, args: [object], returns: bool, cost: 1 }
+  - { name: linkedTaskCount, args: [object], returns: int, cost: 2 }
+  - { name: openTaskCount, args: [object], returns: int, cost: 2 }

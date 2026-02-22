@@ -1,0 +1,28 @@
+changelog:
+  - version: 1
+    date: "2026-02-22"
+    changes:
+      - type: initial
+        description: "Initial DomainMeta definition with all ALM kinds"
+
+  - version: 2
+    date: "2026-02-22"
+    changes:
+      - type: restructured
+        description: "Artifact/Task DDD separation — Task is now a separate aggregate"
+      - type: added
+        kind: Requirement
+        prop: aggregate
+        description: "Artifact aggregate marker added to Requirement, Defect, Epic"
+      - type: added
+        kind: Task
+        prop: aggregate
+        description: "Task aggregate marker — Task is its own bounded context"
+      - type: added
+        description: "New events: link, unlink (Artifact ↔ Task linking)"
+      - type: added
+        description: "New functions: linkedTaskCount, openTaskCount"
+    migration: |
+      WorkItem references renamed to Artifact.
+      Task is no longer a subtype of WorkItem — it is a separate entity.
+      workitem:* permissions renamed to artifact:* + task:*.
