@@ -7,8 +7,8 @@ import {
   Alert,
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { useTenantRoles, type TenantRoleDetail } from "../../../shared/api/tenantApi";
-import { useTenantStore } from "../../../shared/stores/tenantStore";
+import { useParams } from "react-router-dom";
+import { useOrgRoles, type TenantRoleDetail } from "../../../shared/api/orgApi";
 
 const columns: GridColDef<TenantRoleDetail>[] = [
   {
@@ -59,8 +59,8 @@ const columns: GridColDef<TenantRoleDetail>[] = [
 ];
 
 export default function RoleManagementPage() {
-  const tenantId = useTenantStore((s) => s.currentTenant?.id);
-  const { data: roles, isLoading, isError } = useTenantRoles(tenantId);
+  const { orgSlug } = useParams<{ orgSlug: string }>();
+  const { data: roles, isLoading, isError } = useOrgRoles(orgSlug);
 
   if (isLoading) {
     return (

@@ -61,6 +61,7 @@ class TestRoleManagement:
         assert isinstance(roles, list)
         role_slugs = [r["slug"] for r in roles]
         assert "admin" in role_slugs
+        assert "project_manager" in role_slugs
 
     async def test_list_privileges(self, client: AsyncClient):
         token = await _register_and_get_token(client, "priv1@example.com", "Priv Org 1")

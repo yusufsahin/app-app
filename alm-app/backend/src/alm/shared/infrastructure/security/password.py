@@ -1,13 +1,20 @@
 from __future__ import annotations
 
-from passlib.context import CryptContext
+import hashlib
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
+
+
+def _pre_hash(password: str) -> bytes:
+    """SHA256 pre-hash to avoid bcrypt 72-byte limit."""
+    return hashlib.sha256(password.encode("utf-8")).digest()
 
 
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)
+    data = _pre_hash(password)
+    return bcrypt.hashpw(data, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return _pwd_context.verify(plain_password, hashed_password)
+    data = _pre_hash(plain_password)
+    return bcrypt.checkpw(data, hashed_password.encode("utf-8"))

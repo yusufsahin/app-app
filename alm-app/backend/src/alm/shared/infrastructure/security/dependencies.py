@@ -22,6 +22,20 @@ class CurrentUser:
     roles: list[str] = field(default_factory=list)
 
 
+async def get_authenticated_user_id(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+) -> uuid.UUID:
+    """Accepts access or tenant_select (temp) token. Returns user id. For create-tenant etc."""
+    try:
+        payload: TokenPayload = decode_token(credentials.credentials)
+    except InvalidTokenError as exc:
+        raise AccessDenied(f"Invalid token: {exc}") from exc
+
+    if payload.token_type not in ("access", "tenant_select"):
+        raise AccessDenied("Invalid token type")
+    return payload.sub
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
 ) -> CurrentUser:

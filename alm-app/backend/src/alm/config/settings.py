@@ -30,5 +30,7 @@ class Settings(BaseSettings):
     smtp_tls: bool = False
     base_url: str = "http://localhost:5173"
 
+    seed_demo_data: bool = True  # Create demo tenant, admin user, sample projects when DB is empty
+
 
 settings = Settings()

@@ -10,8 +10,8 @@ import {
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { PersonAdd } from "@mui/icons-material";
-import { useTenantMembers, type TenantMember } from "../../../shared/api/tenantApi";
-import { useTenantStore } from "../../../shared/stores/tenantStore";
+import { useParams } from "react-router-dom";
+import { useOrgMembers, type TenantMember } from "../../../shared/api/orgApi";
 import InviteMemberModal from "../components/InviteMemberModal";
 
 const columns: GridColDef<TenantMember>[] = [
@@ -63,8 +63,8 @@ const columns: GridColDef<TenantMember>[] = [
 ];
 
 export default function MemberManagementPage() {
-  const tenantId = useTenantStore((s) => s.currentTenant?.id);
-  const { data: members, isLoading, isError } = useTenantMembers(tenantId);
+  const { orgSlug } = useParams<{ orgSlug: string }>();
+  const { data: members, isLoading, isError } = useOrgMembers(orgSlug);
   const [inviteOpen, setInviteOpen] = useState(false);
 
   if (isLoading) {
@@ -125,6 +125,7 @@ export default function MemberManagementPage() {
       <InviteMemberModal
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
+        orgSlug={orgSlug}
       />
     </Container>
   );

@@ -15,6 +15,10 @@ from alm.shared.infrastructure.db.tenant_context import setup_tenant_rls
 from alm.shared.infrastructure.error_handler import register_exception_handlers
 from alm.shared.infrastructure.health import health_router
 from alm.tenant.api.router import router as tenant_router
+from alm.project.api.router import router as project_router
+from alm.dashboard.api.router import router as dashboard_router
+from alm.process_template.api.router import router as process_template_router
+from alm.orgs.api.router import router as orgs_router
 
 logger = structlog.get_logger()
 
@@ -24,18 +28,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("application_starting", version="0.1.0")
     setup_tenant_rls(async_session_factory)
 
-    from alm.config.handler_registry import register_all_handlers
-    register_all_handlers()
-    logger.info("handler_registry_initialized")
-
-    from alm.config.seed import seed_privileges
+    from alm.config.seed import seed_privileges, seed_process_templates, seed_demo_data
     await seed_privileges(async_session_factory)
+    await seed_process_templates(async_session_factory)
+    await seed_demo_data(async_session_factory)
 
     yield
     logger.info("application_shutting_down")
 
 
 def create_app() -> FastAPI:
+    from alm.config.handler_registry import register_all_handlers
+    register_all_handlers()
+
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
@@ -59,6 +64,10 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(tenant_router)
+    app.include_router(orgs_router, prefix="/api/v1")
+    app.include_router(project_router, prefix="/api/v1/tenants")
+    app.include_router(dashboard_router, prefix="/api/v1/tenants")
+    app.include_router(process_template_router, prefix="/api/v1")
     app.include_router(audit_router, prefix="/api/v1")
 
     return app

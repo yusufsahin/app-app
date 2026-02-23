@@ -62,3 +62,4 @@ roles:
       - "artifact:read"
       - "task:read"
       - "workflow:read"
+      - "manifest:read"

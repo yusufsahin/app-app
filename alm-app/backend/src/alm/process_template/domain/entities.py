@@ -1,0 +1,25 @@
+"""Process template domain entities."""
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass
+
+
+@dataclass
+class ProcessTemplate:
+    """Built-in process template (Basic, Scrum, Kanban, etc.)."""
+
+    id: uuid.UUID
+    slug: str
+    name: str
+    is_builtin: bool
+
+
+@dataclass
+class ProcessTemplateVersion:
+    """A version of a process template with manifest bundle."""
+
+    id: uuid.UUID
+    template_id: uuid.UUID
+    version: str
+    manifest_bundle: dict

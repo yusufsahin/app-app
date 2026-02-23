@@ -4,6 +4,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from alm.config.settings import settings
 from alm.shared.domain.exceptions import DomainException
 from alm.shared.infrastructure.correlation import get_correlation_id
 
@@ -35,13 +36,14 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         logger.exception("unhandled_exception", error=str(exc))
+        detail = str(exc) if settings.debug else "An unexpected error occurred."
         return JSONResponse(
             status_code=500,
             content={
                 "type": "https://alm.example.com/errors/internal",
                 "title": "Internal Server Error",
                 "status": 500,
-                "detail": "An unexpected error occurred.",
+                "detail": detail,
                 "instance": str(request.url),
                 "correlation_id": get_correlation_id(),
             },

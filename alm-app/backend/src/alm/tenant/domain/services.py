@@ -14,7 +14,14 @@ from alm.tenant.domain.ports import (
     TenantRepository,
 )
 
-_SEED_DIR = Path(__file__).resolve().parents[4] / "alm_meta" / "seed"
+
+def _seed_dir() -> Path:
+    """alm_meta/seed: cwd (Docker /app) or next to alm package."""
+    for base in (Path.cwd(), Path(__file__).resolve().parents[4]):
+        candidate = base / "alm_meta" / "seed"
+        if (candidate / "default_roles.yaml").exists():
+            return candidate
+    return Path.cwd() / "alm_meta" / "seed"
 
 
 class TenantOnboardingSaga(OnboardingPort):
@@ -54,7 +61,7 @@ class TenantOnboardingSaga(OnboardingPort):
         )
 
     async def _seed_system_roles(self, tenant_id: uuid.UUID) -> dict[str, Role]:
-        with open(_SEED_DIR / "default_roles.yaml") as f:
+        with open(_seed_dir() / "default_roles.yaml") as f:
             data = yaml.safe_load(f)
 
         all_privileges = await self._privilege_repo.find_all()

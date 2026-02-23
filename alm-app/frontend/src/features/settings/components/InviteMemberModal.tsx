@@ -14,8 +14,7 @@ import {
   Chip,
   Box,
 } from "@mui/material";
-import { useInviteMember, useTenantRoles, type TenantRoleDetail } from "../../../shared/api/tenantApi";
-import { useTenantStore } from "../../../shared/stores/tenantStore";
+import { useInviteOrgMember, useOrgRoles, type TenantRoleDetail } from "../../../shared/api/orgApi";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 
 const inviteSchema = z.object({
@@ -28,12 +27,12 @@ type InviteFormData = z.infer<typeof inviteSchema>;
 interface InviteMemberModalProps {
   open: boolean;
   onClose: () => void;
+  orgSlug?: string;
 }
 
-export default function InviteMemberModal({ open, onClose }: InviteMemberModalProps) {
-  const tenantId = useTenantStore((s) => s.currentTenant?.id);
-  const { data: roles = [] } = useTenantRoles(tenantId);
-  const inviteMutation = useInviteMember();
+export default function InviteMemberModal({ open, onClose, orgSlug }: InviteMemberModalProps) {
+  const { data: roles = [] } = useOrgRoles(orgSlug);
+  const inviteMutation = useInviteOrgMember(orgSlug);
   const showNotification = useNotificationStore((s) => s.showNotification);
 
   const {

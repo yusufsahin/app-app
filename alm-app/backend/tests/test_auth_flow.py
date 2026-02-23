@@ -1,20 +1,32 @@
 """Integration tests for the complete auth flow."""
 from __future__ import annotations
 
+import uuid
+
 import pytest
 from httpx import AsyncClient
+
+
+def _unique_email() -> str:
+    return f"test-{uuid.uuid4().hex[:12]}@example.com"
+
+
+def _unique_slug() -> str:
+    return f"org-{uuid.uuid4().hex[:8]}"
 
 
 @pytest.mark.asyncio
 class TestRegistration:
     async def test_register_success(self, client: AsyncClient):
+        email = _unique_email()
+        org = _unique_slug()
         response = await client.post(
             "/api/v1/auth/register",
             json={
-                "email": "test@example.com",
+                "email": email,
                 "password": "SecurePass123",
                 "display_name": "Test User",
-                "org_name": "Test Org",
+                "org_name": org,
             },
         )
         assert response.status_code == 201
@@ -24,22 +36,24 @@ class TestRegistration:
         assert data["token_type"] == "bearer"
 
     async def test_register_duplicate_email(self, client: AsyncClient):
+        email = _unique_email()
+        org1, org2 = _unique_slug(), _unique_slug()
         await client.post(
             "/api/v1/auth/register",
             json={
-                "email": "dup@example.com",
+                "email": email,
                 "password": "SecurePass123",
                 "display_name": "Dup User",
-                "org_name": "Dup Org",
+                "org_name": org1,
             },
         )
         response = await client.post(
             "/api/v1/auth/register",
             json={
-                "email": "dup@example.com",
+                "email": email,
                 "password": "SecurePass123",
                 "display_name": "Dup User 2",
-                "org_name": "Dup Org 2",
+                "org_name": org2,
             },
         )
         assert response.status_code == 409
@@ -48,27 +62,40 @@ class TestRegistration:
 @pytest.mark.asyncio
 class TestLogin:
     async def test_login_success(self, client: AsyncClient):
+        email = _unique_email()
+        org = _unique_slug()
         await client.post(
             "/api/v1/auth/register",
             json={
-                "email": "login@example.com",
+                "email": email,
                 "password": "SecurePass123",
                 "display_name": "Login User",
-                "org_name": "Login Org",
+                "org_name": org,
             },
         )
         response = await client.post(
             "/api/v1/auth/login",
-            json={"email": "login@example.com", "password": "SecurePass123"},
+            json={"email": email, "password": "SecurePass123"},
         )
         assert response.status_code == 200
         data = response.json()
         assert data.get("access_token") is not None or data.get("requires_tenant_selection") is True
 
     async def test_login_wrong_password(self, client: AsyncClient):
+        email = _unique_email()
+        org = _unique_slug()
+        await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": email,
+                "password": "SecurePass123",
+                "display_name": "Login User",
+                "org_name": org,
+            },
+        )
         response = await client.post(
             "/api/v1/auth/login",
-            json={"email": "login@example.com", "password": "WrongPass123"},
+            json={"email": email, "password": "WrongPass123"},
         )
         assert response.status_code in (401, 403, 422)
 
@@ -76,13 +103,15 @@ class TestLogin:
 @pytest.mark.asyncio
 class TestCurrentUser:
     async def test_get_me_authenticated(self, client: AsyncClient):
+        email = _unique_email()
+        org = _unique_slug()
         reg = await client.post(
             "/api/v1/auth/register",
             json={
-                "email": "me@example.com",
+                "email": email,
                 "password": "SecurePass123",
                 "display_name": "Me User",
-                "org_name": "Me Org",
+                "org_name": org,
             },
         )
         token = reg.json()["access_token"]
@@ -93,7 +122,7 @@ class TestCurrentUser:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["email"] == "me@example.com"
+        assert data["email"] == email
         assert data["display_name"] == "Me User"
         assert isinstance(data["roles"], list)
         assert isinstance(data["permissions"], list)
@@ -106,13 +135,15 @@ class TestCurrentUser:
 @pytest.mark.asyncio
 class TestChangePassword:
     async def test_change_password_success(self, client: AsyncClient):
+        email = _unique_email()
+        org = _unique_slug()
         reg = await client.post(
             "/api/v1/auth/register",
             json={
-                "email": "pwchange@example.com",
+                "email": email,
                 "password": "OldPass12345",
                 "display_name": "PW User",
-                "org_name": "PW Org",
+                "org_name": org,
             },
         )
         token = reg.json()["access_token"]
@@ -126,6 +157,6 @@ class TestChangePassword:
 
         login_resp = await client.post(
             "/api/v1/auth/login",
-            json={"email": "pwchange@example.com", "password": "NewPass12345"},
+            json={"email": email, "password": "NewPass12345"},
         )
         assert login_resp.status_code == 200

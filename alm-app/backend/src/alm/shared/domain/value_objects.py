@@ -45,3 +45,22 @@ class Slug:
         slug = re.sub(r"[^\w\s-]", "", text.lower())
         slug = re.sub(r"[-\s]+", "-", slug).strip("-")
         return cls(value=slug)
+
+
+@dataclass(frozen=True)
+class ProjectCode:
+    """Short business identifier for projects (e.g. ALM, PROJ). 2-10 chars, uppercase."""
+
+    value: str
+
+    def __post_init__(self) -> None:
+        if not re.match(r"^[A-Z0-9]{2,10}$", self.value):
+            raise ValueError(
+                "Project code must be 2-10 uppercase alphanumeric characters"
+            )
+
+    @classmethod
+    def from_string(cls, text: str) -> ProjectCode:
+        """Normalize to uppercase and validate."""
+        normalized = text.strip().upper()
+        return cls(value=normalized)

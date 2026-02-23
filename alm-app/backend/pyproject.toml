@@ -2,6 +2,9 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.uv.sources]
+mpc = { path = "../../manifest-platform-core-suite" }
+
 [project]
 name = "alm"
 version = "0.1.0"
@@ -18,7 +21,7 @@ dependencies = [
     "redis[hiredis]>=5.2.0",
     "structlog>=24.4.0",
     "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.0.0",
     "taskiq[redis]>=0.11.0",
     "taskiq-redis>=1.0.0",
     "opentelemetry-api>=1.29.0",
@@ -28,6 +31,7 @@ dependencies = [
     "httpx>=0.28.0",
     "nh3>=0.2.0",
     "pyyaml>=6.0.0",
+    "mpc>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -59,4 +63,5 @@ plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]

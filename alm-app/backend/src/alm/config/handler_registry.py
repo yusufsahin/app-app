@@ -40,6 +40,10 @@ from alm.tenant.application.queries.list_roles import ListTenantRoles, ListTenan
 from alm.tenant.application.queries.get_role import GetRole, GetRoleHandler
 from alm.tenant.application.queries.list_privileges import ListPrivileges, ListPrivilegesHandler
 from alm.tenant.application.queries.get_tenant import GetTenant, GetTenantHandler
+from alm.tenant.application.queries.get_tenant_by_slug import (
+    GetTenantBySlug,
+    GetTenantBySlugHandler,
+)
 from alm.tenant.application.queries.get_member_roles import GetMemberRoles, GetMemberRolesHandler
 from alm.tenant.application.queries.get_member_permissions import (
     GetMemberEffectivePermissions,
@@ -48,6 +52,48 @@ from alm.tenant.application.queries.get_member_permissions import (
 
 # ── Audit queries ──
 from alm.shared.audit.queries import GetEntityHistory, GetEntityHistoryHandler
+
+# ── Project commands ──
+from alm.project.application.commands.create_project import CreateProject, CreateProjectHandler
+
+# ── Project queries ──
+from alm.project.application.queries.list_projects import ListProjects, ListProjectsHandler
+from alm.project.application.queries.get_project import GetProject, GetProjectHandler
+from alm.project.application.queries.get_project_manifest import (
+    GetProjectManifest,
+    GetProjectManifestHandler,
+)
+
+# ── Artifact commands ──
+from alm.artifact.application.commands.create_artifact import (
+    CreateArtifact,
+    CreateArtifactHandler,
+)
+from alm.artifact.application.commands.transition_artifact import (
+    TransitionArtifact,
+    TransitionArtifactHandler,
+)
+
+# ── Artifact queries ──
+from alm.artifact.application.queries.list_artifacts import (
+    ListArtifacts,
+    ListArtifactsHandler,
+)
+from alm.artifact.application.queries.get_artifact import GetArtifact, GetArtifactHandler
+
+# ── Process template queries ──
+from alm.process_template.application.queries.list_process_templates import (
+    ListProcessTemplates,
+    ListProcessTemplatesHandler,
+)
+from alm.process_template.application.queries.get_process_template import (
+    GetProcessTemplate,
+    GetProcessTemplateHandler,
+)
+from alm.process_template.application.queries.get_process_template_version import (
+    GetProcessTemplateVersion,
+    GetProcessTemplateVersionHandler,
+)
 
 # ── Repository imports ──
 from alm.auth.infrastructure.repositories import (
@@ -61,6 +107,11 @@ from alm.tenant.infrastructure.repositories import (
     SqlAlchemyRoleRepository,
     SqlAlchemyPrivilegeRepository,
     SqlAlchemyInvitationRepository,
+)
+from alm.project.infrastructure.repositories import SqlAlchemyProjectRepository
+from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepository
+from alm.process_template.infrastructure.repositories import (
+    SqlAlchemyProcessTemplateRepository,
 )
 from alm.tenant.domain.services import TenantOnboardingSaga
 
@@ -214,6 +265,10 @@ def register_all_handlers() -> None:
         tenant_repo=SqlAlchemyTenantRepository(s),
     ))
 
+    register_query_handler(GetTenantBySlug, lambda s: GetTenantBySlugHandler(
+        tenant_repo=SqlAlchemyTenantRepository(s),
+    ))
+
     register_query_handler(GetMemberRoles, lambda s: GetMemberRolesHandler(
         membership_repo=SqlAlchemyMembershipRepository(s),
         role_repo=SqlAlchemyRoleRepository(s),
@@ -222,6 +277,61 @@ def register_all_handlers() -> None:
     register_query_handler(GetMemberEffectivePermissions, lambda s: GetMemberEffectivePermissionsHandler(
         membership_repo=SqlAlchemyMembershipRepository(s),
         role_repo=SqlAlchemyRoleRepository(s),
+    ))
+
+    # ── Project Commands ──
+
+    register_command_handler(CreateProject, lambda s: CreateProjectHandler(
+        project_repo=SqlAlchemyProjectRepository(s),
+        process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+    ))
+
+    # ── Project Queries ──
+
+    register_query_handler(ListProjects, lambda s: ListProjectsHandler(
+        project_repo=SqlAlchemyProjectRepository(s),
+    ))
+
+    register_query_handler(GetProject, lambda s: GetProjectHandler(
+        project_repo=SqlAlchemyProjectRepository(s),
+    ))
+
+    register_query_handler(GetProjectManifest, lambda s: GetProjectManifestHandler(
+        project_repo=SqlAlchemyProjectRepository(s),
+        process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+    ))
+
+    # ── Artifact commands ──
+    register_command_handler(CreateArtifact, lambda s: CreateArtifactHandler(
+        artifact_repo=SqlAlchemyArtifactRepository(s),
+        project_repo=SqlAlchemyProjectRepository(s),
+        process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+    ))
+    register_command_handler(TransitionArtifact, lambda s: TransitionArtifactHandler(
+        artifact_repo=SqlAlchemyArtifactRepository(s),
+        project_repo=SqlAlchemyProjectRepository(s),
+        process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+    ))
+
+    # ── Artifact queries ──
+    register_query_handler(ListArtifacts, lambda s: ListArtifactsHandler(
+        artifact_repo=SqlAlchemyArtifactRepository(s),
+        project_repo=SqlAlchemyProjectRepository(s),
+    ))
+    register_query_handler(GetArtifact, lambda s: GetArtifactHandler(
+        artifact_repo=SqlAlchemyArtifactRepository(s),
+        project_repo=SqlAlchemyProjectRepository(s),
+    ))
+
+    # ── Process template queries ──
+    register_query_handler(ListProcessTemplates, lambda s: ListProcessTemplatesHandler(
+        repo=SqlAlchemyProcessTemplateRepository(s),
+    ))
+    register_query_handler(GetProcessTemplate, lambda s: GetProcessTemplateHandler(
+        repo=SqlAlchemyProcessTemplateRepository(s),
+    ))
+    register_query_handler(GetProcessTemplateVersion, lambda s: GetProcessTemplateVersionHandler(
+        repo=SqlAlchemyProcessTemplateRepository(s),
     ))
 
     # ── Audit Queries ──

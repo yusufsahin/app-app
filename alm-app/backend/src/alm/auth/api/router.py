@@ -54,7 +54,7 @@ async def _get_token_user_id(
 # ── Public endpoints ──
 
 
-@router.post("/register", response_model=TokenResponse)
+@router.post("/register", response_model=TokenResponse, status_code=201)
 async def register(
     body: RegisterRequest,
     mediator: Mediator = Depends(get_mediator),

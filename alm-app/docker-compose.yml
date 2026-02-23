@@ -52,8 +52,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      mailhog:
-        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/liveness')"]
       interval: 10s

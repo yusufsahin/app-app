@@ -55,6 +55,34 @@ export interface InviteResponse {
   expires_at: string;
 }
 
+export interface CreateTenantRequest {
+  name: string;
+}
+
+export interface TenantResponse {
+  id: string;
+  name: string;
+  slug: string;
+  tier: string;
+}
+
+export function useCreateTenant(tokenOverride?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateTenantRequest) => {
+      const headers = tokenOverride
+        ? { Authorization: `Bearer ${tokenOverride}` }
+        : undefined;
+      return apiClient
+        .post<TenantResponse>("/tenants/", data, { headers })
+        .then((r) => r.data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+    },
+  });
+}
+
 export function useMyTenants() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   return useQuery({
@@ -104,9 +132,11 @@ export function useInviteMember() {
 }
 
 export function usePrivileges() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   return useQuery({
     queryKey: ["privileges"],
     queryFn: () =>
       apiClient.get<Privilege[]>("/tenants/privileges").then((r) => r.data),
+    enabled: isAuthenticated,
   });
 }

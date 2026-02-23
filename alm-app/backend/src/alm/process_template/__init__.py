@@ -1,0 +1,1 @@
+"""Process template bounded context."""

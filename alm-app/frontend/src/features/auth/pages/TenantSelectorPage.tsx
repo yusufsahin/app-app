@@ -9,12 +9,15 @@ import {
   CircularProgress,
   Alert,
   Chip,
+  Button,
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
-import { Business } from "@mui/icons-material";
+import { Business, Add } from "@mui/icons-material";
 import { useSwitchTenant } from "../../../shared/api/authApi";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { useTenantStore } from "../../../shared/stores/tenantStore";
+import { useNotificationStore } from "../../../shared/stores/notificationStore";
+import CreateOrgModal from "../components/CreateOrgModal";
 
 interface LocationState {
   tempToken: string;
@@ -29,33 +32,51 @@ export default function TenantSelectorPage() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const storedTenants = useTenantStore((s) => s.tenants);
   const setTenant = useTenantStore((s) => s.setTenant);
+  const setTenants = useTenantStore((s) => s.setTenants);
+  const showNotification = useNotificationStore((s) => s.showNotification);
   const [error, setError] = useState<string | null>(null);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const state = location.state as LocationState | null;
   const tenants = state?.tenants ?? storedTenants;
   const token = state?.tempToken ?? accessToken;
 
-  if (!token || tenants.length === 0) {
+  if (!token) {
     return <Navigate to="/login" replace />;
   }
 
-  const handleSelect = async (tenantId: string) => {
+  const handleSelect = async (
+    tenantId: string,
+    preSelected?: { id: string; name: string; slug: string },
+  ) => {
     setError(null);
     setSwitchingId(tenantId);
     try {
       const result = await switchTenant.mutateAsync({ tenantId, token });
       setTokens(result.access_token, result.refresh_token);
-      const selected = tenants.find((t) => t.id === tenantId);
+      const selected =
+        preSelected ?? tenants.find((t) => t.id === tenantId);
       if (selected) {
         setTenant(selected);
+        navigate(`/${selected.slug}`, { replace: true });
       }
-      navigate("/", { replace: true });
     } catch (err: unknown) {
       const problem = err as { detail?: string; message?: string };
       setError(problem.detail ?? problem.message ?? "Failed to select organization.");
       setSwitchingId(null);
     }
+  };
+
+  const handleCreateSuccess = async (tenant: {
+    id: string;
+    name: string;
+    slug: string;
+    tier?: string;
+  }) => {
+    showNotification("Organization created successfully");
+    setTenants([...tenants, { ...tenant, tier: tenant.tier ?? "free", roles: [] as string[] }]);
+    handleSelect(tenant.id, tenant);
   };
 
   return (
@@ -73,9 +94,18 @@ export default function TenantSelectorPage() {
       <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
         ALM Manifest
       </Typography>
-      <Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>
+      <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
         Select an organization
       </Typography>
+
+      <Button
+        variant="outlined"
+        startIcon={<Add />}
+        onClick={() => setCreateModalOpen(true)}
+        sx={{ mb: 4 }}
+      >
+        New organization
+      </Button>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3, maxWidth: 600, width: "100%" }}>
@@ -130,6 +160,13 @@ export default function TenantSelectorPage() {
           </Grid>
         ))}
       </Grid>
+
+      <CreateOrgModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={handleCreateSuccess}
+        token={token ?? undefined}
+      />
     </Box>
   );
 }

@@ -10,6 +10,7 @@ from alm.shared.application.mediator import Mediator
 from alm.shared.domain.exceptions import EntityNotFound
 from alm.shared.infrastructure.security.dependencies import (
     CurrentUser,
+    get_authenticated_user_id,
     get_current_user,
     require_permission,
 )
@@ -65,10 +66,10 @@ router = APIRouter(prefix="/api/v1/tenants", tags=["tenants"])
 @router.post("/", response_model=TenantResponse, status_code=201)
 async def create_tenant(
     body: CreateTenantRequest,
-    user: CurrentUser = Depends(get_current_user),
+    user_id: uuid.UUID = Depends(get_authenticated_user_id),
     mediator: Mediator = Depends(get_mediator),
 ) -> TenantResponse:
-    dto: TenantDTO = await mediator.send(CreateTenant(name=body.name, admin_user_id=user.id))
+    dto: TenantDTO = await mediator.send(CreateTenant(name=body.name, admin_user_id=user_id))
     return TenantResponse(id=dto.id, name=dto.name, slug=dto.slug, tier=dto.tier)
 
 
