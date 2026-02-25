@@ -147,7 +147,6 @@ dependencies = [
     { name = "pyyaml" },
     { name = "redis", extra = ["hiredis"] },
     { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "statelesspy" },
     { name = "structlog" },
     { name = "taskiq" },
     { name = "taskiq-redis" },
@@ -195,7 +194,6 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
     { name = "schemathesis", marker = "extra == 'dev'", specifier = ">=3.37.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
-    { name = "statelesspy", directory = "../../../statelesspy" },
     { name = "structlog", specifier = ">=24.4.0" },
     { name = "taskiq", extras = ["redis"], specifier = ">=0.11.0" },
     { name = "taskiq-redis", specifier = ">=1.0.0" },
@@ -2494,24 +2492,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/cd/64/6debec8fc6e9abde0
 wheels = [
     { url = "https://files.pythonhosted.org/packages/25/44/f5209b889a344b1331a103aec4e9f906c7f67f9295fd287fdaa818179d95/starlette_testclient-0.4.1-py3-none-any.whl", hash = "sha256:dcf0eb237dc47f062ef5925f98330af46f67e547cb587119c9ae78c17ae6c1d1", size = 8143, upload-time = "2024-04-29T10:54:25.728Z" },
 ]
-
-[[package]]
-name = "statelesspy"
-version = "0.1.0"
-source = { directory = "../../../statelesspy" }
-
-[package.metadata]
-requires-dist = [
-    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.125.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
-    { name = "nox", marker = "extra == 'dev'", specifier = ">=2024.10.9" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.1" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
-    { name = "pytest-benchmark", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6.0" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "structlog"
