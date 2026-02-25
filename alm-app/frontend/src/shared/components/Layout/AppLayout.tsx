@@ -33,6 +33,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Dashboard,
+  History,
 } from "@mui/icons-material";
 import { useAuthStore } from "../../stores/authStore";
 import { useTenantStore } from "../../stores/tenantStore";
@@ -75,6 +76,8 @@ export default function AppLayout() {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const permissions = useAuthStore((s) => s.permissions);
+  const roles = useAuthStore((s) => s.roles);
+  const isAdmin = roles.includes("admin");
   const logout = useAuthStore((s) => s.logout);
   const setTokens = useAuthStore((s) => s.setTokens);
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -277,9 +280,9 @@ export default function AppLayout() {
         })}
       </List>
 
-      {visibleNavItems.some((i) =>
-        (i.permissionAny ?? []).some((p) => hasPermission(permissions, p)),
-      ) && (
+      {(hasPermission(permissions, "tenant:read") ||
+        hasPermission(permissions, "member:read") ||
+        hasPermission(permissions, "role:read")) && (
         <>
           <Divider />
           <List sx={{ py: 0 }}>
@@ -288,6 +291,7 @@ export default function AppLayout() {
                 navigate(orgSlug ? `/${orgSlug}/settings` : "/");
                 setMobileOpen(false);
               }}
+              selected={location.pathname === `/${orgSlug}/settings`}
               title={isCollapsed ? "Organization settings" : undefined}
               sx={{
                 borderRadius: 1,
@@ -306,6 +310,32 @@ export default function AppLayout() {
                 />
               )}
             </ListItemButton>
+            {isAdmin && (
+              <ListItemButton
+                onClick={() => {
+                  navigate(orgSlug ? `/${orgSlug}/audit` : "/");
+                  setMobileOpen(false);
+                }}
+                selected={location.pathname === `/${orgSlug}/audit`}
+                title={isCollapsed ? "Access audit" : undefined}
+                sx={{
+                  borderRadius: 1,
+                  mx: isCollapsed ? 0.5 : 1,
+                  mb: 0.5,
+                  justifyContent: isCollapsed ? "center" : "flex-start",
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40 }}>
+                  <History fontSize="small" />
+                </ListItemIcon>
+                {!isCollapsed && (
+                  <ListItemText
+                    primary="Access audit"
+                    primaryTypographyProps={{ variant: "body2" }}
+                  />
+                )}
+              </ListItemButton>
+            )}
           </List>
         </>
       )}

@@ -12,6 +12,7 @@ import alm.project.infrastructure.models  # noqa: F401
 import alm.process_template.infrastructure.models  # noqa: F401
 import alm.artifact.infrastructure.models  # noqa: F401
 import alm.shared.audit.models  # noqa: F401
+import alm.admin.infrastructure.models  # noqa: F401  (access_audit table)
 
 TEST_DATABASE_URL = "postgresql+asyncpg://alm:alm_dev_password@localhost:5432/alm_test"
 

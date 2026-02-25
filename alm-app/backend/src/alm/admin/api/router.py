@@ -52,7 +52,7 @@ def _get_access_audit_store() -> AccessAuditStore:
 
 @router.get("/users", response_model=list[AdminUserResponse])
 async def list_users(
-    user: Annotated[CurrentUser, Depends(require_any_role("admin"))],
+    user: Annotated[CurrentUser, require_any_role("admin")],
     mediator: Mediator = Depends(get_mediator),
     include_deleted: bool = Query(False),
 ) -> list[AdminUserResponse]:
@@ -75,7 +75,7 @@ async def list_users(
 @router.post("/users", response_model=CreateUserByAdminResponse, status_code=201)
 async def create_user(
     body: CreateUserByAdminRequest,
-    user: Annotated[CurrentUser, Depends(require_any_role("admin"))],
+    user: Annotated[CurrentUser, require_any_role("admin")],
     mediator: Mediator = Depends(get_mediator),
 ) -> CreateUserByAdminResponse:
     """G1: Create a user in the current tenant (email + password + role). Admin only."""
@@ -99,7 +99,7 @@ async def create_user(
 @router.delete("/users/{user_id}", status_code=204)
 async def delete_user(
     user_id: uuid.UUID,
-    user: Annotated[CurrentUser, Depends(require_any_role("admin"))],
+    user: Annotated[CurrentUser, require_any_role("admin")],
     mediator: Mediator = Depends(get_mediator),
 ) -> None:
     """G2: Soft-delete a user in the current tenant. Cannot delete self or last admin."""
@@ -110,7 +110,7 @@ async def delete_user(
 
 @router.get("/audit/access")
 async def get_access_audit(
-    _user: Annotated[CurrentUser, Depends(require_any_role("admin"))],
+    _user: Annotated[CurrentUser, require_any_role("admin")],
     from_date: str | None = Query(None, description="ISO date (yyyy-MM-dd)"),
     to_date: str | None = Query(None, description="ISO date (yyyy-MM-dd)"),
     type_filter: str | None = Query(None, description="LOGIN_SUCCESS, LOGIN_FAILURE"),

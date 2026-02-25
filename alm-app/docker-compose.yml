@@ -1,3 +1,5 @@
+# Run from alm-app directory: docker compose up --build -d
+# Backend build context is parent dir; parent must contain manifest-platform-core-suite next to alm-app.
 services:
   db:
     image: postgres:16-alpine

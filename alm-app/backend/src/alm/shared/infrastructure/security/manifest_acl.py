@@ -22,9 +22,9 @@ def require_manifest_acl(resource: str, action: str):
     """
 
     async def _check(
+        project_id: uuid.UUID,  # injected from path
         org: ResolvedOrg = Depends(resolve_org),
         user: CurrentUser = Depends(get_current_user),
-        project_id: uuid.UUID,  # injected from path
         mediator: Mediator = Depends(get_mediator),
     ) -> None:
         manifest = await mediator.query(

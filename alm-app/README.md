@@ -79,9 +79,20 @@ npm run build
 npm run preview   # build çıktısını önizleme
 ```
 
-## Opsiyonel: Docker
+## Deploy locally with Docker
 
-Backend ve frontend için ayrı `Dockerfile`’lar `backend/` ve `frontend/` altında bulunur. Önce PostgreSQL ve Redis’i (ör. Docker Compose) ayağa kaldırıp, backend’i `ALM_DATABASE_URL` ve `ALM_REDIS_URL` ile bu servislere yönlendirebilirsiniz.
+Backend ve frontend için ayrı `Dockerfile` (manifest-platform-core-suite üst dizinde olmalı)’lar `backend/` ve `frontend/` altında bulunur.
+
+```bash
+cd alm-manifest-app/alm-app
+docker compose up --build -d
+```
+
+- **Frontend:** http://localhost:3000
+- **API docs:** http://localhost:3000/api/v1/docs
+- **Mailhog:** http://localhost:8025
+
+Migration'lar backend başlarken otomatik çalışır. Durdurmak: `docker compose down` (verileri silmek: `-v`). Sadece DB/Redis: `docker compose up -d db redis mailhog`.
 
 ## Yapı
 
@@ -90,6 +101,38 @@ Backend ve frontend için ayrı `Dockerfile`’lar `backend/` ve `frontend/` alt
 - **docs/** – Mimari ve uygulama dokümanları ([giriş: docs/README.md](docs/README.md))
 
 Rota örnekleri: `/{orgSlug}` (projeler), `/{orgSlug}/dashboard`, `/{orgSlug}/{projectSlug}/artifacts`, `/{orgSlug}/{projectSlug}/manifest`.
+
+## Testler
+
+### Backend (pytest)
+
+Entegrasyon testleri PostgreSQL test veritabanı kullanır. Önce `alm_test` veritabanını oluşturun:
+
+```bash
+cd backend
+# PostgreSQL süper kullanıcı ile (örn. postgres)
+psql -U postgres -f scripts/create_test_db.sql
+# Windows: psql -U postgres -f scripts\create_test_db.sql
+```
+
+Veya tek komutla: `psql -U postgres -c "CREATE DATABASE alm_test;"`
+
+Testler `conftest.py` içindeki bağlantıyı kullanır (`alm:alm_dev_password@localhost:5432/alm_test`). Kullanıcı/şifre farklıysa `tests/conftest.py` içinde `TEST_DATABASE_URL` değerini güncelleyin.
+
+```bash
+cd backend
+pytest tests/ -v
+```
+
+Sadece veritabanı gerektirmeyen unit testler: `pytest tests/ -v -k "not test_artifact_flow and not test_auth_flow and not test_tenant_flow"`.
+
+### Frontend
+
+```bash
+cd frontend
+npm run test:unit
+npm run lint
+```
 
 ## Pre-commit (opsiyonel)
 

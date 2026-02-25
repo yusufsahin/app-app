@@ -140,7 +140,7 @@ async def update_tenant(
 @router.delete("/{tenant_id}", status_code=204)
 async def archive_tenant(
     tenant_id: uuid.UUID,
-    user: CurrentUser = Depends(require_any_role("admin")),
+    user: CurrentUser = require_any_role("admin"),
     mediator: Mediator = Depends(get_mediator),
 ) -> None:
     """G3: Archive (soft-delete) the tenant. Admin of this tenant only."""

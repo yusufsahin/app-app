@@ -5,6 +5,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from alm.shared.api.schemas import MessageResponse
 from alm.config.dependencies import get_mediator, get_file_storage
