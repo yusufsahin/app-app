@@ -40,6 +40,7 @@ import {
   CircularProgress,
   Checkbox,
   FormControlLabel,
+  Alert,
 } from "@mui/material";
 import {
   ArrowBack,
@@ -82,6 +83,7 @@ import {
 } from "../../../shared/api/orgApi";
 import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { useFormSchema } from "../../../shared/api/formSchemaApi";
+import type { ProblemDetail } from "../../../shared/api/types";
 import { MetadataDrivenForm } from "../../../shared/components/forms/MetadataDrivenForm";
 import {
   useArtifacts,
@@ -140,7 +142,6 @@ import { useListSchema } from "../../../shared/api/listSchemaApi";
 import { MetadataDrivenList } from "../../../shared/components/lists/MetadataDrivenList";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { useArtifactStore } from "../../../shared/stores/artifactStore";
-import type { ProblemDetail } from "../../../shared/api/types";
 
 const CORE_FIELD_KEYS = new Set(["artifact_type", "parent_id", "title", "description", "assignee_id"]);
 
@@ -280,7 +281,8 @@ export default function ArtifactsPage() {
   const project = projects?.find((p) => p.slug === projectSlug);
   const { data: manifest } = useProjectManifest(orgSlug, project?.id);
   const { data: listSchema } = useListSchema(orgSlug, project?.id, "artifact");
-  const { data: formSchema } = useFormSchema(orgSlug, project?.id);
+  const { data: formSchema, isError: formSchemaError, error: formSchemaErr } = useFormSchema(orgSlug, project?.id);
+  const formSchema403 = formSchemaError && (formSchemaErr as unknown as ProblemDetail)?.status === 403;
   const { data: members } = useOrgMembers(orgSlug);
   const { data: projectMembers, isLoading: projectMembersLoading } = useProjectMembers(orgSlug, project?.id);
   const addProjectMemberMutation = useAddProjectMember(orgSlug, project?.id);
@@ -1602,6 +1604,14 @@ export default function ArtifactsPage() {
                 label: m.display_name || m.email,
               })) ?? []}
             />
+          ) : formSchema403 ? (
+            <Alert severity="error">
+              You don&apos;t have permission to view the process manifest for this project. The create form cannot be loaded.
+            </Alert>
+          ) : formSchemaError ? (
+            <Alert severity="warning">
+              Could not load the form. Please try again or check your permission to view the process manifest.
+            </Alert>
           ) : (
             <Typography color="text.secondary">Loading form schema…</Typography>
           )}

@@ -9,7 +9,12 @@ from fastapi import Depends
 
 from alm.shared.domain.exceptions import AccessDenied
 from alm.shared.infrastructure.org_resolver import ResolvedOrg, resolve_org
-from alm.shared.infrastructure.security.dependencies import CurrentUser, get_current_user
+from alm.shared.infrastructure.security.dependencies import (
+    CurrentUser,
+    get_current_user,
+    get_user_privileges,
+    _matches_permission,
+)
 from alm.config.dependencies import get_mediator
 from alm.shared.application.mediator import Mediator
 from alm.project.application.queries.get_project_manifest import GetProjectManifest
@@ -31,6 +36,14 @@ def require_manifest_acl(resource: str, action: str):
             GetProjectManifest(tenant_id=org.tenant_id, project_id=project_id)
         )
         if manifest is None:
+            return
+        codes = await get_user_privileges(org.tenant_id, user.id)
+        # Tenant-level permission bypass: skip manifest ACL when user has the right privilege
+        if resource == "manifest" and action == "read" and _matches_permission(codes, "manifest:read"):
+            return
+        if resource == "artifact" and action == "read" and _matches_permission(codes, "artifact:read"):
+            return
+        if resource == "artifact" and action == "update" and _matches_permission(codes, "artifact:update"):
             return
         ast = _to_ast(manifest.manifest_bundle or {})
         allowed, reasons = acl_check(
