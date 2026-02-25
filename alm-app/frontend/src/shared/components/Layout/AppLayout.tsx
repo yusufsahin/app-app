@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import { useForm, FormProvider } from "react-hook-form";
+import { useState, useEffect, useMemo } from "react";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
-import { Outlet, useNavigate, useLocation, useParams, useSearchParams, Navigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation, useParams, Navigate } from "react-router-dom";
 import {
   AppBar,
   Box,
@@ -25,7 +24,6 @@ import {
   CircularProgress,
   Chip,
 } from "@mui/material";
-import { RhfTextField } from "../forms";
 import {
   Menu as MenuIcon,
   Folder,
@@ -112,25 +110,6 @@ export default function AppLayout() {
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const searchQuery = searchParams.get("q") ?? "";
-  const headerSearchForm = useForm<{ q: string }>({ defaultValues: { q: searchQuery } });
-  const { watch, reset } = headerSearchForm;
-  const headerSearchSkipSync = useRef(true);
-  useEffect(() => {
-    reset({ q: searchQuery });
-  }, [searchQuery, reset]);
-  useEffect(() => {
-    if (headerSearchSkipSync.current) {
-      headerSearchSkipSync.current = false;
-      return;
-    }
-    const q = watch("q");
-    const next = new URLSearchParams(searchParams);
-    if (q) next.set("q", q);
-    else next.delete("q");
-    setSearchParams(next, { replace: true });
-  }, [watch("q")]);
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const permissions = useAuthStore((s) => s.permissions);
@@ -504,42 +483,12 @@ export default function AppLayout() {
           <IconButton
             edge="start"
             onClick={() => setMobileOpen(true)}
-            sx={{ mr: 2, display: { md: "none" } }}
+            sx={{ mr: 1, display: { md: "none" } }}
           >
             <MenuIcon />
           </IconButton>
 
-          <Typography
-            variant="h6"
-            fontWeight={600}
-            color="text.primary"
-            sx={{ mr: 3, display: { xs: "none", sm: "block" } }}
-          >
-            ALM Manifest
-          </Typography>
-
-          <FormProvider {...headerSearchForm}>
-            <Box
-              sx={{
-                flex: 1,
-                maxWidth: 360,
-                display: { xs: "none", md: "block" },
-              }}
-            >
-              <RhfTextField<{ q: string }>
-                name="q"
-                placeholder={projectSlug ? "Search artifacts…" : "Search projects"}
-                size="small"
-                variant="outlined"
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    bgcolor: "action.hover",
-                    "& fieldset": { borderColor: "transparent" },
-                  },
-                }}
-              />
-            </Box>
-          </FormProvider>
+          <Box sx={{ flex: 1 }} />
 
           <Chip
             label={typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl+K"}
@@ -547,7 +496,7 @@ export default function AppLayout() {
             onClick={() => setCommandPaletteOpen(true)}
             sx={{
               display: { xs: "none", sm: "inline-flex" },
-              ml: 1,
+              mr: 1,
               "& .MuiChip-label": { fontSize: "0.75rem" },
               cursor: "pointer",
             }}

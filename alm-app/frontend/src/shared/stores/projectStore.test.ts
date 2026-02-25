@@ -50,12 +50,6 @@ describe("projectStore", () => {
   });
 
   describe("listState", () => {
-    it("setListTab updates listTab", () => {
-      expect(useProjectStore.getState().listState.listTab).toBe(0);
-      useProjectStore.getState().setListTab(1);
-      expect(useProjectStore.getState().listState.listTab).toBe(1);
-    });
-
     it("setCreateModalOpen updates createModalOpen", () => {
       expect(useProjectStore.getState().listState.createModalOpen).toBe(false);
       useProjectStore.getState().setCreateModalOpen(true);
@@ -63,21 +57,17 @@ describe("projectStore", () => {
     });
 
     it("resetListState restores default list state", () => {
-      useProjectStore.getState().setListTab(1);
       useProjectStore.getState().setCreateModalOpen(true);
       useProjectStore.getState().resetListState();
       expect(useProjectStore.getState().listState).toEqual({
-        listTab: 0,
         createModalOpen: false,
       });
     });
 
     it("clearAll resets listState to default", () => {
-      useProjectStore.getState().setListTab(1);
       useProjectStore.getState().setCreateModalOpen(true);
       useProjectStore.getState().clearAll();
       expect(useProjectStore.getState().listState).toEqual({
-        listTab: 0,
         createModalOpen: false,
       });
     });

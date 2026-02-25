@@ -26,7 +26,6 @@ function setStoredLastVisited(slug: string | null) {
 
 /** Projects list page UI state (Zustand standard). */
 export interface ProjectListState {
-  listTab: number;
   createModalOpen: boolean;
 }
 
@@ -39,13 +38,11 @@ interface ProjectState {
   setLastVisitedProjectSlug: (slug: string | null) => void;
   clearCurrentProject: () => void;
   clearAll: () => void;
-  setListTab: (tab: number) => void;
   setCreateModalOpen: (open: boolean) => void;
   resetListState: () => void;
 }
 
 const defaultListState: ProjectListState = {
-  listTab: 0,
   createModalOpen: false,
 };
 
@@ -73,9 +70,6 @@ export const useProjectStore = create<ProjectState>()(
           listState: defaultListState,
         });
       },
-
-      setListTab: (tab) =>
-        set((s) => ({ listState: { ...s.listState, listTab: tab } })),
 
       setCreateModalOpen: (open) =>
         set((s) => ({ listState: { ...s.listState, createModalOpen: open } })),
