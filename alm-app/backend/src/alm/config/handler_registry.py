@@ -150,6 +150,10 @@ from alm.artifact.application.queries.list_artifacts import (
     ListArtifactsHandler,
 )
 from alm.artifact.application.queries.get_artifact import GetArtifact, GetArtifactHandler
+from alm.artifact.application.queries.get_permitted_transitions import (
+    GetPermittedTransitions,
+    GetPermittedTransitionsHandler,
+)
 
 # ── Task commands ──
 from alm.task.application.commands.create_task import CreateTask, CreateTaskHandler
@@ -665,6 +669,11 @@ def register_all_handlers() -> None:
     register_query_handler(GetArtifact, lambda s: GetArtifactHandler(
         artifact_repo=SqlAlchemyArtifactRepository(s),
         project_repo=SqlAlchemyProjectRepository(s),
+    ))
+    register_query_handler(GetPermittedTransitions, lambda s: GetPermittedTransitionsHandler(
+        artifact_repo=SqlAlchemyArtifactRepository(s),
+        project_repo=SqlAlchemyProjectRepository(s),
+        process_template_repo=SqlAlchemyProcessTemplateRepository(s),
     ))
 
     # ── Task commands ──

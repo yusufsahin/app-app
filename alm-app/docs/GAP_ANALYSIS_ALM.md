@@ -53,6 +53,7 @@ Bu doküman ALM uygulamasının **mevcut durum** ile **hedef** arasındaki boşl
 - **B4:** Comment + Attachment (entity, API, artifact detayda paneller)
 - **Traceability:** ArtifactLink entity, API, artifact detayda Links paneli
 - **Planning UI:** Cycle/area ağacı (tree), Cycle backlog sekmesi, list’te cycle/area filtre
+- **Workflow API:** GET permitted-transitions (entity snapshot’a göre guard filtreli); PATCH transition ve POST batch-transition’da `trigger` veya `new_state`; manifest’te transition’lara opsiyonel trigger, trigger_label, guard; guard evaluator (whitelist, eval yok). Bkz. [WORKFLOW_API.md](./WORKFLOW_API.md), [GUARD_EVALUATOR_SECURITY.md](./GUARD_EVALUATOR_SECURITY.md).
 
 ---
 

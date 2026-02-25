@@ -22,12 +22,16 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 | [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) | Mevcut vs hedef gap analizi | Durum özeti, eksik özellik listesi |
 | [CONTEXTS_AND_PROGRESSION.md](./CONTEXTS_AND_PROGRESSION.md) | Bounded context’ler, ilerleyiş, roadmap | Domain/context anlayışı, sıradaki adımlar |
 | [BOARD_CONTEXT.md](./BOARD_CONTEXT.md) | Board context taslağı (Kanban/Scrum) | Board özelliği kapsam ve veri/API özeti |
-### Manifest (DSL ve şema)
+### Manifest ve workflow
 
 | Doküman | Amaç | Ne zaman kullanılır |
 |---------|------|---------------------|
 | [manifest-dsl.md](./manifest-dsl.md) | Manifest DSL grammar ve semantik | DSL geliştirme, parser/validasyon |
 | [manifest-schema.md](./manifest-schema.md) | Manifest JSON/yapı (artifact_types, workflows) | API/schema tasarımı, editor validasyonu |
+| [WORKFLOW_API.md](./WORKFLOW_API.md) | Workflow/geçiş HTTP API (permitted-transitions, transition, batch, guard) | API kullanımı, entegrasyon |
+| [WORKFLOW_ENGINE_BOUNDARY.md](./WORKFLOW_ENGINE_BOUNDARY.md) | Workflow adapter vs MPC sınırı, guard | Mimari, handler sırası |
+| [TRANSITION_OBSERVABILITY.md](./TRANSITION_OBSERVABILITY.md) | Geçiş metrikleri, log, tracing (Prometheus, OTel) | Ops, izleme, alerting |
+| [GUARD_EVALUATOR_SECURITY.md](./GUARD_EVALUATOR_SECURITY.md) | Guard güvenlik kuralları ve desteklenen tipler | Guard ekleme, güvenlik |
 
 ### Referans
 
@@ -71,5 +75,7 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 - **İş listesi / ne yapacağım?** → [REMAINING_PLAN.md](./REMAINING_PLAN.md)  
 - **Mimari / fazlar?** → [alm-app.md](./alm-app.md)  
 - **Manifest / DSL?** → [manifest-dsl.md](./manifest-dsl.md), [manifest-schema.md](./manifest-schema.md)  
+- **Workflow / geçiş API?** → [WORKFLOW_API.md](./WORKFLOW_API.md)  
+- **Geçiş metrikleri / observability?** → [TRANSITION_OBSERVABILITY.md](./TRANSITION_OBSERVABILITY.md)  
 - **Platform sınırı?** → [MPC_BOUNDARY.md](./MPC_BOUNDARY.md)  
 - **Mevcut durum özeti?** → [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md)

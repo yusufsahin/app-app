@@ -11,11 +11,11 @@ from alm.artifact.domain.mpc_resolver import (
     evaluate_transition_policy,
     get_manifest_ast,
     get_transition_actions,
-    get_workflow_engine,
     is_valid_parent_child,
     manifest_defs_to_flat,
     _to_ast,
 )
+from alm.artifact.domain.workflow_sm import get_initial_state, is_valid_transition
 
 
 SAMPLE_MANIFEST = {
@@ -68,19 +68,16 @@ SAMPLE_MANIFEST = {
 
 
 class TestMpcResolver:
-    def test_get_workflow_engine(self):
-        engine = get_workflow_engine(SAMPLE_MANIFEST, "requirement")
-        assert engine is not None
-        assert engine.get_initial_state() == "new"
-
-    def test_get_workflow_engine_unknown_type(self):
-        assert get_workflow_engine(SAMPLE_MANIFEST, "unknown") is None
+    def test_workflow_initial_state(self):
+        """Workflow graph comes from workflow_sm (statelesspy); MPC only policy/ACL."""
+        assert get_initial_state(SAMPLE_MANIFEST, "requirement") == "new"
+        assert get_initial_state(SAMPLE_MANIFEST, "unknown") is None
 
     def test_is_valid_transition(self):
-        engine = get_workflow_engine(SAMPLE_MANIFEST, "requirement")
-        assert engine.is_valid_transition("new", "active")
-        assert engine.is_valid_transition("active", "resolved")
-        assert not engine.is_valid_transition("new", "closed")
+        """Transition validity from workflow_sm (statelesspy), not MPC engine."""
+        assert is_valid_transition(SAMPLE_MANIFEST, "requirement", "new", "active")
+        assert is_valid_transition(SAMPLE_MANIFEST, "requirement", "active", "resolved")
+        assert not is_valid_transition(SAMPLE_MANIFEST, "requirement", "new", "closed")
 
     def test_is_valid_parent_child(self):
         assert is_valid_parent_child(SAMPLE_MANIFEST, "epic", "feature")
@@ -145,6 +142,30 @@ class TestMpcResolver:
         ]
         assert flat["workflows"] == []
         assert flat["artifact_types"] == []
+
+    def test_manifest_defs_to_flat_preserves_trigger_and_label(self):
+        manifest = {
+            "defs": [
+                {
+                    "kind": "Workflow",
+                    "id": "w",
+                    "initial": "new",
+                    "states": ["new", "active"],
+                    "transitions": [
+                        {"from": "new", "to": "active", "trigger": "start", "trigger_label": "Start"},
+                    ],
+                },
+                {"kind": "ArtifactType", "id": "req", "workflow_id": "w"},
+            ],
+        }
+        flat = manifest_defs_to_flat(manifest)
+        assert len(flat["workflows"]) == 1
+        assert flat["workflows"][0]["transitions"][0] == {
+            "from": "new",
+            "to": "active",
+            "trigger": "start",
+            "trigger_label": "Start",
+        }
 
     def test_manifest_defs_to_flat_empty_and_flat_format(self):
         assert manifest_defs_to_flat(None) == {"workflows": [], "artifact_types": [], "link_types": []}

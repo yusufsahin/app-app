@@ -12,9 +12,9 @@ from alm.artifact.domain.ports import ArtifactRepository
 from alm.area.domain.ports import AreaRepository
 from alm.artifact.domain.mpc_resolver import (
     get_manifest_ast,
-    get_workflow_engine,
     is_valid_parent_child,
 )
+from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
 from alm.project.domain.ports import ProjectRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
 
@@ -67,13 +67,11 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
 
         manifest = version.manifest_bundle or {}
         ast = get_manifest_ast(version.id, manifest)
-        engine = get_workflow_engine(manifest, command.artifact_type, ast=ast)
-        if engine is None:
+        initial_state = workflow_get_initial_state(manifest, command.artifact_type, ast=ast)
+        if initial_state is None:
             raise ValidationError(
                 f"Artifact type '{command.artifact_type}' not defined in manifest"
             )
-
-        initial_state = engine.get_initial_state()
 
         if command.parent_id is not None:
             parent = await self._artifact_repo.find_by_id(command.parent_id)

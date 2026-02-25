@@ -1,13 +1,20 @@
 """Transition artifact workflow state."""
 from __future__ import annotations
 
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+import structlog
+
 from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ConflictError, ValidationError
+from alm.shared.domain.exceptions import ConflictError, PolicyDeniedError, ValidationError
+from alm.artifact.infrastructure.metrics import (
+    alm_artifact_transition_duration_seconds,
+    alm_artifact_transition_total,
+)
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.action_runner import run_actions
 from alm.artifact.domain.ports import ArtifactRepository
@@ -17,8 +24,13 @@ from alm.artifact.domain.mpc_resolver import (
     get_artifact_type_def,
     get_manifest_ast,
     get_transition_actions,
-    get_workflow_engine,
     get_workflow_transition_options,
+)
+from alm.artifact.domain.guard_evaluator import evaluate_guard
+from alm.artifact.domain.workflow_sm import (
+    get_permitted_triggers,
+    get_transition_guard,
+    is_valid_transition as workflow_is_valid_transition,
 )
 from alm.project.domain.ports import ProjectRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
@@ -27,8 +39,11 @@ from alm.process_template.domain.ports import ProcessTemplateRepository
 def _build_transition_event(
     artifact: Any,
     command: "TransitionArtifact",
+    *,
+    resolved_new_state: str | None = None,
 ) -> dict[str, Any]:
     """Build event dict for MPC PolicyEngine (D1)."""
+    to_state = resolved_new_state if resolved_new_state is not None else (command.new_state or "")
     snapshot = artifact.to_snapshot_dict()
     return {
         "kind": "transition",
@@ -49,7 +64,7 @@ def _build_transition_event(
         },
         "context": {
             "from_state": artifact.state,
-            "to_state": command.new_state,
+            "to_state": to_state,
             "project_id": str(command.project_id),
         },
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -61,7 +76,8 @@ class TransitionArtifact(Command):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     artifact_id: uuid.UUID
-    new_state: str
+    new_state: str | None = None  # target state id; use when client sends new_state
+    trigger: str | None = None  # trigger id from manifest; resolved to to_state in handler
     state_reason: str | None = None
     resolution: str | None = None
     updated_by: uuid.UUID | None = None
@@ -82,6 +98,27 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
 
     async def handle(self, command: Command) -> ArtifactDTO:
         assert isinstance(command, TransitionArtifact)
+        start = time.monotonic()
+        try:
+            result = await self._handle_impl(command)
+            alm_artifact_transition_duration_seconds.observe(time.monotonic() - start)
+            return result
+        except PolicyDeniedError:
+            alm_artifact_transition_duration_seconds.observe(time.monotonic() - start)
+            alm_artifact_transition_total.labels(result="policy_denied").inc()
+            raise
+        except ValidationError:
+            alm_artifact_transition_duration_seconds.observe(time.monotonic() - start)
+            alm_artifact_transition_total.labels(result="validation_error").inc()
+            raise
+        except ConflictError:
+            alm_artifact_transition_duration_seconds.observe(time.monotonic() - start)
+            alm_artifact_transition_total.labels(result="conflict_error").inc()
+            raise
+
+    async def _handle_impl(self, command: TransitionArtifact) -> ArtifactDTO:
+        if not command.trigger and not command.new_state:
+            raise ValidationError("Either trigger or new_state is required")
 
         project = await self._project_repo.find_by_id(command.project_id)
         if project is None or project.tenant_id != command.tenant_id:
@@ -90,6 +127,32 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         artifact = await self._artifact_repo.find_by_id(command.artifact_id)
         if artifact is None or artifact.project_id != command.project_id:
             raise ValidationError("Artifact not found")
+
+        if project.process_template_version_id is None:
+            raise ValidationError("Project has no process template")
+        version = await self._process_template_repo.find_version_by_id(
+            project.process_template_version_id
+        )
+        if version is None:
+            raise ValidationError("Process template version not found")
+        manifest = version.manifest_bundle or {}
+        ast = get_manifest_ast(version.id, manifest)
+
+        # Resolve trigger to target state when client sent trigger
+        if command.trigger:
+            permitted = get_permitted_triggers(
+                manifest, artifact.artifact_type, artifact.state, ast=ast
+            )
+            match = next((p for p in permitted if p[0] == command.trigger), None)
+            if not match:
+                raise ValidationError(
+                    f"Trigger '{command.trigger}' is not permitted from state '{artifact.state}'"
+                )
+            new_state = match[1]
+        else:
+            new_state = (command.new_state or "").strip()
+            if not new_state:
+                raise ValidationError("new_state is required when trigger is not set")
 
         if command.expected_updated_at and (s := command.expected_updated_at.strip()):
             try:
@@ -108,44 +171,46 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
                             "Artifact was modified by someone else. Refresh or choose Overwrite to apply your change."
                         )
 
-        if project.process_template_version_id is None:
-            raise ValidationError("Project has no process template")
-
-        version = await self._process_template_repo.find_version_by_id(
-            project.process_template_version_id
-        )
-        if version is None:
-            raise ValidationError("Process template version not found")
-
-        manifest = version.manifest_bundle or {}
-        ast = get_manifest_ast(version.id, manifest)
-        engine = get_workflow_engine(manifest, artifact.artifact_type, ast=ast)
-        if engine is None or not engine.is_valid_transition(
-            artifact.state, command.new_state
+        if not workflow_is_valid_transition(
+            manifest,
+            artifact.artifact_type,
+            artifact.state,
+            new_state,
+            ast=ast,
         ):
             raise ValidationError(
-                f"Transition from '{artifact.state}' to '{command.new_state}' not allowed"
+                f"Transition from '{artifact.state}' to '{new_state}' not allowed"
             )
+
+        guard = get_transition_guard(
+            manifest,
+            artifact.artifact_type,
+            artifact.state,
+            new_state,
+            ast=ast,
+        )
+        if guard is not None and not evaluate_guard(guard, artifact.to_snapshot_dict()):
+            raise ValidationError("Transition guard not satisfied")
 
         # Manifest-based transition policies (e.g. assignee required when entering state)
         policy_violations = list(
             check_transition_policies(
                 manifest,
-                command.new_state,
+                new_state,
                 artifact.to_snapshot_dict(),
                 type_id=artifact.artifact_type,
                 ast=ast,
             )
         )
         # D1: MPC PolicyEngine — event-based policy evaluation; merge violations
-        event = _build_transition_event(artifact, command)
+        event = _build_transition_event(artifact, command, resolved_new_state=new_state)
         allow, mpc_violations = evaluate_transition_policy(
             ast, event, list(command.actor_roles) if command.actor_roles else None
         )
         if not allow and mpc_violations:
             policy_violations.extend(mpc_violations)
         if policy_violations:
-            raise ValidationError("; ".join(policy_violations))
+            raise PolicyDeniedError("; ".join(policy_violations))
 
         at_def = get_artifact_type_def(manifest, artifact.artifact_type, ast=ast)
         workflow_id = (at_def or {}).get("workflow_id") or ""
@@ -166,7 +231,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         # Require resolution when transitioning to a resolved/closed/done state
         _RESOLVED_STATES = ("resolved", "closed", "done")
         if (
-            command.new_state in _RESOLVED_STATES
+            new_state in _RESOLVED_STATES
             and allowed_resolutions
             and (not command.resolution or command.resolution.strip() == "")
         ):
@@ -175,7 +240,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
             )
 
         from_state = artifact.state
-        to_state = command.new_state
+        to_state = new_state
         actions = get_transition_actions(
             manifest, artifact.artifact_type, from_state, to_state, ast=ast
         )
@@ -204,6 +269,26 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
             to_state=to_state,
         )
 
+        alm_artifact_transition_total.labels(result="success").inc()
+        structlog.get_logger().info(
+            "artifact_transition",
+            artifact_id=str(artifact.id),
+            from_state=from_state,
+            to_state=to_state,
+            trigger=command.trigger,
+            project_id=str(artifact.project_id),
+        )
+        try:
+            from opentelemetry import trace
+            span = trace.get_current_span()
+            if span.is_recording():
+                span.set_attribute("artifact.id", str(artifact.id))
+                span.set_attribute("artifact.transition.from_state", from_state)
+                span.set_attribute("artifact.transition.to_state", to_state)
+                if command.trigger:
+                    span.set_attribute("artifact.transition.trigger", command.trigger)
+        except Exception:  # noqa: S110
+            pass
         return ArtifactDTO(
             id=artifact.id,
             project_id=artifact.project_id,

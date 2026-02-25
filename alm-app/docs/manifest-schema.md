@@ -28,7 +28,7 @@ Her workflow, artifact'ların geçebileceği durumları ve geçişleri tanımlar
   ],
   "transitions": [
     { "from": "new", "to": "active" },
-    { "from": "active", "to": "resolved" },
+    { "from": "active", "to": "resolved", "trigger": "resolved", "trigger_label": "Resolve" },
     { "from": "resolved", "to": "closed" },
     { "from": "closed", "to": "active" }
   ]
@@ -36,7 +36,7 @@ Her workflow, artifact'ların geçebileceği durumları ve geçişleri tanımlar
 ```
 
 - **states**: Geçerli durumlar. `category`: `proposed` | `in_progress` | `completed`
-- **transitions**: İzin verilen durum geçişleri (from → to)
+- **transitions**: İzin verilen durum geçişleri (from → to). Opsiyonel: **trigger**, **trigger_label** (tetikleyici/etiket); **guard** (geçişe izin koşulu; sadece whitelist predikatlar, bkz. GUARD_EVALUATOR_SECURITY.md). Guard örnekleri: `"assignee_required"`, `{"type": "field_present", "field": "state_reason"}`, `{"type": "field_equals", "field": "resolution", "value": "fixed"}`
 
 ## Artifact Types
 

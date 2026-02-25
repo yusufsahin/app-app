@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ArtifactCreateRequest(BaseModel):
@@ -82,18 +82,42 @@ class ArtifactUpdateRequest(BaseModel):
         return uuid.UUID(s)
 
 
+class PermittedTransitionItem(BaseModel):
+    trigger: str
+    to_state: str
+    label: str | None = None
+
+
+class PermittedTransitionsResponse(BaseModel):
+    items: list[PermittedTransitionItem]
+
+
 class ArtifactTransitionRequest(BaseModel):
-    new_state: str = Field(min_length=1)
+    new_state: str | None = Field(default=None, min_length=1)
+    trigger: str | None = Field(default=None, description="If set, transition by trigger (to_state derived from workflow)")
     state_reason: str | None = None
     resolution: str | None = None
     expected_updated_at: str | None = None  # ISO datetime for optimistic lock; omit to skip check (e.g. overwrite)
 
+    @model_validator(mode="after")
+    def require_new_state_or_trigger(self) -> "ArtifactTransitionRequest":
+        if not (self.new_state or self.trigger):
+            raise ValueError("Either new_state or trigger must be set")
+        return self
+
 
 class BatchTransitionRequest(BaseModel):
     artifact_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
-    new_state: str = Field(min_length=1)
+    new_state: str | None = Field(default=None, min_length=1)
+    trigger: str | None = Field(default=None, description="If set, apply this trigger to each artifact (to_state derived per workflow)")
     state_reason: str | None = None
     resolution: str | None = None
+
+    @model_validator(mode="after")
+    def require_new_state_or_trigger(self) -> "BatchTransitionRequest":
+        if not (self.new_state or self.trigger):
+            raise ValueError("Either new_state or trigger must be set")
+        return self
 
 
 class BatchDeleteRequest(BaseModel):
@@ -104,3 +128,7 @@ class BatchResultResponse(BaseModel):
     success_count: int
     error_count: int
     errors: list[str] = Field(default_factory=list)
+    results: dict[str, str] | None = Field(
+        default=None,
+        description="Per-artifact result: artifact_id -> 'ok' | 'validation_error' | 'policy_denied' | 'conflict_error'",
+    )

@@ -56,8 +56,18 @@ export interface ArtifactListState {
   transitionResolution: string;
   bulkTransitionOpen: boolean;
   bulkTransitionState: string;
+  /** When set, batch request sends trigger instead of new_state (for "common action" in bulk dialog) */
+  bulkTransitionTrigger: string;
   bulkTransitionStateReason: string;
   bulkTransitionResolution: string;
+  /** When set, bulk dialog shows partial result (e.g. X succeeded, Y failed) and error list */
+  bulkTransitionLastResult: {
+    success_count: number;
+    error_count: number;
+    errors: string[];
+    /** Per-artifact result: artifact_id -> 'ok' | 'validation_error' | 'policy_denied' | 'conflict_error' */
+    results?: Record<string, string>;
+  } | null;
   bulkDeleteConfirmOpen: boolean;
   deleteConfirmArtifactId: string | null;
   membersDialogOpen: boolean;
@@ -92,8 +102,10 @@ const defaultListState: ArtifactListState = {
   transitionResolution: "",
   bulkTransitionOpen: false,
   bulkTransitionState: "",
+  bulkTransitionTrigger: "",
   bulkTransitionStateReason: "",
   bulkTransitionResolution: "",
+  bulkTransitionLastResult: null,
   bulkDeleteConfirmOpen: false,
   deleteConfirmArtifactId: null,
   membersDialogOpen: false,

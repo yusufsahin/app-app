@@ -25,7 +25,7 @@ async def on_artifact_created(event: DomainEvent) -> None:
 
 
 async def on_artifact_state_changed(event: DomainEvent) -> None:
-    """Handle ArtifactStateChanged: log transition, update metrics."""
+    """Handle ArtifactStateChanged: log transition (metrics are updated in TransitionArtifactHandler)."""
     if not isinstance(event, ArtifactStateChanged):
         return
     logger.info(

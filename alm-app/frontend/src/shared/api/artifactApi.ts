@@ -192,8 +192,19 @@ export interface UpdateArtifactRequest {
   area_node_id?: string | null;
 }
 
+export interface PermittedTransitionItem {
+  trigger: string;
+  to_state: string;
+  label?: string | null;
+}
+
+export interface PermittedTransitionsResponse {
+  items: PermittedTransitionItem[];
+}
+
 export interface TransitionArtifactRequest {
-  new_state: string;
+  new_state?: string | null;
+  trigger?: string | null;
   state_reason?: string | null;
   resolution?: string | null;
   /** ISO datetime for optimistic lock; omit to skip check (e.g. overwrite). */
@@ -202,7 +213,8 @@ export interface TransitionArtifactRequest {
 
 export interface BatchTransitionRequest {
   artifact_ids: string[];
-  new_state: string;
+  new_state?: string | null;
+  trigger?: string | null;
   state_reason?: string | null;
   resolution?: string | null;
 }
@@ -215,6 +227,25 @@ export interface BatchResultResponse {
   success_count: number;
   error_count: number;
   errors: string[];
+  /** Per-artifact result: artifact_id -> 'ok' | 'validation_error' | 'policy_denied' | 'conflict_error' */
+  results?: Record<string, string>;
+}
+
+export function usePermittedTransitions(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+  artifactId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "permitted-transitions"],
+    queryFn: async (): Promise<PermittedTransitionsResponse> => {
+      const { data } = await apiClient.get<PermittedTransitionsResponse>(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/permitted-transitions`,
+      );
+      return data;
+    },
+    enabled: !!(orgSlug && projectId && artifactId),
+  });
 }
 
 export function useUpdateArtifact(
@@ -281,7 +312,9 @@ export function useTransitionArtifact(
 
   return useMutation({
     mutationFn: async (payload: TransitionArtifactRequest): Promise<Artifact> => {
-      const body: Record<string, string> = { new_state: payload.new_state };
+      const body: Record<string, string> = {};
+      if (payload.trigger != null && payload.trigger !== "") body.trigger = payload.trigger;
+      else if (payload.new_state != null && payload.new_state !== "") body.new_state = payload.new_state;
       if (payload.state_reason != null && payload.state_reason !== "")
         body.state_reason = payload.state_reason;
       if (payload.resolution != null && payload.resolution !== "")
@@ -316,7 +349,9 @@ export function useTransitionArtifactById(
 
   return useMutation({
     mutationFn: async (payload: { artifactId: string } & TransitionArtifactRequest): Promise<Artifact> => {
-      const body: Record<string, string> = { new_state: payload.new_state };
+      const body: Record<string, string> = {};
+      if (payload.trigger != null && payload.trigger !== "") body.trigger = payload.trigger;
+      else if (payload.new_state != null && payload.new_state !== "") body.new_state = payload.new_state;
       if (payload.state_reason != null && payload.state_reason !== "")
         body.state_reason = payload.state_reason;
       if (payload.resolution != null && payload.resolution !== "")
@@ -350,10 +385,9 @@ export function useBatchTransitionArtifacts(
     mutationFn: async (
       payload: BatchTransitionRequest,
     ): Promise<BatchResultResponse> => {
-      const body: Record<string, unknown> = {
-        artifact_ids: payload.artifact_ids,
-        new_state: payload.new_state,
-      };
+      const body: Record<string, unknown> = { artifact_ids: payload.artifact_ids };
+      if (payload.trigger != null && payload.trigger !== "") body.trigger = payload.trigger;
+      else if (payload.new_state != null && payload.new_state !== "") body.new_state = payload.new_state;
       if (payload.state_reason != null && payload.state_reason !== "")
         body.state_reason = payload.state_reason;
       if (payload.resolution != null && payload.resolution !== "")

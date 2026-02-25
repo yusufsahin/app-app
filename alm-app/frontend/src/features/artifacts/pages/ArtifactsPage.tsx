@@ -71,7 +71,7 @@ import {
   Save,
 } from "@mui/icons-material";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { apiClient } from "../../../shared/api/client";
 import {
   useOrgProjects,
@@ -89,6 +89,7 @@ import {
   useArtifacts,
   useArtifact,
   useCreateArtifact,
+  usePermittedTransitions,
   useTransitionArtifact,
   useTransitionArtifactById,
   useUpdateArtifact,
@@ -99,6 +100,7 @@ import {
   type Artifact,
   type ArtifactSortBy,
   type ArtifactSortOrder,
+  type PermittedTransitionsResponse,
   type CreateArtifactRequest,
   type TransitionArtifactRequest,
   type UpdateArtifactRequest,
@@ -316,8 +318,10 @@ export default function ArtifactsPage() {
     transitionResolution,
     bulkTransitionOpen,
     bulkTransitionState,
+    bulkTransitionTrigger,
     bulkTransitionStateReason,
     bulkTransitionResolution,
+    bulkTransitionLastResult,
     bulkDeleteConfirmOpen,
     deleteConfirmArtifactId,
     membersDialogOpen,
@@ -464,6 +468,7 @@ export default function ArtifactsPage() {
   const uploadAttachmentMutation = useUploadAttachment(orgSlug, project?.id, detailArtifact?.id);
   const deleteAttachmentMutation = useDeleteAttachment(orgSlug, project?.id, detailArtifact?.id);
   const [addLinkOpen, setAddLinkOpen] = useState(false);
+  const [bulkErrorsExpanded, setBulkErrorsExpanded] = useState(true);
   const [addLinkToId, setAddLinkToId] = useState<string>("");
   const [addLinkType, setAddLinkType] = useState<string>("related");
   const { data: pickerArtifactsData } = useQuery({
@@ -495,6 +500,11 @@ export default function ArtifactsPage() {
   );
 
   const transitionMutation = useTransitionArtifact(
+    orgSlug,
+    project?.id,
+    transitionArtifact?.id,
+  );
+  const { data: permittedTransitions } = usePermittedTransitions(
     orgSlug,
     project?.id,
     transitionArtifact?.id,
@@ -593,6 +603,65 @@ export default function ArtifactsPage() {
     }
     return Array.from(states).sort((a, b) => a.localeCompare(b));
   }, [bundle?.workflows]);
+
+  const bulkSelectedIds = useMemo(
+    () => Array.from(selectedIds).slice(0, 30),
+    [selectedIds],
+  );
+  const permittedResults = useQueries({
+    queries: bulkSelectedIds.map((artifactId) => ({
+      queryKey: [
+        "orgs",
+        orgSlug,
+        "projects",
+        project?.id,
+        "artifacts",
+        artifactId,
+        "permitted-transitions",
+      ],
+      queryFn: async (): Promise<PermittedTransitionsResponse> => {
+        const { data } = await apiClient.get<PermittedTransitionsResponse>(
+          `/orgs/${orgSlug}/projects/${project?.id}/artifacts/${artifactId}/permitted-transitions`,
+        );
+        return data;
+      },
+      enabled:
+        !!orgSlug &&
+        !!project?.id &&
+        !!artifactId &&
+        bulkTransitionOpen &&
+        bulkSelectedIds.length > 0,
+    })),
+  });
+  const commonTriggers = useMemo(() => {
+    if (permittedResults.length === 0) return [] as Array<{ trigger: string; to_state: string; label?: string | null }>;
+    const success = permittedResults.filter((r) => r.isSuccess && r.data?.items?.length);
+    if (success.length !== permittedResults.length) return [];
+    const firstItems = success[0]?.data?.items;
+    if (!firstItems?.length) return [];
+    const triggerSet = new Set(firstItems.map((i) => i.trigger));
+    for (let i = 1; i < success.length; i++) {
+      const items = success[i]?.data?.items;
+      if (!items) continue;
+      const triggers = new Set(items.map((it) => it.trigger));
+      for (const t of Array.from(triggerSet)) {
+        if (!triggers.has(t)) triggerSet.delete(t);
+      }
+    }
+    return firstItems.filter((i) => triggerSet.has(i.trigger));
+  }, [permittedResults]);
+
+  const bulkTransitionInvalidCount = useMemo(() => {
+    if (!bulkTransitionState || !artifacts?.length || !manifest?.manifest_bundle) return 0;
+    let count = 0;
+    for (const id of selectedIds) {
+      const a = artifacts.find((x) => x.id === id);
+      if (!a) continue;
+      const valid = getValidTransitions(manifest, a.artifact_type, a.state);
+      if (!valid.includes(bulkTransitionState)) count += 1;
+    }
+    return count;
+  }, [bulkTransitionState, artifacts, manifest, selectedIds]);
 
   const artifactsByState = useMemo(() => {
     if (!isBoardView || !filterStates.length) return {} as Record<string, Artifact[]>;
@@ -749,8 +818,9 @@ export default function ArtifactsPage() {
     ["resolved", "closed", "done"].includes(transitionTargetState.toLowerCase());
   const handleConfirmTransition = async () => {
     if (!transitionArtifact || !transitionTargetState) return;
+    const permitted = permittedTransitions?.items?.find((i) => i.to_state === transitionTargetState);
     const payload: TransitionArtifactRequest = {
-      new_state: transitionTargetState,
+      ...(permitted ? { trigger: permitted.trigger } : { new_state: transitionTargetState }),
       state_reason: transitionStateReason.trim() || undefined,
       resolution: transitionResolution.trim() || undefined,
       expected_updated_at: transitionArtifact.updated_at ?? undefined,
@@ -776,8 +846,9 @@ export default function ArtifactsPage() {
 
   const handleConflictOverwrite = () => {
     if (!transitionArtifact || !transitionTargetState) return;
+    const permitted = permittedTransitions?.items?.find((i) => i.to_state === transitionTargetState);
     const payload: TransitionArtifactRequest = {
-      new_state: transitionTargetState,
+      ...(permitted ? { trigger: permitted.trigger } : { new_state: transitionTargetState }),
       state_reason: transitionStateReason.trim() || undefined,
       resolution: transitionResolution.trim() || undefined,
       expected_updated_at: undefined,
@@ -1098,7 +1169,7 @@ export default function ArtifactsPage() {
                 <Button
                   size="small"
                   startIcon={<SwapHoriz />}
-                  onClick={() => setListState({ bulkTransitionOpen: true })}
+                  onClick={() => setListState({ bulkTransitionOpen: true, bulkTransitionLastResult: null })}
                   disabled={batchTransitionMutation.isPending}
                 >
                   Transition
@@ -1635,12 +1706,14 @@ export default function ArtifactsPage() {
       <Dialog
         open={bulkTransitionOpen}
         onClose={() => {
-          setListState({ bulkTransitionOpen: false });
           setListState({
-          bulkTransitionState: "",
-          bulkTransitionStateReason: "",
-          bulkTransitionResolution: "",
-        });
+            bulkTransitionOpen: false,
+            bulkTransitionState: "",
+            bulkTransitionTrigger: "",
+            bulkTransitionStateReason: "",
+            bulkTransitionResolution: "",
+            bulkTransitionLastResult: null,
+          });
         }}
         maxWidth="xs"
         fullWidth
@@ -1650,90 +1723,214 @@ export default function ArtifactsPage() {
           Transition {selectedIds.size} artifact(s)
         </DialogTitle>
         <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          <FormControl fullWidth size="small" required>
-            <InputLabel>New state</InputLabel>
-            <Select
-              label="New state"
-              value={bulkTransitionState}
-              onChange={(e) => setListState({ bulkTransitionState: e.target.value })}
-            >
-              {filterStates.map((s) => (
-                <MenuItem key={s} value={s}>
-                  {s}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <TextField
-            size="small"
-            fullWidth
-            label="State reason (optional)"
-            value={bulkTransitionStateReason}
-            onChange={(e) => setListState({ bulkTransitionStateReason: e.target.value })}
-          />
-          <TextField
-            size="small"
-            fullWidth
-            label="Resolution (optional)"
-            value={bulkTransitionResolution}
-            onChange={(e) => setListState({ bulkTransitionResolution: e.target.value })}
-          />
+          {bulkTransitionLastResult ? (
+            <>
+              <Alert severity={bulkTransitionLastResult.error_count > 0 ? "warning" : "success"}>
+                {bulkTransitionLastResult.success_count} succeeded, {bulkTransitionLastResult.error_count} failed.
+              </Alert>
+              {bulkTransitionLastResult.errors.length > 0 && (
+                <Box>
+                  <Button
+                    size="small"
+                    onClick={() => setBulkErrorsExpanded((e) => !e)}
+                  >
+                    {bulkErrorsExpanded ? "Hide" : "Show"} failed items
+                  </Button>
+                  <Collapse in={bulkErrorsExpanded}>
+                    <List dense sx={{ bgcolor: "action.hover" }}>
+                      {bulkTransitionLastResult.errors.slice(0, 20).map((err, i) => {
+                        const colonIdx = err.indexOf(": ");
+                        const artifactId = colonIdx > 0 ? err.slice(0, colonIdx) : "";
+                        const message = colonIdx > 0 ? err.slice(colonIdx + 2) : err;
+                        const resultType = artifactId && bulkTransitionLastResult.results?.[artifactId];
+                        const resultLabel =
+                          resultType === "policy_denied"
+                            ? "Policy denied"
+                            : resultType === "validation_error"
+                              ? "Validation"
+                              : resultType === "conflict_error"
+                                ? "Conflict"
+                                : null;
+                        return (
+                          <ListItem key={i} sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+                            <ListItemText primary={message} primaryTypographyProps={{ variant: "body2" }} />
+                            {resultLabel && (
+                              <Chip size="small" label={resultLabel} variant="outlined" sx={{ flexShrink: 0, mt: 0.25 }} />
+                            )}
+                          </ListItem>
+                        );
+                      })}
+                      {bulkTransitionLastResult.errors.length > 20 && (
+                        <ListItem>
+                          <ListItemText primary={`... and ${bulkTransitionLastResult.errors.length - 20} more`} primaryTypographyProps={{ variant: "body2" }} />
+                        </ListItem>
+                      )}
+                    </List>
+                  </Collapse>
+                </Box>
+              )}
+            </>
+          ) : (
+            <>
+              {commonTriggers.length > 0 && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                    Common actions (apply to all selected)
+                  </Typography>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                    {commonTriggers.map((item) => (
+                      <Chip
+                        key={item.trigger}
+                        label={item.label ?? item.to_state}
+                        onClick={() =>
+                          setListState({
+                            bulkTransitionTrigger: item.trigger,
+                            bulkTransitionState: "",
+                          })
+                        }
+                        variant={bulkTransitionTrigger === item.trigger ? "filled" : "outlined"}
+                        size="small"
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+              <FormControl fullWidth size="small">
+                <InputLabel>New state</InputLabel>
+                <Select
+                  label="New state"
+                  value={bulkTransitionState}
+                  onChange={(e) =>
+                    setListState({
+                      bulkTransitionState: e.target.value,
+                      bulkTransitionTrigger: "",
+                    })
+                  }
+                >
+                  {filterStates.map((s) => (
+                    <MenuItem key={s} value={s}>
+                      {s}
+                    </MenuItem>
+                  ))}
+                </Select>
+                {bulkTransitionInvalidCount > 0 && bulkTransitionState && (
+                  <FormHelperText>
+                    {bulkTransitionInvalidCount} item(s) cannot transition to this state
+                  </FormHelperText>
+                )}
+              </FormControl>
+              <TextField
+                size="small"
+                fullWidth
+                label="State reason (optional)"
+                value={bulkTransitionStateReason}
+                onChange={(e) => setListState({ bulkTransitionStateReason: e.target.value })}
+              />
+              <TextField
+                size="small"
+                fullWidth
+                label="Resolution (optional)"
+                value={bulkTransitionResolution}
+                onChange={(e) => setListState({ bulkTransitionResolution: e.target.value })}
+              />
+            </>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => {
-              setListState({
-                bulkTransitionOpen: false,
-                bulkTransitionState: "",
-                bulkTransitionStateReason: "",
-                bulkTransitionResolution: "",
-              });
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            disabled={!bulkTransitionState || batchTransitionMutation.isPending}
-            onClick={() => {
-              batchTransitionMutation.mutate(
-                {
-                  artifact_ids: [...selectedIds],
-                  new_state: bulkTransitionState,
-                  state_reason: bulkTransitionStateReason || undefined,
-                  resolution: bulkTransitionResolution || undefined,
-                },
-                {
-                  onSuccess: (res) => {
-                    setListState({
-                      bulkTransitionOpen: false,
-                      bulkTransitionState: "",
-                      bulkTransitionStateReason: "",
-                      bulkTransitionResolution: "",
-                    });
-                    clearSelection();
-                    if (detailArtifact && selectedIds.has(detailArtifact.id)) {
-                      setListState({ detailArtifactId: null });
-                      setSearchParams((prev) => {
-                        const p = new URLSearchParams(prev);
-                        p.delete("artifact");
-                        return p;
-                      });
-                    }
-                    showNotification(
-                      `${res.success_count} transitioned${res.error_count > 0 ? `, ${res.error_count} failed` : ""}.`,
-                      res.error_count > 0 ? "warning" : "success",
-                    );
-                  },
-                  onError: () => {
-                    showNotification("Bulk transition failed", "error");
-                  },
-                },
-              );
-            }}
-          >
-            Transition
-          </Button>
+          {bulkTransitionLastResult ? (
+            <Button
+              variant="contained"
+                onClick={() => {
+                  setListState({
+                    bulkTransitionOpen: false,
+                    bulkTransitionState: "",
+                    bulkTransitionTrigger: "",
+                    bulkTransitionStateReason: "",
+                    bulkTransitionResolution: "",
+                    bulkTransitionLastResult: null,
+                  });
+                  clearSelection();
+                }}
+            >
+              Close
+            </Button>
+          ) : (
+            <>
+              <Button
+                onClick={() => {
+                  setListState({
+                    bulkTransitionOpen: false,
+                    bulkTransitionState: "",
+                    bulkTransitionTrigger: "",
+                    bulkTransitionStateReason: "",
+                    bulkTransitionResolution: "",
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                disabled={
+                  (!bulkTransitionTrigger && !bulkTransitionState) ||
+                  batchTransitionMutation.isPending
+                }
+                onClick={() => {
+                  batchTransitionMutation.mutate(
+                    {
+                      artifact_ids: [...selectedIds],
+                      ...(bulkTransitionTrigger
+                        ? { trigger: bulkTransitionTrigger }
+                        : { new_state: bulkTransitionState }),
+                      state_reason: bulkTransitionStateReason || undefined,
+                      resolution: bulkTransitionResolution || undefined,
+                    },
+                    {
+                      onSuccess: (res) => {
+                        if (res.error_count > 0) {
+                          setListState({
+                            bulkTransitionLastResult: {
+                              success_count: res.success_count,
+                              error_count: res.error_count,
+                              errors: res.errors,
+                              results: res.results,
+                            },
+                          });
+                          showNotification(
+                            `${res.success_count} transitioned, ${res.error_count} failed.`,
+                            "warning",
+                          );
+                        } else {
+                          setListState({
+                            bulkTransitionOpen: false,
+                            bulkTransitionState: "",
+                            bulkTransitionTrigger: "",
+                            bulkTransitionStateReason: "",
+                            bulkTransitionResolution: "",
+                          });
+                          clearSelection();
+                          if (detailArtifact && selectedIds.has(detailArtifact.id)) {
+                            setListState({ detailArtifactId: null });
+                            setSearchParams((prev) => {
+                              const p = new URLSearchParams(prev);
+                              p.delete("artifact");
+                              return p;
+                            });
+                          }
+                          showNotification(`${res.success_count} transitioned.`, "success");
+                        }
+                      },
+                      onError: () => {
+                        showNotification("Bulk transition failed", "error");
+                      },
+                    },
+                  );
+                }}
+              >
+                Transition
+              </Button>
+            </>
+          )}
         </DialogActions>
       </Dialog>
 
@@ -1806,6 +2003,24 @@ export default function ArtifactsPage() {
           )}
         </DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
+          {permittedTransitions?.items && permittedTransitions.items.length > 1 && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                Change target
+              </Typography>
+              <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                {permittedTransitions.items.map((item) => (
+                  <Chip
+                    key={item.trigger}
+                    label={item.label ?? item.to_state}
+                    onClick={() => setListState({ transitionTargetState: item.to_state })}
+                    variant={transitionTargetState === item.to_state ? "filled" : "outlined"}
+                    size="small"
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
           {transitionOptions.stateReasonOptions.length > 0 && (
             <FormControl fullWidth size="small" sx={{ mt: 1, mb: 2 }}>
               <InputLabel>State reason</InputLabel>

@@ -25,11 +25,13 @@ Yani: artifact_type **kavramı** manifest DSL'inde (MPC bunu bilir); **değer** 
 
 ## 1. MPC'de Olması Gerekenler (Platform Core)
 
+**ALM'de güncel durum:** Geçiş grafiği ve permitted triggers **statelesspy adapter** (`alm.artifact.domain.workflow_sm`) ile sağlanır; MPC yalnızca PolicyEngine ve ACLEngine (policy/ACL) için kullanılır. Ayrıntı: [WORKFLOW_ENGINE_BOUNDARY.md](WORKFLOW_ENGINE_BOUNDARY.md).
+
 | Modül | Sorumluluk | Not |
 |-------|------------|-----|
 | **Manifest DSL Parser** | Lark LALR, YAML/JSON parse | DomainMeta ile birlikte |
 | **DomainMeta** | Kind/type/function tanımları, metadata-driven | |
-| **WorkflowEngine** | Geçiş validasyonu, initial state, valid transitions | |
+| **WorkflowEngine** | Geçiş validasyonu, initial state, valid transitions | MPC kuruluyken opsiyonel; ALM statelesspy kullanır |
 | **PolicyEngine** | `when state require assignee` vb. kurallar | |
 | **ACLEngine** | RBAC, permission check, field masking | |
 | **ExpressionEngine** | `len`, `contains`, `now`, `daysBetween` | |
@@ -112,7 +114,7 @@ MPC’nin ALM’e özel “artifact” kelimesini taşımaması için:
 
 **Önerilen MPC API (generic):**
 
-- `get_workflow_engine(manifest, type_id, type_kind, ast=None)` — kind sabit değil, çağırandan gelir.
+- Geçiş grafiği ve permitted triggers tek kaynak: **statelesspy adapter** (`alm.artifact.domain.workflow_sm`). `get_initial_state`, `is_valid_transition`, `get_permitted_triggers`, `get_transition_actions` oradan gelir; MPC'de WorkflowEngine sadece policy/ACL için kullanılır.
 - `get_type_def(manifest, type_kind, type_id, ast=None)` — tip tanımı.
 - `check_transition_policies(manifest, type_id, to_state, entity_snapshot, type_kind, ast=None)`.
 - ALM çağrıları: `type_kind="ArtifactType"`, `type_id=artifact.artifact_type`.

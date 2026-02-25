@@ -17,6 +17,10 @@ from alm.shared.infrastructure.db.session import async_session_factory
 from alm.shared.infrastructure.db.tenant_context import setup_tenant_rls
 from alm.shared.infrastructure.error_handler import register_exception_handlers
 from alm.shared.infrastructure.health import health_router
+from prometheus_client import make_asgi_app
+
+# Import so artifact transition metrics are registered and appear in /metrics from first scrape
+import alm.artifact.infrastructure.metrics  # noqa: F401
 from alm.tenant.api.router import router as tenant_router
 from alm.project.api.router import router as project_router
 from alm.dashboard.api.router import router as dashboard_router
@@ -76,6 +80,9 @@ def create_app() -> FastAPI:
     app.add_middleware(CorrelationIdMiddleware)
 
     register_exception_handlers(app)
+
+    metrics_app = make_asgi_app()
+    app.mount("/metrics", metrics_app)
 
     app.include_router(health_router)
     app.include_router(auth_router)

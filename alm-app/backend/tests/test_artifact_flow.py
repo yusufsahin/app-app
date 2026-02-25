@@ -146,6 +146,40 @@ class TestArtifactFlow:
         updated = trans_resp.json()
         assert updated["state"] == "active"
 
+    async def test_get_permitted_transitions(self, client: AsyncClient):
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (
+            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
+        ).json()
+        assert isinstance(tenants, list) and len(tenants) >= 1
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        project_id = await _ensure_project(
+            client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project"
+        )
+        create_resp = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "artifact_type": "requirement",
+                "title": "For permitted-transitions",
+                "description": "",
+            },
+        )
+        assert create_resp.status_code == 201
+        artifact_id = create_resp.json()["id"]
+
+        resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{artifact_id}/permitted-transitions",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "items" in data
+        assert isinstance(data["items"], list)
+        for item in data["items"]:
+            assert "trigger" in item
+            assert "to_state" in item
+
     async def test_list_artifacts_pagination(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
         tenants = (
@@ -275,6 +309,9 @@ class TestArtifactFlow:
         data = resp.json()
         assert data["success_count"] == 2
         assert data["error_count"] == 0
+        assert "results" in data
+        for aid in ids:
+            assert data["results"].get(str(aid)) == "ok"
 
     async def test_batch_delete_artifacts(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())

@@ -14,6 +14,8 @@ import alm.artifact.infrastructure.models  # noqa: F401
 import alm.shared.audit.models  # noqa: F401
 import alm.admin.infrastructure.models  # noqa: F401  (access_audit table)
 
+# Integration tests (test_artifact_flow, etc.) require PostgreSQL with database alm_test.
+# Create with: createdb -U alm alm_test  (or equivalent).
 TEST_DATABASE_URL = "postgresql+asyncpg://alm:alm_dev_password@localhost:5432/alm_test"
 
 

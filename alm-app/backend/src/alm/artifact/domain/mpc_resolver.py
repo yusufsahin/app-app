@@ -10,7 +10,6 @@ TYPE_KIND_ARTIFACT = "ArtifactType"
 
 try:
     from mpc.ast import ManifestAST, ASTNode, normalize
-    from mpc.workflow import WorkflowEngine
     from mpc.policy.engine import PolicyEngine
     from mpc.meta.models import DomainMeta
 
@@ -19,7 +18,6 @@ except ModuleNotFoundError:
     _HAS_MPC = False
     ManifestAST = Any  # type: ignore[misc, assignment]
     ASTNode = Any  # type: ignore[misc, assignment]
-    WorkflowEngine = Any  # type: ignore[misc, assignment]
     PolicyEngine = None  # type: ignore[misc, assignment]
     DomainMeta = None  # type: ignore[misc, assignment]
 
@@ -51,66 +49,8 @@ class _SimpleAST:
         self.defs = [_DefNode(d) for d in manifest_bundle.get("defs", []) if isinstance(d, dict)]
 
 
-class _SimpleWorkflowEngine:
-    """Minimal workflow engine from manifest Workflow def (states + transitions)."""
-
-    def __init__(self, states: list[str], transitions: list[dict]) -> None:
-        self._states = list(states) if states else ["Open"]
-        self._transitions_map: dict[tuple[str, str], dict[str, list[str]]] = {}
-        for t in transitions if transitions else []:
-            if not isinstance(t, dict) or "from" not in t or "to" not in t:
-                continue
-            fr, to = str(t.get("from", "")), str(t.get("to", ""))
-            self._transitions_map[(fr, to)] = {
-                "on_leave": list(t.get("on_leave") or []),
-                "on_enter": list(t.get("on_enter") or []),
-            }
-
-    def get_initial_state(self) -> str:
-        return self._states[0] if self._states else "Open"
-
-    def is_valid_transition(self, from_state: str, to_state: str) -> bool:
-        return (from_state, to_state) in self._transitions_map
-
-    def get_transition_actions(self, from_state: str, to_state: str) -> dict[str, list[str]]:
-        return self._transitions_map.get((from_state, to_state), {"on_leave": [], "on_enter": []})
-
-
 def _to_ast_fallback(manifest_bundle: dict) -> _SimpleAST:
     return _SimpleAST(manifest_bundle or {})
-
-
-def _get_def_fallback(ast: _SimpleAST, kind: str, id: str) -> _DefNode | None:
-    for d in ast.defs:
-        if d.kind == kind and d.id == id:
-            return d
-    return None
-
-
-def _get_defs_by_kind_fallback(ast: _SimpleAST, kind: str) -> list[_DefNode]:
-    return [d for d in ast.defs if d.kind == kind]
-
-
-def _get_workflow_engine_fallback(
-    manifest_bundle: dict,
-    type_id: str,
-    type_kind: str = TYPE_KIND_ARTIFACT,
-    ast: _SimpleAST | None = None,
-) -> _SimpleWorkflowEngine | None:
-    if ast is None:
-        ast = _to_ast_fallback(manifest_bundle)
-    at_def = _get_def_fallback(ast, type_kind, type_id)
-    if at_def is None:
-        return None
-    workflow_id = at_def.properties.get("workflow_id")
-    if not workflow_id:
-        return None
-    wf_def = _get_def_fallback(ast, "Workflow", workflow_id)
-    if wf_def is None:
-        return None
-    states = wf_def.properties.get("states") or []
-    transitions = wf_def.properties.get("transitions") or []
-    return _SimpleWorkflowEngine(states, transitions)
 
 
 # --- Cache (used for real mpc path) ---
@@ -151,30 +91,6 @@ def _get_def(ast: Any, kind: str, id: str) -> Any | None:
 def _get_defs_by_kind(ast: Any, kind: str) -> list[Any]:
     """Get all defs of a given kind."""
     return [d for d in ast.defs if d.kind == kind]
-
-
-def get_workflow_engine(
-    manifest_bundle: dict,
-    type_id: str,
-    *,
-    type_kind: str = TYPE_KIND_ARTIFACT,
-    ast: Any | None = None,
-) -> Any | None:
-    """Resolve workflow for the given type (generic: type_kind + type_id). ALM uses type_kind='ArtifactType'."""
-    if _HAS_MPC:
-        if ast is None:
-            ast = _to_ast(manifest_bundle)
-        at_def = _get_def(ast, type_kind, type_id)
-        if at_def is None:
-            return None
-        workflow_id = at_def.properties.get("workflow_id")
-        if not workflow_id:
-            return None
-        wf_def = _get_def(ast, "Workflow", workflow_id)
-        if wf_def is None:
-            return None
-        return WorkflowEngine.from_ast_node(wf_def)
-    return _get_workflow_engine_fallback(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
 
 
 def get_type_def(
@@ -259,11 +175,13 @@ def get_transition_actions(
     type_kind: str = TYPE_KIND_ARTIFACT,
     ast: Any | None = None,
 ) -> dict[str, list[str]]:
-    """Get on_leave and on_enter action names for the transition (generic type_kind)."""
-    engine = get_workflow_engine(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
-    if engine is None:
-        return {"on_leave": [], "on_enter": []}
-    return engine.get_transition_actions(from_state, to_state)
+    """Get on_leave and on_enter action names for the transition (generic type_kind).
+    Delegates to workflow_sm adapter (single source for workflow graph)."""
+    from alm.artifact.domain.workflow_sm import get_transition_actions as _get_transition_actions
+
+    return _get_transition_actions(
+        manifest_bundle, type_id, from_state, to_state, type_kind=type_kind, ast=ast
+    )
 
 
 def get_workflow_transition_options(
@@ -320,7 +238,14 @@ def manifest_defs_to_flat(manifest_bundle: dict) -> dict:
             transitions = []
             for t in transitions_raw:
                 if isinstance(t, dict) and "from" in t and "to" in t:
-                    transitions.append({"from": str(t["from"]), "to": str(t["to"])})
+                    tr: dict = {"from": str(t["from"]), "to": str(t["to"])}
+                    if t.get("trigger") is not None:
+                        tr["trigger"] = str(t["trigger"])
+                    if t.get("trigger_label") is not None:
+                        tr["trigger_label"] = str(t["trigger_label"])
+                    if t.get("guard") is not None:
+                        tr["guard"] = t["guard"]
+                    transitions.append(tr)
             wf = {
                 "id": obj_id,
                 "states": d.get("states", []),

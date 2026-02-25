@@ -4,6 +4,7 @@ build-backend = "hatchling.build"
 
 [tool.uv.sources]
 mpc = { path = "../../manifest-platform-core-suite" }
+statelesspy = { path = "../../../statelesspy" }
 
 [project]
 name = "alm"
@@ -34,6 +35,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "email-validator>=2.2.0",
     "mpc>=0.0.6",
+    "statelesspy>=0.1.0",
 ]
 
 [project.optional-dependencies]

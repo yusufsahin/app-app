@@ -60,7 +60,8 @@ Manifest DSL, JSON/YAML ile serialize edilir. Yapı:
         }
       ],
       "transitions": [
-        { "from": "<state_id>", "to": "<state_id>" }
+        { "from": "<state_id>", "to": "<state_id>" },
+        { "from": "<state_id>", "to": "<state_id>", "trigger": "<trigger_id>", "trigger_label": "<görünen_ad>" }
       ]
     }
   ],
@@ -83,7 +84,7 @@ Manifest DSL, JSON/YAML ile serialize edilir. Yapı:
 |-------|----------|
 | `states` boş olamaz | En az bir state gerekli |
 | `category` | `proposed`, `in_progress`, `completed` olmalı |
-| `transitions` | `from` ve `to` geçerli state id’lerine referans vermeli |
+| `transitions` | `from` ve `to` geçerli state id’lerine referans vermeli; opsiyonel `trigger`, `trigger_label`, `guard` (whitelist koşul; bkz. GUARD_EVALUATOR_SECURITY.md) |
 | Initial state | `category = "proposed"` olan ilk state, yeni artifact’ın başlangıç durumu |
 
 ### 4.2 Artifact Type

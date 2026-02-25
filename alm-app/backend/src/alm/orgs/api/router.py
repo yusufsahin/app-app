@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from alm.shared.api.schemas import MessageResponse
 from alm.config.dependencies import get_mediator, get_file_storage
 from alm.shared.application.mediator import Mediator
-from alm.shared.domain.exceptions import EntityNotFound
+from alm.shared.domain.exceptions import ConflictError, EntityNotFound, PolicyDeniedError, ValidationError
 from alm.shared.infrastructure.org_resolver import ResolvedOrg, resolve_org
 from alm.shared.infrastructure.security.dependencies import (
     CurrentUser,
@@ -101,6 +101,8 @@ from alm.artifact.api.schemas import (
     BatchDeleteRequest,
     BatchResultResponse,
     BatchTransitionRequest,
+    PermittedTransitionsResponse,
+    PermittedTransitionItem,
 )
 from alm.artifact.application.commands.delete_artifact import DeleteArtifact
 from alm.artifact.application.commands.restore_artifact import RestoreArtifact
@@ -109,6 +111,7 @@ from alm.artifact.application.commands.create_artifact import CreateArtifact
 from alm.artifact.application.commands.transition_artifact import TransitionArtifact
 from alm.artifact.application.commands.update_artifact import UpdateArtifact
 from alm.artifact.application.queries.get_artifact import GetArtifact
+from alm.artifact.application.queries.get_permitted_transitions import GetPermittedTransitions
 from alm.artifact.application.queries.list_artifacts import ListArtifacts
 from alm.task.api.schemas import (
     TaskCreateRequest,
@@ -503,7 +506,10 @@ async def batch_transition_artifacts(
 ) -> BatchResultResponse:
     success_count = 0
     errors: list[str] = []
+    results: dict[str, str] = {}
+
     for artifact_id in body.artifact_ids:
+        aid_str = str(artifact_id)
         try:
             await mediator.send(
                 TransitionArtifact(
@@ -511,6 +517,7 @@ async def batch_transition_artifacts(
                     project_id=project_id,
                     artifact_id=artifact_id,
                     new_state=body.new_state,
+                    trigger=body.trigger,
                     state_reason=body.state_reason,
                     resolution=body.resolution,
                     updated_by=user.id,
@@ -518,12 +525,24 @@ async def batch_transition_artifacts(
                 )
             )
             success_count += 1
+            results[aid_str] = "ok"
+        except PolicyDeniedError as e:
+            errors.append(f"{artifact_id}: {e!s}")
+            results[aid_str] = "policy_denied"
+        except ValidationError as e:
+            errors.append(f"{artifact_id}: {e!s}")
+            results[aid_str] = "validation_error"
+        except ConflictError as e:
+            errors.append(f"{artifact_id}: {e!s}")
+            results[aid_str] = "conflict_error"
         except Exception as e:  # noqa: BLE001
             errors.append(f"{artifact_id}: {e!s}")
+            results[aid_str] = "validation_error"
     return BatchResultResponse(
         success_count=success_count,
         error_count=len(errors),
         errors=errors[:20],
+        results=results,
     )
 
 
@@ -700,6 +719,33 @@ async def update_artifact(
     return await mask_artifact_for_user(resp, user)
 
 
+@router.get(
+    "/projects/{project_id}/artifacts/{artifact_id}/permitted-transitions",
+    response_model=PermittedTransitionsResponse,
+)
+async def get_permitted_transitions(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:read"),
+    _acl: None = require_manifest_acl("artifact", "read"),
+    mediator: Mediator = Depends(get_mediator),
+) -> PermittedTransitionsResponse:
+    items = await mediator.send(
+        GetPermittedTransitions(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            artifact_id=artifact_id,
+        )
+    )
+    return PermittedTransitionsResponse(
+        items=[
+            PermittedTransitionItem(trigger=d.trigger, to_state=d.to_state, label=d.label)
+            for d in items
+        ],
+    )
+
+
 @router.patch(
     "/projects/{project_id}/artifacts/{artifact_id}/transition",
     response_model=ArtifactResponse,
@@ -719,6 +765,7 @@ async def transition_artifact(
             project_id=project_id,
             artifact_id=artifact_id,
             new_state=body.new_state,
+            trigger=body.trigger,
             state_reason=body.state_reason,
             resolution=body.resolution,
             updated_by=user.id,

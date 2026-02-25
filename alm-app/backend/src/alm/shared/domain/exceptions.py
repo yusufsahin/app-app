@@ -58,3 +58,10 @@ class WorkflowTransitionError(DomainException):
     status_code = 422
     error_type = "/errors/invalid-transition"
     title = "Invalid Workflow Transition"
+
+
+class PolicyDeniedError(ValidationError):
+    """Raised when transition is valid per workflow but denied by policy/ACL (MPC)."""
+
+    error_type = "/errors/policy-denied"
+    title = "Policy Denied"

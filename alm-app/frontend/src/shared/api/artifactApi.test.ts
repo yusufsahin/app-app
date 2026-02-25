@@ -1,8 +1,8 @@
 /**
- * E1: Unit tests for artifact list params builder.
+ * E1: Unit tests for artifact list params builder and batch transition response shape.
  */
 import { describe, it, expect } from "vitest";
-import { buildArtifactListParams } from "./artifactApi";
+import { buildArtifactListParams, type BatchResultResponse } from "./artifactApi";
 
 describe("buildArtifactListParams", () => {
   it("returns empty object when no options", () => {
@@ -74,5 +74,40 @@ describe("buildArtifactListParams", () => {
       offset: 0,
       cycle_node_id: "cycle-1",
     });
+  });
+});
+
+describe("BatchResultResponse", () => {
+  it("allows success with per-artifact results", () => {
+    const res: BatchResultResponse = {
+      success_count: 2,
+      error_count: 0,
+      errors: [],
+      results: { "id-1": "ok", "id-2": "ok" },
+    };
+    expect(res.results?.["id-1"]).toBe("ok");
+    expect(res.results?.["id-2"]).toBe("ok");
+  });
+
+  it("allows partial failure with policy_denied and validation_error", () => {
+    const res: BatchResultResponse = {
+      success_count: 1,
+      error_count: 2,
+      errors: ["id-2: Assignee required when entering state 'active'", "id-3: Transition from 'closed' to 'new' not allowed"],
+      results: { "id-1": "ok", "id-2": "policy_denied", "id-3": "validation_error" },
+    };
+    expect(res.results?.["id-1"]).toBe("ok");
+    expect(res.results?.["id-2"]).toBe("policy_denied");
+    expect(res.results?.["id-3"]).toBe("validation_error");
+  });
+
+  it("allows conflict_error in results", () => {
+    const res: BatchResultResponse = {
+      success_count: 0,
+      error_count: 1,
+      errors: ["id-1: Artifact was modified by someone else."],
+      results: { "id-1": "conflict_error" },
+    };
+    expect(res.results?.["id-1"]).toBe("conflict_error");
   });
 });

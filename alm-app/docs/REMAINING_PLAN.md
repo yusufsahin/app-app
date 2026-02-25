@@ -8,6 +8,7 @@ Bu doküman, mevcut durum özetinden sonra kalan işleri öncelik sırasıyla li
 
 **Tamamlanmış:**
 - Auth, tenant/org, projeler, artifact CRUD, workflow transition
+- Workflow API: GET permitted-transitions (trigger/to_state/label, guard ile filtreleme), PATCH transition (new_state veya trigger), POST batch-transition (trigger/new_state); manifest’te trigger/trigger_label/guard; guard evaluator (whitelist: assignee_required, field_present, field_equals). Bkz. [WORKFLOW_API.md](./WORKFLOW_API.md).
 - Manifest okuma, form schema, list schema (backend + frontend)
 - Manifest sayfası: Overview, Workflow (görsel diyagram, geçiş ekleme/kaydetme), Form preview, Source (Monaco düzenlenebilir, Save, JSON/YAML, hata satırı)
 - Artifacts sayfası: list-schema + MetadataDrivenList (custom kolonlar artifact_types.fields'tan), bulk seçim, conflict modal (409)
