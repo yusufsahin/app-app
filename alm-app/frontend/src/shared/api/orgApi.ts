@@ -1,28 +1,17 @@
 /**
  * Azure DevOps-style org API: /orgs/{org_slug}/...
+ * Project list is the single source of truth in React Query; no sync to projectStore.
  */
-import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
-import { useProjectStore } from "../stores/projectStore";
 import type {
   TenantMember,
   TenantRoleDetail,
   InviteMemberRequest,
 } from "./tenantApi";
+import type { Project, DashboardStats } from "./types";
 
-export type { TenantMember, TenantRoleDetail };
-
-export interface Project {
-  id: string;
-  code: string;
-  name: string;
-  slug: string;
-  description?: string;
-  status?: string | null;
-  settings?: Record<string, unknown> | null;
-  metadata?: Record<string, unknown> | null;
-}
+export type { TenantMember, TenantRoleDetail, Project, DashboardStats };
 
 export interface UpdateProjectRequest {
   name?: string;
@@ -30,13 +19,6 @@ export interface UpdateProjectRequest {
   status?: string | null;
   settings?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
-}
-
-export interface DashboardStats {
-  projects: number;
-  artifacts: number;
-  tasks: number;
-  openDefects: number;
 }
 
 export interface DashboardActivityItem {
@@ -57,9 +39,7 @@ export interface CreateProjectRequest {
 }
 
 export function useOrgProjects(orgSlug: string | undefined) {
-  const setProjects = useProjectStore((s) => s.setProjects);
-
-  const query = useQuery({
+  return useQuery({
     queryKey: ["orgs", orgSlug, "projects"],
     queryFn: async (): Promise<Project[]> => {
       const { data } = await apiClient.get<Project[]>(
@@ -69,19 +49,10 @@ export function useOrgProjects(orgSlug: string | undefined) {
     },
     enabled: !!orgSlug,
   });
-
-  useEffect(() => {
-    if (query.data && orgSlug) {
-      setProjects(orgSlug, query.data);
-    }
-  }, [query.data, orgSlug, setProjects]);
-
-  return query;
 }
 
 export function useCreateOrgProject(orgSlug: string | undefined) {
   const queryClient = useQueryClient();
-  const addProject = useProjectStore((s) => s.addProject);
 
   return useMutation({
     mutationFn: async (payload: CreateProjectRequest): Promise<Project> => {
@@ -96,9 +67,8 @@ export function useCreateOrgProject(orgSlug: string | undefined) {
       );
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orgs", orgSlug, "projects"] });
-      if (orgSlug) addProject(orgSlug, data);
     },
   });
 }

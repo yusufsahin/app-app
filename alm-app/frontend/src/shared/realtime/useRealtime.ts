@@ -23,7 +23,7 @@ interface RealtimeEvent {
 export function useRealtime(): void {
   const queryClient = useQueryClient();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isAuthenticated = useAuthStore((s) => !!s.accessToken);
   const reconnectDelayRef = useRef(RECONNECT_DELAY_MS);
   const wsRef = useRef<WebSocket | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);

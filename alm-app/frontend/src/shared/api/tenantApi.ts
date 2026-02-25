@@ -84,12 +84,12 @@ export function useCreateTenant(tokenOverride?: string) {
 }
 
 export function useMyTenants() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hasAccessToken = useAuthStore((s) => !!s.accessToken);
   return useQuery({
     queryKey: ["tenants"],
     queryFn: () =>
       apiClient.get<TenantListItem[]>("/tenants/").then((r) => r.data),
-    enabled: isAuthenticated,
+    enabled: hasAccessToken,
   });
 }
 
@@ -132,11 +132,11 @@ export function useInviteMember() {
 }
 
 export function usePrivileges() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hasAccessToken = useAuthStore((s) => !!s.accessToken);
   return useQuery({
     queryKey: ["privileges"],
     queryFn: () =>
       apiClient.get<Privilege[]>("/tenants/privileges").then((r) => r.data),
-    enabled: isAuthenticated,
+    enabled: hasAccessToken,
   });
 }

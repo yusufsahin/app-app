@@ -75,12 +75,12 @@ export function useSwitchTenant() {
 }
 
 export function useCurrentUser() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hasAccessToken = useAuthStore((s) => !!s.accessToken);
   return useQuery({
     queryKey: ["auth", "me"],
     queryFn: () =>
       apiClient.get<CurrentUserResponse>("/auth/me").then((r) => r.data),
-    enabled: isAuthenticated,
+    enabled: hasAccessToken,
   });
 }
 

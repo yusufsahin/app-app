@@ -1,4 +1,25 @@
 import { create } from "zustand";
+import { devtools, persist, type StorageValue } from "zustand/middleware";
+import { useTenantStore } from "./tenantStore";
+
+/** Persist auth tokens using legacy keys so existing sessions keep working. */
+const authStorage = {
+  getItem: (): StorageValue<{ accessToken: string | null; refreshToken: string | null }> | null => {
+    const accessToken = localStorage.getItem("access_token");
+    const refreshToken = localStorage.getItem("refresh_token");
+    if (!accessToken) return null;
+    return { state: { accessToken, refreshToken } };
+  },
+  setItem: (_: string, value: StorageValue<{ accessToken: string | null; refreshToken: string | null }>) => {
+    const { accessToken, refreshToken } = value.state;
+    if (accessToken) localStorage.setItem("access_token", accessToken);
+    if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
+  },
+  removeItem: () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+  },
+};
 
 export interface User {
   id: string;
@@ -13,64 +34,57 @@ interface AuthState {
   refreshToken: string | null;
   roles: string[];
   permissions: string[];
-  isAuthenticated: boolean;
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
   setTokens: (accessToken: string, refreshToken: string) => void;
   setRefreshToken: (refreshToken: string) => void;
   setUser: (user: User) => void;
   setRolesAndPermissions: (roles: string[], permissions: string[]) => void;
   logout: () => void;
-  initFromStorage: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  accessToken: null,
-  refreshToken: null,
-  roles: [],
-  permissions: [],
-  isAuthenticated: false,
+export const useAuthStore = create<AuthState>()(
+  devtools(
+    persist(
+      (set) => ({
+        user: null,
+        accessToken: null,
+        refreshToken: null,
+        roles: [],
+        permissions: [],
 
-  setAuth: (user, accessToken, refreshToken) => {
-    localStorage.setItem("access_token", accessToken);
-    localStorage.setItem("refresh_token", refreshToken);
-    set({ user, accessToken, refreshToken, isAuthenticated: true });
-  },
+        setAuth: (user, accessToken, refreshToken) => {
+          set({ user, accessToken, refreshToken });
+        },
 
-  setTokens: (accessToken, refreshToken) => {
-    localStorage.setItem("access_token", accessToken);
-    localStorage.setItem("refresh_token", refreshToken);
-    set({ accessToken, refreshToken, isAuthenticated: true });
-  },
+        setTokens: (accessToken, refreshToken) => {
+          set({ accessToken, refreshToken });
+        },
 
-  setRefreshToken: (refreshToken) => {
-    localStorage.setItem("refresh_token", refreshToken);
-    set({ refreshToken });
-  },
+        setRefreshToken: (refreshToken) => {
+          set({ refreshToken });
+        },
 
-  setUser: (user) => set({ user }),
+        setUser: (user) => set({ user }),
 
-  setRolesAndPermissions: (roles, permissions) => set({ roles, permissions }),
+        setRolesAndPermissions: (roles, permissions) => set({ roles, permissions }),
 
-  logout: () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    localStorage.removeItem("current_tenant");
-    set({
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      roles: [],
-      permissions: [],
-      isAuthenticated: false,
-    });
-  },
-
-  initFromStorage: () => {
-    const accessToken = localStorage.getItem("access_token");
-    const refreshToken = localStorage.getItem("refresh_token");
-    if (accessToken) {
-      set({ accessToken, refreshToken, isAuthenticated: true });
-    }
-  },
-}));
+        logout: () => {
+          useTenantStore.getState().clearTenant();
+          set({
+            user: null,
+            accessToken: null,
+            refreshToken: null,
+            roles: [],
+            permissions: [],
+          });
+        },
+      }),
+      {
+        name: "auth-storage",
+        storage: authStorage,
+        partialize: (s) => ({ accessToken: s.accessToken, refreshToken: s.refreshToken }),
+      },
+    ),
+    { name: "AuthStore", enabled: import.meta.env.DEV },
+  ),
+);

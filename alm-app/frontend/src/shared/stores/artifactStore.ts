@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { devtools } from "zustand/middleware";
 
 export interface Artifact {
   id: string;
@@ -120,17 +121,10 @@ const defaultListState: ArtifactListState = {
 
 interface ArtifactState {
   currentArtifact: Artifact | null;
-  artifactsByProject: Record<string, Artifact[]>;
   listState: ArtifactListState;
   setCurrentArtifact: (artifact: Artifact | null) => void;
-  setArtifacts: (projectId: string, artifacts: Artifact[]) => void;
-  addArtifact: (projectId: string, artifact: Artifact) => void;
-  updateArtifact: (projectId: string, artifactId: string, artifact: Artifact) => void;
   clearCurrentArtifact: () => void;
-  clearArtifacts: (projectId?: string) => void;
   clearAll: () => void;
-  getArtifacts: (projectId: string) => Artifact[];
-  getArtifact: (projectId: string, artifactId: string) => Artifact | undefined;
   setListState: (patch: Partial<ArtifactListState>) => void;
   resetListState: () => void;
   setSelectedIds: (ids: string[] | ((prev: string[]) => string[])) => void;
@@ -138,78 +132,42 @@ interface ArtifactState {
   clearSelection: () => void;
 }
 
-export const useArtifactStore = create<ArtifactState>((set, get) => ({
-  currentArtifact: null,
-  artifactsByProject: {},
-  listState: defaultListState,
+export const useArtifactStore = create<ArtifactState>()(
+  devtools(
+    (set) => ({
+      currentArtifact: null,
+      listState: defaultListState,
 
-  setCurrentArtifact: (artifact) => set({ currentArtifact: artifact }),
+      setCurrentArtifact: (artifact) => set({ currentArtifact: artifact }),
 
-  setArtifacts: (projectId, artifacts) =>
-    set((s) => ({
-      artifactsByProject: { ...s.artifactsByProject, [projectId]: artifacts },
-    })),
+      clearCurrentArtifact: () => set({ currentArtifact: null }),
 
-  addArtifact: (projectId, artifact) =>
-    set((s) => ({
-      artifactsByProject: {
-        ...s.artifactsByProject,
-        [projectId]: [...(s.artifactsByProject[projectId] ?? []), artifact],
-      },
-    })),
+      clearAll: () =>
+        set({ currentArtifact: null, listState: defaultListState }),
 
-  updateArtifact: (projectId, artifactId, artifact) =>
-    set((s) => {
-      const list = s.artifactsByProject[projectId] ?? [];
-      const idx = list.findIndex((a) => a.id === artifactId);
-      if (idx < 0) return s;
-      const next = [...list];
-      next[idx] = artifact;
-      return {
-        artifactsByProject: { ...s.artifactsByProject, [projectId]: next },
-      };
+      setListState: (patch) =>
+        set((s) => ({ listState: { ...s.listState, ...patch } })),
+
+      resetListState: () => set({ listState: defaultListState }),
+
+      setSelectedIds: (ids) =>
+        set((s) => ({
+          listState: {
+            ...s.listState,
+            selectedIds: typeof ids === "function" ? ids(s.listState.selectedIds) : ids,
+          },
+        })),
+
+      toggleSelectedId: (id) =>
+        set((s) => {
+          const prev = s.listState.selectedIds;
+          const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+          return { listState: { ...s.listState, selectedIds: next } };
+        }),
+
+      clearSelection: () =>
+        set((s) => ({ listState: { ...s.listState, selectedIds: [] } })),
     }),
-
-  clearCurrentArtifact: () => set({ currentArtifact: null }),
-
-  clearArtifacts: (projectId) =>
-    set((s) => {
-      if (projectId) {
-        const { [projectId]: _, ...rest } = s.artifactsByProject;
-        return { artifactsByProject: rest };
-      }
-      return { artifactsByProject: {} };
-    }),
-
-  clearAll: () =>
-    set({ currentArtifact: null, artifactsByProject: {}, listState: defaultListState }),
-
-  getArtifacts: (projectId) => get().artifactsByProject[projectId] ?? [],
-
-  getArtifact: (projectId, artifactId) =>
-    get()
-      .artifactsByProject[projectId]?.find((a) => a.id === artifactId),
-
-  setListState: (patch) =>
-    set((s) => ({ listState: { ...s.listState, ...patch } })),
-
-  resetListState: () => set({ listState: defaultListState }),
-
-  setSelectedIds: (ids) =>
-    set((s) => ({
-      listState: {
-        ...s.listState,
-        selectedIds: typeof ids === "function" ? ids(s.listState.selectedIds) : ids,
-      },
-    })),
-
-  toggleSelectedId: (id) =>
-    set((s) => {
-      const prev = s.listState.selectedIds;
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      return { listState: { ...s.listState, selectedIds: next } };
-    }),
-
-  clearSelection: () =>
-    set((s) => ({ listState: { ...s.listState, selectedIds: [] } })),
-}));
+    { name: "ArtifactStore", enabled: import.meta.env.DEV },
+  ),
+);

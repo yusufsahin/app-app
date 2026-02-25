@@ -65,19 +65,17 @@ export default function ManifestPage() {
   const is404 = isError && apiError?.status === 404;
   const is403 = isError && apiError?.status === 403;
 
-  const {
-    activeTab,
-    sourceValue,
-    sourceLanguage,
-    snackMessage,
-    snackOpen,
-    setActiveTab,
-    setSourceValue,
-    setSourceLanguage,
-    showSnack,
-    resetEditorFromBundle,
-    clearSnack,
-  } = useManifestStore();
+  const activeTab = useManifestStore((s) => s.activeTab);
+  const sourceValue = useManifestStore((s) => s.sourceValue);
+  const sourceLanguage = useManifestStore((s) => s.sourceLanguage);
+  const snackMessage = useManifestStore((s) => s.snackMessage);
+  const snackOpen = useManifestStore((s) => s.snackOpen);
+  const setActiveTab = useManifestStore((s) => s.setActiveTab);
+  const setSourceValue = useManifestStore((s) => s.setSourceValue);
+  const setSourceLanguage = useManifestStore((s) => s.setSourceLanguage);
+  const showSnack = useManifestStore((s) => s.showSnack);
+  const resetEditorFromBundle = useManifestStore((s) => s.resetEditorFromBundle);
+  const clearSnack = useManifestStore((s) => s.clearSnack);
 
   const updateManifest = useUpdateProjectManifest(orgSlug, project?.id);
   const [editorErrorLine, setEditorErrorLine] = useState<number | undefined>(undefined);

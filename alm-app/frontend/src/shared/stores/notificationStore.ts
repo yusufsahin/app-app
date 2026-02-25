@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { devtools } from "zustand/middleware";
 
 interface Notification {
   message: string;
@@ -11,11 +12,16 @@ interface NotificationState {
   clearNotification: () => void;
 }
 
-export const useNotificationStore = create<NotificationState>((set) => ({
-  notification: null,
+export const useNotificationStore = create<NotificationState>()(
+  devtools(
+    (set) => ({
+      notification: null,
 
-  showNotification: (message, severity = "success") =>
-    set({ notification: { message, severity } }),
+      showNotification: (message, severity = "success") =>
+        set({ notification: { message, severity } }),
 
-  clearNotification: () => set({ notification: null }),
-}));
+      clearNotification: () => set({ notification: null }),
+    }),
+    { name: "NotificationStore", enabled: import.meta.env.DEV },
+  ),
+);

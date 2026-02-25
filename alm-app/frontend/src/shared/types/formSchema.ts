@@ -17,7 +17,7 @@ export interface FormFieldSchema {
   order?: number;
   visible_when?: VisibleWhenCondition;
   required_when?: VisibleWhenCondition;
-  entity_ref?: "artifact" | "user";
+  entity_ref?: "artifact" | "user" | "cycle" | "area";
   allowed_parent_types?: string[];
 }
 

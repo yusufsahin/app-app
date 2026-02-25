@@ -22,7 +22,7 @@ function Loading() {
 }
 
 export default function ProtectedRoute() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isAuthenticated = useAuthStore((s) => !!s.accessToken);
   const logout = useAuthStore((s) => s.logout);
   const setUser = useAuthStore((s) => s.setUser);
   const setRolesAndPermissions = useAuthStore((s) => s.setRolesAndPermissions);

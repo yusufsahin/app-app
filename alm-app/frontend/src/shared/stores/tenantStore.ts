@@ -1,4 +1,30 @@
 import { create } from "zustand";
+import { devtools, persist, type StorageValue } from "zustand/middleware";
+
+const TENANT_STORAGE_KEY = "current_tenant";
+
+/** Persist current tenant using legacy key so existing sessions keep working. */
+const tenantStorage = {
+  getItem: (): StorageValue<{ currentTenant: Tenant | null }> | null => {
+    try {
+      const raw = localStorage.getItem(TENANT_STORAGE_KEY);
+      if (!raw) return null;
+      const currentTenant = JSON.parse(raw) as Tenant;
+      return { state: { currentTenant } };
+    } catch {
+      return null;
+    }
+  },
+  setItem: (_: string, value: StorageValue<{ currentTenant: Tenant | null }>) => {
+    const { currentTenant } = value.state;
+    if (currentTenant) {
+      localStorage.setItem(TENANT_STORAGE_KEY, JSON.stringify(currentTenant));
+    } else {
+      localStorage.removeItem(TENANT_STORAGE_KEY);
+    }
+  },
+  removeItem: () => localStorage.removeItem(TENANT_STORAGE_KEY),
+};
 
 export interface Tenant {
   id: string;
@@ -28,40 +54,33 @@ interface TenantState {
   setRoles: (roles: TenantRole[]) => void;
   setPermissions: (permissions: string[]) => void;
   clearTenant: () => void;
-  initFromStorage: () => void;
 }
 
-export const useTenantStore = create<TenantState>((set) => ({
-  currentTenant: null,
-  tenants: [],
-  roles: [],
-  permissions: [],
+export const useTenantStore = create<TenantState>()(
+  devtools(
+    persist(
+      (set) => ({
+        currentTenant: null,
+        tenants: [],
+        roles: [],
+        permissions: [],
 
-  setTenant: (tenant) => {
-    localStorage.setItem("current_tenant", JSON.stringify(tenant));
-    set({ currentTenant: tenant });
-  },
+        setTenant: (tenant) => set({ currentTenant: tenant }),
 
-  setTenants: (tenants) => set({ tenants }),
+        setTenants: (tenants) => set({ tenants }),
 
-  setRoles: (roles) => set({ roles }),
+        setRoles: (roles) => set({ roles }),
 
-  setPermissions: (permissions) => set({ permissions }),
+        setPermissions: (permissions) => set({ permissions }),
 
-  clearTenant: () => {
-    localStorage.removeItem("current_tenant");
-    set({ currentTenant: null, roles: [], permissions: [] });
-  },
-
-  initFromStorage: () => {
-    try {
-      const raw = localStorage.getItem("current_tenant");
-      if (raw) {
-        const tenant = JSON.parse(raw) as Tenant;
-        set({ currentTenant: tenant });
-      }
-    } catch {
-      localStorage.removeItem("current_tenant");
-    }
-  },
-}));
+        clearTenant: () => set({ currentTenant: null, roles: [], permissions: [] }),
+      }),
+      {
+        name: "tenant-storage",
+        storage: tenantStorage,
+        partialize: (s) => ({ currentTenant: s.currentTenant }),
+      },
+    ),
+    { name: "TenantStore", enabled: import.meta.env.DEV },
+  ),
+);

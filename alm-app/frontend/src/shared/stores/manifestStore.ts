@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { devtools } from "zustand/middleware";
 
 /**
  * Manifest context (project scope) — backend manifest_bundle is fetched per project.
@@ -37,31 +38,36 @@ interface ManifestState {
   clearSnack: () => void;
 }
 
-export const useManifestStore = create<ManifestState>((set) => ({
-  currentManifest: null,
-  setCurrentManifest: (manifest) => set({ currentManifest: manifest }),
-  clearManifest: () => set({ currentManifest: null }),
+export const useManifestStore = create<ManifestState>()(
+  devtools(
+    (set) => ({
+      currentManifest: null,
+      setCurrentManifest: (manifest) => set({ currentManifest: manifest }),
+      clearManifest: () => set({ currentManifest: null }),
 
-  activeTab: "overview",
-  sourceValue: "",
-  sourceLanguage: "json",
-  snackMessage: null,
-  snackOpen: false,
-
-  setActiveTab: (tab) => set({ activeTab: tab }),
-  setSourceValue: (value) => set({ sourceValue: value }),
-  setSourceLanguage: (lang) => set({ sourceLanguage: lang }),
-  setSnackMessage: (message) => set({ snackMessage: message, snackOpen: message != null }),
-  setSnackOpen: (open) => set({ snackOpen: open }),
-  showSnack: (message) => set({ snackMessage: message, snackOpen: true }),
-
-  resetEditorFromBundle: (manifestBundle) => {
-    if (manifestBundle == null) return;
-    set({
-      sourceValue: JSON.stringify(manifestBundle, null, 2),
+      activeTab: "overview",
+      sourceValue: "",
       sourceLanguage: "json",
-    });
-  },
+      snackMessage: null,
+      snackOpen: false,
 
-  clearSnack: () => set({ snackMessage: null, snackOpen: false }),
-}));
+      setActiveTab: (tab) => set({ activeTab: tab }),
+      setSourceValue: (value) => set({ sourceValue: value }),
+      setSourceLanguage: (lang) => set({ sourceLanguage: lang }),
+      setSnackMessage: (message) => set({ snackMessage: message, snackOpen: message != null }),
+      setSnackOpen: (open) => set({ snackOpen: open }),
+      showSnack: (message) => set({ snackMessage: message, snackOpen: true }),
+
+      resetEditorFromBundle: (manifestBundle) => {
+        if (manifestBundle == null) return;
+        set({
+          sourceValue: JSON.stringify(manifestBundle, null, 2),
+          sourceLanguage: "json",
+        });
+      },
+
+      clearSnack: () => set({ snackMessage: null, snackOpen: false }),
+    }),
+    { name: "ManifestStore", enabled: import.meta.env.DEV },
+  ),
+);

@@ -1,12 +1,8 @@
 import { create } from "zustand";
+import { devtools } from "zustand/middleware";
+import type { Project } from "../api/types";
 
-export interface Project {
-  id: string;
-  code: string;
-  name: string;
-  slug: string;
-  description?: string;
-}
+export type { Project };
 
 /** Projects list page UI state (Zustand standard). */
 export interface ProjectListState {
@@ -16,15 +12,10 @@ export interface ProjectListState {
 
 interface ProjectState {
   currentProject: Project | null;
-  projectsByOrg: Record<string, Project[]>;
   listState: ProjectListState;
   setCurrentProject: (project: Project | null) => void;
-  setProjects: (orgSlug: string, projects: Project[]) => void;
-  addProject: (orgSlug: string, project: Project) => void;
   clearCurrentProject: () => void;
-  clearProjects: (orgSlug?: string) => void;
   clearAll: () => void;
-  getProjects: (orgSlug: string) => Project[];
   setListTab: (tab: number) => void;
   setCreateModalOpen: (open: boolean) => void;
   resetListState: () => void;
@@ -35,46 +26,26 @@ const defaultListState: ProjectListState = {
   createModalOpen: false,
 };
 
-export const useProjectStore = create<ProjectState>((set, get) => ({
-  currentProject: null,
-  projectsByOrg: {},
-  listState: defaultListState,
+export const useProjectStore = create<ProjectState>()(
+  devtools(
+    (set) => ({
+      currentProject: null,
+      listState: defaultListState,
 
-  setCurrentProject: (project) => set({ currentProject: project }),
+      setCurrentProject: (project) => set({ currentProject: project }),
 
-  setProjects: (orgSlug, projects) =>
-    set((s) => ({
-      projectsByOrg: { ...s.projectsByOrg, [orgSlug]: projects },
-    })),
+      clearCurrentProject: () => set({ currentProject: null }),
 
-  addProject: (orgSlug, project) =>
-    set((s) => ({
-      projectsByOrg: {
-        ...s.projectsByOrg,
-        [orgSlug]: [...(s.projectsByOrg[orgSlug] ?? []), project],
-      },
-    })),
+      clearAll: () => set({ currentProject: null, listState: defaultListState }),
 
-  clearCurrentProject: () => set({ currentProject: null }),
+      setListTab: (tab) =>
+        set((s) => ({ listState: { ...s.listState, listTab: tab } })),
 
-  clearProjects: (orgSlug) =>
-    set((s) => {
-      if (orgSlug) {
-        const { [orgSlug]: _, ...rest } = s.projectsByOrg;
-        return { projectsByOrg: rest };
-      }
-      return { projectsByOrg: {} };
+      setCreateModalOpen: (open) =>
+        set((s) => ({ listState: { ...s.listState, createModalOpen: open } })),
+
+      resetListState: () => set({ listState: defaultListState }),
     }),
-
-  clearAll: () => set({ currentProject: null, projectsByOrg: {}, listState: defaultListState }),
-
-  getProjects: (orgSlug) => get().projectsByOrg[orgSlug] ?? [],
-
-  setListTab: (tab) =>
-    set((s) => ({ listState: { ...s.listState, listTab: tab } })),
-
-  setCreateModalOpen: (open) =>
-    set((s) => ({ listState: { ...s.listState, createModalOpen: open } })),
-
-  resetListState: () => set({ listState: defaultListState }),
-}));
+    { name: "ProjectStore", enabled: import.meta.env.DEV },
+  ),
+);

@@ -4,12 +4,6 @@ import {
   Typography,
   Button,
   Box,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TablePagination,
   Paper,
   Chip,
@@ -84,6 +78,7 @@ import {
 import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { useFormSchema } from "../../../shared/api/formSchemaApi";
 import type { ProblemDetail } from "../../../shared/api/types";
+import type { FormFieldSchema, FormSchemaDto } from "../../../shared/types/formSchema";
 import { MetadataDrivenForm } from "../../../shared/components/forms/MetadataDrivenForm";
 import {
   useArtifacts,
@@ -285,6 +280,8 @@ export default function ArtifactsPage() {
   const { data: listSchema } = useListSchema(orgSlug, project?.id, "artifact");
   const { data: formSchema, isError: formSchemaError, error: formSchemaErr } = useFormSchema(orgSlug, project?.id);
   const formSchema403 = formSchemaError && (formSchemaErr as unknown as ProblemDetail)?.status === 403;
+  const { data: taskFormSchema } = useFormSchema(orgSlug, project?.id, "task", "create");
+  const { data: editFormSchema } = useFormSchema(orgSlug, project?.id, "artifact", "edit");
   const { data: members } = useOrgMembers(orgSlug);
   const { data: projectMembers, isLoading: projectMembersLoading } = useProjectMembers(orgSlug, project?.id);
   const addProjectMemberMutation = useAddProjectMember(orgSlug, project?.id);
@@ -328,10 +325,6 @@ export default function ArtifactsPage() {
     addMemberUserId,
     addMemberRole,
     detailDrawerEditing,
-    editTitle,
-    editDescription,
-    editAssigneeId,
-    editTitleError,
   } = listState;
   const selectedIds = useMemo(() => new Set(selectedIdsList), [selectedIdsList]);
 
@@ -423,13 +416,11 @@ export default function ArtifactsPage() {
   );
 
   const [addTaskOpen, setAddTaskOpen] = useState(false);
-  const [taskFormTitle, setTaskFormTitle] = useState("");
-  const [taskFormState, setTaskFormState] = useState("todo");
-  const [taskFormAssigneeId, setTaskFormAssigneeId] = useState<string>("");
+  const [taskCreateFormValues, setTaskCreateFormValues] = useState<Record<string, unknown>>({});
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [editTaskTitle, setEditTaskTitle] = useState("");
-  const [editTaskState, setEditTaskState] = useState("todo");
-  const [editTaskAssigneeId, setEditTaskAssigneeId] = useState<string>("");
+  const [taskEditFormValues, setTaskEditFormValues] = useState<Record<string, unknown>>({});
+  const [editFormValues, setEditFormValues] = useState<Record<string, unknown>>({});
+  const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
 
   const { data: tasks = [], isLoading: tasksLoading } = useTasksByArtifact(
     orgSlug,
@@ -515,12 +506,6 @@ export default function ArtifactsPage() {
   const showNotification = useNotificationStore((s) => s.showNotification);
 
   const toggleSelect = (id: string) => toggleSelectedId(id);
-  const toggleSelectAll = () => {
-    const ids = artifacts?.map((a) => a.id) ?? [];
-    if (ids.length === 0) return;
-    const allSelected = ids.every((id) => selectedIds.has(id));
-    setSelectedIds(allSelected ? [] : ids);
-  };
   const handleSelectAllInTable = (checked: boolean) => {
     const ids = artifacts?.map((a) => a.id) ?? [];
     if (checked) {
@@ -530,14 +515,6 @@ export default function ArtifactsPage() {
       setSelectedIds((prev) => prev.filter((id) => !idSet.has(id)));
     }
   };
-  const pageArtifactIds = useMemo(
-    () => new Set(artifacts?.map((a) => a.id) ?? []),
-    [artifacts],
-  );
-  const isAllPageSelected =
-    pageArtifactIds.size > 0 && [...pageArtifactIds].every((id) => selectedIds.has(id));
-  const isSomePageSelected =
-    pageArtifactIds.size > 0 && [...pageArtifactIds].some((id) => selectedIds.has(id));
 
   useEffect(() => {
     if (artifactIdFromUrl && artifactFromApi) {
@@ -585,6 +562,41 @@ export default function ArtifactsPage() {
       resolutionOptions: workflow?.resolution_options ?? [],
     };
   }, [transitionArtifact, bundle?.workflows, bundle?.artifact_types]);
+
+  const showResolutionField =
+    !!transitionTargetState &&
+    ["resolved", "closed", "done"].includes(transitionTargetState.toLowerCase());
+
+  const transitionFormSchema = useMemo((): FormSchemaDto | null => {
+    const fields: FormFieldSchema[] = [];
+    if (transitionOptions.stateReasonOptions.length > 0) {
+      fields.push({
+        key: "state_reason",
+        type: "choice",
+        label_key: "State reason",
+        required: false,
+        order: 1,
+        options: transitionOptions.stateReasonOptions,
+      });
+    }
+    if (showResolutionField && transitionOptions.resolutionOptions.length > 0) {
+      fields.push({
+        key: "resolution",
+        type: "choice",
+        label_key: "Resolution",
+        required: true,
+        order: 2,
+        options: transitionOptions.resolutionOptions,
+      });
+    }
+    if (fields.length === 0) return null;
+    return { entity_type: "transition", context: "single", fields };
+  }, [transitionOptions, showResolutionField]);
+
+  const transitionFormValues = useMemo(
+    () => ({ state_reason: transitionStateReason, resolution: transitionResolution }),
+    [transitionStateReason, transitionResolution],
+  );
 
   const artifactTypeParentMap = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -663,6 +675,55 @@ export default function ArtifactsPage() {
     return count;
   }, [bulkTransitionState, artifacts, manifest, selectedIds]);
 
+  const bulkTransitionOptions = useMemo(() => {
+    if (!bundle?.workflows?.length) return { stateReasonOptions: [], resolutionOptions: [] };
+    const w = bundle.workflows[0];
+    return {
+      stateReasonOptions: (w as { state_reason_options?: Array<{ id: string; label: string }> }).state_reason_options ?? [],
+      resolutionOptions: (w as { resolution_options?: Array<{ id: string; label: string }> }).resolution_options ?? [],
+    };
+  }, [bundle?.workflows]);
+
+  const bulkShowResolutionField =
+    !!bulkTransitionState &&
+    ["resolved", "closed", "done"].includes(bulkTransitionState.toLowerCase());
+
+  const bulkTransitionForm = useMemo(() => {
+    const fields: FormFieldSchema[] = [];
+    if (bulkTransitionOptions.stateReasonOptions.length > 0) {
+      fields.push({
+        key: "state_reason",
+        type: "choice",
+        label_key: "State reason",
+        required: false,
+        order: 1,
+        options: bulkTransitionOptions.stateReasonOptions,
+      });
+    }
+    if (bulkShowResolutionField && bulkTransitionOptions.resolutionOptions.length > 0) {
+      fields.push({
+        key: "resolution",
+        type: "choice",
+        label_key: "Resolution",
+        required: true,
+        order: 2,
+        options: bulkTransitionOptions.resolutionOptions,
+      });
+    }
+    const schema: FormSchemaDto | null =
+      fields.length === 0 ? null : { entity_type: "transition", context: "bulk", fields };
+    const values = {
+      state_reason: bulkTransitionStateReason,
+      resolution: bulkTransitionResolution,
+    };
+    return { schema, values };
+  }, [
+    bulkTransitionOptions,
+    bulkShowResolutionField,
+    bulkTransitionStateReason,
+    bulkTransitionResolution,
+  ]);
+
   const artifactsByState = useMemo(() => {
     if (!isBoardView || !filterStates.length) return {} as Record<string, Artifact[]>;
     const map: Record<string, Artifact[]> = {};
@@ -674,15 +735,6 @@ export default function ArtifactsPage() {
     }
     return map;
   }, [isBoardView, artifacts, filterStates]);
-
-  const filterTypes = useMemo(
-    () =>
-      (bundle?.artifact_types ?? []).map((at) => ({
-        id: at.id,
-        name: (at.name as string) || at.id.replace(/_/g, " "),
-      })),
-    [bundle?.artifact_types],
-  );
 
   const customFieldColumns = useMemo(() => {
     const seen = new Set<string>();
@@ -742,6 +794,32 @@ export default function ArtifactsPage() {
       setCreateFormValues(initialFormValues);
     }
   }, [createOpen, formSchema, initialFormValues]);
+
+  const taskCreateInitialValues = useMemo(() => {
+    const vals: Record<string, unknown> = {};
+    for (const f of taskFormSchema?.fields ?? []) {
+      vals[f.key] = f.default_value ?? (f.key === "assignee_id" ? "" : "");
+    }
+    return vals;
+  }, [taskFormSchema?.fields]);
+
+  useEffect(() => {
+    if (addTaskOpen && taskFormSchema) {
+      setTaskCreateFormValues(taskCreateInitialValues);
+    }
+  }, [addTaskOpen, taskFormSchema, taskCreateInitialValues]);
+
+  useEffect(() => {
+    if (editingTask && taskFormSchema) {
+      setTaskEditFormValues({
+        title: editingTask.title,
+        description: editingTask.description ?? "",
+        state: editingTask.state,
+        assignee_id: editingTask.assignee_id ?? "",
+        rank_order: editingTask.rank_order ?? "",
+      });
+    }
+  }, [editingTask, taskFormSchema]);
 
   const handleCreate = async () => {
     const title = (createFormValues.title as string)?.trim();
@@ -813,9 +891,6 @@ export default function ArtifactsPage() {
     setListState({ transitionStateReason: "", transitionResolution: "" });
   };
 
-  const showResolutionField =
-    !!transitionTargetState &&
-    ["resolved", "closed", "done"].includes(transitionTargetState.toLowerCase());
   const handleConfirmTransition = async () => {
     if (!transitionArtifact || !transitionTargetState) return;
     const permitted = permittedTransitions?.items?.find((i) => i.to_state === transitionTargetState);
@@ -987,36 +1062,6 @@ export default function ArtifactsPage() {
               >
                 Save filters
               </Button>
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>State</InputLabel>
-                <Select
-                  label="State"
-                  value={stateFilter}
-                  onChange={(e) => setListState({ stateFilter: e.target.value })}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {filterStates.map((s) => (
-                    <MenuItem key={s} value={s}>
-                      {s.replace(/_/g, " ").replace(/-/g, " ")}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl size="small" sx={{ minWidth: 130 }}>
-                <InputLabel>Type</InputLabel>
-                <Select
-                  label="Type"
-                  value={typeFilter}
-                  onChange={(e) => setListState({ typeFilter: e.target.value })}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {filterTypes.map((t) => (
-                    <MenuItem key={t.id} value={t.id}>
-                      {t.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
               <FormControl size="small" sx={{ minWidth: 140 }}>
                 <InputLabel>Cycle</InputLabel>
                 <Select
@@ -1361,107 +1406,11 @@ export default function ArtifactsPage() {
               />
             </Box>
           ) : viewMode === "table" ? (
-            <TableContainer
-              component={Paper}
-              variant="outlined"
-              sx={{ opacity: isRefetching ? 0.7 : 1, transition: "opacity 0.2s" }}
-              aria-label="Artifacts list"
-            >
-              <Table aria-label="Artifacts">
-                <TableHead>
-                  <TableRow>
-                    {!showDeleted && (
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          indeterminate={isSomePageSelected && !isAllPageSelected}
-                          checked={isAllPageSelected}
-                          onChange={toggleSelectAll}
-                          disabled={!artifacts?.length}
-                          aria-label="Select all on page"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </TableCell>
-                    )}
-                    <TableCell>Key</TableCell>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Title</TableCell>
-                    <TableCell>State</TableCell>
-                    <TableCell>State reason</TableCell>
-                    <TableCell>Resolution</TableCell>
-                    <TableCell>Created</TableCell>
-                    <TableCell>Updated</TableCell>
-                    {customFieldColumns.map((c) => (
-                      <TableCell key={c.key}>{c.label}</TableCell>
-                    ))}
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {artifacts?.length === 0 ? (
-                    <TableRow>
-                        <TableCell colSpan={showDeleted ? 9 + customFieldColumns.length : 10 + customFieldColumns.length} align="center" sx={{ py: 4 }}>
-                        {(stateFilter || typeFilter || cycleNodeFilter || areaNodeFilter || searchQuery) ? (
-                          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                            <Typography color="text.secondary">
-                              No artifacts match your filters.
-                            </Typography>
-                            <Button
-                              size="small"
-                              startIcon={<FilterListOff />}
-                              onClick={() =>
-                                setListState({
-                                  stateFilter: "",
-                                  typeFilter: "",
-                                  searchInput: "",
-                                  page: 0,
-                                })
-                              }
-                            >
-                              Clear filters
-                            </Button>
-                          </Box>
-                        ) : (
-                          <Typography color="text.secondary">
-                            No artifacts yet. Create one to get started.
-                          </Typography>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    artifacts?.map((a) => (
-                      <ArtifactRow
-                        key={a.id}
-                        artifact={a}
-                        manifest={manifest}
-                        customFieldColumns={customFieldColumns}
-                        selected={!showDeleted && selectedIds.has(a.id)}
-                        onToggleSelect={showDeleted ? undefined : () => toggleSelect(a.id)}
-                        onMenuOpen={handleMenuOpen}
-                        onSelect={() => {
-                          setListState({ detailArtifactId: a.id });
-                          setSearchParams((prev) => {
-                            const p = new URLSearchParams(prev);
-                            p.set("artifact", a.id);
-                            return p;
-                          });
-                        }}
-                        showRestore={showDeleted && (a.allowed_actions?.includes("restore") ?? false)}
-                        onRestore={() => {
-                          restoreMutation.mutate(a.id, {
-                            onSuccess: () => {
-                              showNotification("Artifact restored", "success");
-                              setListState({ showDeleted: false });
-                            },
-                            onError: () => showNotification("Restore failed", "error"),
-                          });
-                        }}
-                        restorePending={restoreMutation.isPending}
-                      />
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <Paper variant="outlined" sx={{ p: 4, textAlign: "center" }}>
+              <Typography color="text.secondary">
+                List schema is loading or not available. Switch to Board or Tree view, or try again later.
+              </Typography>
+            </Paper>
           ) : (
             <Paper
               variant="outlined"
@@ -1819,20 +1768,39 @@ export default function ArtifactsPage() {
                   </FormHelperText>
                 )}
               </FormControl>
-              <TextField
-                size="small"
-                fullWidth
-                label="State reason (optional)"
-                value={bulkTransitionStateReason}
-                onChange={(e) => setListState({ bulkTransitionStateReason: e.target.value })}
-              />
-              <TextField
-                size="small"
-                fullWidth
-                label="Resolution (optional)"
-                value={bulkTransitionResolution}
-                onChange={(e) => setListState({ bulkTransitionResolution: e.target.value })}
-              />
+              {bulkTransitionForm.schema ? (
+                <MetadataDrivenForm
+                  schema={bulkTransitionForm.schema}
+                  values={bulkTransitionForm.values}
+                  onChange={(v) =>
+                    setListState({
+                      bulkTransitionStateReason: (v.state_reason as string) ?? "",
+                      bulkTransitionResolution: (v.resolution as string) ?? "",
+                    })
+                  }
+                  onSubmit={() => {}}
+                  submitLabel="Transition"
+                  disabled={batchTransitionMutation.isPending}
+                  submitExternally
+                />
+              ) : (
+                <>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    label="State reason (optional)"
+                    value={bulkTransitionStateReason}
+                    onChange={(e) => setListState({ bulkTransitionStateReason: e.target.value })}
+                  />
+                  <TextField
+                    size="small"
+                    fullWidth
+                    label="Resolution (optional)"
+                    value={bulkTransitionResolution}
+                    onChange={(e) => setListState({ bulkTransitionResolution: e.target.value })}
+                  />
+                </>
+              )}
             </>
           )}
         </DialogContent>
@@ -1873,7 +1841,10 @@ export default function ArtifactsPage() {
                 variant="contained"
                 disabled={
                   (!bulkTransitionTrigger && !bulkTransitionState) ||
-                  batchTransitionMutation.isPending
+                  batchTransitionMutation.isPending ||
+                  (bulkShowResolutionField &&
+                    bulkTransitionOptions.resolutionOptions.length > 0 &&
+                    !bulkTransitionResolution)
                 }
                 onClick={() => {
                   batchTransitionMutation.mutate(
@@ -2021,38 +1992,21 @@ export default function ArtifactsPage() {
               </Box>
             </Box>
           )}
-          {transitionOptions.stateReasonOptions.length > 0 && (
-            <FormControl fullWidth size="small" sx={{ mt: 1, mb: 2 }}>
-              <InputLabel>State reason</InputLabel>
-              <Select
-                label="State reason"
-                value={transitionStateReason}
-                onChange={(e) => setListState({ transitionStateReason: e.target.value })}
-              >
-                {transitionOptions.stateReasonOptions.map((opt) => (
-                  <MenuItem key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-          {showResolutionField && transitionOptions.resolutionOptions.length > 0 && (
-            <FormControl fullWidth size="small" sx={{ mb: 2 }} required>
-              <InputLabel>Resolution</InputLabel>
-              <Select
-                label="Resolution *"
-                value={transitionResolution}
-                onChange={(e) => setListState({ transitionResolution: e.target.value })}
-              >
-                {transitionOptions.resolutionOptions.map((opt) => (
-                  <MenuItem key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </MenuItem>
-                ))}
-              </Select>
-              <FormHelperText>Required when closing or resolving.</FormHelperText>
-            </FormControl>
+          {transitionFormSchema && (
+            <MetadataDrivenForm
+              schema={transitionFormSchema}
+              values={transitionFormValues}
+              onChange={(v) =>
+                setListState({
+                  transitionStateReason: (v.state_reason as string) ?? "",
+                  transitionResolution: (v.resolution as string) ?? "",
+                })
+              }
+              onSubmit={handleConfirmTransition}
+              submitLabel="Transition"
+              disabled={transitionMutation.isPending}
+              submitExternally
+            />
           )}
         </DialogContent>
         <DialogActions>
@@ -2263,72 +2217,75 @@ export default function ArtifactsPage() {
 
       <Dialog open={addTaskOpen} onClose={() => setAddTaskOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Add task</DialogTitle>
-        <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          <TextField
-            label="Title"
-            size="small"
-            fullWidth
-            required
-            value={taskFormTitle}
-            onChange={(e) => setTaskFormTitle(e.target.value)}
-            inputProps={{ maxLength: 500 }}
-          />
-          <FormControl size="small" fullWidth>
-            <InputLabel>State</InputLabel>
-            <Select
-              label="State"
-              value={taskFormState}
-              onChange={(e) => setTaskFormState(e.target.value)}
-            >
-              <MenuItem value="todo">Todo</MenuItem>
-              <MenuItem value="in_progress">In progress</MenuItem>
-              <MenuItem value="done">Done</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Assignee</InputLabel>
-            <Select
-              label="Assignee"
-              value={taskFormAssigneeId}
-              onChange={(e) => setTaskFormAssigneeId(e.target.value)}
-            >
-              <MenuItem value="">Unassigned</MenuItem>
-              {(members ?? []).map((m) => (
-                <MenuItem key={m.user_id} value={m.user_id}>
-                  {m.display_name || m.email || m.user_id}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+        <DialogContent sx={{ pt: 1 }}>
+          {taskFormSchema ? (
+            <MetadataDrivenForm
+              schema={taskFormSchema}
+              values={taskCreateFormValues}
+              onChange={setTaskCreateFormValues}
+              onSubmit={() => {
+                const title = (taskCreateFormValues.title as string)?.trim();
+                if (!title) return;
+                const payload: CreateTaskRequest = {
+                  title,
+                  description: (taskCreateFormValues.description as string) || undefined,
+                  state: (taskCreateFormValues.state as string) || "todo",
+                  assignee_id: (taskCreateFormValues.assignee_id as string) || null,
+                  rank_order: typeof taskCreateFormValues.rank_order === "number" ? taskCreateFormValues.rank_order : undefined,
+                };
+                createTaskMutation.mutate(payload, {
+                  onSuccess: () => {
+                    setAddTaskOpen(false);
+                    setTaskCreateFormValues({});
+                    showNotification("Task added", "success");
+                  },
+                  onError: (err: Error) => {
+                    const body = (err as unknown as { body?: ProblemDetail })?.body;
+                    showNotification(body?.detail ?? "Failed to add task", "error");
+                  },
+                });
+              }}
+              submitLabel="Add"
+              disabled={createTaskMutation.isPending}
+              submitExternally
+              userOptions={members?.map((m) => ({ id: m.user_id, label: m.display_name || m.email || m.user_id })) ?? []}
+            />
+          ) : (
+            <Typography color="text.secondary">Loading form…</Typography>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAddTaskOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={!taskFormTitle.trim() || createTaskMutation.isPending}
-            onClick={() => {
-              const title = taskFormTitle.trim();
-              if (!title) return;
-              const payload: CreateTaskRequest = {
-                title,
-                state: taskFormState,
-                assignee_id: taskFormAssigneeId || null,
-              };
-              createTaskMutation.mutate(payload, {
-                onSuccess: () => {
-                  setAddTaskOpen(false);
-                  setTaskFormTitle("");
-                  showNotification("Task added", "success");
-                },
-                onError: (err: Error) => {
-                  const body = (err as unknown as { body?: ProblemDetail })?.body;
-                  showNotification(body?.detail ?? "Failed to add task", "error");
-                },
-              });
-            }}
-          >
-            Add
-          </Button>
+          {taskFormSchema && (
+            <Button
+              variant="contained"
+              disabled={!(taskCreateFormValues.title as string)?.trim() || createTaskMutation.isPending}
+              onClick={() => {
+                const title = (taskCreateFormValues.title as string)?.trim();
+                if (!title) return;
+                const payload: CreateTaskRequest = {
+                  title,
+                  description: (taskCreateFormValues.description as string) || undefined,
+                  state: (taskCreateFormValues.state as string) || "todo",
+                  assignee_id: (taskCreateFormValues.assignee_id as string) || null,
+                  rank_order: typeof taskCreateFormValues.rank_order === "number" ? taskCreateFormValues.rank_order : undefined,
+                };
+                createTaskMutation.mutate(payload, {
+                  onSuccess: () => {
+                    setAddTaskOpen(false);
+                    setTaskCreateFormValues({});
+                    showNotification("Task added", "success");
+                  },
+                  onError: (err: Error) => {
+                    const body = (err as unknown as { body?: ProblemDetail })?.body;
+                    showNotification(body?.detail ?? "Failed to add task", "error");
+                  },
+                });
+              }}
+            >
+              Add
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 
@@ -2339,72 +2296,73 @@ export default function ArtifactsPage() {
         fullWidth
       >
         <DialogTitle>Edit task</DialogTitle>
-        <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          <TextField
-            label="Title"
-            size="small"
-            fullWidth
-            required
-            value={editTaskTitle}
-            onChange={(e) => setEditTaskTitle(e.target.value)}
-            inputProps={{ maxLength: 500 }}
-          />
-          <FormControl size="small" fullWidth>
-            <InputLabel>State</InputLabel>
-            <Select
-              label="State"
-              value={editTaskState}
-              onChange={(e) => setEditTaskState(e.target.value)}
-            >
-              <MenuItem value="todo">Todo</MenuItem>
-              <MenuItem value="in_progress">In progress</MenuItem>
-              <MenuItem value="done">Done</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Assignee</InputLabel>
-            <Select
-              label="Assignee"
-              value={editTaskAssigneeId}
-              onChange={(e) => setEditTaskAssigneeId(e.target.value)}
-            >
-              <MenuItem value="">Unassigned</MenuItem>
-              {(members ?? []).map((m) => (
-                <MenuItem key={m.user_id} value={m.user_id}>
-                  {m.display_name || m.email || m.user_id}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+        <DialogContent sx={{ pt: 1 }}>
+          {taskFormSchema && editingTask ? (
+            <MetadataDrivenForm
+              schema={taskFormSchema}
+              values={taskEditFormValues}
+              onChange={setTaskEditFormValues}
+              onSubmit={() => {
+                const title = (taskEditFormValues.title as string)?.trim();
+                if (!title || !editingTask) return;
+                const payload: UpdateTaskRequest = {
+                  title,
+                  description: (taskEditFormValues.description as string) ?? null,
+                  state: (taskEditFormValues.state as string) ?? undefined,
+                  assignee_id: (taskEditFormValues.assignee_id as string) || null,
+                  rank_order: typeof taskEditFormValues.rank_order === "number" ? taskEditFormValues.rank_order : undefined,
+                };
+                updateTaskMutation.mutate(payload, {
+                  onSuccess: () => {
+                    setEditingTask(null);
+                    showNotification("Task updated", "success");
+                  },
+                  onError: (err: Error) => {
+                    const body = (err as unknown as { body?: ProblemDetail })?.body;
+                    showNotification(body?.detail ?? "Failed to update task", "error");
+                  },
+                });
+              }}
+              submitLabel="Save"
+              disabled={updateTaskMutation.isPending}
+              submitExternally
+              userOptions={members?.map((m) => ({ id: m.user_id, label: m.display_name || m.email || m.user_id })) ?? []}
+            />
+          ) : editingTask ? (
+            <Typography color="text.secondary">Loading form…</Typography>
+          ) : null}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditingTask(null)}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={!editTaskTitle.trim() || updateTaskMutation.isPending}
-            onClick={() => {
-              if (!editingTask) return;
-              const title = editTaskTitle.trim();
-              if (!title) return;
-              const payload: UpdateTaskRequest = {
-                title,
-                state: editTaskState,
-                assignee_id: editTaskAssigneeId || null,
-              };
-              updateTaskMutation.mutate(payload, {
-                onSuccess: () => {
-                  setEditingTask(null);
-                  showNotification("Task updated", "success");
-                },
-                onError: (err: Error) => {
-                  const body = (err as unknown as { body?: ProblemDetail })?.body;
-                  showNotification(body?.detail ?? "Failed to update task", "error");
-                },
-              });
-            }}
-          >
-            Save
-          </Button>
+          {taskFormSchema && editingTask && (
+            <Button
+              variant="contained"
+              disabled={!(taskEditFormValues.title as string)?.trim() || updateTaskMutation.isPending}
+              onClick={() => {
+                const title = (taskEditFormValues.title as string)?.trim();
+                if (!title || !editingTask) return;
+                const payload: UpdateTaskRequest = {
+                  title,
+                  description: (taskEditFormValues.description as string) ?? null,
+                  state: (taskEditFormValues.state as string) ?? undefined,
+                  assignee_id: (taskEditFormValues.assignee_id as string) || null,
+                  rank_order: typeof taskEditFormValues.rank_order === "number" ? taskEditFormValues.rank_order : undefined,
+                };
+                updateTaskMutation.mutate(payload, {
+                  onSuccess: () => {
+                    setEditingTask(null);
+                    showNotification("Task updated", "success");
+                  },
+                  onError: (err: Error) => {
+                    const body = (err as unknown as { body?: ProblemDetail })?.body;
+                    showNotification(body?.detail ?? "Failed to update task", "error");
+                  },
+                });
+              }}
+            >
+              Save
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 
@@ -2593,13 +2551,15 @@ export default function ArtifactsPage() {
                       startIcon={<Edit />}
                       aria-label="Edit artifact"
                       onClick={() => {
-                        setListState({
-                          editTitle: detailArtifact.title,
-                          editDescription: detailArtifact.description ?? "",
-                          editAssigneeId: detailArtifact.assignee_id ?? "",
-                          editTitleError: "",
-                          detailDrawerEditing: true,
+                        setEditFormValues({
+                          title: detailArtifact.title,
+                          description: detailArtifact.description ?? "",
+                          assignee_id: detailArtifact.assignee_id ?? "",
+                          cycle_node_id: detailArtifact.cycle_node_id ?? "",
+                          area_node_id: detailArtifact.area_node_id ?? "",
                         });
+                        setEditFormErrors({});
+                        setListState({ detailDrawerEditing: true });
                       }}
                     >
                       Edit
@@ -2639,73 +2599,33 @@ export default function ArtifactsPage() {
                 {detailArtifact.artifact_key ?? detailArtifact.id}
               </Typography>
               {detailDrawerEditing ? (
-                <Box sx={{ mt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <TextField
-                    label="Title"
-                    size="small"
-                    fullWidth
-                    value={editTitle}
-                    onChange={(e) => {
-                      setListState({ editTitle: e.target.value, editTitleError: "" });
-                    }}
-                    error={!!editTitleError}
-                    helperText={editTitleError}
-                    inputProps={{ maxLength: TITLE_MAX_LENGTH }}
-                  />
-                  <TextField
-                    label="Description"
-                    size="small"
-                    fullWidth
-                    multiline
-                    minRows={3}
-                    value={editDescription}
-                    onChange={(e) => setListState({ editDescription: e.target.value })}
-                  />
-                  <FormControl size="small" fullWidth>
-                    <InputLabel>Assignee</InputLabel>
-                    <Select
-                      label="Assignee"
-                      value={editAssigneeId}
-                      onChange={(e) => setListState({ editAssigneeId: e.target.value })}
-                    >
-                      <MenuItem value="">Unassigned</MenuItem>
-                      {(members ?? []).map((m) => (
-                        <MenuItem key={m.user_id} value={m.user_id}>
-                          {m.display_name || m.email || m.user_id}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
-                    <Button
-                      onClick={() => setListState({ detailDrawerEditing: false })}
-                      disabled={updateArtifactMutation.isPending}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="contained"
-                      disabled={updateArtifactMutation.isPending}
-                      onClick={() => {
-                        const titleTrim = editTitle.trim();
+                <Box sx={{ mt: 1 }}>
+                  {editFormSchema ? (
+                    <MetadataDrivenForm
+                      schema={editFormSchema}
+                      values={editFormValues}
+                      onChange={setEditFormValues}
+                      onSubmit={() => {
+                        const titleTrim = (editFormValues.title as string)?.trim();
                         if (!titleTrim) {
-                          setListState({ editTitleError: "Title is required." });
+                          setEditFormErrors({ title: "Title is required." });
                           return;
                         }
                         if (titleTrim.length > TITLE_MAX_LENGTH) {
-                          setListState({ editTitleError: `Title must be at most ${TITLE_MAX_LENGTH} characters.` });
+                          setEditFormErrors({ title: `Title must be at most ${TITLE_MAX_LENGTH} characters.` });
                           return;
                         }
-                        setListState({ editTitleError: "" });
+                        setEditFormErrors({});
                         const payload: UpdateArtifactRequest = {
                           title: titleTrim,
-                          description: editDescription || null,
-                          assignee_id: editAssigneeId || null,
+                          description: (editFormValues.description as string) || null,
+                          assignee_id: (editFormValues.assignee_id as string) || null,
+                          cycle_node_id: (editFormValues.cycle_node_id as string) || null,
+                          area_node_id: (editFormValues.area_node_id as string) || null,
                         };
                         updateArtifactMutation.mutate(payload, {
                           onSuccess: (data) => {
-                            setListState({ detailArtifactId: data.id });
-                            setListState({ detailDrawerEditing: false });
+                            setListState({ detailArtifactId: data.id, detailDrawerEditing: false });
                             showNotification("Artifact updated successfully.", "success");
                           },
                           onError: (error: Error) => {
@@ -2717,9 +2637,64 @@ export default function ArtifactsPage() {
                           },
                         });
                       }}
+                      submitLabel="Save"
+                      disabled={updateArtifactMutation.isPending}
+                      submitExternally
+                      errors={editFormErrors}
+                      userOptions={members?.map((m) => ({ id: m.user_id, label: m.display_name || m.email || m.user_id })) ?? []}
+                      cycleOptions={cycleNodesFlat.map((c) => ({ id: c.id, label: c.path || c.name }))}
+                      areaOptions={areaNodesFlat.map((a) => ({ id: a.id, label: areaNodeDisplayLabel(a) }))}
+                    />
+                  ) : (
+                    <Typography color="text.secondary">Loading form…</Typography>
+                  )}
+                  <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end", mt: 2 }}>
+                    <Button
+                      onClick={() => setListState({ detailDrawerEditing: false })}
+                      disabled={updateArtifactMutation.isPending}
                     >
-                      Save
+                      Cancel
                     </Button>
+                    {editFormSchema && (
+                      <Button
+                        variant="contained"
+                        disabled={updateArtifactMutation.isPending || !(editFormValues.title as string)?.trim()}
+                        onClick={() => {
+                          const titleTrim = (editFormValues.title as string)?.trim();
+                          if (!titleTrim) {
+                            setEditFormErrors({ title: "Title is required." });
+                            return;
+                          }
+                          if (titleTrim.length > TITLE_MAX_LENGTH) {
+                            setEditFormErrors({ title: `Title must be at most ${TITLE_MAX_LENGTH} characters.` });
+                            return;
+                          }
+                          setEditFormErrors({});
+                          const payload: UpdateArtifactRequest = {
+                            title: titleTrim,
+                            description: (editFormValues.description as string) || null,
+                            assignee_id: (editFormValues.assignee_id as string) || null,
+                            cycle_node_id: (editFormValues.cycle_node_id as string) || null,
+                            area_node_id: (editFormValues.area_node_id as string) || null,
+                          };
+                          updateArtifactMutation.mutate(payload, {
+                            onSuccess: (data) => {
+                              setListState({ detailArtifactId: data.id, detailDrawerEditing: false });
+                              showNotification("Artifact updated successfully.", "success");
+                            },
+                            onError: (error: Error) => {
+                              const body = (error as unknown as { body?: ProblemDetail })?.body;
+                              showNotification(
+                                body?.detail ?? "Failed to update artifact",
+                                "error",
+                              );
+                            },
+                          });
+                        }}
+                      >
+                        Save
+                      </Button>
+                    )}
                   </Box>
                 </Box>
               ) : (
@@ -2762,64 +2737,27 @@ export default function ArtifactsPage() {
                     detailArtifact.assignee_id}
                 </Typography>
               )}
-              {!detailDrawerEditing && (
-                <Box sx={{ mt: 2, mb: 2 }}>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Planning
-                  </Typography>
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    <FormControl size="small" fullWidth>
-                      <InputLabel>Cycle</InputLabel>
-                      <Select
-                        label="Cycle"
-                        value={detailArtifact.cycle_node_id ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value as string;
-                          updateArtifactMutation.mutate(
-                            { cycle_node_id: v || null },
-                            {
-                              onSuccess: () => showNotification("Cycle updated", "success"),
-                              onError: (err: Error) => showNotification(err?.message ?? "Update failed", "error"),
-                            },
-                          );
-                        }}
-                        disabled={updateArtifactMutation.isPending}
-                      >
-                        <MenuItem value="">None</MenuItem>
-                        {cycleNodesFlat.map((c) => (
-                          <MenuItem key={c.id} value={c.id}>
-                            {c.path || c.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                    <FormControl size="small" fullWidth>
-                      <InputLabel>Area</InputLabel>
-                      <Select
-                        label="Area"
-                        value={detailArtifact.area_node_id ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value as string;
-                          updateArtifactMutation.mutate(
-                            { area_node_id: v || null },
-                            {
-                              onSuccess: () => showNotification("Area updated", "success"),
-                              onError: (err: Error) => showNotification(err?.message ?? "Update failed", "error"),
-                            },
-                          );
-                        }}
-                        disabled={updateArtifactMutation.isPending}
-                      >
-                        <MenuItem value="">None</MenuItem>
-                        {areaNodesFlat.map((a) => (
-                          <MenuItem key={a.id} value={a.id}>
-                            {areaNodeDisplayLabel(a)}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Box>
-                </Box>
+              {!detailDrawerEditing && (detailArtifact.cycle_node_id || detailArtifact.area_node_id) && (
+                <Typography variant="body2" sx={{ mb: 2 }}>
+                  {detailArtifact.cycle_node_id && (
+                    <>
+                      <strong>Cycle:</strong>{" "}
+                      {cycleNodesFlat.find((c) => c.id === detailArtifact.cycle_node_id)?.path ||
+                        cycleNodesFlat.find((c) => c.id === detailArtifact.cycle_node_id)?.name ||
+                        detailArtifact.cycle_node_id}
+                    </>
+                  )}
+                  {detailArtifact.cycle_node_id && detailArtifact.area_node_id && " · "}
+                  {detailArtifact.area_node_id && (
+                    <>
+                      <strong>Area:</strong>{" "}
+                      {(() => {
+                        const a = areaNodesFlat.find((n) => n.id === detailArtifact.area_node_id);
+                        return a ? areaNodeDisplayLabel(a) : detailArtifact.area_node_id;
+                      })()}
+                    </>
+                  )}
+                </Typography>
               )}
               {!detailDrawerEditing && detailArtifact.custom_fields &&
                 Object.keys(detailArtifact.custom_fields).length > 0 && (
@@ -2889,12 +2827,7 @@ export default function ArtifactsPage() {
                                 <IconButton
                                   size="small"
                                   aria-label="Edit task"
-                                  onClick={() => {
-                                    setEditingTask(task);
-                                    setEditTaskTitle(task.title);
-                                    setEditTaskState(task.state);
-                                    setEditTaskAssigneeId(task.assignee_id ?? "");
-                                  }}
+                                  onClick={() => setEditingTask(task)}
                                 >
                                   <Edit fontSize="small" />
                                 </IconButton>
@@ -2950,12 +2883,7 @@ export default function ArtifactsPage() {
                       <Button
                         size="small"
                         startIcon={<Add />}
-                        onClick={() => {
-                          setTaskFormTitle("");
-                          setTaskFormState("todo");
-                          setTaskFormAssigneeId("");
-                          setAddTaskOpen(true);
-                        }}
+                        onClick={() => setAddTaskOpen(true)}
                       >
                         Add task
                       </Button>
@@ -3345,123 +3273,6 @@ function ArtifactTreeNode({
         </List>
       </Collapse>
     </>
-  );
-}
-
-function ArtifactRow({
-  artifact,
-  manifest: _manifest,
-  customFieldColumns,
-  selected,
-  onToggleSelect,
-  onMenuOpen,
-  onSelect,
-  showRestore,
-  onRestore,
-  restorePending,
-}: {
-  artifact: Artifact;
-  manifest: Parameters<typeof getValidTransitions>[0];
-  customFieldColumns: { key: string; label: string }[];
-  selected?: boolean;
-  onToggleSelect?: () => void;
-  onMenuOpen: (e: React.MouseEvent<HTMLElement>, a: Artifact) => void;
-  onSelect?: () => void;
-  showRestore?: boolean;
-  onRestore?: () => void;
-  restorePending?: boolean;
-}) {
-  return (
-    <TableRow
-      onClick={onSelect}
-      sx={{ cursor: onSelect ? "pointer" : undefined }}
-    >
-      {onToggleSelect != null && (
-        <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
-          <Checkbox
-            checked={!!selected}
-            onChange={onToggleSelect}
-            aria-label={`Select ${artifact.artifact_key ?? artifact.title}`}
-            onClick={(e) => e.stopPropagation()}
-          />
-        </TableCell>
-      )}
-      <TableCell>
-        <Typography variant="body2" color="text.secondary" fontFamily="monospace">
-          {artifact.artifact_key ?? "—"}
-        </Typography>
-      </TableCell>
-      <TableCell sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        {getArtifactIcon(artifact.artifact_type)}
-        <Typography variant="body2" textTransform="capitalize">
-          {artifact.artifact_type}
-        </Typography>
-      </TableCell>
-      <TableCell>
-        <Typography fontWeight={500}>{artifact.title}</Typography>
-        {artifact.description && (
-          <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 300 }}>
-            {artifact.description}
-          </Typography>
-        )}
-      </TableCell>
-      <TableCell>
-        <Chip label={artifact.state} size="small" variant="outlined" />
-      </TableCell>
-      <TableCell>
-        <Typography variant="body2" color="text.secondary">
-          {artifact.state_reason ?? "—"}
-        </Typography>
-      </TableCell>
-      <TableCell>
-        <Typography variant="body2" color="text.secondary">
-          {artifact.resolution ?? "—"}
-        </Typography>
-      </TableCell>
-      <TableCell>
-        <Typography variant="body2" color="text.secondary">
-          {formatDateTime(artifact.created_at ?? undefined) || "—"}
-        </Typography>
-      </TableCell>
-      <TableCell>
-        <Typography variant="body2" color="text.secondary">
-          {formatDateTime(artifact.updated_at ?? undefined) || "—"}
-        </Typography>
-      </TableCell>
-      {customFieldColumns.map((c) => (
-        <TableCell key={c.key}>
-          <Typography variant="body2" color="text.secondary">
-            {artifact.custom_fields?.[c.key] != null
-              ? String(artifact.custom_fields[c.key])
-              : "—"}
-          </Typography>
-        </TableCell>
-      ))}
-      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, justifyContent: "flex-end" }}>
-          {showRestore && onRestore && (
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRestore();
-              }}
-              disabled={restorePending}
-            >
-              Restore
-            </Button>
-          )}
-          <IconButton
-            size="small"
-            onClick={(e) => onMenuOpen(e, artifact)}
-            aria-label="Actions"
-          >
-            <MoreVert />
-          </IconButton>
-        </Box>
-      </TableCell>
-    </TableRow>
   );
 }
 

@@ -40,6 +40,10 @@ export interface MetadataDrivenFormProps {
   artifactTypeParentMap?: Record<string, string[]>;
   /** Users for assignee_id entity_ref */
   userOptions?: UserOption[];
+  /** Cycle nodes for cycle_node_id entity_ref (planning) */
+  cycleOptions?: Array<{ id: string; label: string }>;
+  /** Area nodes for area_node_id entity_ref (planning) */
+  areaOptions?: Array<{ id: string; label: string }>;
   /** Field-level validation errors (key -> message) */
   errors?: Record<string, string>;
 }
@@ -76,6 +80,8 @@ export function MetadataDrivenForm({
   parentArtifacts = [],
   artifactTypeParentMap,
   userOptions = [],
+  cycleOptions = [],
+  areaOptions = [],
   errors = {},
 }: MetadataDrivenFormProps) {
   const visibleFields = useMemo(
@@ -180,6 +186,56 @@ export function MetadataDrivenForm({
                   {userOptions.map((u) => (
                     <MenuItem key={u.id} value={u.id}>
                       {u.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+                {err && <FormHelperText>{err}</FormHelperText>}
+              </FormControl>
+            );
+          }
+
+          if ((field.type === "entity_ref" && field.entity_ref === "cycle") || field.key === "cycle_node_id") {
+            const err = errors[field.key];
+            const options = cycleOptions;
+            return (
+              <FormControl key={field.key} fullWidth required={required} error={!!err}>
+                <InputLabel>{field.label_key}</InputLabel>
+                <Select
+                  value={val ?? ""}
+                  label={field.label_key}
+                  onChange={(e) =>
+                    updateField(field.key, (e.target.value as string) || null)
+                  }
+                >
+                  <MenuItem value="">None</MenuItem>
+                  {options.map((o) => (
+                    <MenuItem key={o.id} value={o.id}>
+                      {o.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+                {err && <FormHelperText>{err}</FormHelperText>}
+              </FormControl>
+            );
+          }
+
+          if ((field.type === "entity_ref" && field.entity_ref === "area") || field.key === "area_node_id") {
+            const err = errors[field.key];
+            const options = areaOptions;
+            return (
+              <FormControl key={field.key} fullWidth required={required} error={!!err}>
+                <InputLabel>{field.label_key}</InputLabel>
+                <Select
+                  value={val ?? ""}
+                  label={field.label_key}
+                  onChange={(e) =>
+                    updateField(field.key, (e.target.value as string) || null)
+                  }
+                >
+                  <MenuItem value="">None</MenuItem>
+                  {options.map((o) => (
+                    <MenuItem key={o.id} value={o.id}>
+                      {o.label}
                     </MenuItem>
                   ))}
                 </Select>

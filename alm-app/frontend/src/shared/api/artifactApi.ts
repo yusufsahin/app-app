@@ -1,11 +1,10 @@
 /**
- * Artifact API: work items (requirements, defects) and workflow transitions
- * Syncs with artifactStore for client-side state.
+ * Artifact API: work items (requirements, defects) and workflow transitions.
+ * Artifact list is the single source of truth in React Query; no sync to artifactStore.
  */
-import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
-import { useArtifactStore, type Artifact } from "../stores/artifactStore";
+import type { Artifact } from "../stores/artifactStore";
 
 export type { Artifact };
 
@@ -103,7 +102,6 @@ export function useArtifacts(
   cycleNodeId?: string | null,
   areaNodeId?: string | null,
 ) {
-  const setArtifacts = useArtifactStore((s) => s.setArtifacts);
   const params = buildArtifactListParams({
     stateFilter,
     typeFilter,
@@ -117,7 +115,7 @@ export function useArtifacts(
     areaNodeId,
   });
 
-  const query = useQuery({
+  return useQuery({
     queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", stateFilter, typeFilter, sortBy, sortOrder, searchQuery?.trim() || null, limit, offset, includeDeleted, cycleNodeId || null, areaNodeId || null],
     queryFn: async (): Promise<ArtifactsListResult> => {
       const { data } = await apiClient.get<ArtifactsListResult>(
@@ -128,14 +126,6 @@ export function useArtifacts(
     },
     enabled: !!orgSlug && !!projectId,
   });
-
-  useEffect(() => {
-    if (query.data?.items && projectId) {
-      setArtifacts(projectId, query.data.items);
-    }
-  }, [query.data?.items, projectId, setArtifacts]);
-
-  return query;
 }
 
 export function useArtifact(
@@ -157,7 +147,6 @@ export function useArtifact(
 
 export function useCreateArtifact(orgSlug: string | undefined, projectId: string | undefined) {
   const queryClient = useQueryClient();
-  const addArtifact = useArtifactStore((s) => s.addArtifact);
 
   return useMutation({
     mutationFn: async (payload: CreateArtifactRequest): Promise<Artifact> => {
@@ -175,11 +164,10 @@ export function useCreateArtifact(orgSlug: string | undefined, projectId: string
       );
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts"],
       });
-      if (projectId) addArtifact(projectId, data);
     },
   });
 }
@@ -254,7 +242,6 @@ export function useUpdateArtifact(
   artifactId: string | undefined,
 ) {
   const queryClient = useQueryClient();
-  const updateArtifact = useArtifactStore((s) => s.updateArtifact);
 
   return useMutation({
     mutationFn: async (payload: UpdateArtifactRequest): Promise<Artifact> => {
@@ -277,7 +264,6 @@ export function useUpdateArtifact(
       queryClient.invalidateQueries({
         queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", data.id],
       });
-      if (projectId) updateArtifact(projectId, data.id, data);
     },
   });
 }
@@ -308,7 +294,6 @@ export function useTransitionArtifact(
   artifactId: string | undefined,
 ) {
   const queryClient = useQueryClient();
-  const updateArtifact = useArtifactStore((s) => s.updateArtifact);
 
   return useMutation({
     mutationFn: async (payload: TransitionArtifactRequest): Promise<Artifact> => {
@@ -327,14 +312,13 @@ export function useTransitionArtifact(
       );
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts"],
       });
       queryClient.invalidateQueries({
         queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId],
       });
-      if (projectId && artifactId) updateArtifact(projectId, artifactId, data);
     },
   });
 }
@@ -345,7 +329,6 @@ export function useTransitionArtifactById(
   projectId: string | undefined,
 ) {
   const queryClient = useQueryClient();
-  const updateArtifact = useArtifactStore((s) => s.updateArtifact);
 
   return useMutation({
     mutationFn: async (payload: { artifactId: string } & TransitionArtifactRequest): Promise<Artifact> => {
@@ -371,7 +354,6 @@ export function useTransitionArtifactById(
       queryClient.invalidateQueries({
         queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", data.id],
       });
-      if (projectId && data.id) updateArtifact(projectId, data.id, data);
     },
   });
 }
@@ -434,7 +416,6 @@ export function useRestoreArtifact(
   projectId: string | undefined,
 ) {
   const queryClient = useQueryClient();
-  const updateArtifact = useArtifactStore((s) => s.updateArtifact);
 
   return useMutation({
     mutationFn: async (artifactId: string): Promise<Artifact> => {
@@ -450,7 +431,6 @@ export function useRestoreArtifact(
       queryClient.invalidateQueries({
         queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", data?.id],
       });
-      if (projectId && data?.id) updateArtifact(projectId, data.id, data);
     },
   });
 }
