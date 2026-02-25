@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   Box,
-  Container,
   Typography,
   Card,
   CardContent,
@@ -28,6 +27,7 @@ import {
   useOrgDashboardActivity,
   type DashboardActivityItem,
 } from "../../../shared/api/orgApi";
+import { StandardPageLayout } from "../../../shared/components/Layout";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 
 function formatRelativeTime(iso: string | null): string {
@@ -46,45 +46,24 @@ function formatRelativeTime(iso: string | null): string {
 }
 
 function StatCard({
+  label,
+  value,
+  isLoading,
   to,
-  label,
-  value,
-  isLoading,
-}: {
-  to: string;
-  label: string;
-  value: number;
-  isLoading: boolean;
-}) {
-  return (
-    <MuiLink component={Link} to={to} underline="none" color="inherit" sx={{ display: "block" }}>
-      <Card sx={{ height: "100%", transition: "box-shadow 0.2s", "&:hover": { boxShadow: 2 } }}>
-        <CardContent>
-          <Typography color="text.secondary" gutterBottom>
-            {label}
-          </Typography>
-          {isLoading ? (
-            <CircularProgress size={32} />
-          ) : (
-            <Typography variant="h3">{value}</Typography>
-          )}
-        </CardContent>
-      </Card>
-    </MuiLink>
-  );
-}
-
-function StatCardPlain({
-  label,
-  value,
-  isLoading,
 }: {
   label: string;
   value: number;
   isLoading: boolean;
+  to?: string;
 }) {
-  return (
-    <Card>
+  const content = (
+    <Card
+      sx={{
+        height: "100%",
+        transition: "box-shadow 0.2s",
+        ...(to ? { "&:hover": { boxShadow: 2 } } : {}),
+      }}
+    >
       <CardContent>
         <Typography color="text.secondary" gutterBottom>
           {label}
@@ -96,6 +75,14 @@ function StatCardPlain({
         )}
       </CardContent>
     </Card>
+  );
+
+  return to ? (
+    <MuiLink component={Link} to={to} underline="none" color="inherit" sx={{ display: "block" }}>
+      {content}
+    </MuiLink>
+  ) : (
+    content
   );
 }
 
@@ -124,139 +111,130 @@ export default function DashboardPage() {
 
   const projectsPath = orgSlug ? `/${orgSlug}` : "#";
   const artifactsPath =
-    orgSlug && selectedProject ? `/${orgSlug}/${selectedProject.slug}/artifacts` : projectsPath;
+    orgSlug && selectedProject ? `/${orgSlug}/${selectedProject.slug}/artifacts` : undefined;
   const tasksPath =
     orgSlug && selectedProject
       ? `/${orgSlug}/${selectedProject.slug}/artifacts?type=task`
-      : projectsPath;
+      : undefined;
   const openDefectsPath =
     orgSlug && selectedProject
       ? `/${orgSlug}/${selectedProject.slug}/artifacts?type=defect&state=Open`
-      : projectsPath;
+      : undefined;
+
+  const breadcrumbs = (
+    <Breadcrumbs>
+      <MuiLink
+        component={Link}
+        to={orgSlug ? `/${orgSlug}` : "#"}
+        underline="hover"
+        color="inherit"
+      >
+        {orgSlug ?? "Org"}
+      </MuiLink>
+      <Typography color="text.primary">Dashboard</Typography>
+    </Breadcrumbs>
+  );
+
+  const filterBar = (
+    <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, pt: 2 }}>
+      <FormControl
+        size="small"
+        sx={{ minWidth: 220 }}
+        disabled={projectsLoading || projects.length === 0}
+      >
+        <InputLabel id="dashboard-project-label">Filter by project</InputLabel>
+        <Select
+          labelId="dashboard-project-label"
+          label="Filter by project"
+          value={effectiveSlug ?? ""}
+          onChange={(e) => setSelectedSlug(e.target.value ? (e.target.value as string) : null)}
+          displayEmpty
+          renderValue={(v) =>
+            projectsLoading ? "Loading…" : v ? projects.find((p) => p.slug === v)?.name ?? v : ""
+          }
+        >
+          {projects.map((p) => (
+            <MenuItem key={p.id} value={p.slug}>
+              {p.name}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      {effectiveSlug && (
+        <FormControlLabel
+          control={
+            <Checkbox
+              size="small"
+              checked={showOnlySelectedProject}
+              onChange={(_, checked) => setShowOnlySelectedProject(checked)}
+            />
+          }
+          label="Show only selected project in activity"
+        />
+      )}
+      {!projectsLoading && projects.length === 0 && (
+        <Typography variant="body2" color="text.secondary">
+          No projects yet.{" "}
+          <MuiLink component={Link} to={projectsPath} underline="hover">
+            Go to projects
+          </MuiLink>
+        </Typography>
+      )}
+    </Box>
+  );
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Breadcrumbs sx={{ mb: 2 }}>
-        <MuiLink
-          component={Link}
-          to={orgSlug ? `/${orgSlug}` : "#"}
-          underline="hover"
-          color="inherit"
-        >
-          {orgSlug ?? "Org"}
-        </MuiLink>
-        <Typography color="text.primary">Dashboard</Typography>
-      </Breadcrumbs>
-      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, mb: 3 }}>
-        <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
-          Dashboard
-        </Typography>
-        {orgSlug && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-            <FormControl size="small" sx={{ minWidth: 220 }} disabled={projectsLoading || projects.length === 0}>
-              <InputLabel id="dashboard-project-label">Project for links</InputLabel>
-              <Select
-                labelId="dashboard-project-label"
-                label="Project for links"
-                value={effectiveSlug ?? ""}
-                onChange={(e) => setSelectedSlug(e.target.value ? (e.target.value as string) : null)}
-                displayEmpty
-                renderValue={(v) => (projectsLoading ? "Loading…" : v ? projects.find((p) => p.slug === v)?.name ?? v : "")}
-              >
-                {projects.map((p) => (
-                  <MenuItem key={p.id} value={p.slug}>
-                    {p.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            {!projectsLoading && projects.length === 0 && (
-              <Typography variant="body2" color="text.secondary">
-                No projects yet. <MuiLink component={Link} to={projectsPath} underline="hover">Go to projects</MuiLink>
-              </Typography>
-            )}
-          </Box>
-        )}
-      </Box>
-      <Grid container spacing={3}>
+    <StandardPageLayout
+      breadcrumbs={breadcrumbs}
+      title="Dashboard"
+      filterBar={filterBar}
+    >
+      <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MuiLink component={Link} to={projectsPath} underline="none" color="inherit" sx={{ display: "block" }}>
-            <Card sx={{ height: "100%", transition: "box-shadow 0.2s", "&:hover": { boxShadow: 2 } }}>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom>
-                  Projects
-                </Typography>
-                {isLoading ? (
-                  <CircularProgress size={32} />
-                ) : (
-                  <Typography variant="h3">{stats?.projects ?? 0}</Typography>
-                )}
-              </CardContent>
-            </Card>
-          </MuiLink>
+          <StatCard
+            label="Projects"
+            value={stats?.projects ?? 0}
+            isLoading={isLoading}
+            to={projectsPath}
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          {selectedProject ? (
-            <StatCard
-              to={artifactsPath}
-              label="Artifacts"
-              value={stats?.artifacts ?? 0}
-              isLoading={isLoading}
-            />
-          ) : (
-            <StatCardPlain label="Artifacts" value={stats?.artifacts ?? 0} isLoading={isLoading} />
-          )}
+          <StatCard
+            label="Artifacts"
+            value={stats?.artifacts ?? 0}
+            isLoading={isLoading}
+            to={artifactsPath}
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          {selectedProject ? (
-            <StatCard
-              to={tasksPath}
-              label="Tasks"
-              value={stats?.tasks ?? 0}
-              isLoading={isLoading}
-            />
-          ) : (
-            <StatCardPlain label="Tasks" value={stats?.tasks ?? 0} isLoading={isLoading} />
-          )}
+          <StatCard
+            label="Tasks"
+            value={stats?.tasks ?? 0}
+            isLoading={isLoading}
+            to={tasksPath}
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          {selectedProject ? (
-            <StatCard
-              to={openDefectsPath}
-              label="Open Defects"
-              value={stats?.openDefects ?? 0}
-              isLoading={isLoading}
-            />
-          ) : (
-            <StatCardPlain
-              label="Open Defects"
-              value={stats?.openDefects ?? 0}
-              isLoading={isLoading}
-            />
-          )}
+          <StatCard
+            label="Open Defects"
+            value={stats?.openDefects ?? 0}
+            isLoading={isLoading}
+            to={openDefectsPath}
+          />
         </Grid>
       </Grid>
 
-      <Card sx={{ mt: 3 }}>
+      <Card>
         <CardContent>
-          <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 2 }}>
-            <Typography variant="overline" color="primary" fontWeight={600} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <History fontSize="small" />
-              Recent activity
-            </Typography>
-            {effectiveSlug && (
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    size="small"
-                    checked={showOnlySelectedProject}
-                    onChange={(_, checked) => setShowOnlySelectedProject(checked)}
-                  />
-                }
-                label="Show only selected project"
-              />
-            )}
-          </Box>
+          <Typography
+            variant="overline"
+            color="primary"
+            fontWeight={600}
+            sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}
+          >
+            <History fontSize="small" />
+            Recent activity
+          </Typography>
           {activityLoading ? (
             <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
               <CircularProgress size={32} />
@@ -267,13 +245,26 @@ export default function DashboardPage() {
                 <ListItem
                   key={item.artifact_id}
                   component={Link}
-                  to={orgSlug && item.project_slug ? `/${orgSlug}/${item.project_slug}/artifacts` : "#"}
+                  to={
+                    orgSlug && item.project_slug
+                      ? `/${orgSlug}/${item.project_slug}/artifacts`
+                      : "#"
+                  }
                   sx={{ textDecoration: "none", color: "inherit" }}
                 >
                   <ListItemText
                     primary={item.title}
                     secondary={
-                      <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
+                      <Box
+                        component="span"
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          flexWrap: "wrap",
+                          mt: 0.5,
+                        }}
+                      >
                         <Chip size="small" label={item.state} variant="outlined" />
                         <Typography component="span" variant="caption" color="text.secondary">
                           {item.artifact_type}
@@ -302,6 +293,6 @@ export default function DashboardPage() {
           Failed to load dashboard stats
         </Typography>
       )}
-    </Container>
+    </StandardPageLayout>
   );
 }

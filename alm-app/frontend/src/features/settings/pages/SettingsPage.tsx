@@ -1,121 +1,30 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Box,
   Typography,
-  Card,
-  CardContent,
-  CardActionArea,
   Button,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogContentText,
   DialogActions,
+  Card,
+  CardContent,
+  Chip,
 } from "@mui/material";
-import Grid from "@mui/material/Grid2";
-import { Folder, People, Security, VerifiedUser, History, Archive, AccountTree } from "@mui/icons-material";
-import { useNavigate } from "react-router-dom";
+import { Archive, Business } from "@mui/icons-material";
 import { apiClient } from "../../../shared/api/client";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { useTenantStore } from "../../../shared/stores/tenantStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
-import { hasPermission } from "../../../shared/utils/permissions";
 import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
 import { OrgSettingsBreadcrumbs } from "../../../shared/components/Layout";
-
-type SettingsGroupId = "general" | "security" | "compliance";
-
-interface SettingCard {
-  title: string;
-  description: string;
-  path: string;
-  icon: React.ReactNode;
-  permission: string;
-  group: SettingsGroupId;
-}
-
-const SETTING_CARDS: SettingCard[] = [
-  {
-    title: "Projects",
-    description: "View and manage projects",
-    path: "..",
-    icon: <Folder color="primary" sx={{ fontSize: 40 }} />,
-    permission: "project:read",
-    group: "general",
-  },
-  {
-    title: "Process manifest",
-    description: "Edit workflow and process template per project",
-    path: "../manifest",
-    icon: <AccountTree color="primary" sx={{ fontSize: 40 }} />,
-    permission: "manifest:read",
-    group: "general",
-  },
-  {
-    title: "Members",
-    description: "Manage tenant members and invitations",
-    path: "../members",
-    icon: <People color="primary" sx={{ fontSize: 40 }} />,
-    permission: "member:read",
-    group: "security",
-  },
-  {
-    title: "Roles",
-    description: "Manage roles and their privilege assignments",
-    path: "../roles",
-    icon: <Security color="primary" sx={{ fontSize: 40 }} />,
-    permission: "role:read",
-    group: "security",
-  },
-  {
-    title: "Privileges",
-    description: "View available privileges (resource:action)",
-    path: "../privileges",
-    icon: <VerifiedUser color="primary" sx={{ fontSize: 40 }} />,
-    permission: "role:read",
-    group: "security",
-  },
-  {
-    title: "Access audit",
-    description: "View login and access audit log",
-    path: "../audit",
-    icon: <History color="primary" sx={{ fontSize: 40 }} />,
-    permission: "admin:audit",
-    group: "compliance",
-  },
-];
-
-const GROUP_LABELS: Record<SettingsGroupId, string> = {
-  general: "General",
-  security: "Security & permissions",
-  compliance: "Compliance",
-};
+import { useNavigate } from "react-router-dom";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const permissions = useAuthStore((s) => s.permissions);
   const roles = useAuthStore((s) => s.roles);
   const isAdmin = roles.includes("admin");
-
-  const visibleCards = useMemo(
-    () =>
-      SETTING_CARDS.filter((c) =>
-        c.permission === "admin:audit"
-          ? isAdmin
-          : hasPermission(permissions, c.permission),
-      ),
-    [permissions, isAdmin],
-  );
-
-  const cardsByGroup = useMemo(() => {
-    const map: Partial<Record<SettingsGroupId, SettingCard[]>> = {};
-    for (const card of visibleCards) {
-      const list = map[card.group] ?? [];
-      list.push(card);
-      map[card.group] = list;
-    }
-    return map;
-  }, [visibleCards]);
 
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -146,42 +55,56 @@ export default function SettingsPage() {
       <Typography component="h1" variant="h4" gutterBottom>
         Organization settings
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Manage projects, members, roles, and security.
-      </Typography>
 
-      {(["general", "security", "compliance"] as const).map(
-        (group) =>
-          cardsByGroup[group]?.length && (
-            <Box key={group} sx={{ mb: 4 }}>
-              <Typography variant="subtitle1" fontWeight={600} color="text.secondary" sx={{ mb: 2 }}>
-                {GROUP_LABELS[group]}
+      {/* Organization info */}
+      <Card variant="outlined" sx={{ mb: 3, maxWidth: 560 }}>
+        <CardContent>
+          <Typography
+            variant="subtitle1"
+            fontWeight={600}
+            gutterBottom
+            sx={{ display: "flex", alignItems: "center", gap: 1 }}
+          >
+            <Business fontSize="small" />
+            General
+          </Typography>
+
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Name
               </Typography>
-              <Grid container spacing={3}>
-                {cardsByGroup[group]!.map((card) => (
-                  <Grid key={card.path} size={{ xs: 12, sm: 6, md: 4 }}>
-                    <Card>
-                      <CardActionArea onClick={() => navigate(card.path)}>
-                        <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                          {card.icon}
-                          <Box>
-                            <Typography variant="h6">{card.title}</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {card.description}
-                            </Typography>
-                          </Box>
-                        </CardContent>
-                      </CardActionArea>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
+              <Typography variant="body1" fontWeight={500}>
+                {currentTenant?.name ?? "—"}
+              </Typography>
             </Box>
-          ),
-      )}
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Slug
+              </Typography>
+              <Typography variant="body2" fontFamily="monospace">
+                {currentTenant?.slug ?? "—"}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Tier
+              </Typography>
+              <Box sx={{ mt: 0.25 }}>
+                <Chip
+                  label={currentTenant?.tier ?? "—"}
+                  size="small"
+                  variant="outlined"
+                />
+              </Box>
+            </Box>
+          </Box>
+        </CardContent>
+      </Card>
 
+      {/* Danger zone (admin only) */}
       {isAdmin && (
-        <Box sx={{ mt: 6 }}>
+        <Box sx={{ maxWidth: 560 }}>
           <Typography variant="h6" color="error" gutterBottom>
             Danger zone
           </Typography>
