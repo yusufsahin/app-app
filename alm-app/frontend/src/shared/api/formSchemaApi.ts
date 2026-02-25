@@ -17,7 +17,7 @@ export function useFormSchema(
       const { data } = await apiClient.get<FormSchemaDto>(
         `/orgs/${orgSlug}/projects/${projectId}/form-schema`,
         {
-          params: { entityType, context },
+          params: { entity_type: entityType, context },
         },
       );
       return data;
