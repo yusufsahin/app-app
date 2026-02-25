@@ -1,16 +1,17 @@
 """Create task linked to an artifact."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
+from alm.artifact.domain.ports import ArtifactRepository
+from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
 from alm.task.application.dtos import TaskDTO
 from alm.task.domain.entities import Task
 from alm.task.domain.ports import TaskRepository
-from alm.artifact.domain.ports import ArtifactRepository
-from alm.project.domain.ports import ProjectRepository
 
 
 @dataclass(frozen=True)

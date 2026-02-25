@@ -1,4 +1,5 @@
 """MPC manifest resolver — workflow, type defs, policies (generic; ALM uses type_kind='ArtifactType')."""
+
 from __future__ import annotations
 
 import logging
@@ -9,9 +10,9 @@ from typing import Any
 TYPE_KIND_ARTIFACT = "ArtifactType"
 
 try:
-    from mpc.ast import ManifestAST, ASTNode, normalize
-    from mpc.policy.engine import PolicyEngine
+    from mpc.ast import ASTNode, ManifestAST, normalize
     from mpc.meta.models import DomainMeta
+    from mpc.policy.engine import PolicyEngine
 
     _HAS_MPC = True
 except ModuleNotFoundError:
@@ -38,18 +39,18 @@ class _DefNode:
 
     __slots__ = ("kind", "id", "properties")
 
-    def __init__(self, d: dict) -> None:
+    def __init__(self, d: dict[str, Any]) -> None:
         self.kind = d.get("kind", "")
         self.id = str(d.get("id", ""))
         self.properties = {k: v for k, v in d.items() if k not in ("kind", "id")}
 
 
 class _SimpleAST:
-    def __init__(self, manifest_bundle: dict) -> None:
+    def __init__(self, manifest_bundle: dict[str, Any]) -> None:
         self.defs = [_DefNode(d) for d in manifest_bundle.get("defs", []) if isinstance(d, dict)]
 
 
-def _to_ast_fallback(manifest_bundle: dict) -> _SimpleAST:
+def _to_ast_fallback(manifest_bundle: dict[str, Any]) -> _SimpleAST:
     return _SimpleAST(manifest_bundle or {})
 
 
@@ -58,7 +59,7 @@ _MANIFEST_AST_CACHE: dict[uuid.UUID, Any] = {}
 _CACHE_MAX_SIZE = 128
 
 
-def get_manifest_ast(version_id: uuid.UUID, manifest_bundle: dict) -> Any:
+def get_manifest_ast(version_id: uuid.UUID, manifest_bundle: dict[str, Any]) -> Any:
     """Parse manifest to AST, cached by process_template_version_id.
     Version IDs uniquely identify immutable manifest content."""
     if _HAS_MPC:
@@ -73,7 +74,7 @@ def get_manifest_ast(version_id: uuid.UUID, manifest_bundle: dict) -> Any:
     return _to_ast_fallback(manifest_bundle)
 
 
-def _to_ast(manifest_bundle: dict) -> Any:
+def _to_ast(manifest_bundle: dict[str, Any]) -> Any:
     """Normalize manifest bundle dict to AST (no cache)."""
     if _HAS_MPC:
         return normalize(manifest_bundle)
@@ -94,31 +95,31 @@ def _get_defs_by_kind(ast: Any, kind: str) -> list[Any]:
 
 
 def get_type_def(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     type_kind: str,
     type_id: str,
     ast: Any | None = None,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Get type definition as dict (workflow_id, parent_types, child_types, fields). Generic: kind + id."""
     if ast is None:
         ast = _to_ast(manifest_bundle)
     at_def = _get_def(ast, type_kind, type_id)
     if at_def is None:
         return None
-    return at_def.properties
+    return dict(at_def.properties)
 
 
 def get_artifact_type_def(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     artifact_type: str,
     ast: Any | None = None,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """ALM convenience: get ArtifactType def by id. Prefer get_type_def(..., type_kind, type_id) for generic use."""
     return get_type_def(manifest_bundle, TYPE_KIND_ARTIFACT, artifact_type, ast=ast)
 
 
 def is_valid_parent_child(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     parent_type: str,
     child_type: str,
     *,
@@ -144,9 +145,9 @@ def is_valid_parent_child(
 
 
 def check_transition_policies(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     to_state: str,
-    entity_snapshot: dict,
+    entity_snapshot: dict[str, Any],
     *,
     type_id: str | None = None,
     type_kind: str = TYPE_KIND_ARTIFACT,
@@ -167,7 +168,7 @@ def check_transition_policies(
 
 
 def get_transition_actions(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     type_id: str,
     from_state: str,
     to_state: str,
@@ -179,13 +180,11 @@ def get_transition_actions(
     Delegates to workflow_sm adapter (single source for workflow graph)."""
     from alm.artifact.domain.workflow_sm import get_transition_actions as _get_transition_actions
 
-    return _get_transition_actions(
-        manifest_bundle, type_id, from_state, to_state, type_kind=type_kind, ast=ast
-    )
+    return _get_transition_actions(manifest_bundle, type_id, from_state, to_state, type_kind=type_kind, ast=ast)
 
 
 def get_workflow_transition_options(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     workflow_id: str,
 ) -> tuple[list[str], list[str]]:
     """Return (allowed_state_reason_ids, allowed_resolution_ids) for the workflow."""
@@ -204,7 +203,7 @@ def get_workflow_transition_options(
     return (allowed_reasons, allowed_resolutions)
 
 
-def manifest_defs_to_flat(manifest_bundle: dict) -> dict:
+def manifest_defs_to_flat(manifest_bundle: dict[str, Any]) -> dict[str, Any]:
     """Convert defs format to flat workflows + artifact_types + link_types for frontend consumption.
     If bundle has top-level workflows/artifact_types but no defs, returns them as-is (flat format).
     """
@@ -223,9 +222,9 @@ def manifest_defs_to_flat(manifest_bundle: dict) -> dict:
             "link_types": lt if isinstance(lt, list) else [],
         }
 
-    workflows: list[dict] = []
-    artifact_types: list[dict] = []
-    link_types: list[dict] = []
+    workflows: list[dict[str, Any]] = []
+    artifact_types: list[dict[str, Any]] = []
+    link_types: list[dict[str, Any]] = []
 
     for d in defs_list:
         if not isinstance(d, dict):
@@ -238,7 +237,7 @@ def manifest_defs_to_flat(manifest_bundle: dict) -> dict:
             transitions = []
             for t in transitions_raw:
                 if isinstance(t, dict) and "from" in t and "to" in t:
-                    tr: dict = {"from": str(t["from"]), "to": str(t["to"])}
+                    tr: dict[str, Any] = {"from": str(t["from"]), "to": str(t["to"])}
                     if t.get("trigger") is not None:
                         tr["trigger"] = str(t["trigger"])
                     if t.get("trigger_label") is not None:
@@ -270,10 +269,12 @@ def manifest_defs_to_flat(manifest_bundle: dict) -> dict:
                 at["fields"] = d["fields"]
             artifact_types.append(at)
         elif kind == "LinkType":
-            link_types.append({
-                "id": obj_id,
-                "name": d.get("name") or _humanize_id(obj_id),
-            })
+            link_types.append(
+                {
+                    "id": obj_id,
+                    "name": d.get("name") or _humanize_id(obj_id),
+                }
+            )
 
     return {"workflows": workflows, "artifact_types": artifact_types, "link_types": link_types}
 
@@ -300,7 +301,7 @@ def evaluate_transition_policy(
         result = engine.evaluate(event, actor_roles=actor_roles or [])
         if result.allow:
             return (True, [])
-        return (False, [r.summary for r in result.reasons])
+        return (False, [str(getattr(r, "summary", "") or "") for r in result.reasons])
     except Exception as e:  # noqa: BLE001
         _log.warning("PolicyEngine.evaluate failed: %s", e, exc_info=True)
         return (False, ["Policy check temporarily unavailable"])
@@ -328,7 +329,7 @@ def acl_check(
             return (True, [])
         reasons = getattr(result, "reasons", [])
         if isinstance(reasons, list) and reasons:
-            return (False, [getattr(r, "summary", str(r)) for r in reasons])
+            return (False, [str(getattr(r, "summary", str(r))) for r in reasons])
         return (False, ["ACL denied"])
     except Exception as e:  # noqa: BLE001
         _log.warning("ACLEngine.check failed: %s", e, exc_info=True)

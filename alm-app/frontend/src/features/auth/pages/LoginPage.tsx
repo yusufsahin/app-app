@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
@@ -7,7 +7,6 @@ import {
   Box,
   Card,
   CardContent,
-  TextField,
   Button,
   Typography,
   Alert,
@@ -17,6 +16,7 @@ import {
   IconButton,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { RhfTextField } from "../../../shared/components/forms";
 import { useLogin } from "../../../shared/api/authApi";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { useTenantStore } from "../../../shared/stores/tenantStore";
@@ -36,13 +36,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginFormData>({
+  const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   });
+  const { handleSubmit } = form;
 
   const onSubmit = async (data: LoginFormData) => {
     setError(null);
@@ -94,60 +91,57 @@ export default function LoginPage() {
             </Alert>
           )}
 
-          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-            <TextField
-              {...register("email")}
-              label="Email"
-              type="email"
-              fullWidth
-              error={!!errors.email}
-              helperText={errors.email?.message}
-              sx={{ mb: 2.5 }}
-              autoComplete="email"
-            />
+          <FormProvider {...form}>
+            <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+              <RhfTextField<LoginFormData>
+                name="email"
+                label="Email"
+                type="email"
+                fullWidth
+                sx={{ mb: 2.5 }}
+                autoComplete="email"
+              />
+              <RhfTextField<LoginFormData>
+                name="password"
+                label="Password"
+                type={showPassword ? "text" : "password"}
+                fullWidth
+                sx={{ mb: 3 }}
+                autoComplete="current-password"
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowPassword((v) => !v)}
+                          edge="end"
+                          size="small"
+                          aria-label="toggle password visibility"
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
 
-            <TextField
-              {...register("password")}
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              fullWidth
-              error={!!errors.password}
-              helperText={errors.password?.message}
-              sx={{ mb: 3 }}
-              autoComplete="current-password"
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => setShowPassword((v) => !v)}
-                        edge="end"
-                        size="small"
-                        aria-label="toggle password visibility"
-                      >
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-
-            <Button
-              type="submit"
-              variant="contained"
-              fullWidth
-              size="large"
-              disabled={login.isPending}
-              sx={{ mb: 2, py: 1.5 }}
-            >
-              {login.isPending ? (
-                <CircularProgress size={24} color="inherit" />
-              ) : (
-                "Sign In"
-              )}
-            </Button>
-          </Box>
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
+                size="large"
+                disabled={login.isPending}
+                sx={{ mb: 2, py: 1.5 }}
+              >
+                {login.isPending ? (
+                  <CircularProgress size={24} color="inherit" />
+                ) : (
+                  "Sign In"
+                )}
+              </Button>
+            </Box>
+          </FormProvider>
 
           <Typography variant="body2" align="center" color="text.secondary">
             Don&apos;t have an account?{" "}

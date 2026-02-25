@@ -1,13 +1,14 @@
 """Get cycle node by id."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
 from alm.cycle.application.dtos import CycleNodeDTO
 from alm.cycle.domain.ports import CycleRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)

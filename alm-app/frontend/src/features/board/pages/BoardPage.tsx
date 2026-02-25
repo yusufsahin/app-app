@@ -6,24 +6,22 @@ import {
   Box,
   Paper,
   Skeleton,
-  Breadcrumbs,
   Link as MuiLink,
   Card,
   CardContent,
   Chip,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from "@mui/material";
-import { ArrowBack, ViewColumn } from "@mui/icons-material";
-import { useMemo, useCallback, useState } from "react";
+import { ViewColumn } from "@mui/icons-material";
+import { useMemo, useCallback } from "react";
+import { useForm, FormProvider } from "react-hook-form";
+import { RhfSelect } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { useCycleNodes, useAreaNodes, cycleNodeDisplayLabel, areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import { useArtifacts, useTransitionArtifactById } from "../../../shared/api/artifactApi";
 import type { Artifact } from "../../../shared/stores/artifactStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
+import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import { artifactDetailPath, artifactsPath } from "../../../shared/utils/appPaths";
 import { getWorkflowStatesForType, type ManifestBundleShape } from "../../../shared/lib/workflowManifest";
 
@@ -36,8 +34,16 @@ export default function BoardPage() {
   const { data: manifest, isLoading: manifestLoading } = useProjectManifest(orgSlug, project?.id);
   const { data: cycleNodesFlat = [] } = useCycleNodes(orgSlug, project?.id, true);
   const { data: areaNodesFlat = [] } = useAreaNodes(orgSlug, project?.id, true);
-  const [cycleFilter, setCycleFilter] = useState<string>("");
-  const [areaFilter, setAreaFilter] = useState<string>("");
+
+  type BoardFilterValues = { typeFilter: string; cycleFilter: string; areaFilter: string };
+  const filterForm = useForm<BoardFilterValues>({
+    defaultValues: { typeFilter: "", cycleFilter: "", areaFilter: "" },
+  });
+  const { watch, control } = filterForm;
+  const typeFilter = watch("typeFilter");
+  const cycleFilter = watch("cycleFilter");
+  const areaFilter = watch("areaFilter");
+
   const { data: artifactsData, isLoading: artifactsLoading } = useArtifacts(
     orgSlug,
     project?.id,
@@ -54,7 +60,6 @@ export default function BoardPage() {
   );
   const transitionMutation = useTransitionArtifactById(orgSlug, project?.id);
   const showNotification = useNotificationStore((s) => s.showNotification);
-  const [typeFilter, setTypeFilter] = useState<string>("");
 
   const bundle = manifest?.manifest_bundle as ManifestBundleShape | undefined;
   const artifactTypes = useMemo(() => bundle?.artifact_types ?? [], [bundle]);
@@ -119,25 +124,13 @@ export default function BoardPage() {
     );
   }
 
+  if (projects !== undefined && !project) {
+    return <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />;
+  }
+
   return (
     <Container maxWidth="xl" sx={{ py: 2 }}>
-      <Breadcrumbs sx={{ mb: 2 }}>
-        <MuiLink component={Link} to={`/${orgSlug}`} underline="hover" color="inherit">
-          {orgSlug}
-        </MuiLink>
-        <MuiLink component={Link} to={`/${orgSlug}/${projectSlug}`} underline="hover" color="inherit">
-          {project?.name ?? projectSlug}
-        </MuiLink>
-        <Typography color="text.primary">Board</Typography>
-      </Breadcrumbs>
-      <Button
-        startIcon={<ArrowBack />}
-        component={Link}
-        to={`/${orgSlug}/${projectSlug}`}
-        sx={{ mb: 2 }}
-      >
-        Back to project
-      </Button>
+      <ProjectBreadcrumbs currentPageLabel="Board" projectName={project?.name} />
 
       <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
         <ViewColumn fontSize="small" />
@@ -154,60 +147,46 @@ export default function BoardPage() {
         >
           View in Artifacts
         </Button>
-        {artifactTypes.length > 0 && (
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel id="board-type-label">Artifact type</InputLabel>
-            <Select
-              labelId="board-type-label"
-              label="Artifact type"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              {artifactTypes.map((at) => (
-                <MenuItem key={at.id} value={at.id}>
-                  {at.name ?? at.id}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
-        {cycleNodesFlat.length > 0 && (
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel id="board-cycle-label">Cycle</InputLabel>
-            <Select
-              labelId="board-cycle-label"
-              label="Cycle"
-              value={cycleFilter}
-              onChange={(e) => setCycleFilter(e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              {cycleNodesFlat.map((c) => (
-                <MenuItem key={c.id} value={c.id}>
-                  {cycleNodeDisplayLabel(c)}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
-        {areaNodesFlat.length > 0 && (
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel id="board-area-label">Area</InputLabel>
-            <Select
-              labelId="board-area-label"
-              label="Area"
-              value={areaFilter}
-              onChange={(e) => setAreaFilter(e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              {areaNodesFlat.map((a) => (
-                <MenuItem key={a.id} value={a.id}>
-                  {areaNodeDisplayLabel(a)}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
+        <FormProvider {...filterForm}>
+          <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }}>
+            {artifactTypes.length > 0 && (
+              <Box sx={{ minWidth: 180 }}>
+                <RhfSelect<BoardFilterValues>
+                  name="typeFilter"
+                  control={control}
+                  label="Artifact type"
+                  placeholder="All"
+                  options={[{ value: "", label: "All" }, ...artifactTypes.map((at) => ({ value: at.id, label: at.name ?? at.id }))]}
+                  selectProps={{ size: "small" }}
+                />
+              </Box>
+            )}
+            {cycleNodesFlat.length > 0 && (
+              <Box sx={{ minWidth: 180 }}>
+                <RhfSelect<BoardFilterValues>
+                  name="cycleFilter"
+                  control={control}
+                  label="Cycle"
+                  placeholder="All"
+                  options={[{ value: "", label: "All" }, ...cycleNodesFlat.map((c) => ({ value: c.id, label: cycleNodeDisplayLabel(c) }))]}
+                  selectProps={{ size: "small" }}
+                />
+              </Box>
+            )}
+            {areaNodesFlat.length > 0 && (
+              <Box sx={{ minWidth: 180 }}>
+                <RhfSelect<BoardFilterValues>
+                  name="areaFilter"
+                  control={control}
+                  label="Area"
+                  placeholder="All"
+                  options={[{ value: "", label: "All" }, ...areaNodesFlat.map((a) => ({ value: a.id, label: areaNodeDisplayLabel(a) }))]}
+                  selectProps={{ size: "small" }}
+                />
+              </Box>
+            )}
+          </Box>
+        </FormProvider>
       </Box>
 
       {manifestLoading || artifactsLoading ? (

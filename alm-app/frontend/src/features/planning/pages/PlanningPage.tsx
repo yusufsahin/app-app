@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import {
   Container,
   Typography,
@@ -18,16 +18,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Link as MuiLink,
-  Breadcrumbs,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from "@mui/material";
 import {
-  ArrowBack,
   AccountTree,
   ExpandLess,
   ExpandMore,
@@ -37,7 +30,9 @@ import {
   Delete,
   ViewList,
 } from "@mui/icons-material";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useForm, FormProvider } from "react-hook-form";
+import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import {
   useCycleNodes,
@@ -54,6 +49,7 @@ import {
 } from "../../../shared/api/planningApi";
 import { useArtifacts, useUpdateArtifact } from "../../../shared/api/artifactApi";
 import { artifactDetailPath } from "../../../shared/utils/appPaths";
+import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { useArtifactStore } from "../../../shared/stores/artifactStore";
 
@@ -218,39 +214,55 @@ function BacklogArtifactRow({
   const updateArtifact = useUpdateArtifact(orgSlug, projectId, artifact.id);
   const currentCycleId = artifact.cycle_node_id ?? "";
 
-  const handleCycleChange = (newCycleId: string) => {
-    updateArtifact.mutate(
-      { cycle_node_id: newCycleId || null },
-      {
-        onSuccess: () => showNotification("Artifact assigned to cycle", "success"),
-        onError: (err: Error) =>
-          showNotification((err as { detail?: string })?.detail ?? err.message ?? "Failed to update artifact", "error"),
-      },
-    );
-  };
+  type RowCycleValues = { cycleId: string };
+  const rowForm = useForm<RowCycleValues>({ defaultValues: { cycleId: currentCycleId } });
+  const justResetRef = useRef(false);
+  useEffect(() => {
+    rowForm.reset({ cycleId: currentCycleId });
+    justResetRef.current = true;
+  }, [currentCycleId]);
+
+  const watchedCycleId = rowForm.watch("cycleId");
+  useEffect(() => {
+    if (justResetRef.current) {
+      justResetRef.current = false;
+      return;
+    }
+    if (watchedCycleId !== currentCycleId) {
+      updateArtifact.mutate(
+        { cycle_node_id: watchedCycleId || null },
+        {
+          onSuccess: () => showNotification("Artifact assigned to cycle", "success"),
+          onError: (err: Error) =>
+            showNotification((err as { detail?: string })?.detail ?? err.message ?? "Failed to update artifact", "error"),
+        },
+      );
+    }
+  }, [watchedCycleId]);
 
   return (
     <ListItem
       disablePadding
       sx={{ py: 0.5, display: "flex", alignItems: "center", gap: 1 }}
       secondaryAction={
-        <FormControl size="small" sx={{ minWidth: 160 }} onClick={(e) => e.stopPropagation()}>
-          <Select
-            size="small"
-            value={currentCycleId}
-            onChange={(e) => handleCycleChange(e.target.value)}
-            displayEmpty
-            disabled={updateArtifact.isPending}
-            sx={{ height: 32, fontSize: "0.875rem" }}
-          >
-            <MenuItem value="">Unassigned</MenuItem>
-            {cycleNodesFlat.map((c) => (
-              <MenuItem key={c.id} value={c.id}>
-                {c.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <Box onClick={(e) => e.stopPropagation()}>
+          <FormProvider {...rowForm}>
+            <RhfSelect<RowCycleValues>
+              name="cycleId"
+              control={rowForm.control}
+              label=""
+              options={[
+                { value: "", label: "Unassigned" },
+                ...cycleNodesFlat.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+              selectProps={{
+                size: "small",
+                sx: { minWidth: 160, height: 32, fontSize: "0.875rem" },
+                disabled: updateArtifact.isPending,
+              }}
+            />
+          </FormProvider>
+        </Box>
       }
     >
       <ListItemText
@@ -272,19 +284,25 @@ function BacklogArtifactRow({
 
 export default function PlanningPage() {
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
-  const navigate = useNavigate();
   const { data: projects } = useOrgProjects(orgSlug);
   const project = projects?.find((p) => p.slug === projectSlug);
 
   const [activeTab, setActiveTab] = useState<"cycles" | "areas" | "backlog">("cycles");
-  const [selectedBacklogCycleId, setSelectedBacklogCycleId] = useState<string>("");
+  const backlogForm = useForm<{ cycleId: string }>({ defaultValues: { cycleId: "" } });
+  const selectedBacklogCycleId = backlogForm.watch("cycleId");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addMode, setAddMode] = useState<"cycles" | "areas">("cycles");
   const [addParentId, setAddParentId] = useState<string | null>(null);
-  const [addName, setAddName] = useState("");
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameNode, setRenameNode] = useState<CycleNode | AreaNode | null>(null);
-  const [renameName, setRenameName] = useState("");
+
+  const addForm = useForm<{ name: string }>({ defaultValues: { name: "" } });
+  const renameForm = useForm<{ name: string }>({ defaultValues: { name: "" } });
+  const { reset: resetAddForm, handleSubmit: handleAddSubmit } = addForm;
+  const { reset: resetRenameForm, handleSubmit: handleRenameSubmit } = renameForm;
+  useEffect(() => {
+    if (renameNode) resetRenameForm({ name: renameNode.name });
+  }, [renameNode, resetRenameForm]);
 
   const { data: cycleNodes = [], isLoading: cyclesLoading } = useCycleNodes(
     orgSlug,
@@ -325,69 +343,66 @@ export default function PlanningPage() {
   const handleAddCycle = () => {
     setAddMode("cycles");
     setAddParentId(null);
-    setAddName("");
+    resetAddForm({ name: "" });
     setAddDialogOpen(true);
   };
   const handleAddChildCycle = (parent: CycleNode) => {
     setAddMode("cycles");
     setAddParentId(parent.id);
-    setAddName("");
+    resetAddForm({ name: "" });
     setAddDialogOpen(true);
   };
-  const handleSubmitAddCycle = () => {
-    const name = addName.trim();
+  const onSubmitAdd = (data: { name: string }) => {
+    const name = data.name.trim();
     if (!name) return;
-    createCycle.mutate(
-      { name, parent_id: addParentId || undefined },
-      {
-        onSuccess: () => {
-          setAddDialogOpen(false);
-          showNotification("Cycle added", "success");
+    if (addMode === "cycles") {
+      createCycle.mutate(
+        { name, parent_id: addParentId || undefined },
+        {
+          onSuccess: () => {
+            setAddDialogOpen(false);
+            showNotification("Cycle added", "success");
+          },
+          onError: (e: Error) => showNotification(e?.message ?? "Failed to add cycle", "error"),
         },
-        onError: (e: Error) => showNotification(e?.message ?? "Failed to add cycle", "error"),
-      },
-    );
+      );
+    } else {
+      createArea.mutate(
+        { name, parent_id: addParentId || undefined },
+        {
+          onSuccess: () => {
+            setAddDialogOpen(false);
+            showNotification("Area added", "success");
+          },
+          onError: (e: Error) => showNotification(e?.message ?? "Failed to add area", "error"),
+        },
+      );
+    }
   };
 
   const handleAddArea = () => {
     setAddMode("areas");
     setAddParentId(null);
-    setAddName("");
+    resetAddForm({ name: "" });
     setAddDialogOpen(true);
   };
   const handleAddChildArea = (parent: AreaNode) => {
     setAddMode("areas");
     setAddParentId(parent.id);
-    setAddName("");
+    resetAddForm({ name: "" });
     setAddDialogOpen(true);
-  };
-  const handleSubmitAddArea = () => {
-    const name = addName.trim();
-    if (!name) return;
-    createArea.mutate(
-      { name, parent_id: addParentId || undefined },
-      {
-        onSuccess: () => {
-          setAddDialogOpen(false);
-          showNotification("Area added", "success");
-        },
-        onError: (e: Error) => showNotification(e?.message ?? "Failed to add area", "error"),
-      },
-    );
   };
 
   const handleRenameCycle = (node: CycleNode) => {
     setRenameNode(node);
-    setRenameName(node.name);
     setRenameDialogOpen(true);
   };
   const handleRenameArea = (node: AreaNode) => {
     setRenameNode(node);
-    setRenameName(node.name);
     setRenameDialogOpen(true);
   };
-  const handleSubmitRename = () => {
-    const name = renameName.trim();
+  const onSubmitRename = (data: { name: string }) => {
+    const name = data.name.trim();
     if (!name || !renameNode) return;
     if ("goal" in renameNode) {
       updateCycle.mutate(
@@ -433,31 +448,10 @@ export default function PlanningPage() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ mb: 2 }}>
-        <Button
-          startIcon={<ArrowBack />}
-          onClick={() => navigate(orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "..")}
-        >
-          Back to project
-        </Button>
-      </Box>
-      <Breadcrumbs sx={{ mb: 2 }}>
-        <MuiLink component={Link} to={orgSlug ? `/${orgSlug}` : "#"} underline="hover" color="inherit">
-          {orgSlug ?? "Org"}
-        </MuiLink>
-        <MuiLink
-          component={Link}
-          to={orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "#"}
-          underline="hover"
-          color="inherit"
-        >
-          {project?.name ?? projectSlug}
-        </MuiLink>
-        <Typography color="text.primary">Planning</Typography>
-      </Breadcrumbs>
+      <ProjectBreadcrumbs currentPageLabel="Planning" projectName={project?.name} />
 
-      {!project && projectSlug ? (
-        <Typography color="text.secondary">Project not found.</Typography>
+      {!project && projectSlug && orgSlug ? (
+        <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />
       ) : (
         <>
           <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>
@@ -544,22 +538,18 @@ export default function PlanningPage() {
               <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
                 Cycle backlog
               </Typography>
-              <FormControl size="small" sx={{ minWidth: 220, mb: 2 }}>
-                <InputLabel id="backlog-cycle-label">Cycle</InputLabel>
-                <Select
-                  labelId="backlog-cycle-label"
-                  label="Cycle"
-                  value={selectedBacklogCycleId}
-                  onChange={(e) => setSelectedBacklogCycleId(e.target.value)}
-                >
-                  <MenuItem value="">Select a cycle</MenuItem>
-                  {cycleNodesFlat.map((c) => (
-                    <MenuItem key={c.id} value={c.id}>
-                      {cycleNodeDisplayLabel(c)}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <FormProvider {...backlogForm}>
+                <Box sx={{ minWidth: 220, mb: 2 }}>
+                  <RhfSelect<{ cycleId: string }>
+                    name="cycleId"
+                    control={backlogForm.control}
+                    label="Cycle"
+                    placeholder="Select a cycle"
+                    options={cycleNodesFlat.map((c) => ({ value: c.id, label: cycleNodeDisplayLabel(c) }))}
+                    selectProps={{ size: "small" }}
+                  />
+                </Box>
+              </FormProvider>
               {selectedBacklogCycleId ? (
                 <>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
@@ -607,55 +597,59 @@ export default function PlanningPage() {
 
       <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>{addMode === "cycles" ? "Add cycle" : "Add area"}</DialogTitle>
-        <DialogContent>
-          <TextField
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional for dialog UX
-            autoFocus
-            label="Name"
-            fullWidth
-            size="small"
-            value={addName}
-            onChange={(e) => setAddName(e.target.value)}
-            sx={{ mt: 1 }}
-          />
-          {addParentId && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-              Will be created as child of selected node.
-            </Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={addMode === "cycles" ? handleSubmitAddCycle : handleSubmitAddArea}
-            disabled={!addName.trim() || (addMode === "cycles" ? createCycle.isPending : createArea.isPending)}
-          >
-            Add
-          </Button>
-        </DialogActions>
+        <FormProvider {...addForm}>
+          <Box component="form" onSubmit={handleAddSubmit(onSubmitAdd)} noValidate>
+            <DialogContent>
+              <RhfTextField<{ name: string }>
+                name="name"
+                label="Name"
+                fullWidth
+                size="small"
+                autoFocus
+                sx={{ mt: 1 }}
+              />
+              {addParentId && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                  Will be created as child of selected node.
+                </Typography>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button type="button" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={addMode === "cycles" ? createCycle.isPending : createArea.isPending}
+              >
+                Add
+              </Button>
+            </DialogActions>
+          </Box>
+        </FormProvider>
       </Dialog>
 
       <Dialog open={renameDialogOpen} onClose={() => { setRenameDialogOpen(false); setRenameNode(null); }} maxWidth="xs" fullWidth>
         <DialogTitle>Rename</DialogTitle>
-        <DialogContent>
-          <TextField
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional for dialog UX
-            autoFocus
-            label="Name"
-            fullWidth
-            size="small"
-            value={renameName}
-            onChange={(e) => setRenameName(e.target.value)}
-            sx={{ mt: 1 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setRenameDialogOpen(false); setRenameNode(null); }}>Cancel</Button>
-          <Button variant="contained" onClick={handleSubmitRename} disabled={!renameName.trim()}>
-            Save
-          </Button>
-        </DialogActions>
+        <FormProvider {...renameForm}>
+          <Box component="form" onSubmit={handleRenameSubmit(onSubmitRename)} noValidate>
+            <DialogContent>
+              <RhfTextField<{ name: string }>
+                name="name"
+                label="Name"
+                fullWidth
+                size="small"
+                autoFocus
+                sx={{ mt: 1 }}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button type="button" onClick={() => { setRenameDialogOpen(false); setRenameNode(null); }}>Cancel</Button>
+              <Button type="submit" variant="contained">
+                Save
+              </Button>
+            </DialogActions>
+          </Box>
+        </FormProvider>
       </Dialog>
     </Container>
   );

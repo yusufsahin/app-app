@@ -1,4 +1,5 @@
 """G3: Archive (soft-delete) a tenant. Admin of that tenant only."""
+
 from __future__ import annotations
 
 import uuid
@@ -33,9 +34,7 @@ class ArchiveTenantHandler(CommandHandler[None]):
             raise EntityNotFound("Tenant", str(command.tenant_id))
         if tenant.deleted_at is not None:
             raise EntityNotFound("Tenant", str(command.tenant_id))
-        membership = await self._membership_repo.find_by_user_and_tenant(
-            command.archived_by, command.tenant_id
-        )
+        membership = await self._membership_repo.find_by_user_and_tenant(command.archived_by, command.tenant_id)
         if membership is None:
             raise AccessDenied("You are not a member of this tenant.")
         role_ids = await self._membership_repo.get_role_ids(membership.id)

@@ -4,6 +4,7 @@ Guards from the manifest must be evaluated without executing arbitrary code.
 This module provides a whitelist-based predicate evaluator. Do not use eval() or
 exec() on user/tenant-provided strings. See docs/GUARD_EVALUATOR_SECURITY.md.
 """
+
 from __future__ import annotations
 
 import re
@@ -15,7 +16,7 @@ _ALLOWED_TOP_LEVEL_KEYS = frozenset({"assignee_id", "state", "state_reason", "re
 _CUSTOM_FIELD_KEY_RE = re.compile(r"^[a-zA-Z0-9_]+$")
 
 
-def _get_snapshot_value(entity_snapshot: dict, field: str) -> Any:
+def _get_snapshot_value(entity_snapshot: dict[str, Any], field: str) -> Any:
     """Read a field from snapshot. Only allows whitelisted top-level keys or custom_fields[key]."""
     if not field or not isinstance(entity_snapshot, dict):
         return None
@@ -32,7 +33,7 @@ def _get_snapshot_value(entity_snapshot: dict, field: str) -> Any:
 
 def evaluate_guard(
     guard_ref: str | dict[str, Any] | None,
-    entity_snapshot: dict,
+    entity_snapshot: dict[str, Any],
 ) -> bool:
     """Evaluate a guard referenced by guard_ref against the entity snapshot.
 
@@ -81,7 +82,7 @@ def evaluate_guard(
         if not isinstance(field, str):
             return False
         actual = _get_snapshot_value(entity_snapshot, field)
-        return actual == value
+        return bool(actual == value)
 
     # Unknown guard type: fail closed (do not allow transition)
     return False

@@ -1,12 +1,11 @@
 """Unit tests for D1 field masking (artifact response ACL)."""
+
 from __future__ import annotations
 
-import pytest
-
 from alm.shared.infrastructure.security.field_masking import (
+    SENSITIVE_CUSTOM_FIELD_KEYS,
     allowed_actions_for_artifact,
     mask_artifact_response,
-    SENSITIVE_CUSTOM_FIELD_KEYS,
 )
 
 

@@ -5,12 +5,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, cast
 
-from alm.auth.domain.entities import RefreshToken as RefreshTokenEntity
 from alm.auth.application.dtos import TokenPairDTO
+from alm.auth.domain.entities import RefreshToken as RefreshTokenEntity
 from alm.config.settings import settings
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import AccessDenied
-from alm.shared.infrastructure.security.jwt import create_access_token, create_refresh_token_value
+from alm.shared.domain.ports import ITokenService
 
 if TYPE_CHECKING:
     import uuid
@@ -31,23 +31,23 @@ class SwitchTenantHandler(CommandHandler[TokenPairDTO]):
         membership_repo: MembershipRepository,
         role_repo: RoleRepository,
         refresh_token_repo: RefreshTokenRepository,
+        token_service: ITokenService,
     ) -> None:
         self._membership_repo = membership_repo
         self._role_repo = role_repo
         self._refresh_token_repo = refresh_token_repo
+        self._token_service = token_service
 
     async def handle(self, command: Command) -> TokenPairDTO:
         cmd = cast("SwitchTenant", command)
 
-        membership = await self._membership_repo.find_by_user_and_tenant(
-            cmd.user_id, cmd.tenant_id
-        )
+        membership = await self._membership_repo.find_by_user_and_tenant(cmd.user_id, cmd.tenant_id)
         if membership is None:
             raise AccessDenied("You are not a member of the requested tenant.")
 
         roles = await self._role_repo.get_role_slugs_for_membership(membership.id)
 
-        raw_refresh = create_refresh_token_value()
+        raw_refresh = self._token_service.create_refresh_token_value()
         token_hash = hashlib.sha256(raw_refresh.encode()).hexdigest()
         refresh_entity = RefreshTokenEntity(
             user_id=cmd.user_id,
@@ -56,7 +56,7 @@ class SwitchTenantHandler(CommandHandler[TokenPairDTO]):
         )
         await self._refresh_token_repo.add(refresh_entity)
 
-        access_token = create_access_token(
+        access_token = self._token_service.create_access_token(
             user_id=cmd.user_id,
             tenant_id=cmd.tenant_id,
             roles=roles,

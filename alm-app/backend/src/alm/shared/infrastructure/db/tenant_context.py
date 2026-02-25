@@ -4,7 +4,8 @@ import uuid
 from contextvars import ContextVar
 
 from sqlalchemy import event, text
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Session
 
 _current_tenant_id: ContextVar[uuid.UUID | None] = ContextVar("current_tenant_id", default=None)
@@ -21,7 +22,9 @@ def set_current_tenant_id(tenant_id: uuid.UUID | None) -> None:
 _rls_listener_registered: bool = False
 
 
-def setup_tenant_rls(session_factory: async_sessionmaker) -> None:
+def setup_tenant_rls(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
     """Register after_begin hook to SET LOCAL tenant_id for RLS.
     Uses Session (sync) - AsyncSession's internal session fires the same event.
     Idempotent: only registers the listener once.
@@ -32,9 +35,9 @@ def setup_tenant_rls(session_factory: async_sessionmaker) -> None:
     del session_factory  # unused; we listen on Session globally
 
     @event.listens_for(Session, "after_begin")
-    def _set_tenant(session: object, transaction: object, connection: object) -> None:
+    def _set_tenant(session: object, transaction: object, connection: Connection) -> None:
         tenant_id = get_current_tenant_id()
         if tenant_id is not None:
-            connection.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}'"))  # type: ignore[union-attr]
+            connection.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}'"))
 
     _rls_listener_registered = True

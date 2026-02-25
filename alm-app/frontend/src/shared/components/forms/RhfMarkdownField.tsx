@@ -196,7 +196,7 @@ export function RhfMarkdownField<TFieldValues extends import("react-hook-form").
   );
 }
 
-interface MarkdownFieldInnerProps {
+export interface MarkdownFieldInnerProps {
   value: string;
   onChange: (v: string) => void;
   onBlur: () => void;
@@ -214,7 +214,7 @@ interface MarkdownFieldInnerProps {
   helperText?: string;
 }
 
-const MarkdownFieldInner = ({
+export const MarkdownFieldInner = ({
   value: raw,
   onChange,
   onBlur,

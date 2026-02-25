@@ -1,13 +1,15 @@
 """Recent artifact activity for org dashboard (D3)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from typing import cast
 
-from alm.shared.application.query import Query, QueryHandler
-from alm.project.domain.ports import ProjectRepository
 from alm.artifact.domain.ports import ArtifactRepository
+from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)
@@ -43,9 +45,7 @@ class GetOrgDashboardActivityHandler(QueryHandler[list[DashboardActivityItem]]):
         project_ids = [p.id for p in projects]
         slug_by_id = {p.id: p.slug for p in projects}
 
-        rows = await self._artifact_repo.list_recent_by_project_ids(
-            project_ids, limit=query.limit
-        )
+        rows = await self._artifact_repo.list_recent_by_project_ids(project_ids, limit=query.limit)
         return [
             DashboardActivityItem(
                 artifact_id=r[0],
@@ -54,7 +54,7 @@ class GetOrgDashboardActivityHandler(QueryHandler[list[DashboardActivityItem]]):
                 title=r[2],
                 state=r[3],
                 artifact_type=r[4],
-                updated_at=r[5],
+                updated_at=cast("datetime | None", r[5]),
             )
             for r in rows
         ]

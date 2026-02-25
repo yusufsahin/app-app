@@ -4,6 +4,7 @@ This module is the only place that decides valid (from_state, to_state) transiti
 permitted triggers. MPC remains responsible for policy/ACL (who may transition, event-based rules).
 See docs/WORKFLOW_ENGINE_BOUNDARY.md for the boundary diagram.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -15,7 +16,7 @@ from alm.artifact.domain.mpc_resolver import (
 )
 
 
-def _workflow_def_from_defs(manifest_bundle: dict, type_id: str, ast: Any) -> dict | None:
+def _workflow_def_from_defs(manifest_bundle: dict[str, Any], type_id: str, ast: Any) -> dict[str, Any] | None:
     """Resolve workflow definition from manifest defs format using AST."""
     at_def = _get_def(ast, TYPE_KIND_ARTIFACT, type_id)
     if at_def is None:
@@ -33,7 +34,7 @@ def _workflow_def_from_defs(manifest_bundle: dict, type_id: str, ast: Any) -> di
     }
 
 
-def _workflow_def_from_flat(manifest_bundle: dict, type_id: str) -> dict | None:
+def _workflow_def_from_flat(manifest_bundle: dict[str, Any], type_id: str) -> dict[str, Any] | None:
     """Resolve workflow definition from flat workflows/artifact_types format."""
     artifact_types = (manifest_bundle or {}).get("artifact_types") or []
     at = next((a for a in artifact_types if isinstance(a, dict) and a.get("id") == type_id), None)
@@ -54,12 +55,12 @@ def _workflow_def_from_flat(manifest_bundle: dict, type_id: str) -> dict | None:
 
 
 def get_workflow_def(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     type_id: str,
     *,
     type_kind: str = TYPE_KIND_ARTIFACT,
     ast: Any | None = None,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Get workflow definition (states, transitions, initial) for the given artifact type."""
     if ast is not None:
         return _workflow_def_from_defs(manifest_bundle, type_id, ast)
@@ -82,9 +83,9 @@ def _state_ids(states: list[Any]) -> list[str]:
     return result
 
 
-def _transitions_list(transitions: list[Any]) -> list[tuple[str, str, dict, str, str, Any]]:
+def _transitions_list(transitions: list[Any]) -> list[tuple[str, str, dict[str, Any], str, str, Any]]:
     """Normalize transitions to (from, to, action_dict, trigger, label, guard). guard is raw manifest value or None."""
-    result: list[tuple[str, str, dict, str, str, Any]] = []
+    result: list[tuple[str, str, dict[str, Any], str, str, Any]] = []
     for t in transitions or []:
         if not isinstance(t, dict) or "from" not in t or "to" not in t:
             continue
@@ -102,14 +103,14 @@ def _transitions_list(transitions: list[Any]) -> list[tuple[str, str, dict, str,
     return result
 
 
-def build_state_machine(workflow_def: dict) -> Any | None:
+def build_state_machine(workflow_def: dict[str, Any]) -> Any | None:
     """Build a Statelesspy StateMachine from a workflow def (states + transitions).
 
     Uses target state id as trigger so that permitted_triggers() yields state ids we can transition to.
     Reserved for future use (e.g. when adding guard evaluation via statelesspy).
     """
     try:
-        from stateless import StateMachine
+        from statelesspy import StateMachine
     except ImportError:
         return None
     state_ids = _state_ids(workflow_def.get("states") or [])
@@ -129,7 +130,7 @@ def build_state_machine(workflow_def: dict) -> Any | None:
 
 
 def get_initial_state(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     type_id: str,
     *,
     type_kind: str = TYPE_KIND_ARTIFACT,
@@ -144,12 +145,12 @@ def get_initial_state(
         return None
     initial = wf_def.get("initial")
     if initial is not None and initial in state_ids:
-        return initial
+        return str(initial)
     return state_ids[0]
 
 
 def is_valid_transition(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     type_id: str,
     from_state: str,
     to_state: str,
@@ -167,7 +168,7 @@ def is_valid_transition(
 
 
 def get_transition_actions(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     type_id: str,
     from_state: str,
     to_state: str,
@@ -186,7 +187,7 @@ def get_transition_actions(
 
 
 def get_transition_guard(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     type_id: str,
     from_state: str,
     to_state: str,
@@ -205,13 +206,13 @@ def get_transition_guard(
 
 
 def get_permitted_triggers(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     type_id: str,
     current_state: str,
     *,
     type_kind: str = TYPE_KIND_ARTIFACT,
     ast: Any | None = None,
-    entity_snapshot: dict | None = None,
+    entity_snapshot: dict[str, Any] | None = None,
 ) -> list[tuple[str, str, str]]:
     """Return list of (trigger, to_state, label) permitted from current_state.
     When entity_snapshot is provided, transitions with a guard are filtered by evaluate_guard."""

@@ -58,6 +58,8 @@ flowchart LR
 
 **Not in MPC for workflow:** The workflow *graph* and *permitted transitions* are no longer resolved by MPC's WorkflowEngine in the transition path. MPC is used only for policy and ACL after the adapter has validated the transition.
 
+**Policy fallback when MPC is not installed:** TransitionPolicy checks (e.g. assignee required when entering a state) are implemented in ALM's `mpc_resolver.check_transition_policies` so that a minimal rule set works without MPC. Event-based PolicyEngine and ACLEngine are only used when MPC is available; otherwise the handler treats policy/ACL as allowed. See [MPC_BOUNDARY.md](MPC_BOUNDARY.md) §4c.
+
 ---
 
 ## 4. Handler Order (transition_artifact)

@@ -140,7 +140,7 @@ export function RhfRichTextField<TFieldValues extends import("react-hook-form").
   );
 }
 
-interface RichTextEditorInnerProps {
+export interface RichTextEditorInnerProps {
   value: string | undefined;
   onChange: (html: string) => void;
   onBlur: () => void;
@@ -155,7 +155,7 @@ interface RichTextEditorInnerProps {
   lastExternalValueRef: React.MutableRefObject<string | undefined>;
 }
 
-function RichTextEditorInner({
+export function RichTextEditorInner({
   value,
   onChange,
   onBlur,

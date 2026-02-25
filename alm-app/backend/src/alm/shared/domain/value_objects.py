@@ -55,9 +55,7 @@ class ProjectCode:
 
     def __post_init__(self) -> None:
         if not re.match(r"^[A-Z0-9]{2,10}$", self.value):
-            raise ValueError(
-                "Project code must be 2-10 uppercase alphanumeric characters"
-            )
+            raise ValueError("Project code must be 2-10 uppercase alphanumeric characters")
 
     @classmethod
     def from_string(cls, text: str) -> ProjectCode:

@@ -1,4 +1,4 @@
-import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import {
   Container,
   Typography,
@@ -21,23 +21,14 @@ import {
   ListItem,
   ListItemText,
   Collapse,
-  Select,
-  FormControl,
-  InputLabel,
-  FormHelperText,
-  TextField,
   Drawer,
-  Breadcrumbs,
   Link as MuiLink,
   Divider,
   ListItemIcon,
   CircularProgress,
-  Checkbox,
-  FormControlLabel,
   Alert,
 } from "@mui/material";
 import {
-  ArrowBack,
   Add,
   MoreVert,
   BugReport,
@@ -65,6 +56,7 @@ import {
   Save,
 } from "@mui/icons-material";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useForm, FormProvider } from "react-hook-form";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { apiClient } from "../../../shared/api/client";
 import {
@@ -79,7 +71,7 @@ import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { useFormSchema } from "../../../shared/api/formSchemaApi";
 import type { ProblemDetail } from "../../../shared/api/types";
 import type { FormFieldSchema, FormSchemaDto } from "../../../shared/types/formSchema";
-import { MetadataDrivenForm } from "../../../shared/components/forms/MetadataDrivenForm";
+import { MetadataDrivenForm, RhfCheckbox, RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import {
   useArtifacts,
   useArtifact,
@@ -109,11 +101,7 @@ import {
   type CreateTaskRequest,
   type UpdateTaskRequest,
 } from "../../../shared/api/taskApi";
-import {
-  useCommentsByArtifact,
-  useCreateComment,
-  type CreateCommentRequest,
-} from "../../../shared/api/commentApi";
+import { useCommentsByArtifact, useCreateComment } from "../../../shared/api/commentApi";
 import {
   useArtifactLinks,
   useCreateArtifactLink,
@@ -137,6 +125,7 @@ import {
 } from "../../../shared/api/savedQueryApi";
 import { useListSchema } from "../../../shared/api/listSchemaApi";
 import { MetadataDrivenList } from "../../../shared/components/lists/MetadataDrivenList";
+import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { useArtifactStore } from "../../../shared/stores/artifactStore";
 
@@ -262,14 +251,84 @@ function buildArtifactTree(artifacts: Artifact[]): ArtifactNode[] {
   return roots;
 }
 
+function ProjectMemberRow({
+  pm,
+  memberLabel,
+  isOnlyAdmin,
+  onUpdateRole,
+  isUpdating,
+  onRemove,
+  isRemoving,
+}: {
+  pm: { id: string; user_id: string; role: string };
+  memberLabel: string;
+  isOnlyAdmin: boolean;
+  onUpdateRole: (userId: string, role: string) => void;
+  isUpdating: boolean;
+  onRemove: (userId: string) => void;
+  isRemoving: boolean;
+}) {
+  type RoleValues = { role: string };
+  const rowForm = useForm<RoleValues>({ defaultValues: { role: pm.role } });
+  const justResetRef = useRef(false);
+  useEffect(() => {
+    rowForm.reset({ role: pm.role });
+    justResetRef.current = true;
+  }, [pm.role]);
+  const watchedRole = rowForm.watch("role");
+  useEffect(() => {
+    if (justResetRef.current) {
+      justResetRef.current = false;
+      return;
+    }
+    if (watchedRole !== pm.role) {
+      onUpdateRole(pm.user_id, watchedRole);
+    }
+  }, [watchedRole]);
+
+  return (
+    <ListItem
+      secondaryAction={
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <FormProvider {...rowForm}>
+            <RhfSelect<RoleValues>
+              name="role"
+              control={rowForm.control}
+              label=""
+              options={[
+                { value: "PROJECT_VIEWER", label: "Viewer" },
+                { value: "PROJECT_CONTRIBUTOR", label: "Contributor" },
+                { value: "PROJECT_ADMIN", label: "Admin" },
+              ]}
+              selectProps={{ size: "small", sx: { minWidth: 120 }, disabled: isUpdating }}
+            />
+          </FormProvider>
+          <IconButton
+            edge="end"
+            size="small"
+            aria-label="Remove member"
+            disabled={isRemoving || isOnlyAdmin}
+            title={isOnlyAdmin ? "Cannot remove the last admin" : "Remove member"}
+            onClick={() => onRemove(pm.user_id)}
+          >
+            <PersonRemove fontSize="small" />
+          </IconButton>
+        </Box>
+      }
+    >
+      <ListItemText primary={memberLabel} />
+    </ListItem>
+  );
+}
+
 export default function ArtifactsPage() {
   const { orgSlug, projectSlug } = useParams<{
     orgSlug: string;
     projectSlug: string;
   }>();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const artifactIdFromUrl = searchParams.get("artifact");
+  const qFromUrl = searchParams.get("q") ?? "";
   const typeFromUrl = searchParams.get("type") ?? "";
   const stateFromUrl = searchParams.get("state") ?? "";
   const cycleNodeIdFromUrl = searchParams.get("cycle_node_id") ?? "";
@@ -322,11 +381,81 @@ export default function ArtifactsPage() {
     bulkDeleteConfirmOpen,
     deleteConfirmArtifactId,
     membersDialogOpen,
-    addMemberUserId,
-    addMemberRole,
     detailDrawerEditing,
   } = listState;
   const selectedIds = useMemo(() => new Set(selectedIdsList), [selectedIdsList]);
+
+  type ToolbarFilterValues = {
+    searchInput: string;
+    savedQueryId: string;
+    cycleNodeFilter: string;
+    areaNodeFilter: string;
+    sortBy: ArtifactSortBy;
+    sortOrder: ArtifactSortOrder;
+    showDeleted: boolean;
+  };
+  const toolbarForm = useForm<ToolbarFilterValues>({
+    defaultValues: {
+      searchInput: searchInput,
+      savedQueryId: "",
+      cycleNodeFilter: cycleNodeFilter,
+      areaNodeFilter: areaNodeFilter,
+      sortBy,
+      sortOrder,
+      showDeleted,
+    },
+  });
+  const toolbarValues = toolbarForm.watch();
+  useEffect(() => {
+    if (toolbarValues.savedQueryId) {
+      const q = savedQueries.find((s) => s.id === toolbarValues.savedQueryId);
+      if (q) {
+        const patch = filterParamsToListStatePatch(q.filter_params);
+        setListState(patch);
+        toolbarForm.reset({ ...toolbarForm.getValues(), ...patch, savedQueryId: "" });
+      } else {
+        toolbarForm.setValue("savedQueryId", "");
+      }
+    } else {
+      setListState({
+        searchInput: toolbarValues.searchInput,
+        cycleNodeFilter: toolbarValues.cycleNodeFilter,
+        areaNodeFilter: toolbarValues.areaNodeFilter,
+        sortBy: toolbarValues.sortBy,
+        sortOrder: toolbarValues.sortOrder,
+        showDeleted: toolbarValues.showDeleted,
+      });
+      // Keep URL ?q= in sync with toolbar search so header search stays aligned
+      const currentQ = searchParams.get("q") ?? "";
+      if (toolbarValues.searchInput !== currentQ) {
+        setSearchParams(
+          (prev) => {
+            const p = new URLSearchParams(prev);
+            if (toolbarValues.searchInput.trim()) p.set("q", toolbarValues.searchInput);
+            else p.delete("q");
+            return p;
+          },
+          { replace: true },
+        );
+      }
+    }
+  }, [
+    toolbarValues.searchInput,
+    toolbarValues.savedQueryId,
+    toolbarValues.cycleNodeFilter,
+    toolbarValues.areaNodeFilter,
+    toolbarValues.sortBy,
+    toolbarValues.sortOrder,
+    toolbarValues.showDeleted,
+    searchParams,
+    setSearchParams,
+  ]);
+
+  // Sync header search (URL ?q=) into artifact list when on Artifacts page
+  useEffect(() => {
+    setListState({ searchInput: qFromUrl, searchQuery: qFromUrl });
+    toolbarForm.setValue("searchInput", qFromUrl);
+  }, [qFromUrl, setListState, toolbarForm]);
 
   useEffect(() => {
     setListState({
@@ -336,6 +465,10 @@ export default function ArtifactsPage() {
       areaNodeFilter: areaNodeIdFromUrl,
     });
   }, [stateFromUrl, typeFromUrl, cycleNodeIdFromUrl, areaNodeIdFromUrl, setListState]);
+  useEffect(() => {
+    toolbarForm.setValue("cycleNodeFilter", cycleNodeIdFromUrl);
+    toolbarForm.setValue("areaNodeFilter", areaNodeIdFromUrl);
+  }, [cycleNodeIdFromUrl, areaNodeIdFromUrl, toolbarForm]);
   useEffect(() => {
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
@@ -368,8 +501,38 @@ export default function ArtifactsPage() {
   const { data: savedQueries = [] } = useSavedQueries(orgSlug, project?.id);
   const createSavedQueryMutation = useCreateSavedQuery(orgSlug, project?.id);
   const [saveQueryDialogOpen, setSaveQueryDialogOpen] = useState(false);
-  const [saveQueryName, setSaveQueryName] = useState("");
-  const [saveQueryVisibility, setSaveQueryVisibility] = useState<"private" | "project">("private");
+  type SaveQueryFormValues = { name: string; visibility: "private" | "project" };
+  const saveQueryForm = useForm<SaveQueryFormValues>({
+    defaultValues: { name: "", visibility: "private" },
+  });
+  const { reset: resetSaveQueryForm, handleSubmit: handleSaveQuerySubmit, control: saveQueryControl } = saveQueryForm;
+  const onSubmitSaveQuery = (data: SaveQueryFormValues) => {
+    const name = data.name.trim();
+    if (!name || !project?.id) return;
+    const filterParams = listStateToFilterParams({
+      stateFilter,
+      typeFilter,
+      searchQuery,
+      cycleNodeFilter,
+      areaNodeFilter,
+      sortBy,
+      sortOrder,
+    });
+    createSavedQueryMutation.mutate(
+      { name, filter_params: filterParams, visibility: data.visibility },
+      {
+        onSuccess: () => {
+          setSaveQueryDialogOpen(false);
+          resetSaveQueryForm({ name: "", visibility: "private" });
+          showNotification("Saved query created", "success");
+        },
+        onError: (err: Error) => {
+          const body = (err as unknown as { body?: ProblemDetail })?.body;
+          showNotification(body?.detail ?? "Failed to save query", "error");
+        },
+      },
+    );
+  };
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [conflictDetail, setConflictDetail] = useState("");
   const isBoardView = viewMode === "board";
@@ -442,7 +605,9 @@ export default function ArtifactsPage() {
     detailArtifact?.id,
   );
   const createCommentMutation = useCreateComment(orgSlug, project?.id, detailArtifact?.id);
-  const [newCommentBody, setNewCommentBody] = useState("");
+  type CommentFormValues = { body: string };
+  const commentForm = useForm<CommentFormValues>({ defaultValues: { body: "" } });
+  const commentBody = commentForm.watch("body");
 
   const { data: artifactLinks = [], isLoading: linksLoading } = useArtifactLinks(
     orgSlug,
@@ -460,8 +625,53 @@ export default function ArtifactsPage() {
   const deleteAttachmentMutation = useDeleteAttachment(orgSlug, project?.id, detailArtifact?.id);
   const [addLinkOpen, setAddLinkOpen] = useState(false);
   const [bulkErrorsExpanded, setBulkErrorsExpanded] = useState(true);
-  const [addLinkToId, setAddLinkToId] = useState<string>("");
-  const [addLinkType, setAddLinkType] = useState<string>("related");
+  type AddMemberFormValues = { user_id: string; role: string };
+  const addMemberForm = useForm<AddMemberFormValues>({
+    defaultValues: { user_id: "", role: "PROJECT_VIEWER" },
+  });
+  type AddLinkFormValues = { linkType: string; artifactId: string };
+  const addLinkForm = useForm<AddLinkFormValues>({
+    defaultValues: { linkType: "related", artifactId: "" },
+  });
+  useEffect(() => {
+    if (membersDialogOpen) addMemberForm.reset({ user_id: "", role: "PROJECT_VIEWER" });
+  }, [membersDialogOpen, addMemberForm]);
+  useEffect(() => {
+    if (addLinkOpen) addLinkForm.reset({ linkType: "related", artifactId: "" });
+  }, [addLinkOpen, addLinkForm]);
+  const availableMembersForAdd = useMemo(
+    () => (members ?? []).filter((m) => !(projectMembers ?? []).some((pm) => pm.user_id === m.user_id)),
+    [members, projectMembers],
+  );
+  const onSubmitAddMember = (data: AddMemberFormValues) => {
+    if (!data.user_id) return;
+    addProjectMemberMutation.mutate(
+      { user_id: data.user_id, role: data.role as "PROJECT_VIEWER" | "PROJECT_CONTRIBUTOR" | "PROJECT_ADMIN" },
+      {
+        onSuccess: () => {
+          setListState({ membersDialogOpen: false });
+          showNotification("Member added successfully");
+        },
+      },
+    );
+  };
+  const onSubmitAddLink = (data: AddLinkFormValues) => {
+    if (!data.artifactId) return;
+    const payload: CreateArtifactLinkRequest = {
+      to_artifact_id: data.artifactId,
+      link_type: data.linkType,
+    };
+    createLinkMutation.mutate(payload, {
+      onSuccess: () => {
+        setAddLinkOpen(false);
+        showNotification("Link added", "success");
+      },
+      onError: (err: Error) => {
+        const body = (err as unknown as { body?: ProblemDetail })?.body;
+        showNotification(body?.detail ?? "Failed to add link", "error");
+      },
+    });
+  };
   const { data: pickerArtifactsData } = useQuery({
     queryKey: ["orgs", orgSlug, "projects", project?.id, "artifacts", "linkPicker"],
     queryFn: async () => {
@@ -724,6 +934,30 @@ export default function ArtifactsPage() {
     bulkTransitionResolution,
   ]);
 
+  type BulkTransitionDialogValues = { state: string; state_reason: string; resolution: string };
+  const bulkTransitionDialogForm = useForm<BulkTransitionDialogValues>({
+    defaultValues: {
+      state: bulkTransitionState,
+      state_reason: bulkTransitionStateReason,
+      resolution: bulkTransitionResolution,
+    },
+  });
+  useEffect(() => {
+    if (bulkTransitionOpen) {
+      bulkTransitionDialogForm.reset({
+        state: bulkTransitionState,
+        state_reason: bulkTransitionStateReason,
+        resolution: bulkTransitionResolution,
+      });
+    }
+  }, [bulkTransitionOpen]);
+  const bulkTransitionDialogState = bulkTransitionDialogForm.watch("state");
+  useEffect(() => {
+    if (bulkTransitionDialogState) {
+      setListState({ bulkTransitionTrigger: "" });
+    }
+  }, [bulkTransitionDialogState, setListState]);
+
   const artifactsByState = useMemo(() => {
     if (!isBoardView || !filterStates.length) return {} as Record<string, Artifact[]>;
     const map: Record<string, Artifact[]> = {};
@@ -948,41 +1182,10 @@ export default function ArtifactsPage() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Breadcrumbs sx={{ mb: 2 }}>
-        <MuiLink
-          component={Link}
-          to={orgSlug ? `/${orgSlug}` : "#"}
-          underline="hover"
-          color="inherit"
-        >
-          {orgSlug ?? "Org"}
-        </MuiLink>
-        {project && (
-          <MuiLink
-            component={Link}
-            to={`/${orgSlug}/${projectSlug}`}
-            underline="hover"
-            color="inherit"
-          >
-            {project.name}
-          </MuiLink>
-        )}
-        <Typography color="text.primary">Artifacts</Typography>
-      </Breadcrumbs>
-      <Button
-        startIcon={<ArrowBack />}
-        onClick={() =>
-          navigate(orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "..")
-        }
-        sx={{ mb: 3 }}
-      >
-        Back to project
-      </Button>
+      <ProjectBreadcrumbs currentPageLabel="Artifacts" projectName={project?.name} />
 
-      {!project && projectSlug ? (
-        <Typography color="text.secondary">
-          Project &quot;{projectSlug}&quot; not found.
-        </Typography>
+      {!project && projectSlug && orgSlug ? (
+        <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />
       ) : (
         <Box>
           <Box
@@ -999,136 +1202,97 @@ export default function ArtifactsPage() {
               <Typography variant="h4" fontWeight={700}>
                 Artifacts
               </Typography>
-              <TextField
-                size="small"
-                placeholder="Search title, description, or key…"
-                value={searchInput}
-                onChange={(e) => setListState({ searchInput: e.target.value })}
-                sx={{ minWidth: 200 }}
-                inputProps={{ "aria-label": "Search artifacts" }}
-              />
-              <ToggleButtonGroup
-                value={viewMode}
-                exclusive
-                onChange={(_, v) => v && setListState({ viewMode: v })}
-                size="small"
-              >
-                <ToggleButton value="table" aria-label="Table view">
-                  <TableChart sx={{ mr: 0.5 }} />
-                  Table
-                </ToggleButton>
-                <ToggleButton value="board" aria-label="Board view">
-                  <ViewColumn sx={{ mr: 0.5 }} />
-                  Board
-                </ToggleButton>
-                <ToggleButton value="tree" aria-label="Tree view">
-                  <AccountTree sx={{ mr: 0.5 }} />
-                  Tree
-                </ToggleButton>
-              </ToggleButtonGroup>
-              <FormControl size="small" sx={{ minWidth: 160 }}>
-                <InputLabel>Saved queries</InputLabel>
-                <Select
+              <FormProvider {...toolbarForm}>
+                <RhfTextField<ToolbarFilterValues>
+                  name="searchInput"
+                  label=""
+                  placeholder="Search title, description, or key…"
+                  size="small"
+                  sx={{ minWidth: 200 }}
+                  inputProps={{ "aria-label": "Search artifacts" }}
+                />
+                <ToggleButtonGroup
+                  value={viewMode}
+                  exclusive
+                  onChange={(_, v) => v && setListState({ viewMode: v })}
+                  size="small"
+                >
+                  <ToggleButton value="table" aria-label="Table view">
+                    <TableChart sx={{ mr: 0.5 }} />
+                    Table
+                  </ToggleButton>
+                  <ToggleButton value="board" aria-label="Board view">
+                    <ViewColumn sx={{ mr: 0.5 }} />
+                    Board
+                  </ToggleButton>
+                  <ToggleButton value="tree" aria-label="Tree view">
+                    <AccountTree sx={{ mr: 0.5 }} />
+                    Tree
+                  </ToggleButton>
+                </ToggleButtonGroup>
+                <RhfSelect<ToolbarFilterValues>
+                  name="savedQueryId"
+                  control={toolbarForm.control}
                   label="Saved queries"
-                  value=""
-                  displayEmpty
-                  onChange={(e) => {
-                    const id = e.target.value as string;
-                    if (!id) return;
-                    const q = savedQueries.find((s) => s.id === id);
-                    if (q) setListState(filterParamsToListStatePatch(q.filter_params));
+                  options={[
+                    { value: "", label: "Apply a saved query…" },
+                    ...savedQueries.map((q) => ({ value: q.id, label: `${q.name}${q.visibility === "private" ? " (private)" : ""}` })),
+                  ]}
+                  selectProps={{ size: "small", sx: { minWidth: 160 }, displayEmpty: true }}
+                />
+                <Button
+                  size="small"
+                  startIcon={<Save />}
+                  onClick={() => {
+                    resetSaveQueryForm({ name: "", visibility: "private" });
+                    setSaveQueryDialogOpen(true);
                   }}
+                  aria-label="Save current filters"
                 >
-                  <MenuItem value="">
-                    <em>Apply a saved query…</em>
-                  </MenuItem>
-                  {savedQueries.map((q) => (
-                    <MenuItem key={q.id} value={q.id}>
-                      {q.name}
-                      {q.visibility === "private" ? " (private)" : ""}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <Button
-                size="small"
-                startIcon={<Save />}
-                onClick={() => {
-                  setSaveQueryName("");
-                  setSaveQueryVisibility("private");
-                  setSaveQueryDialogOpen(true);
-                }}
-                aria-label="Save current filters"
-              >
-                Save filters
-              </Button>
-              <FormControl size="small" sx={{ minWidth: 140 }}>
-                <InputLabel>Cycle</InputLabel>
-                <Select
+                  Save filters
+                </Button>
+                <RhfSelect<ToolbarFilterValues>
+                  name="cycleNodeFilter"
+                  control={toolbarForm.control}
                   label="Cycle"
-                  value={cycleNodeFilter}
-                  onChange={(e) => setListState({ cycleNodeFilter: e.target.value })}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {cycleNodesFlat.map((c) => (
-                    <MenuItem key={c.id} value={c.id}>
-                      {c.path || c.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl size="small" sx={{ minWidth: 140 }}>
-                <InputLabel>Area</InputLabel>
-                <Select
+                  options={[{ value: "", label: "All" }, ...cycleNodesFlat.map((c) => ({ value: c.id, label: c.path || c.name }))]}
+                  selectProps={{ size: "small", sx: { minWidth: 140 } }}
+                />
+                <RhfSelect<ToolbarFilterValues>
+                  name="areaNodeFilter"
+                  control={toolbarForm.control}
                   label="Area"
-                  value={areaNodeFilter}
-                  onChange={(e) => setListState({ areaNodeFilter: e.target.value })}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {areaNodesFlat.map((a) => (
-                    <MenuItem key={a.id} value={a.id}>
-                      {areaNodeDisplayLabel(a)}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl size="small" sx={{ minWidth: 130 }}>
-                <InputLabel>Sort by</InputLabel>
-                <Select
+                  options={[{ value: "", label: "All" }, ...areaNodesFlat.map((a) => ({ value: a.id, label: areaNodeDisplayLabel(a) }))]}
+                  selectProps={{ size: "small", sx: { minWidth: 140 } }}
+                />
+                <RhfSelect<ToolbarFilterValues>
+                  name="sortBy"
+                  control={toolbarForm.control}
                   label="Sort by"
-                  value={sortBy}
-                  onChange={(e) => setListState({ sortBy: e.target.value as ArtifactSortBy })}
-                >
-                  <MenuItem value="artifact_key">Key</MenuItem>
-                  <MenuItem value="title">Title</MenuItem>
-                  <MenuItem value="state">State</MenuItem>
-                  <MenuItem value="artifact_type">Type</MenuItem>
-                  <MenuItem value="created_at">Created</MenuItem>
-                  <MenuItem value="updated_at">Updated</MenuItem>
-                </Select>
-              </FormControl>
-              <FormControl size="small" sx={{ minWidth: 95 }}>
-                <InputLabel>Order</InputLabel>
-                <Select
+                  options={[
+                    { value: "artifact_key", label: "Key" },
+                    { value: "title", label: "Title" },
+                    { value: "state", label: "State" },
+                    { value: "artifact_type", label: "Type" },
+                    { value: "created_at", label: "Created" },
+                    { value: "updated_at", label: "Updated" },
+                  ]}
+                  selectProps={{ size: "small", sx: { minWidth: 130 } }}
+                />
+                <RhfSelect<ToolbarFilterValues>
+                  name="sortOrder"
+                  control={toolbarForm.control}
                   label="Order"
-                  value={sortOrder}
-                  onChange={(e) => setListState({ sortOrder: e.target.value as ArtifactSortOrder })}
-                >
-                  <MenuItem value="asc">Asc</MenuItem>
-                  <MenuItem value="desc">Desc</MenuItem>
-                </Select>
-              </FormControl>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    size="small"
-                    checked={showDeleted}
-                    onChange={(_, checked) => setListState({ showDeleted: !!checked })}
-                    aria-label="Show deleted artifacts"
-                  />
-                }
-                label="Show deleted"
-              />
+                  options={[{ value: "asc", label: "Asc" }, { value: "desc", label: "Desc" }]}
+                  selectProps={{ size: "small", sx: { minWidth: 95 } }}
+                />
+                <RhfCheckbox<ToolbarFilterValues>
+                  name="showDeleted"
+                  control={toolbarForm.control}
+                  label="Show deleted"
+                  checkboxProps={{ size: "small", "aria-label": "Show deleted artifacts" }}
+                />
+              </FormProvider>
               {(stateFilter || typeFilter || cycleNodeFilter || areaNodeFilter || searchInput) && (
                 <Button
                   size="small"
@@ -1140,6 +1304,12 @@ export default function ArtifactsPage() {
                       cycleNodeFilter: "",
                       areaNodeFilter: "",
                       searchInput: "",
+                    });
+                    toolbarForm.reset({
+                      ...toolbarForm.getValues(),
+                      searchInput: "",
+                      cycleNodeFilter: "",
+                      areaNodeFilter: "",
                     });
                   }}
                   aria-label="Clear filters"
@@ -1731,12 +1901,13 @@ export default function ArtifactsPage() {
                       <Chip
                         key={item.trigger}
                         label={item.label ?? item.to_state}
-                        onClick={() =>
+                        onClick={() => {
                           setListState({
                             bulkTransitionTrigger: item.trigger,
                             bulkTransitionState: "",
-                          })
-                        }
+                          });
+                          bulkTransitionDialogForm.setValue("state", "");
+                        }}
                         variant={bulkTransitionTrigger === item.trigger ? "filled" : "outlined"}
                         size="small"
                       />
@@ -1744,63 +1915,51 @@ export default function ArtifactsPage() {
                   </Box>
                 </Box>
               )}
-              <FormControl fullWidth size="small">
-                <InputLabel>New state</InputLabel>
-                <Select
+              <FormProvider {...bulkTransitionDialogForm}>
+                <RhfSelect<BulkTransitionDialogValues>
+                  name="state"
+                  control={bulkTransitionDialogForm.control}
                   label="New state"
-                  value={bulkTransitionState}
-                  onChange={(e) =>
-                    setListState({
-                      bulkTransitionState: e.target.value,
-                      bulkTransitionTrigger: "",
-                    })
+                  options={filterStates.map((s) => ({ value: s, label: s }))}
+                  selectProps={{ fullWidth: true, size: "small" }}
+                  helperText={
+                    bulkTransitionInvalidCount > 0 && bulkTransitionDialogForm.watch("state")
+                      ? `${bulkTransitionInvalidCount} item(s) cannot transition to this state`
+                      : undefined
                   }
-                >
-                  {filterStates.map((s) => (
-                    <MenuItem key={s} value={s}>
-                      {s}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {bulkTransitionInvalidCount > 0 && bulkTransitionState && (
-                  <FormHelperText>
-                    {bulkTransitionInvalidCount} item(s) cannot transition to this state
-                  </FormHelperText>
-                )}
-              </FormControl>
-              {bulkTransitionForm.schema ? (
-                <MetadataDrivenForm
-                  schema={bulkTransitionForm.schema}
-                  values={bulkTransitionForm.values}
-                  onChange={(v) =>
-                    setListState({
-                      bulkTransitionStateReason: (v.state_reason as string) ?? "",
-                      bulkTransitionResolution: (v.resolution as string) ?? "",
-                    })
-                  }
-                  onSubmit={() => {}}
-                  submitLabel="Transition"
-                  disabled={batchTransitionMutation.isPending}
-                  submitExternally
                 />
-              ) : (
-                <>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    label="State reason (optional)"
-                    value={bulkTransitionStateReason}
-                    onChange={(e) => setListState({ bulkTransitionStateReason: e.target.value })}
+                {bulkTransitionForm.schema ? (
+                  <MetadataDrivenForm
+                    schema={bulkTransitionForm.schema}
+                    values={bulkTransitionForm.values}
+                    onChange={(v) =>
+                      setListState({
+                        bulkTransitionStateReason: (v.state_reason as string) ?? "",
+                        bulkTransitionResolution: (v.resolution as string) ?? "",
+                      })
+                    }
+                    onSubmit={() => {}}
+                    submitLabel="Transition"
+                    disabled={batchTransitionMutation.isPending}
+                    submitExternally
                   />
-                  <TextField
-                    size="small"
-                    fullWidth
-                    label="Resolution (optional)"
-                    value={bulkTransitionResolution}
-                    onChange={(e) => setListState({ bulkTransitionResolution: e.target.value })}
-                  />
-                </>
-              )}
+                ) : (
+                  <>
+                    <RhfTextField<BulkTransitionDialogValues>
+                      name="state_reason"
+                      label="State reason (optional)"
+                      size="small"
+                      fullWidth
+                    />
+                    <RhfTextField<BulkTransitionDialogValues>
+                      name="resolution"
+                      label="Resolution (optional)"
+                      size="small"
+                      fullWidth
+                    />
+                  </>
+                )}
+              </FormProvider>
             </>
           )}
         </DialogContent>
@@ -1840,21 +1999,22 @@ export default function ArtifactsPage() {
               <Button
                 variant="contained"
                 disabled={
-                  (!bulkTransitionTrigger && !bulkTransitionState) ||
+                  (!bulkTransitionTrigger && !bulkTransitionDialogForm.watch("state")) ||
                   batchTransitionMutation.isPending ||
                   (bulkShowResolutionField &&
                     bulkTransitionOptions.resolutionOptions.length > 0 &&
-                    !bulkTransitionResolution)
+                    !bulkTransitionDialogForm.watch("resolution"))
                 }
                 onClick={() => {
+                  const { state, state_reason, resolution } = bulkTransitionDialogForm.getValues();
                   batchTransitionMutation.mutate(
                     {
                       artifact_ids: [...selectedIds],
                       ...(bulkTransitionTrigger
                         ? { trigger: bulkTransitionTrigger }
-                        : { new_state: bulkTransitionState }),
-                      state_reason: bulkTransitionStateReason || undefined,
-                      resolution: bulkTransitionResolution || undefined,
+                        : { new_state: state }),
+                      state_reason: state_reason || undefined,
+                      resolution: resolution || undefined,
                     },
                     {
                       onSuccess: (res) => {
@@ -2083,62 +2243,29 @@ export default function ArtifactsPage() {
                     pm.role === "PROJECT_ADMIN" &&
                     (projectMembers ?? []).filter((m) => m.role === "PROJECT_ADMIN").length <= 1;
                   return (
-                    <ListItem
+                    <ProjectMemberRow
                       key={pm.id}
-                      secondaryAction={
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                          <FormControl size="small" sx={{ minWidth: 120 }}>
-                            <Select
-                              value={pm.role}
-                              size="small"
-                              onChange={(e) =>
-                                updateProjectMemberMutation.mutate(
-                                  {
-                                    userId: pm.user_id,
-                                    role: e.target.value as string,
-                                  },
-                                  {
-                                    onSuccess: () =>
-                                      showNotification("Role updated successfully"),
-                                  },
-                                )
-                              }
-                              disabled={updateProjectMemberMutation.isPending}
-                            >
-                              <MenuItem value="PROJECT_VIEWER">Viewer</MenuItem>
-                              <MenuItem value="PROJECT_CONTRIBUTOR">Contributor</MenuItem>
-                              <MenuItem value="PROJECT_ADMIN">Admin</MenuItem>
-                            </Select>
-                          </FormControl>
-                          <IconButton
-                            edge="end"
-                            size="small"
-                            aria-label="Remove member"
-                            disabled={
-                              removeProjectMemberMutation.isPending || isOnlyAdmin
-                            }
-                            title={isOnlyAdmin ? "Cannot remove the last admin" : "Remove member"}
-                            onClick={() =>
-                              removeProjectMemberMutation.mutate(pm.user_id, {
-                                onSuccess: () =>
-                                  showNotification("Member removed successfully"),
-                                onError: (error: Error) => {
-                                  const body = (error as unknown as { body?: ProblemDetail })?.body;
-                                  showNotification(
-                                    body?.detail ?? "Failed to remove member.",
-                                    "error",
-                                  );
-                                },
-                              })
-                            }
-                          >
-                            <PersonRemove fontSize="small" />
-                          </IconButton>
-                        </Box>
+                      pm={pm}
+                      memberLabel={label}
+                      isOnlyAdmin={isOnlyAdmin}
+                      onUpdateRole={(userId, role) =>
+                        updateProjectMemberMutation.mutate(
+                          { userId, role },
+                          { onSuccess: () => showNotification("Role updated successfully") },
+                        )
                       }
-                    >
-                      <ListItemText primary={label} />
-                    </ListItem>
+                      isUpdating={updateProjectMemberMutation.isPending}
+                      onRemove={(userId) =>
+                        removeProjectMemberMutation.mutate(userId, {
+                          onSuccess: () => showNotification("Member removed successfully"),
+                          onError: (error: Error) => {
+                            const body = (error as unknown as { body?: ProblemDetail })?.body;
+                            showNotification(body?.detail ?? "Failed to remove member.", "error");
+                          },
+                        })
+                      }
+                      isRemoving={removeProjectMemberMutation.isPending}
+                    />
                   );
                 })}
                 {(projectMembers ?? []).length === 0 && (
@@ -2150,68 +2277,53 @@ export default function ArtifactsPage() {
                   </ListItem>
                 )}
               </List>
-              <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Add member
-                </Typography>
-                <FormControl size="small" fullWidth>
-                  <InputLabel>User</InputLabel>
-                  <Select
-                    value={addMemberUserId}
+              <FormProvider {...addMemberForm}>
+                <Box component="form" onSubmit={addMemberForm.handleSubmit(onSubmitAddMember)} noValidate sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Add member
+                  </Typography>
+                  <RhfSelect<AddMemberFormValues>
+                    name="user_id"
+                    control={addMemberForm.control}
                     label="User"
-                    onChange={(e) => setListState({ addMemberUserId: e.target.value })}
-                  >
-                    {(members ?? [])
-                      .filter((m) => !(projectMembers ?? []).some((pm) => pm.user_id === m.user_id))
-                      .map((m) => (
-                        <MenuItem key={m.user_id} value={m.user_id}>
-                          {m.display_name || m.email}
-                        </MenuItem>
-                      ))}
-                    {(members ?? []).filter((m) => !(projectMembers ?? []).some((pm) => pm.user_id === m.user_id)).length === 0 && (
-                      <MenuItem disabled>All org members are already in the project</MenuItem>
-                    )}
-                  </Select>
-                </FormControl>
-                <FormControl size="small" fullWidth>
-                  <InputLabel>Role</InputLabel>
-                  <Select
-                    value={addMemberRole}
+                    placeholder={availableMembersForAdd.length === 0 ? "All org members are already in the project" : undefined}
+                    options={
+                      availableMembersForAdd.length === 0
+                        ? []
+                        : availableMembersForAdd.map((m) => ({ value: m.user_id, label: (m.display_name || m.email) ?? m.user_id }))
+                    }
+                    selectProps={{ size: "small" }}
+                  />
+                  <RhfSelect<AddMemberFormValues>
+                    name="role"
+                    control={addMemberForm.control}
                     label="Role"
-                    onChange={(e) => setListState({ addMemberRole: e.target.value })}
+                    options={[
+                      { value: "PROJECT_VIEWER", label: "Viewer" },
+                      { value: "PROJECT_CONTRIBUTOR", label: "Contributor" },
+                      { value: "PROJECT_ADMIN", label: "Admin" },
+                    ]}
+                    selectProps={{ size: "small" }}
+                  />
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={
+                      projectMembersLoading ||
+                      addProjectMemberMutation.isPending ||
+                      !addMemberForm.watch("user_id") ||
+                      availableMembersForAdd.length === 0
+                    }
                   >
-                    <MenuItem value="PROJECT_VIEWER">Viewer</MenuItem>
-                    <MenuItem value="PROJECT_CONTRIBUTOR">Contributor</MenuItem>
-                    <MenuItem value="PROJECT_ADMIN">Admin</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
+                    Add member
+                  </Button>
+                </Box>
+              </FormProvider>
             </>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setListState({ membersDialogOpen: false })}>Close</Button>
-          {!projectMembersLoading && (
-            <Button
-              variant="contained"
-              disabled={!addMemberUserId || addProjectMemberMutation.isPending}
-              onClick={async () => {
-                if (!addMemberUserId) return;
-                try {
-                  await addProjectMemberMutation.mutateAsync({
-                    user_id: addMemberUserId,
-                    role: addMemberRole,
-                  });
-                  setListState({ addMemberUserId: "", addMemberRole: "PROJECT_VIEWER" });
-                  showNotification("Member added successfully");
-                } catch {
-                  // Error handled by mutation / global handler
-                }
-              }}
-            >
-              Add member
-            </Button>
-          )}
         </DialogActions>
       </Dialog>
 
@@ -2373,69 +2485,45 @@ export default function ArtifactsPage() {
         fullWidth
       >
         <DialogTitle>Add link</DialogTitle>
-        <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Link type</InputLabel>
-            <Select
-              label="Link type"
-              value={addLinkType}
-              onChange={(e) => setAddLinkType(e.target.value)}
-            >
-              <MenuItem value="related">Related</MenuItem>
-              <MenuItem value="parent">Parent</MenuItem>
-              <MenuItem value="child">Child</MenuItem>
-              <MenuItem value="blocks">Blocks</MenuItem>
-              <MenuItem value="duplicate">Duplicate</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Artifact to link to</InputLabel>
-            <Select
-              label="Artifact to link to"
-              value={addLinkToId}
-              onChange={(e) => setAddLinkToId(e.target.value)}
-              displayEmpty
-            >
-              <MenuItem value="">
-                <em>Select an artifact</em>
-              </MenuItem>
-              {pickerArtifacts
-                .filter((a) => a.id !== detailArtifact?.id)
-                .map((a) => (
-                  <MenuItem key={a.id} value={a.id}>
-                    [{a.artifact_key ?? a.id.slice(0, 8)}] {a.title}
-                  </MenuItem>
-                ))}
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddLinkOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={!addLinkToId || createLinkMutation.isPending}
-            onClick={() => {
-              if (!addLinkToId) return;
-              const payload: CreateArtifactLinkRequest = {
-                to_artifact_id: addLinkToId,
-                link_type: addLinkType,
-              };
-              createLinkMutation.mutate(payload, {
-                onSuccess: () => {
-                  setAddLinkOpen(false);
-                  setAddLinkToId("");
-                  showNotification("Link added", "success");
-                },
-                onError: (err: Error) => {
-                  const body = (err as unknown as { body?: ProblemDetail })?.body;
-                  showNotification(body?.detail ?? "Failed to add link", "error");
-                },
-              });
-            }}
-          >
-            Add link
-          </Button>
-        </DialogActions>
+        <FormProvider {...addLinkForm}>
+          <Box component="form" onSubmit={addLinkForm.handleSubmit(onSubmitAddLink)} noValidate>
+            <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+              <RhfSelect<AddLinkFormValues>
+                name="linkType"
+                control={addLinkForm.control}
+                label="Link type"
+                options={[
+                  { value: "related", label: "Related" },
+                  { value: "parent", label: "Parent" },
+                  { value: "child", label: "Child" },
+                  { value: "blocks", label: "Blocks" },
+                  { value: "duplicate", label: "Duplicate" },
+                ]}
+                selectProps={{ size: "small" }}
+              />
+              <RhfSelect<AddLinkFormValues>
+                name="artifactId"
+                control={addLinkForm.control}
+                label="Artifact to link to"
+                placeholder="Select an artifact"
+                options={pickerArtifacts
+                  .filter((a) => a.id !== detailArtifact?.id)
+                  .map((a) => ({ value: a.id, label: `[${a.artifact_key ?? a.id.slice(0, 8)}] ${a.title}` }))}
+                selectProps={{ size: "small" }}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button type="button" onClick={() => setAddLinkOpen(false)}>Cancel</Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={!addLinkForm.watch("artifactId") || createLinkMutation.isPending}
+              >
+                Add link
+              </Button>
+            </DialogActions>
+          </Box>
+        </FormProvider>
       </Dialog>
 
       <Dialog
@@ -2445,64 +2533,40 @@ export default function ArtifactsPage() {
         fullWidth
       >
         <DialogTitle id="save-query-dialog-title">Save current filters</DialogTitle>
-        <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          <TextField
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional for dialog UX
-            autoFocus
-            label="Query name"
-            value={saveQueryName}
-            onChange={(e) => setSaveQueryName(e.target.value)}
-            fullWidth
-            placeholder="e.g. My open bugs"
-          />
-          <FormControl fullWidth>
-            <InputLabel>Visibility</InputLabel>
-            <Select
-              label="Visibility"
-              value={saveQueryVisibility}
-              onChange={(e) => setSaveQueryVisibility(e.target.value as "private" | "project")}
-            >
-              <MenuItem value="private">Private (only me)</MenuItem>
-              <MenuItem value="project">Project (all members)</MenuItem>
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSaveQueryDialogOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={!saveQueryName.trim() || createSavedQueryMutation.isPending}
-            onClick={() => {
-              const name = saveQueryName.trim();
-              if (!name || !project?.id) return;
-              const filterParams = listStateToFilterParams({
-                stateFilter,
-                typeFilter,
-                searchQuery,
-                cycleNodeFilter,
-                areaNodeFilter,
-                sortBy,
-                sortOrder,
-              });
-              createSavedQueryMutation.mutate(
-                { name, filter_params: filterParams, visibility: saveQueryVisibility },
-                {
-                  onSuccess: () => {
-                    setSaveQueryDialogOpen(false);
-                    setSaveQueryName("");
-                    showNotification("Saved query created", "success");
-                  },
-                  onError: (err: Error) => {
-                    const body = (err as unknown as { body?: ProblemDetail })?.body;
-                    showNotification(body?.detail ?? "Failed to save query", "error");
-                  },
-                },
-              );
-            }}
-          >
-            Save
-          </Button>
-        </DialogActions>
+        <FormProvider {...saveQueryForm}>
+          <Box component="form" onSubmit={handleSaveQuerySubmit(onSubmitSaveQuery)} noValidate>
+            <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+              <RhfTextField<SaveQueryFormValues>
+                name="name"
+                label="Query name"
+                fullWidth
+                placeholder="e.g. My open bugs"
+                autoFocus
+              />
+              <RhfSelect<SaveQueryFormValues>
+                name="visibility"
+                control={saveQueryControl}
+                label="Visibility"
+                options={[
+                  { value: "private", label: "Private (only me)" },
+                  { value: "project", label: "Project (all members)" },
+                ]}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button type="button" onClick={() => setSaveQueryDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={createSavedQueryMutation.isPending}
+              >
+                Save
+              </Button>
+            </DialogActions>
+          </Box>
+        </FormProvider>
       </Dialog>
 
       <Drawer
@@ -2964,11 +3028,7 @@ export default function ArtifactsPage() {
                       <Button
                         size="small"
                         startIcon={<Add />}
-                        onClick={() => {
-                          setAddLinkToId("");
-                          setAddLinkType("related");
-                          setAddLinkOpen(true);
-                        }}
+                        onClick={() => setAddLinkOpen(true)}
                       >
                         Add link
                       </Button>
@@ -3106,38 +3166,47 @@ export default function ArtifactsPage() {
                         ))}
                       </List>
                       <Box sx={{ mt: 1, display: "flex", flexDirection: "column", gap: 1 }}>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          multiline
-                          minRows={2}
-                          placeholder="Add a comment..."
-                          value={newCommentBody}
-                          onChange={(e) => setNewCommentBody(e.target.value)}
-                          disabled={createCommentMutation.isPending}
-                        />
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={!newCommentBody.trim() || createCommentMutation.isPending}
-                          onClick={() => {
-                            const body = newCommentBody.trim();
-                            if (!body) return;
-                            const payload: CreateCommentRequest = { body };
-                            createCommentMutation.mutate(payload, {
-                              onSuccess: () => {
-                                setNewCommentBody("");
-                                showNotification("Comment added", "success");
-                              },
-                              onError: (err: Error) => {
-                                const body = (err as unknown as { body?: ProblemDetail })?.body;
-                                showNotification(body?.detail ?? "Failed to add comment", "error");
-                              },
-                            });
-                          }}
-                        >
-                          Add comment
-                        </Button>
+                        <FormProvider {...commentForm}>
+                          <Box
+                            component="form"
+                            onSubmit={commentForm.handleSubmit((data) => {
+                              const body = data.body.trim();
+                              if (!body) return;
+                              createCommentMutation.mutate(
+                                { body },
+                                {
+                                  onSuccess: () => {
+                                    commentForm.reset({ body: "" });
+                                    showNotification("Comment added", "success");
+                                  },
+                                  onError: (err: Error) => {
+                                    const b = (err as unknown as { body?: ProblemDetail })?.body;
+                                    showNotification(b?.detail ?? "Failed to add comment", "error");
+                                  },
+                                },
+                              );
+                            })}
+                            sx={{ display: "flex", flexDirection: "column", gap: 1 }}
+                          >
+                            <RhfTextField<CommentFormValues>
+                              name="body"
+                              label=""
+                              placeholder="Add a comment..."
+                              size="small"
+                              fullWidth
+                              multiline
+                              minRows={2}
+                            />
+                            <Button
+                              type="submit"
+                              size="small"
+                              variant="outlined"
+                              disabled={!commentBody?.trim() || createCommentMutation.isPending}
+                            >
+                              Add comment
+                            </Button>
+                          </Box>
+                        </FormProvider>
                       </Box>
                     </>
                   )}

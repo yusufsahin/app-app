@@ -1,8 +1,9 @@
 """Task SQLAlchemy repository."""
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -88,12 +89,12 @@ class SqlAlchemyTaskRepository(TaskRepository):
             update(TaskModel)
             .where(TaskModel.id == task_id, TaskModel.deleted_at.is_(None))
             .values(
-                deleted_at=datetime.now(timezone.utc),
+                deleted_at=datetime.now(UTC),
                 deleted_by=deleted_by,
             )
         )
         await self._session.flush()
-        return result.rowcount > 0
+        return bool(getattr(result, "rowcount", 0))
 
     @staticmethod
     def _to_entity(m: TaskModel) -> Task:

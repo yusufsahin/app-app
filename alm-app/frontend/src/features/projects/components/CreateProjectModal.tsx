@@ -1,19 +1,16 @@
-import { useForm } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
+  Box,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Button,
   CircularProgress,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from "@mui/material";
+import { RhfDescriptionField, RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useCreateOrgProject } from "../../../shared/api/orgApi";
 import { useProcessTemplates } from "../../../shared/api/processTemplateApi";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
@@ -48,19 +45,14 @@ export default function CreateProjectModal({ open, onClose, orgSlug }: CreatePro
   const { data: templates } = useProcessTemplates();
   const showNotification = useNotificationStore((s) => s.showNotification);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<CreateProjectFormData>({
+  const form = useForm<CreateProjectFormData>({
     resolver: zodResolver(createProjectSchema),
     defaultValues: { code: "", name: "", description: "", process_template_slug: "basic" },
   });
-
-  const selectedTemplate = watch("process_template_slug");
+  const { control, handleSubmit, reset } = form;
+  const templateOptions = (templates ?? [{ id: "basic", slug: "basic", name: "Basic", is_builtin: true }]).map(
+    (t) => ({ value: t.slug, label: t.name }),
+  );
 
   const handleClose = () => {
     reset();
@@ -89,75 +81,60 @@ export default function CreateProjectModal({ open, onClose, orgSlug }: CreatePro
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <DialogTitle fontWeight={600}>New Project</DialogTitle>
-
-        <DialogContent>
-          <TextField
-            {...register("code")}
-            label="Code"
-            placeholder="e.g. ALM"
-            fullWidth
-            error={!!errors.code}
-            helperText={
-              errors.code?.message ??
-              "2-10 alphanumeric characters, uppercase"
-            }
-            sx={{ mt: 1, mb: 2 }}
-            inputProps={{ maxLength: 10 }}
-          />
-          <TextField
-            {...register("name")}
-            label="Project name"
-            fullWidth
-            error={!!errors.name}
-            helperText={errors.name?.message}
-            sx={{ mb: 2 }}
-          />
-
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Process template</InputLabel>
-            <Select
-              value={selectedTemplate ?? "basic"}
-              label="Process template"
-              onChange={(e) => setValue("process_template_slug", e.target.value as string)}
+      <FormProvider {...form}>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate>
+          <DialogTitle fontWeight={600}>New Project</DialogTitle>
+          <DialogContent>
+            <RhfTextField<CreateProjectFormData>
+              name="code"
+              label="Code"
+              placeholder="e.g. ALM"
+              fullWidth
+              helperText="2-10 alphanumeric characters, uppercase"
+              sx={{ mt: 1, mb: 2 }}
+              inputProps={{ maxLength: 10 }}
+            />
+            <RhfTextField<CreateProjectFormData>
+              name="name"
+              label="Project name"
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <Box sx={{ mb: 2 }}>
+              <RhfSelect<CreateProjectFormData>
+                name="process_template_slug"
+                control={control}
+                label="Process template"
+                options={templateOptions}
+              />
+            </Box>
+            <RhfDescriptionField<CreateProjectFormData>
+              name="description"
+              control={control}
+              mode="text"
+              label="Description (optional)"
+              allowModeSwitch
+              rows={4}
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={handleClose} disabled={createMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={createMutation.isPending}
             >
-              {(templates ?? [{ id: "basic", slug: "basic", name: "Basic", is_builtin: true }]).map((t) => (
-                <MenuItem key={t.id} value={t.slug}>
-                  {t.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <TextField
-            {...register("description")}
-            label="Description (optional)"
-            fullWidth
-            multiline
-            rows={3}
-            error={!!errors.description}
-            helperText={errors.description?.message}
-          />
-        </DialogContent>
-
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleClose} disabled={createMutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={createMutation.isPending}
-          >
-            {createMutation.isPending ? (
-              <CircularProgress size={22} color="inherit" />
-            ) : (
-              "Create"
-            )}
-          </Button>
-        </DialogActions>
-      </form>
+              {createMutation.isPending ? (
+                <CircularProgress size={22} color="inherit" />
+              ) : (
+                "Create"
+              )}
+            </Button>
+          </DialogActions>
+        </form>
+      </FormProvider>
     </Dialog>
   );
 }

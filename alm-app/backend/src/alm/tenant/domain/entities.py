@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from alm.shared.domain.aggregate import AggregateRoot
 from alm.shared.domain.entity import BaseEntity
@@ -22,7 +23,7 @@ class Tenant(AggregateRoot):
         *,
         id: uuid.UUID | None = None,
         tier: str = "free",
-        settings: dict | None = None,
+        settings: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(id=id)
         self.name = name
@@ -36,7 +37,7 @@ class Tenant(AggregateRoot):
         tenant._register_event(TenantCreated(tenant_id=tenant.id, name=name, slug=slug))
         return tenant
 
-    def update_settings(self, name: str | None = None, settings: dict | None = None) -> None:
+    def update_settings(self, name: str | None = None, settings: dict[str, Any] | None = None) -> None:
         if name is not None:
             self.name = name
         if settings is not None:
@@ -143,11 +144,13 @@ class Role(AggregateRoot):
     def set_privileges(self, privilege_ids: list[uuid.UUID]) -> None:
         self.privilege_ids = list(privilege_ids)
         self.touch()
-        self._register_event(RolePrivilegesChanged(
-            tenant_id=self.tenant_id,
-            role_id=self.id,
-            privilege_ids=list(privilege_ids),
-        ))
+        self._register_event(
+            RolePrivilegesChanged(
+                tenant_id=self.tenant_id,
+                role_id=self.id,
+                privilege_ids=list(privilege_ids),
+            )
+        )
 
 
 class Privilege:

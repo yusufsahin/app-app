@@ -1,10 +1,11 @@
 """Artifact SQLAlchemy repository."""
+
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import func, or_, select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alm.artifact.domain.entities import Artifact
@@ -33,9 +34,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         return self._to_entity(model) if model else None
 
     async def find_by_id_include_deleted(self, artifact_id: uuid.UUID) -> Artifact | None:
-        result = await self._session.execute(
-            select(ArtifactModel).where(ArtifactModel.id == artifact_id)
-        )
+        result = await self._session.execute(select(ArtifactModel).where(ArtifactModel.id == artifact_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
@@ -50,13 +49,13 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
 
     def _list_by_project_filters(
         self,
-        q,
+        q: Any,
         state_filter: str | None,
         type_filter: str | None,
         search_query: str | None,
         cycle_node_id: uuid.UUID | None = None,
         area_node_id: uuid.UUID | None = None,
-    ):
+    ) -> Any:
         """Apply common filters for list and count."""
         if state_filter:
             q = q.where(ArtifactModel.state == state_filter)
@@ -70,9 +69,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             term = search_query.strip()
             # Full-text search on search_vector (tsvector); fallback to ILIKE if no FTS match
             q = q.where(
-                text("artifacts.search_vector @@ plainto_tsquery('english', :search_fts)").bindparams(
-                    search_fts=term
-                )
+                text("artifacts.search_vector @@ plainto_tsquery('english', :search_fts)").bindparams(search_fts=term)
             )
         return q
 
@@ -90,9 +87,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             ArtifactModel.project_id == project_id,
             ArtifactModel.deleted_at.is_(None) if not include_deleted else ArtifactModel.deleted_at.isnot(None),
         )
-        q = self._list_by_project_filters(
-            q, state_filter, type_filter, search_query, cycle_node_id, area_node_id
-        )
+        q = self._list_by_project_filters(q, state_filter, type_filter, search_query, cycle_node_id, area_node_id)
         result = await self._session.execute(q)
         return result.scalar_one() or 0
 
@@ -114,12 +109,10 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             ArtifactModel.project_id == project_id,
             ArtifactModel.deleted_at.is_(None) if not include_deleted else ArtifactModel.deleted_at.isnot(None),
         )
-        q = self._list_by_project_filters(
-            q, state_filter, type_filter, search_query, cycle_node_id, area_node_id
-        )
+        q = self._list_by_project_filters(q, state_filter, type_filter, search_query, cycle_node_id, area_node_id)
         column_name = self._SORT_COLUMNS.get(sort_by) if sort_by else "created_at"
         order_asc = (sort_order or "desc").lower() == "asc"
-        column = getattr(ArtifactModel, column_name, None)
+        column = getattr(ArtifactModel, column_name or "created_at", None)
         if column is not None:
             q = q.order_by(column.asc() if order_asc else column.desc())
         else:
@@ -142,9 +135,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         )
         return result.scalar_one() or 0
 
-    async def count_open_defects_by_project_ids(
-        self, project_ids: list[uuid.UUID]
-    ) -> int:
+    async def count_open_defects_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
         if not project_ids:
             return 0
         result = await self._session.execute(
@@ -193,9 +184,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         result = await self._session.execute(q)
         return [(r[0], r[1], r[2], r[3], r[4], r[5]) for r in result.all()]
 
-    async def list_by_spec(
-        self, spec: "Specification[Artifact]"
-    ) -> list[Artifact]:
+    async def list_by_spec(self, spec: Specification[Artifact]) -> list[Artifact]:
         """List artifacts satisfying specification. Fetches all non-deleted, then filters in-memory."""
         q = select(ArtifactModel).where(ArtifactModel.deleted_at.is_(None))
         result = await self._session.execute(q)
@@ -237,7 +226,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         return artifact
 
     async def update(self, artifact: Artifact) -> Artifact:
-        values: dict = {
+        values: dict[str, Any] = {
             "title": artifact.title,
             "description": artifact.description,
             "state": artifact.state,
@@ -256,13 +245,9 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             values["deleted_at"] = artifact.deleted_at
         if hasattr(artifact, "deleted_by"):
             values["deleted_by"] = artifact.deleted_by
-        await self._session.execute(
-            update(ArtifactModel).where(ArtifactModel.id == artifact.id).values(**values)
-        )
+        await self._session.execute(update(ArtifactModel).where(ArtifactModel.id == artifact.id).values(**values))
         await self._session.flush()
-        result = await self._session.execute(
-            select(ArtifactModel).where(ArtifactModel.id == artifact.id)
-        )
+        result = await self._session.execute(select(ArtifactModel).where(ArtifactModel.id == artifact.id))
         refreshed = result.scalar_one_or_none()
         if refreshed is not None:
             artifact.created_at = refreshed.created_at

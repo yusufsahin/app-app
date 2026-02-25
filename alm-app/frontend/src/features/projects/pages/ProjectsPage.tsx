@@ -1,10 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
+import { useForm, FormProvider } from "react-hook-form";
 import {
   Container,
   Typography,
   Button,
-  TextField,
   InputAdornment,
   Card,
   CardContent,
@@ -14,13 +14,10 @@ import {
   Tab,
   Breadcrumbs,
   Link as MuiLink,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import { Add, Search } from "@mui/icons-material";
+import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useTenantStore } from "../../../shared/stores/tenantStore";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { useOrgProjects } from "../../../shared/api/orgApi";
@@ -28,9 +25,22 @@ import { hasPermission } from "../../../shared/utils/permissions";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import CreateProjectModal from "../components/CreateProjectModal";
 
+type ProjectsFilterValues = {
+  q: string;
+  sort_value: string;
+};
+
+const sortOptions = [
+  { value: "name-asc", label: "Name (A → Z)" },
+  { value: "name-desc", label: "Name (Z → A)" },
+  { value: "slug-asc", label: "Slug (A → Z)" },
+  { value: "slug-desc", label: "Slug (Z → A)" },
+];
+
 export default function ProjectsPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const currentTenantName = useTenantStore((s) => s.currentTenant?.name ?? "Organization");
   const permissions = useAuthStore((s) => s.permissions);
   const canCreateProject = hasPermission(permissions, "project:create");
@@ -40,10 +50,35 @@ export default function ProjectsPage() {
   const createModalOpen = useProjectStore((s) => s.listState.createModalOpen);
   const setCreateModalOpen = useProjectStore((s) => s.setCreateModalOpen);
 
-  const [searchParams, setSearchParams] = useSearchParams();
   const filter = searchParams.get("q") ?? "";
   const sortBy = searchParams.get("sort_by") ?? "name";
   const sortOrder = searchParams.get("sort_order") ?? "asc";
+  const sortValue = `${sortBy}-${sortOrder}`;
+
+  const form = useForm<ProjectsFilterValues>({
+    defaultValues: { q: filter, sort_value: sortValue },
+  });
+  const { watch, reset, control } = form;
+  const values = watch();
+  const skipSyncRef = useRef(true);
+
+  useEffect(() => {
+    reset({ q: filter, sort_value: sortValue });
+  }, [filter, sortValue, reset]);
+
+  useEffect(() => {
+    if (skipSyncRef.current) {
+      skipSyncRef.current = false;
+      return;
+    }
+    const [by, order] = (values.sort_value || "name-asc").split("-");
+    const next = new URLSearchParams(searchParams);
+    if (values.q) next.set("q", values.q);
+    else next.delete("q");
+    next.set("sort_by", by ?? "name");
+    next.set("sort_order", order ?? "asc");
+    setSearchParams(next, { replace: true });
+  }, [values.q, values.sort_value]);
 
   const { data: projects = [], isLoading } = useOrgProjects(orgSlug);
 
@@ -119,46 +154,32 @@ export default function ProjectsPage() {
         )}
       </Box>
 
-      <TextField
-        placeholder="Filter projects"
-        size="small"
-        value={filter}
-        onChange={(e) => {
-          const q = e.target.value;
-          const next = new URLSearchParams(searchParams);
-          if (q) next.set("q", q);
-          else next.delete("q");
-          setSearchParams(next, { replace: true });
-        }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <Search color="action" />
-            </InputAdornment>
-          ),
-        }}
-        sx={{ mb: 2, maxWidth: 280 }}
-      />
-      <FormControl size="small" sx={{ minWidth: 160, mb: 3, display: "block" }}>
-        <InputLabel id="projects-sort-label">Sort by</InputLabel>
-        <Select
-          labelId="projects-sort-label"
-          label="Sort by"
-          value={`${sortBy}-${sortOrder}`}
-          onChange={(e) => {
-            const [by, order] = (e.target.value as string).split("-") as [string, string];
-            const next = new URLSearchParams(searchParams);
-            next.set("sort_by", by);
-            next.set("sort_order", order);
-            setSearchParams(next, { replace: true });
-          }}
-        >
-          <MenuItem value="name-asc">Name (A → Z)</MenuItem>
-          <MenuItem value="name-desc">Name (Z → A)</MenuItem>
-          <MenuItem value="slug-asc">Slug (A → Z)</MenuItem>
-          <MenuItem value="slug-desc">Slug (Z → A)</MenuItem>
-        </Select>
-      </FormControl>
+      <FormProvider {...form}>
+        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, mb: 3 }}>
+          <RhfTextField<ProjectsFilterValues>
+            name="q"
+            placeholder="Filter projects"
+            size="small"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search color="action" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ maxWidth: 280 }}
+          />
+          <Box sx={{ minWidth: 160 }}>
+            <RhfSelect<ProjectsFilterValues>
+              name="sort_value"
+              control={control}
+              label="Sort by"
+              options={sortOptions}
+              selectProps={{ size: "small" }}
+            />
+          </Box>
+        </Box>
+      </FormProvider>
 
       {isLoading ? (
         <Typography color="text.secondary">Loading projects...</Typography>

@@ -1,4 +1,5 @@
 """ProjectMember domain entity — DDD."""
+
 from __future__ import annotations
 
 import uuid

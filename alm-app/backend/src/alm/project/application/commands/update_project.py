@@ -1,13 +1,15 @@
 """Update project (partial update)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
 from alm.project.application.dtos import ProjectDTO
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)
@@ -17,8 +19,8 @@ class UpdateProject(Command):
     name: str | None = None
     description: str | None = None
     status: str | None = None
-    settings: dict | None = None
-    metadata_: dict | None = None
+    settings: dict[str, Any] | None = None
+    metadata_: dict[str, Any] | None = None
 
 
 class UpdateProjectHandler(CommandHandler[ProjectDTO]):

@@ -1,4 +1,5 @@
 """Artifact domain specifications — DDD Enterprise Clean Architecture."""
+
 from __future__ import annotations
 
 import uuid

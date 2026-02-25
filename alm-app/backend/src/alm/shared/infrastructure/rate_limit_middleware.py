@@ -1,4 +1,5 @@
 """Middleware: tenant rate limit (Redis sliding window). Returns 429 + Retry-After when exceeded (Faz D2)."""
+
 from __future__ import annotations
 
 import uuid
@@ -7,9 +8,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from alm.shared.infrastructure.security.jwt import InvalidTokenError, decode_token
 from alm.shared.infrastructure.rate_limiter import check_sliding_window
-
+from alm.shared.infrastructure.security.jwt import InvalidTokenError, decode_token
 
 API_PREFIX = "/api/v1"
 

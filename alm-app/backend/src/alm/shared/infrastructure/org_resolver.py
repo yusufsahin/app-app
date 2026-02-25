@@ -1,4 +1,5 @@
 """Resolve org_slug to tenant_id and validate user access (Azure DevOps style)."""
+
 from __future__ import annotations
 
 import uuid
@@ -6,15 +7,15 @@ from dataclasses import dataclass
 
 from fastapi import Depends
 
-from alm.shared.domain.exceptions import AccessDenied, EntityNotFound
+from alm.config.dependencies import get_mediator
+from alm.shared.application.mediator import Mediator
+from alm.shared.domain.exceptions import AccessDenied
 from alm.shared.infrastructure.security.dependencies import (
     CurrentUser,
     get_current_user,
 )
 from alm.tenant.application.dtos import TenantDTO
 from alm.tenant.application.queries.get_tenant_by_slug import GetTenantBySlug
-from alm.config.dependencies import get_mediator
-from alm.shared.application.mediator import Mediator
 
 
 @dataclass

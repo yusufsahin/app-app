@@ -5,17 +5,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, cast
 
-from alm.auth.domain.entities import RefreshToken as RefreshTokenEntity
 from alm.auth.application.dtos import LoginResultDTO, TenantInfoDTO, TokenPairDTO
+from alm.auth.domain.entities import RefreshToken as RefreshTokenEntity
 from alm.config.settings import settings
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import AccessDenied, ValidationError
-from alm.shared.infrastructure.security.jwt import (
-    create_access_token,
-    create_refresh_token_value,
-    create_temp_token,
-)
-from alm.shared.infrastructure.security.password import verify_password
+from alm.shared.domain.ports import IPasswordHasher, ITokenService
 
 if TYPE_CHECKING:
     import uuid
@@ -39,18 +34,22 @@ class LoginHandler(CommandHandler[LoginResultDTO]):
         membership_repo: MembershipRepository,
         role_repo: RoleRepository,
         tenant_repo: TenantRepository,
+        password_hasher: IPasswordHasher,
+        token_service: ITokenService,
     ) -> None:
         self._user_repo = user_repo
         self._refresh_token_repo = refresh_token_repo
         self._membership_repo = membership_repo
         self._role_repo = role_repo
         self._tenant_repo = tenant_repo
+        self._password_hasher = password_hasher
+        self._token_service = token_service
 
     async def handle(self, command: Command) -> LoginResultDTO:
         cmd = cast("Login", command)
 
         user = await self._user_repo.find_by_email(cmd.email)
-        if user is None or not verify_password(cmd.password, user.password_hash):
+        if user is None or not self._password_hasher.verify(cmd.password, user.password_hash):
             raise ValidationError("Invalid email or password.")
 
         if not user.is_active:
@@ -79,7 +78,7 @@ class LoginHandler(CommandHandler[LoginResultDTO]):
                 )
             )
 
-        temp_token = create_temp_token(user.id)
+        temp_token = self._token_service.create_temp_token(user.id)
         return LoginResultDTO(
             requires_tenant_selection=True,
             tenants=tenant_list,
@@ -93,7 +92,7 @@ class LoginHandler(CommandHandler[LoginResultDTO]):
     ) -> TokenPairDTO:
         roles = await self._role_repo.get_role_slugs_for_membership(membership.id)
 
-        raw_refresh = create_refresh_token_value()
+        raw_refresh = self._token_service.create_refresh_token_value()
         token_hash = hashlib.sha256(raw_refresh.encode()).hexdigest()
         refresh_entity = RefreshTokenEntity(
             user_id=user_id,
@@ -102,7 +101,7 @@ class LoginHandler(CommandHandler[LoginResultDTO]):
         )
         await self._refresh_token_repo.add(refresh_entity)
 
-        access_token = create_access_token(
+        access_token = self._token_service.create_access_token(
             user_id=user_id,
             tenant_id=membership.tenant_id,
             roles=roles,

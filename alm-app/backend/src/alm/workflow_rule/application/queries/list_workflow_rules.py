@@ -1,4 +1,5 @@
 """List workflow rules for a project."""
+
 from __future__ import annotations
 
 import uuid

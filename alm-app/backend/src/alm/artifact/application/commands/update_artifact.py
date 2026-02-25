@@ -1,15 +1,17 @@
 """Update artifact fields (title, description, assignee)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
+from alm.area.domain.ports import AreaRepository
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.ports import ArtifactRepository
-from alm.area.domain.ports import AreaRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)
@@ -17,7 +19,7 @@ class UpdateArtifact(Command):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     artifact_id: uuid.UUID
-    updates: dict  # only keys present are updated; assignee_id: None clears assignee
+    updates: dict[str, Any]  # only keys present are updated; assignee_id: None clears assignee
     updated_by: uuid.UUID | None = None
 
 
@@ -54,19 +56,13 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
             artifact.description = updates["description"] if updates["description"] is not None else ""
         if "assignee_id" in updates:
             val = updates["assignee_id"]
-            artifact.assignee_id = (
-                uuid.UUID(str(val)) if val is not None and str(val).strip() else None
-            )
+            artifact.assignee_id = uuid.UUID(str(val)) if val is not None and str(val).strip() else None
         if "cycle_node_id" in updates:
             val = updates["cycle_node_id"]
-            artifact.cycle_node_id = (
-                uuid.UUID(str(val)) if val is not None and str(val).strip() else None
-            )
+            artifact.cycle_node_id = uuid.UUID(str(val)) if val is not None and str(val).strip() else None
         if "area_node_id" in updates:
             val = updates["area_node_id"]
-            area_node_id = (
-                uuid.UUID(str(val)) if val is not None and str(val).strip() else None
-            )
+            area_node_id = uuid.UUID(str(val)) if val is not None and str(val).strip() else None
             path_snapshot: str | None = None
             if area_node_id:
                 area_node = await self._area_repo.find_by_id(area_node_id)

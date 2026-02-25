@@ -1,4 +1,5 @@
 """Attachment DTOs."""
+
 from __future__ import annotations
 
 import uuid

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
@@ -24,10 +25,8 @@ class ProjectModel(Base, TimestampMixin, SoftDeleteMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    process_template_version_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, nullable=True, index=True
-    )
+    process_template_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
+    settings: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
     artifact_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

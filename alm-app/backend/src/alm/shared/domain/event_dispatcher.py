@@ -3,10 +3,12 @@
 Enables event-driven side effects: handlers can react to domain events
 (e.g. send notification, update read model, trigger integration).
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from alm.shared.domain.events import DomainEvent
 

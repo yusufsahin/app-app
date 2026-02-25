@@ -1,13 +1,14 @@
 """Get burndown (total / completed / remaining effort per cycle) for a project (P5)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
 from alm.artifact.domain.ports import ArtifactRepository
-from alm.project.domain.ports import ProjectRepository
 from alm.cycle.domain.ports import CycleRepository
+from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.query import Query, QueryHandler
 
 DEFAULT_DONE_STATES = ("done", "closed", "resolved")
 DEFAULT_EFFORT_FIELD = "story_points"
@@ -56,7 +57,7 @@ class GetBurndownHandler(QueryHandler[list[BurndownPointDTO]]):
             if not cycles:
                 return []
             if query.last_n is not None and query.last_n > 0:
-                cycles = cycles[-query.last_n:]
+                cycles = cycles[-query.last_n :]
             cycle_ids = [c.id for c in cycles]
 
         if not cycle_ids:

@@ -1,14 +1,16 @@
 """Action runner for on_enter/on_leave hooks. Extensible registry."""
+
 from __future__ import annotations
 
 import uuid
-from typing import Callable
+from collections.abc import Callable
+from typing import Any
 
 import structlog
 
 logger = structlog.get_logger()
 
-ActionContext = dict  # artifact_id, project_id, from_state, to_state, etc.
+ActionContext = dict[str, Any]  # artifact_id, project_id, from_state, to_state, etc.
 
 
 def _log_action(name: str, context: ActionContext) -> None:

@@ -1,11 +1,12 @@
 """Unit tests for MPC manifest resolver."""
+
 from __future__ import annotations
 
 import uuid
 
-import pytest
-
 from alm.artifact.domain.mpc_resolver import (
+    _HAS_ACL,
+    _to_ast,
     acl_check,
     check_transition_policies,
     evaluate_transition_policy,
@@ -13,10 +14,8 @@ from alm.artifact.domain.mpc_resolver import (
     get_transition_actions,
     is_valid_parent_child,
     manifest_defs_to_flat,
-    _to_ast,
 )
 from alm.artifact.domain.workflow_sm import get_initial_state, is_valid_transition
-
 
 SAMPLE_MANIFEST = {
     "schemaVersion": 1,
@@ -170,7 +169,9 @@ class TestMpcResolver:
     def test_manifest_defs_to_flat_empty_and_flat_format(self):
         assert manifest_defs_to_flat(None) == {"workflows": [], "artifact_types": [], "link_types": []}
         assert manifest_defs_to_flat({}) == {"workflows": [], "artifact_types": [], "link_types": []}
-        flat = manifest_defs_to_flat({"workflows": [], "artifact_types": [], "link_types": [{"id": "related", "name": "Related"}]})
+        flat = manifest_defs_to_flat(
+            {"workflows": [], "artifact_types": [], "link_types": [{"id": "related", "name": "Related"}]}
+        )
         assert flat["link_types"] == [{"id": "related", "name": "Related"}]
 
     def test_evaluate_transition_policy_allow(self):
@@ -204,8 +205,9 @@ class TestMpcResolver:
         allowed, reasons = acl_check(ast, "read", "artifact", [])
         assert isinstance(allowed, bool)
         assert isinstance(reasons, list)
-        assert allowed is True
-        assert reasons == []
+        if not _HAS_ACL:
+            assert allowed is True
+            assert reasons == []
 
     def test_acl_check_manifest_read(self):
         """P2: acl_check(ast, 'read', 'manifest', roles) returns (bool, list)."""

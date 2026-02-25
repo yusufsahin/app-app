@@ -1,19 +1,20 @@
 """Dashboard API router."""
+
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends
 
 from alm.config.dependencies import get_mediator
+from alm.project.application.queries.list_projects import ListProjects
 from alm.shared.application.mediator import Mediator
 from alm.shared.domain.exceptions import AccessDenied
 from alm.shared.infrastructure.security.dependencies import (
     CurrentUser,
     require_permission,
 )
-from alm.project.application.queries.list_projects import ListProjects
-
 
 router = APIRouter(prefix="/{tenant_id}/dashboard", tags=["dashboard"])
 
@@ -28,7 +29,7 @@ async def get_dashboard_stats(
     tenant_id: uuid.UUID,
     user: CurrentUser = require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
-) -> dict:
+) -> dict[str, Any]:
     """Return tenant-scoped dashboard stats. Projects count from DB; others placeholder."""
     _ensure_tenant_access(user, tenant_id)
     projects = await mediator.query(ListProjects(tenant_id=tenant_id))

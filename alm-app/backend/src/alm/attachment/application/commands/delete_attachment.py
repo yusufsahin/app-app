@@ -1,12 +1,13 @@
 """Delete attachment (remove from repo and storage)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
+from alm.attachment.domain.ports import AttachmentRepository, FileStoragePort
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
-from alm.attachment.domain.ports import AttachmentRepository, FileStoragePort
 
 
 @dataclass(frozen=True)

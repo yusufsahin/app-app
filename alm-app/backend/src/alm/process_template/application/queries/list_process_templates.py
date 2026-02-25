@@ -1,11 +1,12 @@
 """List process templates query."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
 from alm.process_template.domain.entities import ProcessTemplate
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)

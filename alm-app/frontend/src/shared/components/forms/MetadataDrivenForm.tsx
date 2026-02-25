@@ -12,7 +12,8 @@ import {
   TextField,
 } from "@mui/material";
 import { useMemo } from "react";
-import type { FormFieldSchema, FormSchemaDto } from "../../types/formSchema";
+import type { DescriptionInputMode, FormFieldSchema, FormSchemaDto } from "../../types/formSchema";
+import { DescriptionField } from "./DescriptionField";
 
 export interface ParentArtifactOption {
   id: string;
@@ -267,6 +268,24 @@ export function MetadataDrivenForm({
             );
           }
 
+          if (field.type === "string" && (field.key === "description" || field.input_mode)) {
+            const err = errors[field.key];
+            const mode: DescriptionInputMode = field.input_mode ?? "text";
+            return (
+              <DescriptionField
+                key={field.key}
+                value={(val ?? field.default_value ?? "") as string}
+                onChange={(v) => updateField(field.key, v)}
+                mode={mode}
+                label={field.label_key}
+                error={!!err}
+                helperText={err}
+                rows={mode === "text" ? 4 : 6}
+                allowModeSwitch
+              />
+            );
+          }
+
           const err = errors[field.key];
           return (
             <TextField
@@ -275,8 +294,6 @@ export function MetadataDrivenForm({
               label={field.label_key}
               value={val ?? field.default_value ?? ""}
               onChange={(e) => updateField(field.key, e.target.value)}
-              multiline={field.key === "description"}
-              rows={field.key === "description" ? 3 : undefined}
               required={required}
               error={!!err}
               helperText={err}

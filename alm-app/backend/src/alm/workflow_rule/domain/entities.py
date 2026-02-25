@@ -1,11 +1,12 @@
 """WorkflowRule domain entity — event-triggered automation rule."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from alm.shared.domain.aggregate import AggregateRoot
-
 
 # Known trigger event types (domain events)
 TRIGGER_ARTIFACT_CREATED = "artifact_created"
@@ -22,7 +23,7 @@ class WorkflowRule(AggregateRoot):
         project_id: uuid.UUID,
         name: str,
         trigger_event_type: str,
-        actions: list[dict],
+        actions: list[dict[str, Any]],
         *,
         id: uuid.UUID | None = None,
         condition_expression: str | None = None,
@@ -46,12 +47,12 @@ class WorkflowRule(AggregateRoot):
         project_id: uuid.UUID,
         name: str,
         trigger_event_type: str,
-        actions: list[dict],
+        actions: list[dict[str, Any]],
         *,
         id: uuid.UUID | None = None,
         condition_expression: str | None = None,
         is_active: bool = True,
-    ) -> "WorkflowRule":
+    ) -> WorkflowRule:
         return cls(
             project_id=project_id,
             name=name,
@@ -62,7 +63,7 @@ class WorkflowRule(AggregateRoot):
             is_active=is_active,
         )
 
-    def to_snapshot_dict(self) -> dict:
+    def to_snapshot_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
             "project_id": str(self.project_id),

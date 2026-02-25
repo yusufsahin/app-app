@@ -123,6 +123,20 @@ Böylece MPC içinde “Artifact” / “artifact_type” isimleri kalmaz; kind 
 
 ---
 
+## 4c. Policy fallback (MPC kurulu değilken)
+
+MPC yüklü olmadığında (örn. Docker build'te path dependency eksik) alm-app sınırlı bir fallback ile çalışır:
+
+| Ne | MPC varken | Fallback (ALM içinde) |
+|----|-------------|------------------------|
+| **TransitionPolicy (manifest)** | PolicyEngine + manifest TransitionPolicy | Sadece `check_transition_policies`: `when.state` + `require: assignee` (assignee_id snapshot'ta yoksa ihlal). |
+| **Event-based Policy** | `evaluate_transition_policy(ast, event, actor_roles)` → PolicyEngine | Çağrılmaz; sonuç `(True, [])` kabul edilir. |
+| **ACL** | `acl_check(ast, action, resource, actor_roles)` → ACLEngine | Çağrılmaz; sonuç `(True, [])` kabul edilir. |
+
+**Kural:** Yeni policy/ACL mantığı fallback'e eklenmemeli. Fallback yalnızca temel TransitionPolicy (assignee required) ile sınırlı kalır; tam kural seti için MPC kurulmalı.
+
+---
+
 ## 5. MPC Kurulumu
 
 MPC workspace'e eklendiğinde:

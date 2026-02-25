@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Uuid, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from alm.shared.infrastructure.db.base_model import Base, SoftDeleteMixin, TimestampMixin

@@ -1,4 +1,5 @@
 """AreaNode SQLAlchemy repository."""
+
 from __future__ import annotations
 
 import uuid
@@ -16,23 +17,17 @@ class SqlAlchemyAreaRepository(AreaRepository):
         self._session = session
 
     async def find_by_id(self, area_node_id: uuid.UUID) -> AreaNode | None:
-        result = await self._session.execute(
-            select(AreaNodeModel).where(AreaNodeModel.id == area_node_id)
-        )
+        result = await self._session.execute(select(AreaNodeModel).where(AreaNodeModel.id == area_node_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
     async def list_by_project(self, project_id: uuid.UUID) -> list[AreaNode]:
         result = await self._session.execute(
-            select(AreaNodeModel)
-            .where(AreaNodeModel.project_id == project_id)
-            .order_by(AreaNodeModel.path.asc())
+            select(AreaNodeModel).where(AreaNodeModel.project_id == project_id).order_by(AreaNodeModel.path.asc())
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 
-    async def find_by_project_and_path(
-        self, project_id: uuid.UUID, path: str
-    ) -> AreaNode | None:
+    async def find_by_project_and_path(self, project_id: uuid.UUID, path: str) -> AreaNode | None:
         result = await self._session.execute(
             select(AreaNodeModel).where(
                 AreaNodeModel.project_id == project_id,
@@ -42,18 +37,13 @@ class SqlAlchemyAreaRepository(AreaRepository):
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
-    async def find_by_project_and_path_prefix(
-        self, project_id: uuid.UUID, path_prefix: str
-    ) -> list[AreaNode]:
+    async def find_by_project_and_path_prefix(self, project_id: uuid.UUID, path_prefix: str) -> list[AreaNode]:
         # path = path_prefix OR path starts with path_prefix + '/'
         pattern = path_prefix.rstrip("/") + "/"
         result = await self._session.execute(
             select(AreaNodeModel)
             .where(AreaNodeModel.project_id == project_id)
-            .where(
-                (AreaNodeModel.path == path_prefix)
-                | (AreaNodeModel.path.startswith(pattern))
-            )
+            .where((AreaNodeModel.path == path_prefix) | (AreaNodeModel.path.startswith(pattern)))
             .order_by(AreaNodeModel.path.asc())
         )
         return [self._to_entity(m) for m in result.scalars().all()]
@@ -90,11 +80,9 @@ class SqlAlchemyAreaRepository(AreaRepository):
         return node
 
     async def delete(self, area_node_id: uuid.UUID) -> bool:
-        result = await self._session.execute(
-            delete(AreaNodeModel).where(AreaNodeModel.id == area_node_id)
-        )
+        result = await self._session.execute(delete(AreaNodeModel).where(AreaNodeModel.id == area_node_id))
         await self._session.flush()
-        return result.rowcount > 0
+        return bool(getattr(result, "rowcount", 0))
 
     @staticmethod
     def _to_entity(m: AreaNodeModel) -> AreaNode:

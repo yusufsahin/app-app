@@ -1,16 +1,17 @@
 """Update cycle node."""
+
 from __future__ import annotations
 
 import uuid
-from datetime import date
 from dataclasses import dataclass
+from datetime import date
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
 from alm.cycle.application.dtos import CycleNodeDTO
 from alm.cycle.domain.entities import CycleNode
 from alm.cycle.domain.ports import CycleRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)

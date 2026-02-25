@@ -1,25 +1,27 @@
 """Update project manifest: create a new process template version and point project to it."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
-from alm.project.domain.ports import ProjectRepository
 from alm.process_template.domain.entities import ProcessTemplateVersion
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)
 class UpdateProjectManifest(Command):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
-    manifest_bundle: dict
+    manifest_bundle: dict[str, Any]
 
 
-class UpdateProjectManifestHandler(CommandHandler[dict | None]):
+class UpdateProjectManifestHandler(CommandHandler[dict[str, Any] | None]):
     """Create a new template version with the given manifest_bundle and set project to use it."""
 
     def __init__(
@@ -30,7 +32,7 @@ class UpdateProjectManifestHandler(CommandHandler[dict | None]):
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
 
-    async def handle(self, command: Command) -> dict | None:
+    async def handle(self, command: Command) -> dict[str, Any] | None:
         assert isinstance(command, UpdateProjectManifest)
 
         bundle = command.manifest_bundle or {}
@@ -46,9 +48,7 @@ class UpdateProjectManifestHandler(CommandHandler[dict | None]):
                     errors = validate_semantic(ast)
                     if errors:
                         msgs = [getattr(e, "message", str(e)) for e in errors[:15]]
-                        raise ValidationError(
-                            "Manifest validation failed: " + "; ".join(msgs)
-                        )
+                        raise ValidationError("Manifest validation failed: " + "; ".join(msgs))
                 except ValidationError:
                     raise
                 except Exception as e:  # noqa: BLE001
@@ -61,9 +61,7 @@ class UpdateProjectManifestHandler(CommandHandler[dict | None]):
         if project.process_template_version_id is None:
             raise ValidationError("Project has no process template version assigned")
 
-        current_version = await self._process_template_repo.find_version_by_id(
-            project.process_template_version_id
-        )
+        current_version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
         if current_version is None:
             raise ValidationError("Process template version not found")
 

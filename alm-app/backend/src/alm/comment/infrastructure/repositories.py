@@ -1,4 +1,5 @@
 """Comment SQLAlchemy repository."""
+
 from __future__ import annotations
 
 import uuid
@@ -17,9 +18,7 @@ class SqlAlchemyCommentRepository(CommentRepository):
 
     async def list_by_artifact(self, artifact_id: uuid.UUID) -> list[Comment]:
         result = await self._session.execute(
-            select(CommentModel)
-            .where(CommentModel.artifact_id == artifact_id)
-            .order_by(CommentModel.created_at.asc())
+            select(CommentModel).where(CommentModel.artifact_id == artifact_id).order_by(CommentModel.created_at.asc())
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 

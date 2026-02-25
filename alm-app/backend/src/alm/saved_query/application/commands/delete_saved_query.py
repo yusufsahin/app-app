@@ -1,12 +1,13 @@
 """Delete saved query."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
+from alm.saved_query.domain.ports import SavedQueryRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
-from alm.saved_query.domain.ports import SavedQueryRepository
 
 
 @dataclass(frozen=True)

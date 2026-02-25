@@ -1,13 +1,14 @@
 """G2: Soft-delete a user (admin only). Cannot delete self or last admin in tenant."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import AccessDenied, EntityNotFound, ValidationError
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from alm.auth.domain.ports import UserRepository
 from alm.tenant.domain.ports import MembershipRepository, RoleRepository
@@ -23,7 +24,7 @@ class SoftDeleteUser(Command):
 class SoftDeleteUserHandler(CommandHandler[None]):
     def __init__(
         self,
-        user_repo: "UserRepository",
+        user_repo: UserRepository,
         membership_repo: MembershipRepository,
         role_repo: RoleRepository,
     ) -> None:
@@ -35,9 +36,7 @@ class SoftDeleteUserHandler(CommandHandler[None]):
         assert isinstance(command, SoftDeleteUser)
         if command.user_id == command.deleted_by:
             raise ValidationError("Cannot delete your own account.")
-        membership = await self._membership_repo.find_by_user_and_tenant(
-            command.user_id, command.tenant_id
-        )
+        membership = await self._membership_repo.find_by_user_and_tenant(command.user_id, command.tenant_id)
         if membership is None:
             raise EntityNotFound("User", str(command.user_id))
         user = await self._user_repo.find_by_id(command.user_id, include_deleted=True)

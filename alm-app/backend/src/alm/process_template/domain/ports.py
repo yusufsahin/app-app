@@ -1,4 +1,5 @@
 """Process template repository port."""
+
 from __future__ import annotations
 
 import uuid
@@ -21,9 +22,7 @@ class ProcessTemplateRepository:
         ...
 
     @abstractmethod
-    async def find_version_by_id(
-        self, version_id: uuid.UUID
-    ) -> ProcessTemplateVersion | None:
+    async def find_version_by_id(self, version_id: uuid.UUID) -> ProcessTemplateVersion | None:
         """Get a process template version by ID."""
         ...
 
@@ -33,9 +32,7 @@ class ProcessTemplateRepository:
         ...
 
     @abstractmethod
-    async def find_version_by_template_slug(
-        self, template_slug: str
-    ) -> ProcessTemplateVersion | None:
+    async def find_version_by_template_slug(self, template_slug: str) -> ProcessTemplateVersion | None:
         """Get the latest version for a template by slug."""
         ...
 

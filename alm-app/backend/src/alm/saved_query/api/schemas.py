@@ -1,20 +1,22 @@
 """SavedQuery API schemas."""
+
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class SavedQueryCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
-    filter_params: dict = Field(default_factory=dict)
+    filter_params: dict[str, Any] = Field(default_factory=dict)
     visibility: str = Field(default="private", pattern="^(private|project)$")
 
 
 class SavedQueryUpdateRequest(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
-    filter_params: dict | None = None
+    filter_params: dict[str, Any] | None = None
     visibility: str | None = Field(None, pattern="^(private|project)$")
 
 
@@ -24,6 +26,6 @@ class SavedQueryResponse(BaseModel):
     name: str
     owner_id: uuid.UUID
     visibility: str
-    filter_params: dict
+    filter_params: dict[str, Any]
     created_at: str | None
     updated_at: str | None

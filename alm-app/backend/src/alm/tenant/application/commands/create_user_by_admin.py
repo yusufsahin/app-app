@@ -1,23 +1,20 @@
 """G1: Admin creates a user in the tenant (email + password + role), without invite flow."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.auth.domain.entities import User
+from alm.auth.domain.ports import IUserCreationPort
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ConflictError, EntityNotFound, ValidationError
-from alm.shared.infrastructure.security.password import hash_password
+from alm.shared.domain.ports import IPasswordHasher
 from alm.tenant.domain.entities import TenantMembership
 from alm.tenant.domain.ports import (
     MembershipRepository,
     RoleRepository,
     TenantRepository,
 )
-
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from alm.auth.domain.ports import UserRepository
 
 
 @dataclass(frozen=True)
@@ -40,15 +37,17 @@ class CreateUserByAdminResult:
 class CreateUserByAdminHandler(CommandHandler[CreateUserByAdminResult]):
     def __init__(
         self,
-        user_repo: "UserRepository",
+        user_creation: IUserCreationPort,
         membership_repo: MembershipRepository,
         role_repo: RoleRepository,
         tenant_repo: TenantRepository,
+        password_hasher: IPasswordHasher,
     ) -> None:
-        self._user_repo = user_repo
+        self._user_creation = user_creation
         self._membership_repo = membership_repo
         self._role_repo = role_repo
         self._tenant_repo = tenant_repo
+        self._password_hasher = password_hasher
 
     async def handle(self, command: Command) -> CreateUserByAdminResult:
         assert isinstance(command, CreateUserByAdmin)
@@ -63,33 +62,28 @@ class CreateUserByAdminHandler(CommandHandler[CreateUserByAdminResult]):
         if len(command.password) < 8:
             raise ValidationError("Password must be at least 8 characters.")
 
-        user = await self._user_repo.find_by_email(command.email)
-        if user is not None:
-            existing_membership = await self._membership_repo.find_by_user_and_tenant(
-                user.id, command.tenant_id
-            )
-            if existing_membership is not None:
-                raise ConflictError(f"User {command.email} is already a member of this tenant.")
-        else:
-            password_hash = hash_password(command.password)
-            user = User.create(
-                email=command.email,
-                display_name=command.display_name or command.email,
-                password_hash=password_hash,
-            )
-            await self._user_repo.add(user)
+        password_hash = self._password_hasher.hash(command.password)
+        user_result = await self._user_creation.ensure_user(
+            email=command.email,
+            display_name=command.display_name or command.email,
+            password_hash=password_hash,
+        )
+        existing_membership = await self._membership_repo.find_by_user_and_tenant(
+            user_result.user_id,
+            command.tenant_id,
+        )
+        if existing_membership is not None:
+            raise ConflictError(f"User {command.email} is already a member of this tenant.")
 
         membership = TenantMembership(
-            user_id=user.id,
+            user_id=user_result.user_id,
             tenant_id=command.tenant_id,
             invited_by=command.created_by,
         )
         membership = await self._membership_repo.add(membership)
-        await self._membership_repo.add_role(
-            membership.id, role.id, assigned_by=command.created_by
-        )
+        await self._membership_repo.add_role(membership.id, role.id, assigned_by=command.created_by)
         return CreateUserByAdminResult(
-            user_id=user.id,
-            email=user.email,
-            display_name=user.display_name,
+            user_id=user_result.user_id,
+            email=user_result.email,
+            display_name=user_result.display_name,
         )

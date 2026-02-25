@@ -15,14 +15,10 @@ class ProjectRepository(ABC):
     async def find_by_id(self, project_id: uuid.UUID) -> Project | None: ...
 
     @abstractmethod
-    async def find_by_tenant_and_slug(
-        self, tenant_id: uuid.UUID, slug: str
-    ) -> Project | None: ...
+    async def find_by_tenant_and_slug(self, tenant_id: uuid.UUID, slug: str) -> Project | None: ...
 
     @abstractmethod
-    async def find_by_tenant_and_code(
-        self, tenant_id: uuid.UUID, code: str
-    ) -> Project | None: ...
+    async def find_by_tenant_and_code(self, tenant_id: uuid.UUID, code: str) -> Project | None: ...
 
     @abstractmethod
     async def list_by_tenant(self, tenant_id: uuid.UUID) -> list[Project]: ...
@@ -45,17 +41,13 @@ class ProjectMemberRepository(ABC):
     async def add(self, member: ProjectMember) -> ProjectMember: ...
 
     @abstractmethod
-    async def find_by_project_and_user(
-        self, project_id: uuid.UUID, user_id: uuid.UUID
-    ) -> ProjectMember | None: ...
+    async def find_by_project_and_user(self, project_id: uuid.UUID, user_id: uuid.UUID) -> ProjectMember | None: ...
 
     @abstractmethod
     async def list_by_project(self, project_id: uuid.UUID) -> list[ProjectMember]: ...
 
     @abstractmethod
-    async def delete_by_project_and_user(
-        self, project_id: uuid.UUID, user_id: uuid.UUID
-    ) -> bool:
+    async def delete_by_project_and_user(self, project_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         """Remove membership; returns True if deleted, False if not found."""
         ...
 

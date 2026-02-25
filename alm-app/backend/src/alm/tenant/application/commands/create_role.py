@@ -50,16 +50,18 @@ class CreateRoleHandler(CommandHandler[RoleDetailDTO]):
             role.set_privileges(list(command.privilege_ids))
 
         privileges: list[PrivilegeDTO] = []
-        for pid in (command.privilege_ids or []):
+        for pid in command.privilege_ids or []:
             priv = await self._privilege_repo.find_by_id(pid)
             if priv is not None:
-                privileges.append(PrivilegeDTO(
-                    id=priv.id,
-                    code=priv.code,
-                    resource=priv.resource,
-                    action=priv.action,
-                    description=priv.description,
-                ))
+                privileges.append(
+                    PrivilegeDTO(
+                        id=priv.id,
+                        code=priv.code,
+                        resource=priv.resource,
+                        action=priv.action,
+                        description=priv.description,
+                    )
+                )
 
         return RoleDetailDTO(
             id=role.id,

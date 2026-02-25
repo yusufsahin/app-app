@@ -41,9 +41,7 @@ class AcceptInviteHandler(CommandHandler[MembershipDTO]):
         membership = await self._membership_repo.add(membership)
 
         for role_id in invitation.role_ids:
-            await self._membership_repo.add_role(
-                membership.id, role_id, assigned_by=invitation.invited_by
-            )
+            await self._membership_repo.add_role(membership.id, role_id, assigned_by=invitation.invited_by)
 
         await self._invitation_repo.update(invitation)
 

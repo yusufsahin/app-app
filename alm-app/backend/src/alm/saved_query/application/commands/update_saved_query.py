@@ -1,14 +1,16 @@
 """Update saved query."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
 from alm.saved_query.application.dtos import SavedQueryDTO
 from alm.saved_query.domain.entities import SavedQuery
 from alm.saved_query.domain.ports import SavedQueryRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)
@@ -18,7 +20,7 @@ class UpdateSavedQuery(Command):
     query_id: uuid.UUID
     name: str | None = None
     visibility: str | None = None
-    filter_params: dict | None = None
+    filter_params: dict[str, Any] | None = None
 
 
 class UpdateSavedQueryHandler(CommandHandler[SavedQueryDTO]):

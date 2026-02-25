@@ -12,9 +12,8 @@ from alm.shared.audit.api.schemas import (
     PropertyChangeSchema,
     SnapshotSchema,
 )
-from alm.shared.audit.dtos import EntityHistoryDTO, SnapshotDTO
+from alm.shared.audit.dtos import EntityHistoryDTO
 from alm.shared.audit.queries import GetEntityHistory
-from alm.shared.audit.repository import SqlAlchemyAuditReader
 from alm.shared.domain.exceptions import EntityNotFound
 
 router = APIRouter(prefix="/audit", tags=["audit"])
@@ -30,7 +29,9 @@ def _history_to_schema(history: EntityHistoryDTO) -> EntityHistorySchema:
                 snapshot=SnapshotSchema(**e.snapshot.__dict__),
                 changes=[
                     PropertyChangeSchema(
-                        property_name=c.property_name, left=c.left, right=c.right,
+                        property_name=c.property_name,
+                        left=c.left,
+                        right=c.right,
                     )
                     for c in e.changes
                 ],

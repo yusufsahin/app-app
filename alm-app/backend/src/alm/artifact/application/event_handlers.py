@@ -2,6 +2,7 @@
 
 Example: ArtifactCreated handler for side effects (notification, analytics, etc.).
 """
+
 from __future__ import annotations
 
 import structlog

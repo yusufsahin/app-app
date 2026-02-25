@@ -49,10 +49,7 @@ class GetEntityHistoryHandler(QueryHandler[EntityHistoryDTO]):
 
             prev_state = snapshots[i + 1].state if i + 1 < len(snapshots) else None
             prop_changes = DiffEngine.diff(prev_state, snap.state)
-            change_dtos = [
-                PropertyChangeDTO(p.property_name, p.left, p.right)
-                for p in prop_changes
-            ]
+            change_dtos = [PropertyChangeDTO(p.property_name, p.left, p.right) for p in prop_changes]
             entries.append(ChangeDTO(snapshot=snap_dto, changes=change_dtos))
 
         return EntityHistoryDTO(

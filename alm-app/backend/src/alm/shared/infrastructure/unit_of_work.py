@@ -1,4 +1,5 @@
 """Unit of Work implementation — SQLAlchemy adapter."""
+
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession

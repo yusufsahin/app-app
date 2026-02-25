@@ -1,33 +1,34 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import structlog
-import yaml
+import yaml  # type: ignore[import-untyped]
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from alm.artifact.domain.entities import Artifact as ArtifactEntity
+from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepository
 from alm.auth.domain.entities import User
+from alm.auth.infrastructure.repositories import SqlAlchemyUserRepository
 from alm.config.settings import settings
+from alm.process_template.infrastructure.repositories import (
+    SqlAlchemyProcessTemplateRepository,
+)
 from alm.project.domain.entities import Project
+from alm.project.infrastructure.repositories import SqlAlchemyProjectRepository
 from alm.shared.domain.value_objects import ProjectCode, Slug
 from alm.shared.infrastructure.security.password import hash_password
+from alm.tenant.application.sagas.tenant_onboarding import TenantOnboardingSaga
 from alm.tenant.domain.entities import Privilege
-from alm.tenant.domain.services import TenantOnboardingSaga
+from alm.tenant.infrastructure.models import TenantModel
 from alm.tenant.infrastructure.repositories import (
     SqlAlchemyMembershipRepository,
     SqlAlchemyPrivilegeRepository,
     SqlAlchemyRoleRepository,
     SqlAlchemyTenantRepository,
 )
-from alm.auth.infrastructure.repositories import SqlAlchemyUserRepository
-from alm.project.infrastructure.repositories import SqlAlchemyProjectRepository
-from alm.artifact.domain.entities import Artifact as ArtifactEntity
-from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepository
-from alm.process_template.infrastructure.repositories import (
-    SqlAlchemyProcessTemplateRepository,
-)
-from alm.tenant.infrastructure.models import TenantModel
 
 logger = structlog.get_logger()
 
@@ -60,7 +61,7 @@ async def seed_privileges(session_factory: async_sessionmaker[AsyncSession]) -> 
     with yaml_path.open() as f:
         data = yaml.safe_load(f)
 
-    definitions: list[dict] = data.get("privileges", [])
+    definitions: list[dict[str, Any]] = data.get("privileges", [])
     if not definitions:
         logger.info("seed_no_privileges_defined")
         return
@@ -94,6 +95,7 @@ async def seed_process_templates(
 ) -> None:
     """Seed built-in process templates (Basic) if empty."""
     from sqlalchemy import select
+
     from alm.process_template.infrastructure.models import (
         ProcessTemplateModel,
         ProcessTemplateVersionModel,
@@ -170,7 +172,12 @@ async def seed_process_templates(
                         "parent_types": ["epic"],
                         "child_types": ["requirement"],
                         "fields": [
-                            {"id": "story_points", "name": "Story Points", "type": "number", "requiredWhen": {"field": "typeName", "eq": "feature"}},
+                            {
+                                "id": "story_points",
+                                "name": "Story Points",
+                                "type": "number",
+                                "requiredWhen": {"field": "typeName", "eq": "feature"},
+                            },
                         ],
                     },
                     {
@@ -262,11 +269,60 @@ async def seed_process_templates(
                             {"id": "not_a_bug", "label": "Not a bug"},
                         ],
                     },
-                    {"kind": "ArtifactType", "id": "epic", "workflow_id": "scrum", "child_types": ["feature"], "fields": [{"id": "priority", "name": "Priority", "type": "string"}]},
-                    {"kind": "ArtifactType", "id": "feature", "workflow_id": "scrum", "parent_types": ["epic"], "child_types": ["user_story"], "fields": [{"id": "story_points", "name": "Story Points", "type": "number"}]},
-                    {"kind": "ArtifactType", "id": "user_story", "workflow_id": "scrum", "parent_types": ["feature"], "fields": [{"id": "story_points", "name": "Story Points", "type": "number", "requiredWhen": {"field": "typeName", "eq": "user_story"}}, {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"}]},
-                    {"kind": "ArtifactType", "id": "bug", "workflow_id": "scrum", "fields": [{"id": "severity", "name": "Severity", "type": "choice", "options": [{"id": "low", "label": "Low"}, {"id": "high", "label": "High"}, {"id": "critical", "label": "Critical"}], "visibleWhen": {"field": "typeName", "in": ["bug"]}}]},
-                    {"kind": "TransitionPolicy", "id": "assignee_in_progress", "when": {"state": "in_progress"}, "require": "assignee"},
+                    {
+                        "kind": "ArtifactType",
+                        "id": "epic",
+                        "workflow_id": "scrum",
+                        "child_types": ["feature"],
+                        "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "feature",
+                        "workflow_id": "scrum",
+                        "parent_types": ["epic"],
+                        "child_types": ["user_story"],
+                        "fields": [{"id": "story_points", "name": "Story Points", "type": "number"}],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "user_story",
+                        "workflow_id": "scrum",
+                        "parent_types": ["feature"],
+                        "fields": [
+                            {
+                                "id": "story_points",
+                                "name": "Story Points",
+                                "type": "number",
+                                "requiredWhen": {"field": "typeName", "eq": "user_story"},
+                            },
+                            {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"},
+                        ],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "bug",
+                        "workflow_id": "scrum",
+                        "fields": [
+                            {
+                                "id": "severity",
+                                "name": "Severity",
+                                "type": "choice",
+                                "options": [
+                                    {"id": "low", "label": "Low"},
+                                    {"id": "high", "label": "High"},
+                                    {"id": "critical", "label": "Critical"},
+                                ],
+                                "visibleWhen": {"field": "typeName", "in": ["bug"]},
+                            }
+                        ],
+                    },
+                    {
+                        "kind": "TransitionPolicy",
+                        "id": "assignee_in_progress",
+                        "when": {"state": "in_progress"},
+                        "require": "assignee",
+                    },
                 ],
             },
         )
@@ -320,11 +376,48 @@ async def seed_process_templates(
                             {"id": "as_designed", "label": "As designed"},
                         ],
                     },
-                    {"kind": "ArtifactType", "id": "epic", "workflow_id": "kanban", "child_types": ["feature"], "fields": [{"id": "priority", "name": "Priority", "type": "string"}]},
-                    {"kind": "ArtifactType", "id": "feature", "workflow_id": "kanban", "parent_types": ["epic"], "child_types": ["task"], "fields": [{"id": "story_points", "name": "Story Points", "type": "number"}]},
-                    {"kind": "ArtifactType", "id": "task", "workflow_id": "kanban", "parent_types": ["feature"], "fields": [{"id": "priority", "name": "Priority", "type": "string"}]},
-                    {"kind": "ArtifactType", "id": "bug", "workflow_id": "kanban", "fields": [{"id": "severity", "name": "Severity", "type": "choice", "options": [{"id": "low", "label": "Low"}, {"id": "high", "label": "High"}], "visibleWhen": {"field": "typeName", "in": ["bug"]}}]},
-                    {"kind": "TransitionPolicy", "id": "assignee_in_progress", "when": {"state": "in_progress"}, "require": "assignee"},
+                    {
+                        "kind": "ArtifactType",
+                        "id": "epic",
+                        "workflow_id": "kanban",
+                        "child_types": ["feature"],
+                        "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "feature",
+                        "workflow_id": "kanban",
+                        "parent_types": ["epic"],
+                        "child_types": ["task"],
+                        "fields": [{"id": "story_points", "name": "Story Points", "type": "number"}],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "task",
+                        "workflow_id": "kanban",
+                        "parent_types": ["feature"],
+                        "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "bug",
+                        "workflow_id": "kanban",
+                        "fields": [
+                            {
+                                "id": "severity",
+                                "name": "Severity",
+                                "type": "choice",
+                                "options": [{"id": "low", "label": "Low"}, {"id": "high", "label": "High"}],
+                                "visibleWhen": {"field": "typeName", "in": ["bug"]},
+                            }
+                        ],
+                    },
+                    {
+                        "kind": "TransitionPolicy",
+                        "id": "assignee_in_progress",
+                        "when": {"state": "in_progress"},
+                        "require": "assignee",
+                    },
                 ],
             },
         )

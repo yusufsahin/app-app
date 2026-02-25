@@ -1,17 +1,13 @@
-import { useState } from "react";
 import {
   Box,
   Container,
   Typography,
   Skeleton,
   Alert,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from "@mui/material";
+import { useForm, FormProvider } from "react-hook-form";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useAccessAudit, type AccessAuditEntry } from "../../../shared/api/adminApi";
 
 const typeOptions = [
@@ -20,17 +16,30 @@ const typeOptions = [
   { value: "LOGIN_FAILURE", label: "Login failure" },
 ];
 
+type FilterFormValues = {
+  from_date: string;
+  to_date: string;
+  type_filter: string;
+  limit: number;
+};
+
 export default function AccessAuditPage() {
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [limit, setLimit] = useState(200);
+  const form = useForm<FilterFormValues>({
+    defaultValues: {
+      from_date: "",
+      to_date: "",
+      type_filter: "",
+      limit: 200,
+    },
+  });
+  const { watch } = form;
+  const values = watch();
 
   const params = {
-    from_date: fromDate || undefined,
-    to_date: toDate || undefined,
-    type_filter: typeFilter || undefined,
-    limit,
+    from_date: values.from_date || undefined,
+    to_date: values.to_date || undefined,
+    type_filter: values.type_filter || undefined,
+    limit: Number(values.limit) || 200,
   };
   const { data: entries, isLoading, isError } = useAccessAudit(params);
 
@@ -79,57 +88,51 @@ export default function AccessAuditPage() {
         </Alert>
       )}
 
-      <Box
-        sx={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 2,
-          mb: 3,
-          alignItems: "center",
-        }}
-      >
-        <TextField
-          label="From date"
-          type="date"
-          size="small"
-          value={fromDate}
-          onChange={(e) => setFromDate(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          sx={{ width: 160 }}
-        />
-        <TextField
-          label="To date"
-          type="date"
-          size="small"
-          value={toDate}
-          onChange={(e) => setToDate(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          sx={{ width: 160 }}
-        />
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel>Type</InputLabel>
-          <Select
-            value={typeFilter}
-            label="Type"
-            onChange={(e) => setTypeFilter(e.target.value)}
-          >
-            {typeOptions.map((o) => (
-              <MenuItem key={o.value || "all"} value={o.value}>
-                {o.label}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <TextField
-          label="Limit"
-          type="number"
-          size="small"
-          value={limit}
-          onChange={(e) => setLimit(Number(e.target.value) || 200)}
-          inputProps={{ min: 1, max: 1000 }}
-          sx={{ width: 100 }}
-        />
-      </Box>
+      <FormProvider {...form}>
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 2,
+            mb: 3,
+            alignItems: "center",
+          }}
+        >
+          <RhfTextField<FilterFormValues>
+            name="from_date"
+            label="From date"
+            type="date"
+            size="small"
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: 160 }}
+          />
+          <RhfTextField<FilterFormValues>
+            name="to_date"
+            label="To date"
+            type="date"
+            size="small"
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: 160 }}
+          />
+          <Box sx={{ minWidth: 160 }}>
+            <RhfSelect<FilterFormValues>
+              name="type_filter"
+              control={form.control}
+              label="Type"
+              options={typeOptions}
+              selectProps={{ size: "small" }}
+            />
+          </Box>
+          <RhfTextField<FilterFormValues>
+            name="limit"
+            label="Limit"
+            type="number"
+            size="small"
+            inputProps={{ min: 1, max: 1000 }}
+            sx={{ width: 100 }}
+          />
+        </Box>
+      </FormProvider>
 
       <DataGrid
         rows={entries ?? []}

@@ -1,4 +1,5 @@
 """WorkflowRule SQLAlchemy repository."""
+
 from __future__ import annotations
 
 import uuid
@@ -16,23 +17,17 @@ class SqlAlchemyWorkflowRuleRepository(WorkflowRuleRepository):
         self._session = session
 
     async def find_by_id(self, rule_id: uuid.UUID) -> WorkflowRule | None:
-        result = await self._session.execute(
-            select(WorkflowRuleModel).where(WorkflowRuleModel.id == rule_id)
-        )
+        result = await self._session.execute(select(WorkflowRuleModel).where(WorkflowRuleModel.id == rule_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
     async def list_by_project(self, project_id: uuid.UUID) -> list[WorkflowRule]:
         result = await self._session.execute(
-            select(WorkflowRuleModel)
-            .where(WorkflowRuleModel.project_id == project_id)
-            .order_by(WorkflowRuleModel.name)
+            select(WorkflowRuleModel).where(WorkflowRuleModel.project_id == project_id).order_by(WorkflowRuleModel.name)
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 
-    async def list_active_by_trigger(
-        self, project_id: uuid.UUID, trigger_event_type: str
-    ) -> list[WorkflowRule]:
+    async def list_active_by_trigger(self, project_id: uuid.UUID, trigger_event_type: str) -> list[WorkflowRule]:
         result = await self._session.execute(
             select(WorkflowRuleModel).where(
                 WorkflowRuleModel.project_id == project_id,
@@ -74,9 +69,7 @@ class SqlAlchemyWorkflowRuleRepository(WorkflowRuleRepository):
         return rule
 
     async def delete(self, rule_id: uuid.UUID) -> bool:
-        result = await self._session.execute(
-            select(WorkflowRuleModel).where(WorkflowRuleModel.id == rule_id)
-        )
+        result = await self._session.execute(select(WorkflowRuleModel).where(WorkflowRuleModel.id == rule_id))
         model = result.scalar_one_or_none()
         if model is None:
             return False

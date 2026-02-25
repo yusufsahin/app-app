@@ -1,11 +1,12 @@
 """Store for access audit entries (G5). Records login success/failure; can be called from auth router."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from alm.admin.infrastructure.models import AccessAuditModel
 from alm.shared.infrastructure.db.session import async_session_factory
@@ -44,7 +45,7 @@ class AccessAuditStore:
         to_ts: datetime | None = None,
         type_filter: str | None = None,
         limit: int = 100,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         async with async_session_factory() as session:
             q = select(AccessAuditModel).order_by(AccessAuditModel.timestamp.desc())
             if from_ts is not None:

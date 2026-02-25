@@ -8,8 +8,16 @@ from email.mime.text import MIMEText
 import structlog
 
 from alm.config.settings import settings
+from alm.shared.domain.ports import IEmailSender
 
 logger = structlog.get_logger()
+
+
+class SmtpEmailSender(IEmailSender):
+    """IEmailSender implementation using SMTP."""
+
+    async def send(self, to: str, subject: str, html_body: str) -> None:
+        await send_email(to, subject, html_body)
 
 
 async def send_email(to: str, subject: str, html_body: str) -> None:

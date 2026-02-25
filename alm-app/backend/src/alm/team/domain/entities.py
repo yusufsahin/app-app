@@ -1,4 +1,5 @@
 """Team and TeamMember domain entities (P6 — Team context)."""
+
 from __future__ import annotations
 
 import uuid

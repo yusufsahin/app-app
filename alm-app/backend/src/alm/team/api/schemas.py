@@ -1,4 +1,5 @@
 """Team API schemas (P6)."""
+
 from __future__ import annotations
 
 import uuid

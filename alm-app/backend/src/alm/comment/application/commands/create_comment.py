@@ -1,16 +1,17 @@
 """Create comment on an artifact."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
+from alm.artifact.domain.ports import ArtifactRepository
 from alm.comment.application.dtos import CommentDTO
 from alm.comment.domain.entities import Comment
 from alm.comment.domain.ports import CommentRepository
-from alm.artifact.domain.ports import ArtifactRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)

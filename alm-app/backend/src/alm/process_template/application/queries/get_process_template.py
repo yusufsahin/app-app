@@ -1,12 +1,13 @@
 """Get process template query."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
 from alm.process_template.domain.entities import ProcessTemplate
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)

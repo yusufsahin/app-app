@@ -1,4 +1,5 @@
 """Integration tests for the complete auth flow."""
+
 from __future__ import annotations
 
 import uuid

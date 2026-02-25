@@ -1,15 +1,17 @@
 """Create saved query."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
+from alm.project.domain.ports import ProjectRepository
 from alm.saved_query.application.dtos import SavedQueryDTO
 from alm.saved_query.domain.entities import SavedQuery
 from alm.saved_query.domain.ports import SavedQueryRepository
-from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)
@@ -18,7 +20,7 @@ class CreateSavedQuery(Command):
     project_id: uuid.UUID
     name: str
     owner_id: uuid.UUID
-    filter_params: dict
+    filter_params: dict[str, Any]
     visibility: str = "private"
 
 

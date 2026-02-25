@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.application.query import Query, QueryHandler
-from alm.shared.domain.events import DomainEvent
 from alm.shared.domain.event_dispatcher import IDomainEventDispatcher
+from alm.shared.domain.events import DomainEvent
 
 logger = structlog.get_logger()
 

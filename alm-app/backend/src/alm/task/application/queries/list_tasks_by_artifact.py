@@ -1,4 +1,5 @@
 """List tasks for an artifact."""
+
 from __future__ import annotations
 
 import uuid

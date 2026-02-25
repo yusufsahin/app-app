@@ -3,14 +3,14 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.application.dtos import ProjectDTO
+from alm.project.domain.entities import Project
+from alm.project.domain.ports import ProjectMemberRepository, ProjectRepository
+from alm.project.domain.project_member import ProjectMember
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ConflictError, ValidationError
 from alm.shared.domain.value_objects import ProjectCode, Slug
-from alm.project.application.dtos import ProjectDTO
-from alm.project.domain.entities import Project
-from alm.project.domain.ports import ProjectRepository, ProjectMemberRepository
-from alm.project.domain.project_member import ProjectMember
-from alm.process_template.domain.ports import ProcessTemplateRepository
 
 
 @dataclass(frozen=True)
@@ -44,26 +44,16 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
 
         slug = Slug.from_string(command.name)
 
-        existing_code = await self._project_repo.find_by_tenant_and_code(
-            command.tenant_id, project_code.value
-        )
+        existing_code = await self._project_repo.find_by_tenant_and_code(command.tenant_id, project_code.value)
         if existing_code is not None:
-            raise ConflictError(
-                f"Project with code '{project_code.value}' already exists in this tenant"
-            )
+            raise ConflictError(f"Project with code '{project_code.value}' already exists in this tenant")
 
-        existing_slug = await self._project_repo.find_by_tenant_and_slug(
-            command.tenant_id, slug.value
-        )
+        existing_slug = await self._project_repo.find_by_tenant_and_slug(command.tenant_id, slug.value)
         if existing_slug is not None:
-            raise ConflictError(
-                f"Project with slug '{slug.value}' already exists in this tenant"
-            )
+            raise ConflictError(f"Project with slug '{slug.value}' already exists in this tenant")
 
         template_slug = command.process_template_slug or "basic"
-        version = await self._process_template_repo.find_version_by_template_slug(
-            template_slug
-        )
+        version = await self._process_template_repo.find_version_by_template_slug(template_slug)
         project = Project.create(
             tenant_id=command.tenant_id,
             name=command.name,

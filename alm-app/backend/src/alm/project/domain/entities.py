@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
-from alm.shared.domain.aggregate import AggregateRoot
 from alm.project.domain.events import ProjectCreated
+from alm.shared.domain.aggregate import AggregateRoot
 
 
 class Project(AggregateRoot):
@@ -18,8 +19,8 @@ class Project(AggregateRoot):
         description: str = "",
         process_template_version_id: uuid.UUID | None = None,
         status: str | None = None,
-        settings: dict | None = None,
-        metadata_: dict | None = None,
+        settings: dict[str, Any] | None = None,
+        metadata_: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(id=id)
         self.tenant_id = tenant_id

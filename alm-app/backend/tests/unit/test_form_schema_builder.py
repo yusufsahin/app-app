@@ -1,18 +1,24 @@
 """Unit tests for FormSchema builder."""
+
 from __future__ import annotations
 
-import pytest
-
+from alm.artifact.infrastructure.manifest_flattener import ManifestDefsFlattenerAdapter
 from alm.form_schema.application.builders.manifest_form_schema_builder import (
     build_artifact_create_form_schema,
-    build_task_create_form_schema,
     build_form_schema,
+    build_task_create_form_schema,
 )
 
+_FLATTENER = ManifestDefsFlattenerAdapter()
 
 SAMPLE_MANIFEST = {
     "defs": [
-        {"kind": "Workflow", "id": "basic", "states": ["new", "active"], "transitions": [{"from": "new", "to": "active"}]},
+        {
+            "kind": "Workflow",
+            "id": "basic",
+            "states": ["new", "active"],
+            "transitions": [{"from": "new", "to": "active"}],
+        },
         {
             "kind": "ArtifactType",
             "id": "epic",
@@ -27,7 +33,12 @@ SAMPLE_MANIFEST = {
             "parent_types": ["epic"],
             "child_types": ["requirement"],
             "fields": [
-                {"id": "story_points", "name": "Story Points", "type": "number", "requiredWhen": {"field": "typeName", "eq": "feature"}},
+                {
+                    "id": "story_points",
+                    "name": "Story Points",
+                    "type": "number",
+                    "requiredWhen": {"field": "typeName", "eq": "feature"},
+                },
             ],
         },
         {
@@ -50,7 +61,7 @@ SAMPLE_MANIFEST = {
 
 class TestFormSchemaBuilder:
     def test_build_artifact_create_form_schema(self):
-        schema = build_artifact_create_form_schema(SAMPLE_MANIFEST)
+        schema = build_artifact_create_form_schema(SAMPLE_MANIFEST, _FLATTENER)
         assert schema.entity_type == "artifact"
         assert schema.context == "create"
         assert len(schema.artifact_type_options) == 3
@@ -66,7 +77,7 @@ class TestFormSchemaBuilder:
         assert "severity" in field_keys
 
     def test_visible_when_normalized(self):
-        schema = build_artifact_create_form_schema(SAMPLE_MANIFEST)
+        schema = build_artifact_create_form_schema(SAMPLE_MANIFEST, _FLATTENER)
         severity_field = next(f for f in schema.fields if f.key == "severity")
         assert severity_field.visible_when is not None
         assert severity_field.visible_when["field"] == "artifact_type"
@@ -75,20 +86,24 @@ class TestFormSchemaBuilder:
         assert severity_field.options == [{"id": "low", "label": "Low"}, {"id": "high", "label": "High"}]
 
     def test_required_when_normalized(self):
-        schema = build_artifact_create_form_schema(SAMPLE_MANIFEST)
+        schema = build_artifact_create_form_schema(SAMPLE_MANIFEST, _FLATTENER)
         story_points_field = next(f for f in schema.fields if f.key == "story_points")
         assert story_points_field.required_when is not None
         assert story_points_field.required_when["field"] == "artifact_type"
         assert story_points_field.required_when["eq"] == "feature"
 
     def test_build_form_schema_artifact_create(self):
-        schema = build_form_schema(SAMPLE_MANIFEST, "artifact", "create")
+        schema = build_form_schema(SAMPLE_MANIFEST, "artifact", "create", _FLATTENER)
         assert schema is not None
         assert schema.entity_type == "artifact"
 
     def test_build_form_schema_unknown(self):
-        assert build_form_schema(SAMPLE_MANIFEST, "unknown", "create") is None
-        assert build_form_schema(SAMPLE_MANIFEST, "artifact", "edit") is None
+        assert build_form_schema(SAMPLE_MANIFEST, "unknown", "create", _FLATTENER) is None
+        # artifact/edit is supported and returns a form schema
+        schema = build_form_schema(SAMPLE_MANIFEST, "artifact", "edit", _FLATTENER)
+        assert schema is not None
+        assert schema.entity_type == "artifact"
+        assert schema.context == "edit"
 
     def test_build_task_create_form_schema(self):
         schema = build_task_create_form_schema()
@@ -102,8 +117,8 @@ class TestFormSchemaBuilder:
         assert state_field.default_value == "todo"
 
     def test_build_form_schema_task_create_and_edit(self):
-        assert build_form_schema({}, "task", "create") is not None
-        assert build_form_schema({}, "task", "edit") is not None
-        schema = build_form_schema({}, "task", "create")
+        assert build_form_schema({}, "task", "create", _FLATTENER) is not None
+        assert build_form_schema({}, "task", "edit", _FLATTENER) is not None
+        schema = build_form_schema({}, "task", "create", _FLATTENER)
         assert schema.entity_type == "task"
         assert schema.context == "create"

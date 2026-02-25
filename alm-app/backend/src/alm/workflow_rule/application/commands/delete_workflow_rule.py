@@ -1,4 +1,5 @@
 """Delete workflow rule."""
+
 from __future__ import annotations
 
 import uuid

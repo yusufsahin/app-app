@@ -1,4 +1,4 @@
-import { useForm, Controller } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -6,15 +6,14 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Button,
   CircularProgress,
   Alert,
-  Autocomplete,
   Chip,
   Box,
 } from "@mui/material";
-import { useInviteOrgMember, useOrgRoles, type TenantRoleDetail } from "../../../shared/api/orgApi";
+import { RhfAutocomplete, RhfTextField } from "../../../shared/components/forms";
+import { useInviteOrgMember, useOrgRoles } from "../../../shared/api/orgApi";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 
 const inviteSchema = z.object({
@@ -35,16 +34,12 @@ export default function InviteMemberModal({ open, onClose, orgSlug }: InviteMemb
   const inviteMutation = useInviteOrgMember(orgSlug);
   const showNotification = useNotificationStore((s) => s.showNotification);
 
-  const {
-    register,
-    handleSubmit,
-    control,
-    reset,
-    formState: { errors },
-  } = useForm<InviteFormData>({
+  const form = useForm<InviteFormData>({
     resolver: zodResolver(inviteSchema),
     defaultValues: { email: "", role_ids: [] },
   });
+  const { control, handleSubmit, reset } = form;
+  const roleOptions = roles.map((r) => ({ value: r.id, label: r.name }));
 
   const handleClose = () => {
     reset();
@@ -67,81 +62,64 @@ export default function InviteMemberModal({ open, onClose, orgSlug }: InviteMemb
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-        <DialogTitle fontWeight={600}>Invite Member</DialogTitle>
-
-        <DialogContent>
-          {inviteMutation.isError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              Failed to send invitation. Please try again.
-            </Alert>
-          )}
-
-          <TextField
-            {...register("email")}
-            label="Email Address"
-            type="email"
-            fullWidth
-            error={!!errors.email}
-            helperText={errors.email?.message}
-            sx={{ mt: 1, mb: 2.5 }}
-          />
-
-          <Controller
-            name="role_ids"
-            control={control}
-            render={({ field: { onChange, value } }) => (
-              <Autocomplete
-                multiple
-                options={roles}
-                getOptionLabel={(option: TenantRoleDetail) => option.name}
-                value={roles.filter((r) => value.includes(r.id))}
-                onChange={(_, selected) => onChange(selected.map((r) => r.id))}
-                renderTags={(tagValue, getTagProps) =>
+      <FormProvider {...form}>
+        <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <DialogTitle fontWeight={600}>Invite Member</DialogTitle>
+          <DialogContent>
+            {inviteMutation.isError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                Failed to send invitation. Please try again.
+              </Alert>
+            )}
+            <RhfTextField<InviteFormData>
+              name="email"
+              label="Email Address"
+              type="email"
+              fullWidth
+              sx={{ mt: 1, mb: 2.5 }}
+            />
+            <RhfAutocomplete<InviteFormData, string>
+              name="role_ids"
+              control={control}
+              label="Roles"
+              options={roleOptions}
+              multiple
+              autocompleteProps={{
+                renderTags: (tagValue, getTagProps) =>
                   tagValue.map((option, index) => {
                     const { key, ...tagProps } = getTagProps({ index });
                     return (
                       <Chip
                         key={key}
-                        label={option.name}
+                        label={option.label}
                         size="small"
                         color="primary"
                         variant="outlined"
                         {...tagProps}
                       />
                     );
-                  })
-                }
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Roles"
-                    error={!!errors.role_ids}
-                    helperText={errors.role_ids?.message}
-                  />
-                )}
-              />
-            )}
-          />
-        </DialogContent>
-
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleClose} disabled={inviteMutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={inviteMutation.isPending}
-          >
-            {inviteMutation.isPending ? (
-              <CircularProgress size={22} color="inherit" />
-            ) : (
-              "Send Invitation"
-            )}
-          </Button>
-        </DialogActions>
-      </Box>
+                  }),
+              }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={handleClose} disabled={inviteMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={inviteMutation.isPending}
+            >
+              {inviteMutation.isPending ? (
+                <CircularProgress size={22} color="inherit" />
+              ) : (
+                "Send Invitation"
+              )}
+            </Button>
+          </DialogActions>
+        </Box>
+      </FormProvider>
     </Dialog>
   );
 }

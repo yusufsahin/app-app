@@ -2,14 +2,11 @@
  * C3: Workflow (FSM) visualisation and minimal edit (add transition, save to manifest).
  */
 import { useState, useMemo, useEffect } from "react";
+import { useForm, FormProvider } from "react-hook-form";
 import {
   Box,
   Paper,
   Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Chip,
   List,
   ListItem,
@@ -18,6 +15,7 @@ import {
   IconButton,
 } from "@mui/material";
 import { AccountTree, ArrowForward, Add, Save, Close } from "@mui/icons-material";
+import { RhfSelect } from "../../../shared/components/forms";
 
 export interface WorkflowState {
   id: string;
@@ -46,25 +44,31 @@ export interface WorkflowDesignerViewProps {
   isSaving?: boolean;
 }
 
+type WorkflowFormValues = { workflowId: string; addFrom: string; addTo: string };
+
 export function WorkflowDesignerView({
   workflows,
   editable = false,
   onSaveWorkflow,
   isSaving = false,
 }: WorkflowDesignerViewProps) {
-  const [selectedId, setSelectedId] = useState<string>("");
+  const form = useForm<WorkflowFormValues>({
+    defaultValues: { workflowId: "", addFrom: "", addTo: "" },
+  });
+  const { watch, reset, setValue, control } = form;
+  const workflowId = watch("workflowId");
+  const addFrom = watch("addFrom");
+  const addTo = watch("addTo");
   const [draftTransitions, setDraftTransitions] = useState<WorkflowTransition[]>([]);
-  const [addFrom, setAddFrom] = useState<string>("");
-  const [addTo, setAddTo] = useState<string>("");
   const selected = useMemo(
-    () => workflows.find((w) => w.id === selectedId) ?? workflows[0] ?? null,
-    [workflows, selectedId],
+    () => workflows.find((w) => w.id === workflowId) ?? workflows[0] ?? null,
+    [workflows, workflowId],
   );
 
   useEffect(() => {
     const firstId = workflows[0]?.id ?? "";
-    if (firstId && !workflows.some((w) => w.id === selectedId)) setSelectedId(firstId);
-  }, [workflows, selectedId]);
+    if (firstId && !workflows.some((w) => w.id === workflowId)) reset({ workflowId: firstId, addFrom: "", addTo: "" });
+  }, [workflows, workflowId, reset]);
 
   const states: WorkflowState[] = useMemo(() => {
     const raw = selected?.states ?? [];
@@ -114,8 +118,8 @@ export function WorkflowDesignerView({
   const handleAddTransition = () => {
     if (addFrom && addTo) {
       setDraftTransitions((prev) => [...prev, { from: addFrom, to: addTo }]);
-      setAddFrom("");
-      setAddTo("");
+      setValue("addFrom", "");
+      setValue("addTo", "");
     }
   };
 
@@ -149,21 +153,17 @@ export function WorkflowDesignerView({
       </Typography>
 
       {workflows.length > 1 && (
-        <FormControl size="small" sx={{ minWidth: 200, mb: 2 }}>
-          <InputLabel id="workflow-select-label">Workflow</InputLabel>
-          <Select
-            labelId="workflow-select-label"
-            label="Workflow"
-            value={(selectedId || selected?.id) ?? ""}
-            onChange={(e) => setSelectedId(e.target.value)}
-          >
-            {workflows.map((w) => (
-              <MenuItem key={w.id} value={w.id}>
-                {w.name || w.id}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <FormProvider {...form}>
+          <Box sx={{ minWidth: 200, mb: 2 }}>
+            <RhfSelect<WorkflowFormValues>
+              name="workflowId"
+              control={control}
+              label="Workflow"
+              options={workflows.map((w) => ({ value: w.id, label: w.name || w.id }))}
+              selectProps={{ size: "small" }}
+            />
+          </Box>
+        </FormProvider>
       )}
 
       {selected && (
@@ -280,53 +280,43 @@ export function WorkflowDesignerView({
           </Box>
 
           {editable && states.length >= 2 && (
-            <Box sx={{ mb: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }}>
-              <FormControl size="small" sx={{ minWidth: 140 }}>
-                <InputLabel id="add-from-label">From</InputLabel>
-                <Select
-                  labelId="add-from-label"
-                  label="From"
-                  value={addFrom}
-                  onChange={(e) => setAddFrom(e.target.value)}
-                >
-                  {states.map((s) => (
-                    <MenuItem key={s.id} value={s.id}>
-                      {s.name || s.id}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <ArrowForward sx={{ color: "action.active" }} />
-              <FormControl size="small" sx={{ minWidth: 140 }}>
-                <InputLabel id="add-to-label">To</InputLabel>
-                <Select
-                  labelId="add-to-label"
-                  label="To"
-                  value={addTo}
-                  onChange={(e) => setAddTo(e.target.value)}
-                >
-                  {states.map((s) => (
-                    <MenuItem key={s.id} value={s.id}>
-                      {s.name || s.id}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <Button size="small" startIcon={<Add />} onClick={handleAddTransition} disabled={!addFrom || !addTo}>
-                Add transition
-              </Button>
-              {hasDraft && onSaveWorkflow && (
-                <Button
-                  size="small"
-                  variant="contained"
-                  startIcon={<Save />}
-                  onClick={handleSaveToManifest}
-                  disabled={isSaving}
-                >
-                  {isSaving ? "Saving…" : "Save to manifest"}
+            <FormProvider {...form}>
+              <Box sx={{ mb: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }}>
+                <Box sx={{ minWidth: 140 }}>
+                  <RhfSelect<WorkflowFormValues>
+                    name="addFrom"
+                    control={control}
+                    label="From"
+                    options={states.map((s) => ({ value: s.id, label: s.name || s.id }))}
+                    selectProps={{ size: "small" }}
+                  />
+                </Box>
+                <ArrowForward sx={{ color: "action.active" }} />
+                <Box sx={{ minWidth: 140 }}>
+                  <RhfSelect<WorkflowFormValues>
+                    name="addTo"
+                    control={control}
+                    label="To"
+                    options={states.map((s) => ({ value: s.id, label: s.name || s.id }))}
+                    selectProps={{ size: "small" }}
+                  />
+                </Box>
+                <Button size="small" startIcon={<Add />} onClick={handleAddTransition} disabled={!addFrom || !addTo}>
+                  Add transition
                 </Button>
-              )}
-            </Box>
+                {hasDraft && onSaveWorkflow && (
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<Save />}
+                    onClick={handleSaveToManifest}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? "Saving…" : "Save to manifest"}
+                  </Button>
+                )}
+              </Box>
+            </FormProvider>
           )}
 
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>

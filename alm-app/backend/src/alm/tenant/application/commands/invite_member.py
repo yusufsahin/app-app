@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ConflictError, EntityNotFound
-from alm.shared.infrastructure.email import send_email
+from alm.shared.domain.ports import IEmailSender
 from alm.shared.infrastructure.email_templates import invitation_email_html
 from alm.tenant.application.dtos import InvitationDTO, RoleInfoDTO
 from alm.tenant.domain.entities import Invitation
@@ -36,17 +36,17 @@ class InviteMemberHandler(CommandHandler[InvitationDTO]):
         role_repo: RoleRepository,
         tenant_repo: TenantRepository,
         user_lookup: UserLookupPort,
+        email_sender: IEmailSender,
     ) -> None:
         self._invitation_repo = invitation_repo
         self._role_repo = role_repo
         self._tenant_repo = tenant_repo
         self._user_lookup = user_lookup
+        self._email_sender = email_sender
 
     async def handle(self, command: Command) -> InvitationDTO:
         assert isinstance(command, InviteMember)
-        existing = await self._invitation_repo.find_pending_by_email_and_tenant(
-            command.email, command.tenant_id
-        )
+        existing = await self._invitation_repo.find_pending_by_email_and_tenant(command.email, command.tenant_id)
         if existing is not None and existing.is_valid:
             raise ConflictError(f"A pending invitation already exists for {command.email}")
 
@@ -55,13 +55,15 @@ class InviteMemberHandler(CommandHandler[InvitationDTO]):
             role = await self._role_repo.find_by_id(role_id)
             if role is None or role.tenant_id != command.tenant_id:
                 raise EntityNotFound("Role", role_id)
-            roles.append(RoleInfoDTO(
-                id=role.id,
-                name=role.name,
-                slug=role.slug,
-                is_system=role.is_system,
-                hierarchy_level=role.hierarchy_level,
-            ))
+            roles.append(
+                RoleInfoDTO(
+                    id=role.id,
+                    name=role.name,
+                    slug=role.slug,
+                    is_system=role.is_system,
+                    hierarchy_level=role.hierarchy_level,
+                )
+            )
 
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(UTC) + timedelta(days=7)
@@ -74,12 +76,14 @@ class InviteMemberHandler(CommandHandler[InvitationDTO]):
             expires_at=expires_at,
             role_ids=list(command.role_ids),
         )
-        invitation._register_event(MemberInvited(
-            tenant_id=command.tenant_id,
-            email=command.email,
-            invited_by=command.invited_by,
-            role_ids=list(command.role_ids),
-        ))
+        invitation._register_event(
+            MemberInvited(
+                tenant_id=command.tenant_id,
+                email=command.email,
+                invited_by=command.invited_by,
+                role_ids=list(command.role_ids),
+            )
+        )
         inv = await self._invitation_repo.add(invitation)
 
         # Fire-and-forget email
@@ -95,7 +99,7 @@ class InviteMemberHandler(CommandHandler[InvitationDTO]):
             invite_token=token,
             roles=role_names,
         )
-        asyncio.create_task(send_email(command.email, subject, html))
+        asyncio.create_task(self._email_sender.send(command.email, subject, html))  # type: ignore[arg-type]
 
         return InvitationDTO(
             id=inv.id,

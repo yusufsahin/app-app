@@ -1,4 +1,5 @@
 """CycleNode DTOs."""
+
 from __future__ import annotations
 
 import uuid
@@ -21,4 +22,4 @@ class CycleNodeDTO:
     state: str
     created_at: str | None
     updated_at: str | None
-    children: list["CycleNodeDTO"] = field(default_factory=list)
+    children: list[CycleNodeDTO] = field(default_factory=list)

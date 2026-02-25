@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -19,20 +20,20 @@ class ProjectResponse(BaseModel):
     slug: str
     description: str
     status: str | None = None
-    settings: dict | None = None
-    metadata: dict | None = None
+    settings: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class UpdateProjectRequest(BaseModel):
     name: str | None = None
     description: str | None = None
     status: str | None = None
-    settings: dict | None = None
-    metadata: dict | None = None
+    settings: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class UpdateProjectManifestRequest(BaseModel):
-    manifest_bundle: dict
+    manifest_bundle: dict[str, Any]
 
 
 class AddProjectMemberRequest(BaseModel):

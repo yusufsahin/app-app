@@ -1,9 +1,11 @@
 """SavedQuery SQLAlchemy model."""
+
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
-from sqlalchemy import ForeignKey, String, Text, Uuid
+from sqlalchemy import ForeignKey, String, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,4 +30,4 @@ class SavedQueryModel(Base, TimestampMixin):
         index=True,
     )
     visibility: Mapped[str] = mapped_column(String(50), nullable=False, server_default="private")
-    filter_params: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    filter_params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")

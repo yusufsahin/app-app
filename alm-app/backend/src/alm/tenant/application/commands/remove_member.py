@@ -26,9 +26,7 @@ class RemoveMemberHandler(CommandHandler[None]):
 
     async def handle(self, command: Command) -> None:
         assert isinstance(command, RemoveMember)
-        membership = await self._membership_repo.find_by_user_and_tenant(
-            command.user_id, command.tenant_id
-        )
+        membership = await self._membership_repo.find_by_user_and_tenant(command.user_id, command.tenant_id)
         if membership is None:
             raise EntityNotFound("TenantMembership", command.user_id)
 
@@ -42,8 +40,6 @@ class RemoveMemberHandler(CommandHandler[None]):
                     if "admin" in slugs:
                         admin_count += 1
                 if admin_count <= 1:
-                    raise ValidationError(
-                        "Cannot remove yourself as the last admin of the tenant"
-                    )
+                    raise ValidationError("Cannot remove yourself as the last admin of the tenant")
 
         await self._membership_repo.soft_delete(membership.id, deleted_by=command.removed_by)

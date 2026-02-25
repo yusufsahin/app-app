@@ -1,33 +1,32 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-import asyncio
 
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from alm.admin.api.router import router as admin_router
-from alm.auth.api.router import router as auth_router
-from alm.config.settings import settings
-from alm.shared.audit.api.router import router as audit_router
-from alm.shared.infrastructure.correlation import CorrelationIdMiddleware
-from alm.shared.infrastructure.tenant_middleware import TenantContextMiddleware
-from alm.shared.infrastructure.rate_limit_middleware import RateLimitMiddleware
-from alm.shared.infrastructure.db.session import async_session_factory
-from alm.shared.infrastructure.db.tenant_context import setup_tenant_rls
-from alm.shared.infrastructure.error_handler import register_exception_handlers
-from alm.shared.infrastructure.health import health_router
 from prometheus_client import make_asgi_app
 
 # Import so artifact transition metrics are registered and appear in /metrics from first scrape
 import alm.artifact.infrastructure.metrics  # noqa: F401
-from alm.tenant.api.router import router as tenant_router
-from alm.project.api.router import router as project_router
+from alm.admin.api.router import router as admin_router
+from alm.auth.api.router import router as auth_router
+from alm.config.settings import settings
 from alm.dashboard.api.router import router as dashboard_router
-from alm.process_template.api.router import router as process_template_router
 from alm.orgs.api.router import router as orgs_router
+from alm.process_template.api.router import router as process_template_router
+from alm.project.api.router import router as project_router
 from alm.realtime.api.router import router as realtime_router
 from alm.realtime.pubsub import run_subscriber
+from alm.shared.audit.api.router import router as audit_router
+from alm.shared.infrastructure.correlation import CorrelationIdMiddleware
+from alm.shared.infrastructure.db.session import async_session_factory
+from alm.shared.infrastructure.db.tenant_context import setup_tenant_rls
+from alm.shared.infrastructure.error_handler import register_exception_handlers
+from alm.shared.infrastructure.health import health_router
+from alm.shared.infrastructure.rate_limit_middleware import RateLimitMiddleware
+from alm.shared.infrastructure.tenant_middleware import TenantContextMiddleware
+from alm.tenant.api.router import router as tenant_router
 
 logger = structlog.get_logger()
 
@@ -39,7 +38,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         raise RuntimeError("jwt_secret_key must be changed in production")
     setup_tenant_rls(async_session_factory)
 
-    from alm.config.seed import seed_privileges, seed_process_templates, seed_demo_data
+    from alm.config.seed import seed_demo_data, seed_privileges, seed_process_templates
+
     await seed_privileges(async_session_factory)
     await seed_process_templates(async_session_factory)
     await seed_demo_data(async_session_factory)
@@ -58,6 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     from alm.config.handler_registry import register_all_handlers
+
     register_all_handlers()
 
     app = FastAPI(

@@ -4,10 +4,6 @@
 import {
   Box,
   Checkbox,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
   Table,
   TableBody,
   TableCell,
@@ -17,7 +13,9 @@ import {
   Paper,
   Typography,
 } from "@mui/material";
-import { useMemo } from "react";
+import { useMemo, useEffect, useRef } from "react";
+import { useForm, FormProvider } from "react-hook-form";
+import { RhfSelect } from "../forms";
 import type { ListSchemaDto, ListColumnSchema, ListFilterSchema } from "../../types/listSchema";
 
 function columnLabel(col: ListColumnSchema): string {
@@ -75,6 +73,32 @@ export function MetadataDrivenList<T>({
 
   const hasFilters = sortedFilters.length > 0 && onFilterChange;
 
+  type FilterFormValues = Record<string, string>;
+  const filterDefaultValues = useMemo<FilterFormValues>(
+    () => Object.fromEntries(sortedFilters.map((f) => [f.key, filterValues[f.key] ?? ""])),
+    [], // eslint-disable-line react-hooks/exhaustive-deps -- only initial
+  );
+  const filterForm = useForm<FilterFormValues>({ defaultValues: filterDefaultValues });
+  useEffect(() => {
+    filterForm.reset(Object.fromEntries(sortedFilters.map((f) => [f.key, filterValues[f.key] ?? ""])));
+  }, [filterValues, sortedFilters]);
+  const watchedFilterValues = filterForm.watch();
+  const filterInitialMount = useRef(true);
+  useEffect(() => {
+    if (!onFilterChange) return;
+    if (filterInitialMount.current) {
+      filterInitialMount.current = false;
+      return;
+    }
+    for (const f of sortedFilters) {
+      const v = watchedFilterValues[f.key] ?? "";
+      if (v !== (filterValues[f.key] ?? "")) {
+        onFilterChange(f.key, v);
+        break;
+      }
+    }
+  }, [watchedFilterValues]);
+
   const selectedSet = useMemo(() => {
     if (selectedKeys == null) return new Set<string>();
     if (selectedKeys instanceof Set) return selectedKeys;
@@ -91,26 +115,20 @@ export function MetadataDrivenList<T>({
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
       {hasFilters && (
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
-          {sortedFilters.map((f) => (
-            <FormControl key={f.key} size="small" sx={{ minWidth: 140 }}>
-              <InputLabel id={`filter-${f.key}`}>{filterLabel(f)}</InputLabel>
-              <Select
-                labelId={`filter-${f.key}`}
+        <FormProvider {...filterForm}>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+            {sortedFilters.map((f) => (
+              <RhfSelect<FilterFormValues>
+                key={f.key}
+                name={f.key}
+                control={filterForm.control}
                 label={filterLabel(f)}
-                value={filterValues[f.key] ?? ""}
-                onChange={(e) => onFilterChange(f.key, e.target.value)}
-              >
-                <MenuItem value="">All</MenuItem>
-                {(f.options ?? []).map((opt) => (
-                  <MenuItem key={opt} value={opt}>
-                    {opt}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          ))}
-        </Box>
+                options={[{ value: "", label: "All" }, ...(f.options ?? []).map((opt) => ({ value: opt, label: opt }))]}
+                selectProps={{ size: "small", sx: { minWidth: 140 } }}
+              />
+            ))}
+          </Box>
+        </FormProvider>
       )}
 
       <TableContainer component={Paper} variant="outlined">

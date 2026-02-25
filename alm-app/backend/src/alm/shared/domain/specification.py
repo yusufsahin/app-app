@@ -3,6 +3,7 @@
 Encapsulates business rules for entity selection.
 Use for repository filtering, validation, and in-memory checks.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -36,9 +37,7 @@ class AndSpecification(Specification[T]):
         self._right = right
 
     def is_satisfied_by(self, candidate: T) -> bool:
-        return self._left.is_satisfied_by(candidate) and self._right.is_satisfied_by(
-            candidate
-        )
+        return self._left.is_satisfied_by(candidate) and self._right.is_satisfied_by(candidate)
 
 
 class OrSpecification(Specification[T]):
@@ -49,6 +48,4 @@ class OrSpecification(Specification[T]):
         self._right = right
 
     def is_satisfied_by(self, candidate: T) -> bool:
-        return self._left.is_satisfied_by(candidate) or self._right.is_satisfied_by(
-            candidate
-        )
+        return self._left.is_satisfied_by(candidate) or self._right.is_satisfied_by(candidate)

@@ -1,17 +1,18 @@
 """Create attachment (upload file to artifact)."""
+
 from __future__ import annotations
 
 import re
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
+from alm.artifact.domain.ports import ArtifactRepository
 from alm.attachment.application.dtos import AttachmentDTO
 from alm.attachment.domain.entities import Attachment
 from alm.attachment.domain.ports import AttachmentRepository, FileStoragePort
-from alm.artifact.domain.ports import ArtifactRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 # Max size 10 MiB
 MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -55,7 +56,7 @@ class CreateAttachmentHandler(CommandHandler[AttachmentDTO]):
             raise ValidationError("Artifact not found")
 
         if len(command.file_content) > MAX_FILE_SIZE:
-            raise ValidationError(f"File size exceeds maximum ({MAX_FILE_SIZE // (1024*1024)} MiB)")
+            raise ValidationError(f"File size exceeds maximum ({MAX_FILE_SIZE // (1024 * 1024)} MiB)")
 
         file_name = (command.file_name or "file").strip()
         if not file_name or file_name in (".", ".."):

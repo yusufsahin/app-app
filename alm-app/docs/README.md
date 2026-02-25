@@ -12,7 +12,7 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 |---------|------|---------------------|
 | [alm-app.md](./alm-app.md) | Mimari, tech stack, aşama planı (Phase 1–12) | Yeni geliştirici, mimari karar, faz planı |
 | [MPC_BOUNDARY.md](./MPC_BOUNDARY.md) | MPC ile alm-app sorumluluk sınırı | Platform vs uygulama ayrımı, ne nerede |
-| [D1_POLICY_ACL_INTEGRATION.md](./D1_POLICY_ACL_INTEGRATION.md) | Policy/ACL entegrasyon planı (GuardPort, AuthPort, field masking) | D1 işi, MPC port implementasyonu |
+| [D1_POLICY_ACL_INTEGRATION.md](./D1_POLICY_ACL_INTEGRATION.md) | Policy/ACL entegrasyon planı (GuardPort, AuthPort, field masking) | D1 işi, MPC port implementasyonu. Field masking refactor/taşıma **out of scope**. |
 
 ### Planlama ve ilerleme
 
@@ -38,6 +38,12 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 | Doküman | Amaç | Ne zaman kullanılır |
 |---------|------|---------------------|
 | [CONTEXT_COMPARISON_ALM_VS_PAMERA.md](./CONTEXT_COMPARISON_ALM_VS_PAMERA.md) | ALM vs Pamera context karşılaştırması | Referans mimari, terminoloji eşlemesi |
+
+### Frontend / test
+
+| Doküman | Amaç | Ne zaman kullanılır |
+|---------|------|---------------------|
+| [FORMS_TEST_CHECKLIST.md](./FORMS_TEST_CHECKLIST.md) | Paylaşılan form bileşenleri (Rhf*) ile taşınan sayfa/dialog’lar için manuel test listesi | Deploy öncesi veya form değişikliği sonrası QA |
 
 **Kök dizin:** [README.md](../README.md) (kurulum, çalıştırma), [DEPLOY.md](../DEPLOY.md) (deploy).
 

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useForm, FormProvider } from "react-hook-form";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
 import { Outlet, useNavigate, useLocation, useParams, useSearchParams, Navigate } from "react-router-dom";
@@ -22,8 +23,9 @@ import {
   CardActionArea,
   CardContent,
   CircularProgress,
-  TextField,
+  Chip,
 } from "@mui/material";
+import { RhfTextField } from "../forms";
 import {
   Menu as MenuIcon,
   Folder,
@@ -34,11 +36,22 @@ import {
   ChevronRight,
   Dashboard,
   History,
+  FolderOpen,
+  AccountTree,
+  CalendarMonth,
+  ViewList,
+  ViewColumn,
+  AutoAwesome,
 } from "@mui/icons-material";
 import { useAuthStore } from "../../stores/authStore";
+import { useOrgProjects } from "../../api/orgApi";
+import { ProjectSwitcher } from "./ProjectSwitcher";
+import { CommandPalette } from "./CommandPalette";
+import type { CommandPaletteItem } from "./CommandPalette";
 import { useTenantStore } from "../../stores/tenantStore";
 import { useProjectStore } from "../../stores/projectStore";
 import { useArtifactStore } from "../../stores/artifactStore";
+import { useLayoutUI } from "../../contexts/LayoutUIContext";
 import { useSwitchTenant } from "../../api/authApi";
 import { useNotificationStore } from "../../stores/notificationStore";
 import { useQueryClient } from "@tanstack/react-query";
@@ -47,7 +60,6 @@ import { useRealtime } from "../../realtime/useRealtime";
 
 const DRAWER_WIDTH_EXPANDED = 260;
 const DRAWER_WIDTH_COLLAPSED = 72;
-const SIDEBAR_STORAGE_KEY = "alm-sidebar-collapsed";
 
 interface NavItem {
   label: string;
@@ -64,15 +76,62 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", path: "dashboard", icon: <Dashboard />, permission: "project:read" },
 ];
 
+/** Project-scoped nav (shown when URL has projectSlug). Paths relative to /:orgSlug/:projectSlug */
+const PROJECT_NAV_ITEMS: NavItem[] = [
+  { label: "Overview", path: "", icon: <FolderOpen />, permission: "project:read" },
+  { label: "Manifest", path: "manifest", icon: <AccountTree />, permission: "manifest:read" },
+  { label: "Planning", path: "planning", icon: <CalendarMonth />, permission: "project:read" },
+  { label: "Artifacts", path: "artifacts", icon: <ViewList />, permission: "artifact:read" },
+  { label: "Board", path: "board", icon: <ViewColumn />, permission: "artifact:read" },
+  { label: "Automation", path: "automation", icon: <AutoAwesome />, permission: "project:read" },
+];
+
 export default function AppLayout() {
   useRealtime();
-  const { orgSlug } = useParams<{ orgSlug: string }>();
+  const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug?: string }>();
   const theme = useTheme();
+  const { data: projects = [] } = useOrgProjects(orgSlug);
+  const setCurrentProject = useProjectStore((s) => s.setCurrentProject);
+  const setLastVisitedProjectSlug = useProjectStore((s) => s.setLastVisitedProjectSlug);
+  const clearCurrentProject = useProjectStore((s) => s.clearCurrentProject);
+
+  // Sync URL project to store (and lastVisited) so Switcher and Dashboard use correct context
+  useEffect(() => {
+    if (!orgSlug) return;
+    if (projectSlug && projects.length > 0) {
+      const project = projects.find((p) => p.slug === projectSlug);
+      if (project) {
+        setCurrentProject(project);
+        setLastVisitedProjectSlug(projectSlug);
+      } else {
+        setCurrentProject(null);
+      }
+    } else {
+      clearCurrentProject();
+    }
+  }, [orgSlug, projectSlug, projects, setCurrentProject, setLastVisitedProjectSlug, clearCurrentProject]);
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get("q") ?? "";
+  const headerSearchForm = useForm<{ q: string }>({ defaultValues: { q: searchQuery } });
+  const { watch, reset } = headerSearchForm;
+  const headerSearchSkipSync = useRef(true);
+  useEffect(() => {
+    reset({ q: searchQuery });
+  }, [searchQuery, reset]);
+  useEffect(() => {
+    if (headerSearchSkipSync.current) {
+      headerSearchSkipSync.current = false;
+      return;
+    }
+    const q = watch("q");
+    const next = new URLSearchParams(searchParams);
+    if (q) next.set("q", q);
+    else next.delete("q");
+    setSearchParams(next, { replace: true });
+  }, [watch("q")]);
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const permissions = useAuthStore((s) => s.permissions);
@@ -93,13 +152,19 @@ export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   const [tenantAnchor, setTenantAnchor] = useState<null | HTMLElement>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const { sidebarCollapsed, setSidebarCollapsed } = useLayoutUI();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const isCollapsed = isDesktop && sidebarCollapsed;
   const drawerWidth = isCollapsed ? DRAWER_WIDTH_COLLAPSED : DRAWER_WIDTH_EXPANDED;
@@ -114,15 +179,7 @@ export default function AppLayout() {
   }
 
   const toggleSidebar = () => {
-    setSidebarCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+    setSidebarCollapsed((prev) => !prev);
   };
 
   const visibleNavItems = NAV_ITEMS.filter((item) => {
@@ -131,6 +188,33 @@ export default function AppLayout() {
       return item.permissionAny.some((p) => hasPermission(permissions, p));
     return true;
   });
+
+  const commandPaletteItems: CommandPaletteItem[] = useMemo(() => {
+    if (!orgSlug) return [];
+    const list: CommandPaletteItem[] = [];
+    for (const item of visibleNavItems) {
+      const path = item.path ? `/${orgSlug}/${item.path}` : `/${orgSlug}`;
+      list.push({ id: item.path || "projects", label: item.label, path, icon: item.icon });
+    }
+    if (projectSlug) {
+      const projectItems = PROJECT_NAV_ITEMS.filter((item) => {
+        if (item.permission) return hasPermission(permissions, item.permission);
+        if (item.permissionAny) return item.permissionAny.some((p) => hasPermission(permissions, p));
+        return true;
+      });
+      for (const item of projectItems) {
+        const path = item.path ? `/${orgSlug}/${projectSlug}/${item.path}` : `/${orgSlug}/${projectSlug}`;
+        list.push({ id: `proj-${item.path || "overview"}`, label: item.label, path, icon: item.icon });
+      }
+    }
+    if (hasPermission(permissions, "tenant:read") || hasPermission(permissions, "member:read") || hasPermission(permissions, "role:read")) {
+      list.push({ id: "settings", label: "Organization settings", path: `/${orgSlug}/settings`, icon: <Settings fontSize="small" /> });
+    }
+    if (isAdmin) {
+      list.push({ id: "audit", label: "Access audit", path: `/${orgSlug}/audit`, icon: <History fontSize="small" /> });
+    }
+    return list;
+  }, [orgSlug, projectSlug, visibleNavItems, permissions, isAdmin]);
 
   const handleLogout = () => {
     setUserMenuAnchor(null);
@@ -280,6 +364,63 @@ export default function AppLayout() {
         })}
       </List>
 
+      {projectSlug && (
+        <>
+          <Divider sx={{ mt: 0.5 }} />
+          <ProjectSwitcher
+            collapsed={isCollapsed}
+            onNavigate={() => setMobileOpen(false)}
+          />
+          <List sx={{ px: isCollapsed ? 0.5 : 1, py: 0.5 }}>
+            {PROJECT_NAV_ITEMS.filter((item) => {
+              if (item.permission) return hasPermission(permissions, item.permission);
+              if (item.permissionAny) return item.permissionAny.some((p) => hasPermission(permissions, p));
+              return true;
+            }).map((item) => {
+              const basePath = orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "";
+              const fullPath = item.path ? `${basePath}/${item.path}` : basePath;
+              const isActive =
+                item.path === ""
+                  ? location.pathname === basePath || location.pathname === `${basePath}/`
+                  : location.pathname.startsWith(`${basePath}/${item.path}`);
+              return (
+                <ListItemButton
+                  key={item.path || "overview"}
+                  onClick={() => {
+                    navigate(fullPath);
+                    setMobileOpen(false);
+                  }}
+                  selected={isActive}
+                  title={isCollapsed ? item.label : undefined}
+                  sx={{
+                    borderRadius: 1.5,
+                    mb: 0.5,
+                    justifyContent: isCollapsed ? "center" : "flex-start",
+                    px: isCollapsed ? 1 : 2,
+                    "&.Mui-selected": {
+                      bgcolor: "primary.main",
+                      color: "primary.contrastText",
+                      "&:hover": { bgcolor: "primary.dark" },
+                      "& .MuiListItemIcon-root": { color: "inherit" },
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40 }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  {!isCollapsed && (
+                    <ListItemText
+                      primary={item.label}
+                      primaryTypographyProps={{ fontWeight: isActive ? 600 : 400 }}
+                    />
+                  )}
+                </ListItemButton>
+              );
+            })}
+          </List>
+        </>
+      )}
+
       {(hasPermission(permissions, "tenant:read") ||
         hasPermission(permissions, "member:read") ||
         hasPermission(permissions, "role:read")) && (
@@ -398,27 +539,40 @@ export default function AppLayout() {
             ALM Manifest
           </Typography>
 
-          <TextField
-            placeholder="Search projects"
+          <FormProvider {...headerSearchForm}>
+            <Box
+              sx={{
+                flex: 1,
+                maxWidth: 360,
+                display: { xs: "none", md: "block" },
+              }}
+            >
+              <RhfTextField<{ q: string }>
+                name="q"
+                placeholder={projectSlug ? "Search artifacts…" : "Search projects"}
+                size="small"
+                variant="outlined"
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    bgcolor: "action.hover",
+                    "& fieldset": { borderColor: "transparent" },
+                  },
+                }}
+              />
+            </Box>
+          </FormProvider>
+
+          <Chip
+            label={typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl+K"}
             size="small"
-            variant="outlined"
-            value={searchQuery}
-            onChange={(e) => {
-              const q = e.target.value;
-              const next = new URLSearchParams(searchParams);
-              if (q) next.set("q", q);
-              else next.delete("q");
-              setSearchParams(next, { replace: true });
-            }}
+            onClick={() => setCommandPaletteOpen(true)}
             sx={{
-              flex: 1,
-              maxWidth: 360,
-              display: { xs: "none", md: "block" },
-              "& .MuiOutlinedInput-root": {
-                bgcolor: "action.hover",
-                "& fieldset": { borderColor: "transparent" },
-              },
+              display: { xs: "none", sm: "inline-flex" },
+              ml: 1,
+              "& .MuiChip-label": { fontSize: "0.75rem" },
+              cursor: "pointer",
             }}
+            title="Quick navigation"
           />
 
           <IconButton onClick={(e) => setUserMenuAnchor(e.currentTarget)} sx={{ ml: 1 }}>
@@ -581,6 +735,13 @@ export default function AppLayout() {
       >
         <Outlet />
       </Box>
+
+      <CommandPalette
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        items={commandPaletteItems}
+        onSelect={(path) => navigate(path)}
+      />
     </Box>
   );
 }

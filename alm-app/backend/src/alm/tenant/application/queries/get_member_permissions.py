@@ -25,9 +25,7 @@ class GetMemberEffectivePermissionsHandler(QueryHandler[list[str]]):
 
     async def handle(self, query: Query) -> list[str]:
         assert isinstance(query, GetMemberEffectivePermissions)
-        membership = await self._membership_repo.find_by_user_and_tenant(
-            query.user_id, query.tenant_id
-        )
+        membership = await self._membership_repo.find_by_user_and_tenant(query.user_id, query.tenant_id)
         if membership is None:
             raise EntityNotFound("TenantMembership", query.user_id)
 

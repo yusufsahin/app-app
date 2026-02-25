@@ -1,15 +1,16 @@
 """Update area node (name, sort_order)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
 from alm.area.application.dtos import AreaNodeDTO
 from alm.area.domain.entities import AreaNode
 from alm.area.domain.ports import AreaRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)

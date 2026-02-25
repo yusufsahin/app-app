@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   Box,
@@ -12,6 +13,12 @@ import {
   ListItem,
   ListItemText,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormControlLabel,
+  Checkbox,
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import { History } from "@mui/icons-material";
@@ -21,6 +28,7 @@ import {
   useOrgDashboardActivity,
   type DashboardActivityItem,
 } from "../../../shared/api/orgApi";
+import { useProjectStore } from "../../../shared/stores/projectStore";
 
 function formatRelativeTime(iso: string | null): string {
   if (!iso) return "—";
@@ -93,20 +101,37 @@ function StatCardPlain({
 
 export default function DashboardPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
+  const lastVisitedSlug = useProjectStore((s) => s.lastVisitedProjectSlug);
   const { data: stats, isLoading, error } = useOrgDashboardStats(orgSlug);
-  const { data: projects } = useOrgProjects(orgSlug);
+  const { data: projects = [], isLoading: projectsLoading } = useOrgProjects(orgSlug);
   const { data: activity, isLoading: activityLoading } = useOrgDashboardActivity(orgSlug, 10);
-  const firstProject = projects?.[0];
+
+  const firstProject = projects[0];
+  const defaultSlug =
+    (lastVisitedSlug && projects.some((p) => p.slug === lastVisitedSlug) ? lastVisitedSlug : null) ??
+    firstProject?.slug ??
+    null;
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [showOnlySelectedProject, setShowOnlySelectedProject] = useState(false);
+  const effectiveSlug = selectedSlug ?? defaultSlug;
+  const selectedProject = effectiveSlug ? projects.find((p) => p.slug === effectiveSlug) : null;
+
+  const activityList: DashboardActivityItem[] = (activity as DashboardActivityItem[] | undefined) ?? [];
+  const filteredActivity =
+    effectiveSlug && showOnlySelectedProject
+      ? activityList.filter((item) => item.project_slug === effectiveSlug)
+      : activityList;
+
   const projectsPath = orgSlug ? `/${orgSlug}` : "#";
   const artifactsPath =
-    orgSlug && firstProject ? `/${orgSlug}/${firstProject.slug}/artifacts` : projectsPath;
+    orgSlug && selectedProject ? `/${orgSlug}/${selectedProject.slug}/artifacts` : projectsPath;
   const tasksPath =
-    orgSlug && firstProject
-      ? `/${orgSlug}/${firstProject.slug}/artifacts?type=task`
+    orgSlug && selectedProject
+      ? `/${orgSlug}/${selectedProject.slug}/artifacts?type=task`
       : projectsPath;
   const openDefectsPath =
-    orgSlug && firstProject
-      ? `/${orgSlug}/${firstProject.slug}/artifacts?type=defect&state=Open`
+    orgSlug && selectedProject
+      ? `/${orgSlug}/${selectedProject.slug}/artifacts?type=defect&state=Open`
       : projectsPath;
 
   return (
@@ -122,9 +147,37 @@ export default function DashboardPage() {
         </MuiLink>
         <Typography color="text.primary">Dashboard</Typography>
       </Breadcrumbs>
-      <Typography variant="h4" gutterBottom fontWeight={700}>
-        Dashboard
-      </Typography>
+      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, mb: 3 }}>
+        <Typography variant="h4" fontWeight={700}>
+          Dashboard
+        </Typography>
+        {orgSlug && (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+            <FormControl size="small" sx={{ minWidth: 220 }} disabled={projectsLoading || projects.length === 0}>
+              <InputLabel id="dashboard-project-label">Project for links</InputLabel>
+              <Select
+                labelId="dashboard-project-label"
+                label="Project for links"
+                value={effectiveSlug ?? ""}
+                onChange={(e) => setSelectedSlug(e.target.value ? (e.target.value as string) : null)}
+                displayEmpty
+                renderValue={(v) => (projectsLoading ? "Loading…" : v ? projects.find((p) => p.slug === v)?.name ?? v : "")}
+              >
+                {projects.map((p) => (
+                  <MenuItem key={p.id} value={p.slug}>
+                    {p.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            {!projectsLoading && projects.length === 0 && (
+              <Typography variant="body2" color="text.secondary">
+                No projects yet. <MuiLink component={Link} to={projectsPath} underline="hover">Go to projects</MuiLink>
+              </Typography>
+            )}
+          </Box>
+        )}
+      </Box>
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <MuiLink component={Link} to={projectsPath} underline="none" color="inherit" sx={{ display: "block" }}>
@@ -143,7 +196,7 @@ export default function DashboardPage() {
           </MuiLink>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          {firstProject ? (
+          {selectedProject ? (
             <StatCard
               to={artifactsPath}
               label="Artifacts"
@@ -155,7 +208,7 @@ export default function DashboardPage() {
           )}
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          {firstProject ? (
+          {selectedProject ? (
             <StatCard
               to={tasksPath}
               label="Tasks"
@@ -167,7 +220,7 @@ export default function DashboardPage() {
           )}
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          {firstProject ? (
+          {selectedProject ? (
             <StatCard
               to={openDefectsPath}
               label="Open Defects"
@@ -186,17 +239,31 @@ export default function DashboardPage() {
 
       <Card sx={{ mt: 3 }}>
         <CardContent>
-          <Typography variant="overline" color="primary" fontWeight={600} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-            <History fontSize="small" />
-            Recent activity
-          </Typography>
+          <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 2 }}>
+            <Typography variant="overline" color="primary" fontWeight={600} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <History fontSize="small" />
+              Recent activity
+            </Typography>
+            {effectiveSlug && (
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={showOnlySelectedProject}
+                    onChange={(_, checked) => setShowOnlySelectedProject(checked)}
+                  />
+                }
+                label="Show only selected project"
+              />
+            )}
+          </Box>
           {activityLoading ? (
             <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
               <CircularProgress size={32} />
             </Box>
-          ) : activity && activity.length > 0 ? (
+          ) : filteredActivity.length > 0 ? (
             <List dense disablePadding>
-              {(activity as DashboardActivityItem[]).map((item) => (
+              {filteredActivity.map((item) => (
                 <ListItem
                   key={item.artifact_id}
                   component={Link}
@@ -222,7 +289,9 @@ export default function DashboardPage() {
             </List>
           ) : (
             <Typography variant="body2" color="text.secondary">
-              No recent artifact updates.
+              {showOnlySelectedProject && effectiveSlug
+                ? "No recent activity in the selected project."
+                : "No recent artifact updates."}
             </Typography>
           )}
         </CardContent>

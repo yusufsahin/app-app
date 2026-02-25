@@ -1,4 +1,5 @@
 """G2: List tenant users for admin (with optional include_deleted)."""
+
 from __future__ import annotations
 
 import uuid
@@ -44,9 +45,7 @@ class ListUsersForAdminHandler(QueryHandler[list[AdminUserSummary]]):
         memberships = await self._membership_repo.find_all_by_tenant(query.tenant_id)
         result: list[AdminUserSummary] = []
         for membership in memberships:
-            user_info = await self._user_lookup.find_by_id(
-                membership.user_id, include_deleted=query.include_deleted
-            )
+            user_info = await self._user_lookup.find_by_id(membership.user_id, include_deleted=query.include_deleted)
             if user_info is None:
                 continue
             if not query.include_deleted and user_info.deleted_at is not None:

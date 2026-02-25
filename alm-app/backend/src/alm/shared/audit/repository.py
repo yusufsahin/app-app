@@ -94,9 +94,7 @@ class SqlAlchemyAuditReader(AuditReader):
         return _to_snapshot_domain(model) if model else None
 
     async def get_commit(self, commit_id: uuid.UUID) -> AuditCommit | None:
-        result = await self._session.execute(
-            select(AuditCommitModel).where(AuditCommitModel.id == commit_id)
-        )
+        result = await self._session.execute(select(AuditCommitModel).where(AuditCommitModel.id == commit_id))
         model = result.scalar_one_or_none()
         return _to_commit_domain(model) if model else None
 
@@ -109,9 +107,7 @@ class SqlAlchemyAuditReader(AuditReader):
         return [_to_snapshot_domain(m) for m in result.scalars().all()]
 
     async def get_entity_types(self) -> list[str]:
-        result = await self._session.execute(
-            select(AuditSnapshotModel.entity_type).distinct()
-        )
+        result = await self._session.execute(select(AuditSnapshotModel.entity_type).distinct())
         return sorted(result.scalars().all())
 
 

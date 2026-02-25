@@ -8,6 +8,15 @@ from alm.auth.domain.entities import RefreshToken, User
 
 
 @dataclass(frozen=True)
+class UserCreationResult:
+    """Result of creating a user via IUserCreationPort; keeps Tenant BC independent of User entity."""
+
+    user_id: uuid.UUID
+    email: str
+    display_name: str
+
+
+@dataclass(frozen=True)
 class ProvisionedTenant:
     """Result of tenant provisioning — returned by OnboardingPort."""
 
@@ -22,16 +31,12 @@ class OnboardingPort(ABC):
     Auth BC depends on this port, NOT on Tenant domain directly."""
 
     @abstractmethod
-    async def provision_tenant(
-        self, name: str, admin_user_id: uuid.UUID
-    ) -> ProvisionedTenant: ...
+    async def provision_tenant(self, name: str, admin_user_id: uuid.UUID) -> ProvisionedTenant: ...
 
 
 class UserRepository(ABC):
     @abstractmethod
-    async def find_by_id(
-        self, user_id: uuid.UUID, include_deleted: bool = False
-    ) -> User | None: ...
+    async def find_by_id(self, user_id: uuid.UUID, include_deleted: bool = False) -> User | None: ...
 
     @abstractmethod
     async def find_by_email(self, email: str) -> User | None: ...
@@ -61,3 +66,15 @@ class RefreshTokenRepository(ABC):
 
     @abstractmethod
     async def revoke_all_for_user(self, user_id: uuid.UUID) -> None: ...
+
+
+class IUserCreationPort(ABC):
+    """Port for ensuring a user exists (create or return existing). Implemented by Auth; Tenant BC uses this instead of User entity."""
+
+    @abstractmethod
+    async def ensure_user(
+        self,
+        email: str,
+        display_name: str,
+        password_hash: str,
+    ) -> UserCreationResult: ...

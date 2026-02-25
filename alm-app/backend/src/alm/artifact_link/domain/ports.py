@@ -1,4 +1,5 @@
 """ArtifactLink repository port."""
+
 from __future__ import annotations
 
 import uuid
@@ -9,8 +10,7 @@ from alm.artifact_link.domain.entities import ArtifactLink
 
 class ArtifactLinkRepository:
     @abstractmethod
-    async def find_by_id(self, link_id: uuid.UUID) -> ArtifactLink | None:
-        ...
+    async def find_by_id(self, link_id: uuid.UUID) -> ArtifactLink | None: ...
 
     @abstractmethod
     async def list_by_artifact(
@@ -22,8 +22,7 @@ class ArtifactLinkRepository:
         ...
 
     @abstractmethod
-    async def add(self, link: ArtifactLink) -> ArtifactLink:
-        ...
+    async def add(self, link: ArtifactLink) -> ArtifactLink: ...
 
     @abstractmethod
     async def delete(self, link_id: uuid.UUID) -> bool:

@@ -1,14 +1,15 @@
 """Restore a soft-deleted artifact."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)

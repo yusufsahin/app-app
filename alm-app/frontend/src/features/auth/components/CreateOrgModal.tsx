@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -6,10 +6,10 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Button,
   CircularProgress,
 } from "@mui/material";
+import { RhfTextField } from "../../../shared/components/forms";
 import { useCreateTenant } from "../../../shared/api/tenantApi";
 
 const createOrgSchema = z.object({
@@ -33,15 +33,11 @@ export default function CreateOrgModal({
 }: CreateOrgModalProps) {
   const createMutation = useCreateTenant(token);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<CreateOrgFormData>({
+  const form = useForm<CreateOrgFormData>({
     resolver: zodResolver(createOrgSchema),
     defaultValues: { name: "" },
   });
+  const { handleSubmit, reset } = form;
 
   const handleClose = () => {
     reset();
@@ -60,20 +56,18 @@ export default function CreateOrgModal({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <DialogTitle fontWeight={600}>New Organization</DialogTitle>
-
-        <DialogContent>
-          <TextField
-            {...register("name")}
-            label="Organization name"
-            placeholder="e.g. Acme Corp"
-            fullWidth
-            error={!!errors.name}
-            helperText={errors.name?.message}
-            sx={{ mt: 1 }}
-          />
-        </DialogContent>
+      <FormProvider {...form}>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate>
+          <DialogTitle fontWeight={600}>New Organization</DialogTitle>
+          <DialogContent>
+            <RhfTextField<CreateOrgFormData>
+              name="name"
+              label="Organization name"
+              placeholder="e.g. Acme Corp"
+              fullWidth
+              sx={{ mt: 1 }}
+            />
+          </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={handleClose} disabled={createMutation.isPending}>
@@ -91,7 +85,8 @@ export default function CreateOrgModal({
             )}
           </Button>
         </DialogActions>
-      </form>
+        </form>
+      </FormProvider>
     </Dialog>
   );
 }

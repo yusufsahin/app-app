@@ -1,8 +1,10 @@
 """Process template domain entities."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -15,7 +17,7 @@ class ProcessTemplate:
     is_builtin: bool
     description: str | None = None
     type: str | None = None
-    configuration: dict | None = None
+    configuration: dict[str, Any] | None = None
 
 
 @dataclass
@@ -25,4 +27,4 @@ class ProcessTemplateVersion:
     id: uuid.UUID
     template_id: uuid.UUID
     version: str
-    manifest_bundle: dict
+    manifest_bundle: dict[str, Any]

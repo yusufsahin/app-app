@@ -22,9 +22,9 @@ def _serialize_value(value: Any) -> Any:
 class BaseEntity:
     def __init__(self, id: uuid.UUID | None = None) -> None:
         self.id = id or uuid.uuid4()
-        self.created_at = datetime.now(UTC)
+        self.created_at: datetime | None = datetime.now(UTC)
         self.created_by: uuid.UUID | None = None
-        self.updated_at = datetime.now(UTC)
+        self.updated_at: datetime | None = datetime.now(UTC)
         self.updated_by: uuid.UUID | None = None
         self.deleted_at: datetime | None = None
         self.deleted_by: uuid.UUID | None = None
@@ -53,11 +53,7 @@ class BaseEntity:
 
     def to_snapshot_dict(self) -> dict[str, Any]:
         """Serialize all public attributes for audit snapshot storage."""
-        return {
-            key: _serialize_value(value)
-            for key, value in self.__dict__.items()
-            if not key.startswith("_")
-        }
+        return {key: _serialize_value(value) for key, value in self.__dict__.items() if not key.startswith("_")}
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, BaseEntity):

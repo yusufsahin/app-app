@@ -1,12 +1,13 @@
 """List artifact links for an artifact (both directions)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
 from alm.artifact_link.application.dtos import ArtifactLinkDTO
 from alm.artifact_link.domain.ports import ArtifactLinkRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)
@@ -29,12 +30,12 @@ class ListArtifactLinksHandler(QueryHandler[list[ArtifactLinkDTO]]):
         )
         return [
             ArtifactLinkDTO(
-                id=l.id,
-                project_id=l.project_id,
-                from_artifact_id=l.from_artifact_id,
-                to_artifact_id=l.to_artifact_id,
-                link_type=l.link_type,
-                created_at=l.created_at.isoformat() if l.created_at else None,
+                id=link.id,
+                project_id=link.project_id,
+                from_artifact_id=link.from_artifact_id,
+                to_artifact_id=link.to_artifact_id,
+                link_type=link.link_type,
+                created_at=link.created_at.isoformat() if link.created_at else None,
             )
-            for l in links
+            for link in links
         ]

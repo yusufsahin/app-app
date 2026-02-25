@@ -1,8 +1,10 @@
 """Task domain entity — artifact-linked work item."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from alm.shared.domain.aggregate import AggregateRoot
 
@@ -47,7 +49,7 @@ class Task(AggregateRoot):
         description: str = "",
         assignee_id: uuid.UUID | None = None,
         rank_order: float | None = None,
-    ) -> "Task":
+    ) -> Task:
         return cls(
             project_id=project_id,
             artifact_id=artifact_id,
@@ -59,7 +61,7 @@ class Task(AggregateRoot):
             rank_order=rank_order,
         )
 
-    def to_snapshot_dict(self) -> dict:
+    def to_snapshot_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
             "project_id": str(self.project_id),

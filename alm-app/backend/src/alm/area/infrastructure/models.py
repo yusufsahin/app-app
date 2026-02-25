@@ -1,4 +1,5 @@
 """AreaNode SQLAlchemy model."""
+
 from __future__ import annotations
 
 import uuid
@@ -11,9 +12,7 @@ from alm.shared.infrastructure.db.base_model import Base, TimestampMixin
 
 class AreaNodeModel(Base, TimestampMixin):
     __tablename__ = "area_nodes"
-    __table_args__ = (
-        UniqueConstraint("project_id", "path", name="uq_area_nodes_project_path"),
-    )
+    __table_args__ = (UniqueConstraint("project_id", "path", name="uq_area_nodes_project_path"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(

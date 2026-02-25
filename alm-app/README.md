@@ -100,6 +100,8 @@ Migration'lar backend başlarken otomatik çalışır. Durdurmak: `docker compos
 - **frontend/** – React 19, TypeScript, Vite, MUI, TanStack Query
 - **docs/** – Mimari ve uygulama dokümanları ([giriş: docs/README.md](docs/README.md))
 
+**Frontend – Form bileşenleri:** Tüm form alanları `frontend/src/shared/components/forms/` kütüphanesinden kullanılır (RhfTextField, RhfSelect, RhfCheckbox, RhfDescriptionField, MetadataDrivenForm vb.). React Hook Form + FormProvider ile kullanın; sayfa içinde doğrudan MUI TextField/Select kullanmayın. Detay için `.cursor/rules/frontend-forms.mdc` kuralına bakın.
+
 Rota örnekleri: `/{orgSlug}` (projeler), `/{orgSlug}/dashboard`, `/{orgSlug}/{projectSlug}/artifacts`, `/{orgSlug}/{projectSlug}/manifest`.
 
 ## Testler

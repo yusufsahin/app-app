@@ -45,13 +45,15 @@ class UpdateRoleHandler(CommandHandler[RoleDetailDTO]):
         for pid in privilege_ids:
             priv = await self._privilege_repo.find_by_id(pid)
             if priv is not None:
-                privileges.append(PrivilegeDTO(
-                    id=priv.id,
-                    code=priv.code,
-                    resource=priv.resource,
-                    action=priv.action,
-                    description=priv.description,
-                ))
+                privileges.append(
+                    PrivilegeDTO(
+                        id=priv.id,
+                        code=priv.code,
+                        resource=priv.resource,
+                        action=priv.action,
+                        description=priv.description,
+                    )
+                )
 
         return RoleDetailDTO(
             id=role.id,

@@ -33,22 +33,26 @@ class ListTenantRolesHandler(QueryHandler[list[RoleDetailDTO]]):
             for pid in privilege_ids:
                 priv = await self._privilege_repo.find_by_id(pid)
                 if priv is not None:
-                    privileges.append(PrivilegeDTO(
-                        id=priv.id,
-                        code=priv.code,
-                        resource=priv.resource,
-                        action=priv.action,
-                        description=priv.description,
-                    ))
+                    privileges.append(
+                        PrivilegeDTO(
+                            id=priv.id,
+                            code=priv.code,
+                            resource=priv.resource,
+                            action=priv.action,
+                            description=priv.description,
+                        )
+                    )
 
-            result.append(RoleDetailDTO(
-                id=role.id,
-                name=role.name,
-                slug=role.slug,
-                description=role.description,
-                is_system=role.is_system,
-                hierarchy_level=role.hierarchy_level,
-                privileges=privileges,
-            ))
+            result.append(
+                RoleDetailDTO(
+                    id=role.id,
+                    name=role.name,
+                    slug=role.slug,
+                    description=role.description,
+                    is_system=role.is_system,
+                    hierarchy_level=role.hierarchy_level,
+                    privileges=privileges,
+                )
+            )
 
         return result

@@ -1,12 +1,13 @@
 """Delete artifact link."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
+from alm.artifact_link.domain.ports import ArtifactLinkRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
-from alm.artifact_link.domain.ports import ArtifactLinkRepository
 
 
 @dataclass(frozen=True)

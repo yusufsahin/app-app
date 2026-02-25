@@ -1,4 +1,5 @@
 """AreaNode API schemas (pamera AreaNode-like)."""
+
 from __future__ import annotations
 
 import uuid

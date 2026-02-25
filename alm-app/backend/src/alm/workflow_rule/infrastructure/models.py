@@ -1,7 +1,9 @@
 """WorkflowRule SQLAlchemy model."""
+
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from sqlalchemy import Boolean, ForeignKey, String, Text, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
@@ -23,5 +25,5 @@ class WorkflowRuleModel(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     trigger_event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     condition_expression: Mapped[str | None] = mapped_column(Text, nullable=True)
-    actions: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    actions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, server_default="[]")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")

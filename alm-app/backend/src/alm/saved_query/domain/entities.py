@@ -1,8 +1,10 @@
 """SavedQuery domain entity — saved filter set for artifact list."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from alm.shared.domain.aggregate import AggregateRoot
 
@@ -15,7 +17,7 @@ class SavedQuery(AggregateRoot):
         project_id: uuid.UUID,
         name: str,
         owner_id: uuid.UUID,
-        filter_params: dict,
+        filter_params: dict[str, Any],
         *,
         id: uuid.UUID | None = None,
         visibility: str = "private",
@@ -37,11 +39,11 @@ class SavedQuery(AggregateRoot):
         project_id: uuid.UUID,
         name: str,
         owner_id: uuid.UUID,
-        filter_params: dict,
+        filter_params: dict[str, Any],
         *,
         id: uuid.UUID | None = None,
         visibility: str = "private",
-    ) -> "SavedQuery":
+    ) -> SavedQuery:
         return cls(
             project_id=project_id,
             name=name,
@@ -51,7 +53,7 @@ class SavedQuery(AggregateRoot):
             visibility=visibility,
         )
 
-    def to_snapshot_dict(self) -> dict:
+    def to_snapshot_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
             "project_id": str(self.project_id),

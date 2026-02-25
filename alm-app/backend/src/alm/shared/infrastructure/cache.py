@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import uuid
+from typing import cast
+
 import redis.asyncio as redis
 
 from alm.config.settings import settings
+from alm.shared.domain.ports import IPermissionCache
 
 _pool: redis.ConnectionPool | None = None
 
@@ -20,7 +23,7 @@ def get_redis() -> redis.Redis:
     return redis.Redis(connection_pool=_get_pool())
 
 
-class PermissionCache:
+class PermissionCache(IPermissionCache):
     """Redis-backed cache for user permission resolution.
 
     Key pattern: perm:{tenant_id}:{user_id}
@@ -42,11 +45,9 @@ class PermissionCache:
         data = await self._redis.get(self._key(tenant_id, user_id))
         if data is None:
             return None
-        return json.loads(data)
+        return cast("list[str]", json.loads(data))
 
-    async def set(
-        self, tenant_id: uuid.UUID, user_id: uuid.UUID, codes: list[str]
-    ) -> None:
+    async def set(self, tenant_id: uuid.UUID, user_id: uuid.UUID, codes: list[str]) -> None:
         await self._redis.set(
             self._key(tenant_id, user_id),
             json.dumps(codes),

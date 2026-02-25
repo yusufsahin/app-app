@@ -4,13 +4,27 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from jose import JWTError, jwt
+from jose import JWTError, jwt  # type: ignore[import-untyped]
 
 from alm.config.settings import settings
+from alm.shared.domain.ports import ITokenService
 
 
 class InvalidTokenError(Exception):
     pass
+
+
+class JwtTokenService(ITokenService):
+    """ITokenService implementation using JWT."""
+
+    def create_access_token(self, user_id: uuid.UUID, tenant_id: uuid.UUID, roles: list[str]) -> str:
+        return create_access_token(user_id=user_id, tenant_id=tenant_id, roles=roles)
+
+    def create_refresh_token_value(self) -> str:
+        return create_refresh_token_value()
+
+    def create_temp_token(self, user_id: uuid.UUID) -> str:
+        return create_temp_token(user_id)
 
 
 @dataclass(frozen=True)
@@ -35,7 +49,7 @@ def create_access_token(
         "exp": now + timedelta(minutes=settings.jwt_access_token_expire_minutes),
         "iat": now,
     }
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return str(jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm))
 
 
 def create_temp_token(user_id: uuid.UUID) -> str:
@@ -47,7 +61,7 @@ def create_temp_token(user_id: uuid.UUID) -> str:
         "exp": now + timedelta(minutes=5),
         "iat": now,
     }
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return str(jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm))
 
 
 def create_refresh_token_value() -> str:

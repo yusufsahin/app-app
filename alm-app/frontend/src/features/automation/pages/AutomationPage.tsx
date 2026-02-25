@@ -1,5 +1,9 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useForm, FormProvider } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
+  Box,
   Container,
   Typography,
   Button,
@@ -13,20 +17,12 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  FormControlLabel,
-  Switch,
-  Breadcrumbs,
-  Link as MuiLink,
   Chip,
   Skeleton,
 } from "@mui/material";
-import { ArrowBack, Add, Delete } from "@mui/icons-material";
+import { Add, Delete } from "@mui/icons-material";
 import { useState } from "react";
+import { RhfSelect, RhfSwitch, RhfTextField } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import {
   useWorkflowRules,
@@ -35,14 +31,36 @@ import {
   TRIGGER_EVENT_TYPES,
   type WorkflowRuleCreateRequest,
 } from "../../../shared/api/workflowRuleApi";
+import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import type { ProblemDetail } from "../../../shared/api/types";
 
 const DEFAULT_ACTIONS_JSON = '[{"type": "log", "message": "Rule triggered"}]';
 
+const addRuleSchema = z.object({
+  name: z.string().min(1, "Rule name is required").max(200),
+  trigger_event_type: z.string().min(1),
+  actions_json: z
+    .string()
+    .min(1, "Actions JSON is required")
+    .refine(
+      (s) => {
+        try {
+          const p = JSON.parse(s);
+          return Array.isArray(p);
+        } catch {
+          return false;
+        }
+      },
+      { message: "Must be a valid JSON array, e.g. [{\"type\": \"log\", \"message\": \"Done\"}]" },
+    ),
+  is_active: z.boolean(),
+});
+
+type AddRuleFormValues = z.infer<typeof addRuleSchema>;
+
 export default function AutomationPage() {
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
-  const navigate = useNavigate();
   const { data: projects } = useOrgProjects(orgSlug);
   const project = projects?.find((p) => p.slug === projectSlug);
   const { data: rules = [], isLoading } = useWorkflowRules(orgSlug, project?.id);
@@ -51,44 +69,36 @@ export default function AutomationPage() {
   const showNotification = useNotificationStore((s) => s.showNotification);
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [triggerEventType, setTriggerEventType] = useState("artifact_created");
-  const [actionsJson, setActionsJson] = useState(DEFAULT_ACTIONS_JSON);
-  const [actionsError, setActionsError] = useState("");
-  const [isActive, setIsActive] = useState(true);
+
+  const form = useForm<AddRuleFormValues>({
+    resolver: zodResolver(addRuleSchema),
+    defaultValues: {
+      name: "",
+      trigger_event_type: "artifact_created",
+      actions_json: DEFAULT_ACTIONS_JSON,
+      is_active: true,
+    },
+  });
+  const { reset, handleSubmit, control } = form;
 
   const handleOpenDialog = () => {
-    setName("");
-    setTriggerEventType("artifact_created");
-    setActionsJson(DEFAULT_ACTIONS_JSON);
-    setActionsError("");
-    setIsActive(true);
+    reset({
+      name: "",
+      trigger_event_type: "artifact_created",
+      actions_json: DEFAULT_ACTIONS_JSON,
+      is_active: true,
+    });
     setDialogOpen(true);
   };
 
-  const parseActions = (): Record<string, unknown>[] | null => {
-    try {
-      const parsed = JSON.parse(actionsJson);
-      if (!Array.isArray(parsed)) {
-        setActionsError("Actions must be a JSON array");
-        return null;
-      }
-      setActionsError("");
-      return parsed;
-    } catch {
-      setActionsError("Invalid JSON");
-      return null;
-    }
-  };
-
-  const handleCreate = () => {
-    const actions = parseActions();
-    if (!actions || !name.trim() || !project?.id) return;
+  const onSubmit = (data: AddRuleFormValues) => {
+    if (!project?.id) return;
+    const actions = JSON.parse(data.actions_json) as Record<string, unknown>[];
     const body: WorkflowRuleCreateRequest = {
-      name: name.trim(),
-      trigger_event_type: triggerEventType,
+      name: data.name.trim(),
+      trigger_event_type: data.trigger_event_type,
       actions,
-      is_active: isActive,
+      is_active: data.is_active,
     };
     createRule.mutate(body, {
       onSuccess: () => {
@@ -96,8 +106,8 @@ export default function AutomationPage() {
         showNotification("Workflow rule created", "success");
       },
       onError: (err: Error) => {
-        const body = (err as unknown as { body?: ProblemDetail })?.body;
-        showNotification(body?.detail ?? "Failed to create rule", "error");
+        const errBody = (err as unknown as { body?: ProblemDetail })?.body;
+        showNotification(errBody?.detail ?? "Failed to create rule", "error");
       },
     });
   };
@@ -113,29 +123,13 @@ export default function AutomationPage() {
     });
   };
 
+  if (!project && projectSlug && orgSlug) {
+    return <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />;
+  }
+
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
-      <Button
-        startIcon={<ArrowBack />}
-        onClick={() => navigate(orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "..")}
-        sx={{ mb: 2 }}
-      >
-        Back to project
-      </Button>
-      <Breadcrumbs sx={{ mb: 2 }}>
-        <MuiLink component={Link} to={orgSlug ? `/${orgSlug}` : "#"} underline="hover" color="inherit">
-          {orgSlug ?? "Org"}
-        </MuiLink>
-        <MuiLink
-          component={Link}
-          to={orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "#"}
-          underline="hover"
-          color="inherit"
-        >
-          {project?.name ?? projectSlug}
-        </MuiLink>
-        <Typography color="text.primary">Automation</Typography>
-      </Breadcrumbs>
+      <ProjectBreadcrumbs currentPageLabel="Automation" projectName={project?.name} />
 
       <Typography variant="h4" fontWeight={700} gutterBottom>
         Workflow rules
@@ -188,55 +182,42 @@ export default function AutomationPage() {
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Add workflow rule</DialogTitle>
-        <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          <TextField
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional for modal UX
-            autoFocus
-            label="Rule name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            fullWidth
-            placeholder="e.g. Log new artifacts"
-          />
-          <FormControl fullWidth>
-            <InputLabel>When</InputLabel>
-            <Select
-              label="When"
-              value={triggerEventType}
-              onChange={(e) => setTriggerEventType(e.target.value)}
-            >
-              {TRIGGER_EVENT_TYPES.map((t) => (
-                <MenuItem key={t.value} value={t.value}>
-                  {t.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <TextField
-            label="Actions (JSON array)"
-            value={actionsJson}
-            onChange={(e) => setActionsJson(e.target.value)}
-            fullWidth
-            multiline
-            minRows={4}
-            error={!!actionsError}
-            helperText={actionsError || 'e.g. [{"type": "log", "message": "Done"}]'}
-          />
-          <FormControlLabel
-            control={<Switch checked={isActive} onChange={(_, v) => setIsActive(v)} />}
-            label="Active"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleCreate}
-            disabled={!name.trim() || createRule.isPending}
-          >
-            Create
-          </Button>
-        </DialogActions>
+        <FormProvider {...form}>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+              <RhfTextField<AddRuleFormValues>
+                name="name"
+                label="Rule name"
+                fullWidth
+                placeholder="e.g. Log new artifacts"
+                autoFocus
+              />
+              <RhfSelect<AddRuleFormValues>
+                name="trigger_event_type"
+                control={control}
+                label="When"
+                options={TRIGGER_EVENT_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+              />
+              <RhfTextField<AddRuleFormValues>
+                name="actions_json"
+                label="Actions (JSON array)"
+                fullWidth
+                multiline
+                minRows={4}
+                helperText='e.g. [{"type": "log", "message": "Done"}]'
+              />
+              <RhfSwitch<AddRuleFormValues> name="is_active" control={control} label="Active" />
+            </DialogContent>
+            <DialogActions>
+              <Button type="button" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="contained" disabled={createRule.isPending}>
+                Create
+              </Button>
+            </DialogActions>
+          </Box>
+        </FormProvider>
       </Dialog>
     </Container>
   );

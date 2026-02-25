@@ -1,8 +1,10 @@
 """AreaNode domain entity — project area tree (pamera AreaNode-like)."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from alm.shared.domain.aggregate import AggregateRoot
 
@@ -44,7 +46,7 @@ class AreaNode(AggregateRoot):
         *,
         id: uuid.UUID | None = None,
         sort_order: int = 0,
-    ) -> "AreaNode":
+    ) -> AreaNode:
         name_trim = (name or "").strip()
         if not name_trim:
             raise ValueError("Area node name cannot be empty")
@@ -64,11 +66,11 @@ class AreaNode(AggregateRoot):
         cls,
         project_id: uuid.UUID,
         name: str,
-        parent: "AreaNode",
+        parent: AreaNode,
         *,
         id: uuid.UUID | None = None,
         sort_order: int = 0,
-    ) -> "AreaNode":
+    ) -> AreaNode:
         if parent.project_id != project_id:
             raise ValueError("Parent must belong to the same project")
         name_trim = (name or "").strip()
@@ -106,7 +108,7 @@ class AreaNode(AggregateRoot):
     def set_active(self, is_active: bool) -> None:
         self.is_active = is_active
 
-    def to_snapshot_dict(self) -> dict:
+    def to_snapshot_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
             "project_id": str(self.project_id),

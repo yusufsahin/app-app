@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import EntityNotFound, ValidationError
+from alm.shared.domain.ports import IPermissionCache
 from alm.tenant.domain.ports import MembershipRepository
 
 
@@ -17,14 +18,17 @@ class RevokeRole(Command):
 
 
 class RevokeRoleHandler(CommandHandler[None]):
-    def __init__(self, membership_repo: MembershipRepository) -> None:
+    def __init__(
+        self,
+        membership_repo: MembershipRepository,
+        permission_cache: IPermissionCache,
+    ) -> None:
         self._membership_repo = membership_repo
+        self._permission_cache = permission_cache
 
     async def handle(self, command: Command) -> None:
         assert isinstance(command, RevokeRole)
-        membership = await self._membership_repo.find_by_user_and_tenant(
-            command.user_id, command.tenant_id
-        )
+        membership = await self._membership_repo.find_by_user_and_tenant(command.user_id, command.tenant_id)
         if membership is None:
             raise EntityNotFound("TenantMembership", command.user_id)
 
@@ -37,9 +41,7 @@ class RevokeRoleHandler(CommandHandler[None]):
 
         await self._membership_repo.remove_role(membership.id, command.role_id)
 
-        from alm.shared.infrastructure.cache import PermissionCache
-
         try:
-            await PermissionCache().invalidate_user(command.tenant_id, command.user_id)
+            await self._permission_cache.invalidate_user(command.tenant_id, command.user_id)
         except Exception:
             pass

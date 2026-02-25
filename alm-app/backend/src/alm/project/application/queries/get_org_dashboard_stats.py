@@ -1,12 +1,13 @@
 """Dashboard stats for an org (tenant): projects, artifacts, tasks, open defects."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
-from alm.project.domain.ports import ProjectRepository
 from alm.artifact.domain.ports import ArtifactRepository
+from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.query import Query, QueryHandler
 from alm.task.domain.ports import TaskRepository
 
 
@@ -41,9 +42,7 @@ class GetOrgDashboardStatsHandler(QueryHandler[OrgDashboardStatsResult]):
         project_ids = [p.id for p in projects]
 
         artifacts = await self._artifact_repo.count_by_project_ids(project_ids)
-        open_defects = await self._artifact_repo.count_open_defects_by_project_ids(
-            project_ids
-        )
+        open_defects = await self._artifact_repo.count_open_defects_by_project_ids(project_ids)
         tasks = await self._task_repo.count_by_project_ids(project_ids)
 
         return OrgDashboardStatsResult(

@@ -1,8 +1,10 @@
 """Comment domain entity — artifact-linked note."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from alm.shared.domain.aggregate import AggregateRoot
 
@@ -38,7 +40,7 @@ class Comment(AggregateRoot):
         created_by: uuid.UUID,
         *,
         id: uuid.UUID | None = None,
-    ) -> "Comment":
+    ) -> Comment:
         return cls(
             project_id=project_id,
             artifact_id=artifact_id,
@@ -47,7 +49,7 @@ class Comment(AggregateRoot):
             id=id,
         )
 
-    def to_snapshot_dict(self) -> dict:
+    def to_snapshot_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
             "project_id": str(self.project_id),

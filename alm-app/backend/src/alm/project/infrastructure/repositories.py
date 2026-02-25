@@ -5,12 +5,12 @@ import uuid
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from alm.shared.application.mediator import buffer_events
-from alm.shared.audit.core import ChangeType
-from alm.shared.audit.interceptor import buffer_audit
 from alm.project.domain.entities import Project
 from alm.project.domain.ports import ProjectRepository
 from alm.project.infrastructure.models import ProjectModel
+from alm.shared.application.mediator import buffer_events
+from alm.shared.audit.core import ChangeType
+from alm.shared.audit.interceptor import buffer_audit
 
 
 class SqlAlchemyProjectRepository(ProjectRepository):
@@ -27,9 +27,7 @@ class SqlAlchemyProjectRepository(ProjectRepository):
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
-    async def find_by_tenant_and_slug(
-        self, tenant_id: uuid.UUID, slug: str
-    ) -> Project | None:
+    async def find_by_tenant_and_slug(self, tenant_id: uuid.UUID, slug: str) -> Project | None:
         result = await self._session.execute(
             select(ProjectModel).where(
                 ProjectModel.tenant_id == tenant_id,
@@ -40,9 +38,7 @@ class SqlAlchemyProjectRepository(ProjectRepository):
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
-    async def find_by_tenant_and_code(
-        self, tenant_id: uuid.UUID, code: str
-    ) -> Project | None:
+    async def find_by_tenant_and_code(self, tenant_id: uuid.UUID, code: str) -> Project | None:
         result = await self._session.execute(
             select(ProjectModel).where(
                 ProjectModel.tenant_id == tenant_id,
@@ -55,10 +51,12 @@ class SqlAlchemyProjectRepository(ProjectRepository):
 
     async def list_by_tenant(self, tenant_id: uuid.UUID) -> list[Project]:
         result = await self._session.execute(
-            select(ProjectModel).where(
+            select(ProjectModel)
+            .where(
                 ProjectModel.tenant_id == tenant_id,
                 ProjectModel.deleted_at.is_(None),
-            ).order_by(ProjectModel.name)
+            )
+            .order_by(ProjectModel.name)
         )
         models = result.scalars().all()
         return [self._to_entity(m) for m in models]
@@ -73,7 +71,7 @@ class SqlAlchemyProjectRepository(ProjectRepository):
         row = result.one_or_none()
         if row is None:
             raise ValueError(f"Project {project_id} not found")
-        return row[0]
+        return int(row[0])
 
     async def add(self, project: Project) -> Project:
         model = ProjectModel(

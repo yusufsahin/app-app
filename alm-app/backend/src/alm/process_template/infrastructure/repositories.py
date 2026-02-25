@@ -1,4 +1,5 @@
 """Process template SQLAlchemy repository."""
+
 from __future__ import annotations
 
 import uuid
@@ -19,26 +20,18 @@ class SqlAlchemyProcessTemplateRepository(ProcessTemplateRepository):
         self._session = session
 
     async def find_all(self) -> list[ProcessTemplate]:
-        result = await self._session.execute(
-            select(ProcessTemplateModel).order_by(ProcessTemplateModel.name)
-        )
+        result = await self._session.execute(select(ProcessTemplateModel).order_by(ProcessTemplateModel.name))
         models = result.scalars().all()
         return [self._to_entity(m) for m in models]
 
     async def find_by_id(self, template_id: uuid.UUID) -> ProcessTemplate | None:
-        result = await self._session.execute(
-            select(ProcessTemplateModel).where(ProcessTemplateModel.id == template_id)
-        )
+        result = await self._session.execute(select(ProcessTemplateModel).where(ProcessTemplateModel.id == template_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
-    async def find_version_by_id(
-        self, version_id: uuid.UUID
-    ) -> ProcessTemplateVersion | None:
+    async def find_version_by_id(self, version_id: uuid.UUID) -> ProcessTemplateVersion | None:
         result = await self._session.execute(
-            select(ProcessTemplateVersionModel).where(
-                ProcessTemplateVersionModel.id == version_id
-            )
+            select(ProcessTemplateVersionModel).where(ProcessTemplateVersionModel.id == version_id)
         )
         model = result.scalar_one_or_none()
         return self._to_version_entity(model) if model else None
@@ -46,9 +39,7 @@ class SqlAlchemyProcessTemplateRepository(ProcessTemplateRepository):
     async def find_default_version(self) -> ProcessTemplateVersion | None:
         return await self.find_version_by_template_slug("basic")
 
-    async def find_version_by_template_slug(
-        self, template_slug: str
-    ) -> ProcessTemplateVersion | None:
+    async def find_version_by_template_slug(self, template_slug: str) -> ProcessTemplateVersion | None:
         result = await self._session.execute(
             select(ProcessTemplateVersionModel)
             .join(

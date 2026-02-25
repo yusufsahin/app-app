@@ -1,7 +1,7 @@
 """Local filesystem file storage for attachments."""
+
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from alm.attachment.domain.ports import FileStoragePort

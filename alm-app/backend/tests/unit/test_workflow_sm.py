@@ -1,7 +1,6 @@
 """Unit tests for Statelesspy workflow adapter."""
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from alm.artifact.domain.workflow_sm import (
     get_initial_state,
@@ -102,9 +101,7 @@ class TestWorkflowSm:
                 {"kind": "ArtifactType", "id": "req", "workflow_id": "w"},
             ],
         }
-        permitted_no_assignee = get_permitted_triggers(
-            manifest, "req", "new", entity_snapshot={"assignee_id": None}
-        )
+        permitted_no_assignee = get_permitted_triggers(manifest, "req", "new", entity_snapshot={"assignee_id": None})
         assert len(permitted_no_assignee) == 0
         permitted_with_assignee = get_permitted_triggers(
             manifest, "req", "new", entity_snapshot={"assignee_id": "user-1"}

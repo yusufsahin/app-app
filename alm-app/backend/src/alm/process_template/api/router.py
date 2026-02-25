@@ -1,14 +1,13 @@
 """Process template API router."""
+
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends
 
 from alm.config.dependencies import get_mediator
-from alm.shared.application.mediator import Mediator
-from alm.shared.domain.exceptions import EntityNotFound
-from alm.shared.infrastructure.security.dependencies import require_permission
 from alm.process_template.application.queries.get_process_template import GetProcessTemplate
 from alm.process_template.application.queries.get_process_template_version import (
     GetProcessTemplateVersion,
@@ -16,15 +15,18 @@ from alm.process_template.application.queries.get_process_template_version impor
 from alm.process_template.application.queries.list_process_templates import (
     ListProcessTemplates,
 )
+from alm.shared.application.mediator import Mediator
+from alm.shared.domain.exceptions import EntityNotFound
+from alm.shared.infrastructure.security.dependencies import require_permission
 
 router = APIRouter(prefix="/process-templates", tags=["process-templates"])
 
 
 @router.get("/")
 async def list_process_templates(
-    user=require_permission("project:read"),
+    user: Any = require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """List all available process templates (global catalog)."""
     templates = await mediator.query(ListProcessTemplates())
     return [
@@ -44,9 +46,9 @@ async def list_process_templates(
 @router.get("/{template_id}")
 async def get_process_template(
     template_id: uuid.UUID,
-    user=require_permission("project:read"),
+    user: Any = require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
-) -> dict:
+) -> dict[str, Any]:
     """Get a process template by ID."""
     template = await mediator.query(GetProcessTemplate(template_id=template_id))
     if template is None:
@@ -65,9 +67,9 @@ async def get_process_template(
 @router.get("/versions/{version_id}")
 async def get_process_template_version(
     version_id: uuid.UUID,
-    user=require_permission("project:read"),
+    user: Any = require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
-) -> dict:
+) -> dict[str, Any]:
     """Get a process template version by ID (includes manifest_bundle)."""
     version = await mediator.query(GetProcessTemplateVersion(version_id=version_id))
     if version is None:

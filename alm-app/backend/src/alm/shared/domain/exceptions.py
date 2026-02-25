@@ -20,7 +20,7 @@ class EntityNotFound(DomainException):
     error_type = "/errors/entity-not-found"
     title = "Entity Not Found"
 
-    def __init__(self, entity_type: str, entity_id: uuid.UUID) -> None:
+    def __init__(self, entity_type: str, entity_id: uuid.UUID | str) -> None:
         super().__init__(f"{entity_type} with id '{entity_id}' does not exist or has been deleted.")
 
 

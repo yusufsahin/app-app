@@ -1,7 +1,9 @@
 """Artifact SQLAlchemy model."""
+
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from sqlalchemy import Float, ForeignKey, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
@@ -12,9 +14,7 @@ from alm.shared.infrastructure.db.base_model import Base, SoftDeleteMixin, Times
 
 class ArtifactModel(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "artifacts"
-    __table_args__ = (
-        UniqueConstraint("project_id", "artifact_key", name="uq_artifact_project_key"),
-    )
+    __table_args__ = (UniqueConstraint("project_id", "artifact_key", name="uq_artifact_project_key"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     artifact_key: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
@@ -34,9 +34,7 @@ class ArtifactModel(Base, TimestampMixin, SoftDeleteMixin):
         nullable=True,
         index=True,
     )
-    custom_fields: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True, server_default="{}"
-    )
+    custom_fields: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, server_default="{}")
     state_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     resolution: Mapped[str | None] = mapped_column(String(100), nullable=True)
     rank_order: Mapped[float | None] = mapped_column(Float, nullable=True)

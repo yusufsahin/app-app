@@ -4,16 +4,37 @@ from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from alm.shared.application.mediator import Mediator
-from alm.shared.audit.interceptor import ACTOR_ID_KEY, TENANT_ID_KEY
-from alm.shared.infrastructure.db.session import async_session_factory
-from alm.shared.infrastructure.security.jwt import InvalidTokenError, decode_token
+from alm.artifact.infrastructure.manifest_acl_adapter import ManifestACLCheckerAdapter
+from alm.artifact.infrastructure.manifest_flattener import ManifestDefsFlattenerAdapter
 from alm.attachment.domain.ports import FileStoragePort
 from alm.attachment.infrastructure.file_storage import LocalFileStorage
 from alm.config.settings import settings
+from alm.shared.application.mediator import Mediator
+from alm.shared.audit.interceptor import ACTOR_ID_KEY, TENANT_ID_KEY
+from alm.shared.domain.ports import IManifestACLChecker, IManifestDefsFlattener
+from alm.shared.infrastructure.db.session import async_session_factory
+from alm.shared.infrastructure.security.jwt import InvalidTokenError, decode_token
 
 _optional_bearer = HTTPBearer(auto_error=False)
 _file_storage: FileStoragePort | None = None
+_manifest_flattener: IManifestDefsFlattener | None = None
+_manifest_acl_checker: IManifestACLChecker | None = None
+
+
+def get_manifest_acl_checker() -> IManifestACLChecker:
+    """Singleton manifest ACL checker (used by require_manifest_acl dependency)."""
+    global _manifest_acl_checker
+    if _manifest_acl_checker is None:
+        _manifest_acl_checker = ManifestACLCheckerAdapter()
+    return _manifest_acl_checker
+
+
+def get_manifest_flattener() -> IManifestDefsFlattener:
+    """Singleton manifest defs flattener (used by FormSchema handlers and orgs API)."""
+    global _manifest_flattener
+    if _manifest_flattener is None:
+        _manifest_flattener = ManifestDefsFlattenerAdapter()
+    return _manifest_flattener
 
 
 def get_file_storage() -> FileStoragePort:

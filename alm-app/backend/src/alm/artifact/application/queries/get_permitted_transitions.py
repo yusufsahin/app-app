@@ -1,15 +1,16 @@
 """Get permitted workflow transitions for an artifact (by current state)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
-from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.mpc_resolver import get_manifest_ast
+from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.workflow_sm import get_permitted_triggers
-from alm.project.domain.ports import ProjectRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)
@@ -51,9 +52,7 @@ class GetPermittedTransitionsHandler(QueryHandler[list[PermittedTransitionDTO]])
         if project.process_template_version_id is None:
             return []
 
-        version = await self._process_template_repo.find_version_by_id(
-            project.process_template_version_id
-        )
+        version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
         if version is None:
             return []
 

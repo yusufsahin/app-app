@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from alm.admin.infrastructure.access_audit_store import AccessAuditStore
 from alm.auth.api.schemas import (
     ChangePasswordRequest,
     LoginRequest,
@@ -26,7 +27,6 @@ from alm.auth.application.commands.switch_tenant import SwitchTenant
 from alm.auth.application.dtos import CurrentUserDTO, LoginResultDTO, TokenPairDTO
 from alm.auth.application.queries.get_current_user import GetCurrentUser
 from alm.config.dependencies import get_mediator
-from alm.admin.infrastructure.access_audit_store import AccessAuditStore
 from alm.shared.application.mediator import Mediator
 from alm.shared.domain.exceptions import AccessDenied, ValidationError
 from alm.shared.infrastructure.security.dependencies import CurrentUser, get_current_user
@@ -89,9 +89,7 @@ async def login(
     client_host = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
     try:
-        result: LoginResultDTO = await mediator.send(
-            Login(email=body.email, password=body.password)
-        )
+        result: LoginResultDTO = await mediator.send(Login(email=body.email, password=body.password))
         await access_audit.record_login_success(body.email, client_host, user_agent)
         if result.token_pair is not None:
             return LoginResponse(
@@ -153,9 +151,7 @@ async def switch_tenant(
     user_id: uuid.UUID = Depends(_get_token_user_id),
     mediator: Mediator = Depends(get_mediator),
 ) -> TokenResponse:
-    result: TokenPairDTO = await mediator.send(
-        SwitchTenant(user_id=user_id, tenant_id=body.tenant_id)
-    )
+    result: TokenPairDTO = await mediator.send(SwitchTenant(user_id=user_id, tenant_id=body.tenant_id))
     return TokenResponse(
         access_token=result.access_token,
         refresh_token=result.refresh_token,
@@ -168,9 +164,7 @@ async def get_me(
     user: CurrentUser = Depends(get_current_user),
     mediator: Mediator = Depends(get_mediator),
 ) -> UserResponse:
-    dto: CurrentUserDTO = await mediator.query(
-        GetCurrentUser(user_id=user.id, tenant_id=user.tenant_id)
-    )
+    dto: CurrentUserDTO = await mediator.query(GetCurrentUser(user_id=user.id, tenant_id=user.tenant_id))
     return UserResponse(
         id=dto.id,
         email=dto.email,

@@ -1,15 +1,17 @@
 """Create workflow rule."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
+from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
 from alm.workflow_rule.application.dtos import WorkflowRuleDTO
-from alm.workflow_rule.domain.entities import WorkflowRule, TRIGGER_EVENT_TYPES
+from alm.workflow_rule.domain.entities import TRIGGER_EVENT_TYPES, WorkflowRule
 from alm.workflow_rule.domain.ports import WorkflowRuleRepository
-from alm.project.domain.ports import ProjectRepository
 
 
 @dataclass(frozen=True)
@@ -18,7 +20,7 @@ class CreateWorkflowRule(Command):
     project_id: uuid.UUID
     name: str
     trigger_event_type: str
-    actions: list[dict]
+    actions: list[dict[str, Any]]
     condition_expression: str | None = None
     is_active: bool = True
 
@@ -55,7 +57,9 @@ class CreateWorkflowRuleHandler(CommandHandler[WorkflowRuleDTO]):
             name=name,
             trigger_event_type=trigger,
             actions=command.actions,
-            condition_expression=(command.condition_expression.strip() or None) if command.condition_expression else None,
+            condition_expression=(command.condition_expression.strip() or None)
+            if command.condition_expression
+            else None,
             is_active=command.is_active,
         )
         await self._workflow_rule_repo.add(rule)

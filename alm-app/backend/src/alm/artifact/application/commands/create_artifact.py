@@ -1,22 +1,24 @@
 """Create artifact command."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
+from alm.area.domain.ports import AreaRepository
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.entities import Artifact
-from alm.artifact.domain.ports import ArtifactRepository
-from alm.area.domain.ports import AreaRepository
 from alm.artifact.domain.mpc_resolver import (
     get_manifest_ast,
     is_valid_parent_child,
 )
+from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
-from alm.project.domain.ports import ProjectRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)
@@ -28,7 +30,7 @@ class CreateArtifact(Command):
     description: str = ""
     parent_id: uuid.UUID | None = None
     assignee_id: uuid.UUID | None = None
-    custom_fields: dict | None = None
+    custom_fields: dict[str, Any] | None = None
     artifact_key: str | None = None
     rank_order: float | None = None
     cycle_node_id: uuid.UUID | None = None
@@ -59,9 +61,7 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
         if project.process_template_version_id is None:
             raise ValidationError("Project has no process template")
 
-        version = await self._process_template_repo.find_version_by_id(
-            project.process_template_version_id
-        )
+        version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
         if version is None:
             raise ValidationError("Process template version not found")
 
@@ -69,19 +69,13 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
         ast = get_manifest_ast(version.id, manifest)
         initial_state = workflow_get_initial_state(manifest, command.artifact_type, ast=ast)
         if initial_state is None:
-            raise ValidationError(
-                f"Artifact type '{command.artifact_type}' not defined in manifest"
-            )
+            raise ValidationError(f"Artifact type '{command.artifact_type}' not defined in manifest")
 
         if command.parent_id is not None:
             parent = await self._artifact_repo.find_by_id(command.parent_id)
             if parent is None or parent.project_id != command.project_id:
-                raise ValidationError(
-                    "Parent artifact not found or belongs to another project"
-                )
-            if not is_valid_parent_child(
-                manifest, parent.artifact_type, command.artifact_type, ast=ast
-            ):
+                raise ValidationError("Parent artifact not found or belongs to another project")
+            if not is_valid_parent_child(manifest, parent.artifact_type, command.artifact_type, ast=ast):
                 raise ValidationError(
                     f"Artifact type '{command.artifact_type}' cannot be child of "
                     f"'{parent.artifact_type}' per manifest hierarchy"

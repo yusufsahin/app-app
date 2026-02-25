@@ -1,4 +1,5 @@
 """Integration tests for tenant management flow."""
+
 from __future__ import annotations
 
 import pytest

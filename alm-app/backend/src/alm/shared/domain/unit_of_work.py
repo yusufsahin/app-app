@@ -3,6 +3,7 @@
 Coordinates the work of repositories and ensures transactional consistency.
 All changes within a UoW are committed or rolled back atomically.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -27,6 +28,6 @@ class IUnitOfWork(ABC):
 
     @property
     @abstractmethod
-    def session(self) -> "AsyncSession":
+    def session(self) -> AsyncSession:
         """Underlying session for repository implementations."""
         ...

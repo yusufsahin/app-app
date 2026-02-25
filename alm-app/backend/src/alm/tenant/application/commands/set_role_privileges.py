@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import EntityNotFound
+from alm.shared.domain.ports import IPermissionCache
 from alm.tenant.application.dtos import PrivilegeDTO, RoleDetailDTO
 from alm.tenant.domain.ports import PrivilegeRepository, RoleRepository
 
@@ -21,9 +22,11 @@ class SetRolePrivilegesHandler(CommandHandler[RoleDetailDTO]):
         self,
         role_repo: RoleRepository,
         privilege_repo: PrivilegeRepository,
+        permission_cache: IPermissionCache,
     ) -> None:
         self._role_repo = role_repo
         self._privilege_repo = privilege_repo
+        self._permission_cache = permission_cache
 
     async def handle(self, command: Command) -> RoleDetailDTO:
         assert isinstance(command, SetRolePrivileges)
@@ -44,18 +47,18 @@ class SetRolePrivilegesHandler(CommandHandler[RoleDetailDTO]):
         for pid in command.privilege_ids:
             priv = await self._privilege_repo.find_by_id(pid)
             if priv is not None:
-                privileges.append(PrivilegeDTO(
-                    id=priv.id,
-                    code=priv.code,
-                    resource=priv.resource,
-                    action=priv.action,
-                    description=priv.description,
-                ))
-
-        from alm.shared.infrastructure.cache import PermissionCache
+                privileges.append(
+                    PrivilegeDTO(
+                        id=priv.id,
+                        code=priv.code,
+                        resource=priv.resource,
+                        action=priv.action,
+                        description=priv.description,
+                    )
+                )
 
         try:
-            await PermissionCache().invalidate_tenant(role.tenant_id)
+            await self._permission_cache.invalidate_tenant(role.tenant_id)
         except Exception:
             pass
 

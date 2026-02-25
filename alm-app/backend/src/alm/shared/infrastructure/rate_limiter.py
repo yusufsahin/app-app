@@ -1,4 +1,5 @@
 """Tenant-scoped rate limiter using Redis sliding window (Faz D2)."""
+
 from __future__ import annotations
 
 import time

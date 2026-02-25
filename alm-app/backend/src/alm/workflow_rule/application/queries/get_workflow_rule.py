@@ -1,4 +1,5 @@
 """Get single workflow rule by id."""
+
 from __future__ import annotations
 
 import uuid

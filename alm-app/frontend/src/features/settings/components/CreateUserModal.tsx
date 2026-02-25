@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -6,15 +6,11 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Button,
   CircularProgress,
   Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from "@mui/material";
+import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useCreateAdminUser } from "../../../shared/api/adminApi";
 import { useOrgRoles } from "../../../shared/api/orgApi";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
@@ -39,18 +35,12 @@ export default function CreateUserModal({ open, onClose, orgSlug }: CreateUserMo
   const createMutation = useCreateAdminUser();
   const showNotification = useNotificationStore((s) => s.showNotification);
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    reset,
-    formState: { errors },
-  } = useForm<FormData>({
+  const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { email: "", password: "", display_name: "", role_slug: "member" },
   });
-  const roleSlug = watch("role_slug");
+  const { control, handleSubmit, reset } = form;
+  const roleOptions = roles.map((r) => ({ value: r.slug, label: r.name }));
 
   const handleClose = () => {
     reset();
@@ -78,72 +68,57 @@ export default function CreateUserModal({ open, onClose, orgSlug }: CreateUserMo
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <DialogTitle fontWeight={600}>Create User</DialogTitle>
-        <DialogContent>
-          {createMutation.isError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              Failed to create user. Please try again.
-            </Alert>
-          )}
-          <TextField
-            {...register("email")}
-            label="Email"
-            type="email"
-            fullWidth
-            margin="normal"
-            error={!!errors.email}
-            helperText={errors.email?.message}
-            autoComplete="email"
-          />
-          <TextField
-            {...register("password")}
-            label="Password"
-            type="password"
-            fullWidth
-            margin="normal"
-            error={!!errors.password}
-            helperText={errors.password?.message}
-            autoComplete="new-password"
-          />
-          <TextField
-            {...register("display_name")}
-            label="Display name (optional)"
-            fullWidth
-            margin="normal"
-          />
-          <FormControl fullWidth margin="normal" error={!!errors.role_slug}>
-            <InputLabel>Role</InputLabel>
-            <Select
-              label="Role"
-              value={roleSlug ?? "member"}
-              onChange={(e) => setValue("role_slug", e.target.value)}
-            >
-              {roles.map((r) => (
-                <MenuItem key={r.id} value={r.slug}>
-                  {r.name}
-                </MenuItem>
-              ))}
-            </Select>
-            {errors.role_slug && (
-              <Alert severity="error" sx={{ mt: 1 }}>
-                {errors.role_slug.message}
+      <FormProvider {...form}>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate>
+          <DialogTitle fontWeight={600}>Create User</DialogTitle>
+          <DialogContent>
+            {createMutation.isError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                Failed to create user. Please try again.
               </Alert>
             )}
-          </FormControl>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleClose}>Cancel</Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={createMutation.isPending}
-            startIcon={createMutation.isPending ? <CircularProgress size={16} /> : null}
-          >
-            Create
-          </Button>
-        </DialogActions>
-      </form>
+            <RhfTextField<FormData>
+              name="email"
+              label="Email"
+              type="email"
+              fullWidth
+              margin="normal"
+              autoComplete="email"
+            />
+            <RhfTextField<FormData>
+              name="password"
+              label="Password"
+              type="password"
+              fullWidth
+              margin="normal"
+              autoComplete="new-password"
+            />
+            <RhfTextField<FormData>
+              name="display_name"
+              label="Display name (optional)"
+              fullWidth
+              margin="normal"
+            />
+            <RhfSelect<FormData>
+              name="role_slug"
+              control={control}
+              label="Role"
+              options={roleOptions}
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={handleClose}>Cancel</Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={createMutation.isPending}
+              startIcon={createMutation.isPending ? <CircularProgress size={16} /> : null}
+            >
+              Create
+            </Button>
+          </DialogActions>
+        </form>
+      </FormProvider>
     </Dialog>
   );
 }

@@ -1,23 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { useForm, FormProvider } from "react-hook-form";
 import {
   Container,
   Typography,
   Button,
   Box,
-  TextField,
   Card,
   CardContent,
   Breadcrumbs,
   Link as MuiLink,
 } from "@mui/material";
 import { ArrowBack, AccountTree, Folder, Settings, CalendarMonth, AutoAwesome, ViewColumn } from "@mui/icons-material";
+import { RhfDescriptionField, RhfTextField } from "../../../shared/components/forms";
+import { ProjectNotFoundView } from "../../../shared/components/Layout";
 import {
   useOrgProjects,
   useUpdateOrgProject,
 } from "../../../shared/api/orgApi";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
+
+type SettingsFormValues = {
+  name: string;
+  description: string;
+  status: string;
+};
 
 export default function ProjectDetailPage() {
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
@@ -30,9 +38,10 @@ export default function ProjectDetailPage() {
   const updateProject = useUpdateOrgProject(orgSlug, project?.id);
   const showNotification = useNotificationStore((s) => s.showNotification);
 
-  const [settingsName, setSettingsName] = useState("");
-  const [settingsDescription, setSettingsDescription] = useState("");
-  const [settingsStatus, setSettingsStatus] = useState("");
+  const form = useForm<SettingsFormValues>({
+    defaultValues: { name: "", description: "", status: "" },
+  });
+  const { reset, handleSubmit, control } = form;
 
   useEffect(() => {
     if (project) setCurrentProject(project);
@@ -41,25 +50,31 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (project) {
-      setSettingsName(project.name ?? "");
-      setSettingsDescription(project.description ?? "");
-      setSettingsStatus(project.status ?? "");
+      reset({
+        name: project.name ?? "",
+        description: project.description ?? "",
+        status: project.status ?? "",
+      });
     }
-  }, [project]);
+  }, [project, reset]);
 
-  const handleSaveSettings = () => {
+  const onSaveSettings = (data: SettingsFormValues) => {
     if (!project?.id) return;
     updateProject.mutate(
       {
-        name: settingsName.trim() || undefined,
-        description: settingsDescription,
-        status: settingsStatus.trim() || undefined,
+        name: data.name.trim() || undefined,
+        description: data.description,
+        status: data.status.trim() || undefined,
       },
       {
         onSuccess: () => showNotification("Project updated successfully"),
       },
     );
   };
+
+  if (!project && projectSlug && orgSlug) {
+    return <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />;
+  }
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -142,47 +157,45 @@ export default function ProjectDetailPage() {
                 <Settings fontSize="small" />
                 Settings
               </Typography>
-              <TextField
-                label="Name"
-                fullWidth
-                size="small"
-                value={settingsName}
-                onChange={(e) => setSettingsName(e.target.value)}
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                label="Description"
-                fullWidth
-                size="small"
-                multiline
-                minRows={2}
-                value={settingsDescription}
-                onChange={(e) => setSettingsDescription(e.target.value)}
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                label="Status"
-                fullWidth
-                size="small"
-                placeholder="e.g. active, on-hold"
-                value={settingsStatus}
-                onChange={(e) => setSettingsStatus(e.target.value)}
-                sx={{ mb: 2 }}
-              />
-              <Button
-                variant="contained"
-                onClick={handleSaveSettings}
-                disabled={updateProject.isPending}
-              >
-                Save
-              </Button>
+              <FormProvider {...form}>
+                <Box component="form" onSubmit={handleSubmit(onSaveSettings)} noValidate>
+                  <RhfTextField<SettingsFormValues>
+                    name="name"
+                    label="Name"
+                    fullWidth
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                  <Box sx={{ mb: 2 }}>
+                    <RhfDescriptionField<SettingsFormValues>
+                      name="description"
+                      control={control}
+                      mode="text"
+                      label="Description"
+                      allowModeSwitch
+                      rows={4}
+                    />
+                  </Box>
+                  <RhfTextField<SettingsFormValues>
+                    name="status"
+                    label="Status"
+                    fullWidth
+                    size="small"
+                    placeholder="e.g. active, on-hold"
+                    sx={{ mb: 2 }}
+                  />
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={updateProject.isPending}
+                  >
+                    Save
+                  </Button>
+                </Box>
+              </FormProvider>
             </CardContent>
           </Card>
         </Box>
-      ) : projectSlug ? (
-        <Typography color="text.secondary">
-          Project &quot;{projectSlug}&quot; not found.
-        </Typography>
       ) : (
         <Typography color="text.secondary">No project selected.</Typography>
       )}

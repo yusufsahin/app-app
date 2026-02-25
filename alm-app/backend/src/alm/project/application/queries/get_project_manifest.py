@@ -1,12 +1,14 @@
 """Get manifest bundle for a project's process template version."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
-from alm.shared.application.query import Query, QueryHandler
-from alm.project.domain.ports import ProjectRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)
@@ -19,7 +21,7 @@ class GetProjectManifest(Query):
 class ProjectManifestResult:
     """Manifest for a project's process template version."""
 
-    manifest_bundle: dict
+    manifest_bundle: dict[str, Any]
     template_name: str
     template_slug: str
     version: str
@@ -44,9 +46,7 @@ class GetProjectManifestHandler(QueryHandler[ProjectManifestResult | None]):
         if project.process_template_version_id is None:
             return None
 
-        version = await self._process_template_repo.find_version_by_id(
-            project.process_template_version_id
-        )
+        version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
         if version is None:
             return None
 

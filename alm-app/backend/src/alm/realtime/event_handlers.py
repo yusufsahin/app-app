@@ -1,13 +1,14 @@
 """Publish domain events to Redis for real-time WebSocket delivery."""
+
 from __future__ import annotations
 
 import uuid
 
 from alm.artifact.domain.events import ArtifactStateChanged
-from alm.shared.domain.events import DomainEvent
-from alm.shared.infrastructure.db.session import async_session_factory
 from alm.project.infrastructure.repositories import SqlAlchemyProjectRepository
 from alm.realtime.pubsub import publish_event
+from alm.shared.domain.events import DomainEvent
+from alm.shared.infrastructure.db.session import async_session_factory
 
 
 async def on_artifact_state_changed_realtime(event: DomainEvent) -> None:

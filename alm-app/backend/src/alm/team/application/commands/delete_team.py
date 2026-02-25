@@ -1,13 +1,14 @@
 """Delete team (P6)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
+from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
 from alm.team.domain.ports import TeamRepository
-from alm.project.domain.ports import ProjectRepository
 
 
 @dataclass(frozen=True)

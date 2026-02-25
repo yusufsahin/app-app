@@ -1,8 +1,10 @@
 """Attachment domain entity — file linked to an artifact."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from alm.shared.domain.aggregate import AggregateRoot
 
@@ -45,7 +47,7 @@ class Attachment(AggregateRoot):
         created_by: uuid.UUID | None,
         *,
         id: uuid.UUID | None = None,
-    ) -> "Attachment":
+    ) -> Attachment:
         return cls(
             project_id=project_id,
             artifact_id=artifact_id,
@@ -57,7 +59,7 @@ class Attachment(AggregateRoot):
             id=id,
         )
 
-    def to_snapshot_dict(self) -> dict:
+    def to_snapshot_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
             "project_id": str(self.project_id),

@@ -1,20 +1,32 @@
-"""WorkflowRule repository port."""
+"""WorkflowRule repository and runner ports."""
+
 from __future__ import annotations
 
 import uuid
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
+from alm.shared.domain.events import DomainEvent
 from alm.workflow_rule.domain.entities import WorkflowRule
+
+
+class IWorkflowRuleRunner(ABC):
+    """Port for running workflow rules in response to domain events. Implemented in infrastructure."""
+
+    @abstractmethod
+    async def run(
+        self,
+        project_id: uuid.UUID,
+        trigger_event_type: str,
+        event: DomainEvent,
+    ) -> None: ...
 
 
 class WorkflowRuleRepository:
     @abstractmethod
-    async def find_by_id(self, rule_id: uuid.UUID) -> WorkflowRule | None:
-        ...
+    async def find_by_id(self, rule_id: uuid.UUID) -> WorkflowRule | None: ...
 
     @abstractmethod
-    async def list_by_project(self, project_id: uuid.UUID) -> list[WorkflowRule]:
-        ...
+    async def list_by_project(self, project_id: uuid.UUID) -> list[WorkflowRule]: ...
 
     @abstractmethod
     async def list_active_by_trigger(self, project_id: uuid.UUID, trigger_event_type: str) -> list[WorkflowRule]:
@@ -22,13 +34,10 @@ class WorkflowRuleRepository:
         ...
 
     @abstractmethod
-    async def add(self, rule: WorkflowRule) -> WorkflowRule:
-        ...
+    async def add(self, rule: WorkflowRule) -> WorkflowRule: ...
 
     @abstractmethod
-    async def update(self, rule: WorkflowRule) -> WorkflowRule:
-        ...
+    async def update(self, rule: WorkflowRule) -> WorkflowRule: ...
 
     @abstractmethod
-    async def delete(self, rule_id: uuid.UUID) -> bool:
-        ...
+    async def delete(self, rule_id: uuid.UUID) -> bool: ...

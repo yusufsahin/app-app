@@ -5,17 +5,16 @@ import uuid
 from fastapi import APIRouter, Depends, status
 
 from alm.config.dependencies import get_mediator
-from alm.shared.application.mediator import Mediator
-from alm.shared.domain.exceptions import AccessDenied, EntityNotFound
-from alm.shared.infrastructure.security.dependencies import (
-    CurrentUser,
-    get_current_user,
-    require_permission,
-)
 from alm.project.api.schemas import ProjectCreateRequest, ProjectResponse
 from alm.project.application.commands.create_project import CreateProject
 from alm.project.application.queries.get_project import GetProject
 from alm.project.application.queries.list_projects import ListProjects
+from alm.shared.application.mediator import Mediator
+from alm.shared.domain.exceptions import AccessDenied, EntityNotFound
+from alm.shared.infrastructure.security.dependencies import (
+    CurrentUser,
+    require_permission,
+)
 
 router = APIRouter(prefix="/{tenant_id}/projects", tags=["projects"])
 
@@ -39,6 +38,7 @@ async def create_project(
             code=body.code,
             name=body.name,
             description=body.description,
+            process_template_slug=body.process_template_slug,
             created_by=user.id,
         )
     )
@@ -79,9 +79,7 @@ async def get_project(
     mediator: Mediator = Depends(get_mediator),
 ) -> ProjectResponse:
     _ensure_tenant_access(user, tenant_id)
-    dto = await mediator.query(
-        GetProject(tenant_id=tenant_id, project_id=project_id)
-    )
+    dto = await mediator.query(GetProject(tenant_id=tenant_id, project_id=project_id))
     if dto is None:
         raise EntityNotFound("Project", project_id)
     return ProjectResponse(

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from alm.shared.application.query import Query, QueryHandler
 from alm.shared.domain.exceptions import EntityNotFound
@@ -27,9 +27,7 @@ class GetMemberRolesHandler(QueryHandler[list[RoleInfoDTO]]):
     async def handle(self, query: Query) -> list[RoleInfoDTO]:
         assert isinstance(query, GetMemberRoles)
 
-        membership = await self._membership_repo.find_by_user_and_tenant(
-            query.user_id, query.tenant_id
-        )
+        membership = await self._membership_repo.find_by_user_and_tenant(query.user_id, query.tenant_id)
         if membership is None:
             raise EntityNotFound("TenantMembership", query.user_id)
 

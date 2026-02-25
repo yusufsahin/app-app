@@ -1,8 +1,11 @@
 """Build form schema from manifest bundle (defs format)."""
+
 from __future__ import annotations
 
+from typing import Any
+
 from alm.form_schema.domain.entities import FormFieldSchema, FormSchema
-from alm.artifact.domain.mpc_resolver import manifest_defs_to_flat
+from alm.shared.domain.ports import IManifestDefsFlattener
 
 
 def _humanize_id(obj_id: str) -> str:
@@ -12,15 +15,15 @@ def _humanize_id(obj_id: str) -> str:
     return obj_id.replace("_", " ").replace("-", " ").title()
 
 
-def build_artifact_create_form_schema(manifest_bundle: dict) -> FormSchema:
+def build_artifact_create_form_schema(
+    manifest_bundle: dict[str, Any],
+    flattener: IManifestDefsFlattener,
+) -> FormSchema:
     """Build form schema for artifact create context from manifest."""
-    flat = manifest_defs_to_flat(manifest_bundle or {})
+    flat = flattener.flatten(manifest_bundle or {})
     artifact_types = flat.get("artifact_types", [])
 
-    type_options = [
-        {"id": at["id"], "label": at.get("name") or _humanize_id(at["id"])}
-        for at in artifact_types
-    ]
+    type_options = [{"id": at["id"], "label": at.get("name") or _humanize_id(at["id"])} for at in artifact_types]
 
     fields: list[FormFieldSchema] = []
 
@@ -97,7 +100,7 @@ def build_artifact_create_form_schema(manifest_bundle: dict) -> FormSchema:
             required_when = f.get("requiredWhen") or f.get("required_when")
 
             # Normalize condition field: typeName -> artifact_type (form key)
-            def _norm_condition(c: dict | None) -> dict | None:
+            def _norm_condition(c: dict[str, Any] | None) -> dict[str, Any] | None:
                 if not c or not isinstance(c, dict):
                     return c
                 out = dict(c)
@@ -112,7 +115,10 @@ def build_artifact_create_form_schema(manifest_bundle: dict) -> FormSchema:
             options = None
             if field_type == "choice" and f.get("options"):
                 options = [
-                    {"id": str(o.get("id", o.get("value", ""))), "label": str(o.get("label", o.get("name", o.get("id", ""))))}
+                    {
+                        "id": str(o.get("id", o.get("value", ""))),
+                        "label": str(o.get("label", o.get("name", o.get("id", "")))),
+                    }
                     for o in (f["options"] if isinstance(f["options"], list) else [])
                     if isinstance(o, dict)
                 ]
@@ -138,9 +144,61 @@ def build_artifact_create_form_schema(manifest_bundle: dict) -> FormSchema:
         entity_type="artifact",
         context="create",
         fields=tuple(fields),
-        artifact_type_options=tuple(
-            {"id": o["id"], "label": o["label"]} for o in type_options
+        artifact_type_options=tuple({"id": o["id"], "label": o["label"]} for o in type_options),
+    )
+
+
+def build_artifact_edit_form_schema(
+    _manifest_bundle: dict[str, Any],
+    flattener: IManifestDefsFlattener,
+) -> FormSchema:
+    """Build form schema for artifact edit context (title, description, assignee, cycle, area)."""
+    del _manifest_bundle, flattener
+    fields: list[FormFieldSchema] = [
+        FormFieldSchema(
+            key="title",
+            type="string",
+            label_key="Title",
+            required=True,
+            order=10,
         ),
+        FormFieldSchema(
+            key="description",
+            type="string",
+            label_key="Description",
+            required=False,
+            order=20,
+        ),
+        FormFieldSchema(
+            key="assignee_id",
+            type="entity_ref",
+            label_key="Assignee (optional)",
+            required=False,
+            entity_ref="user",
+            order=30,
+        ),
+        FormFieldSchema(
+            key="cycle_node_id",
+            type="entity_ref",
+            label_key="Cycle",
+            required=False,
+            entity_ref="cycle",
+            order=40,
+        ),
+        FormFieldSchema(
+            key="area_node_id",
+            type="entity_ref",
+            label_key="Area",
+            required=False,
+            entity_ref="area",
+            order=50,
+        ),
+    ]
+    return FormSchema(
+        entity_type="artifact",
+        context="edit",
+        fields=tuple(fields),
+        artifact_type_options=(),
     )
 
 
@@ -203,13 +261,16 @@ def build_task_create_form_schema() -> FormSchema:
 
 
 def build_form_schema(
-    manifest_bundle: dict,
+    manifest_bundle: dict[str, Any],
     entity_type: str,
     context: str,
+    flattener: IManifestDefsFlattener,
 ) -> FormSchema | None:
     """Build form schema for given entity type and context."""
     if entity_type == "artifact" and context == "create":
-        return build_artifact_create_form_schema(manifest_bundle)
+        return build_artifact_create_form_schema(manifest_bundle, flattener)
+    if entity_type == "artifact" and context == "edit":
+        return build_artifact_edit_form_schema(manifest_bundle, flattener)
     if entity_type == "task" and context in ("create", "edit"):
         return build_task_create_form_schema()
     return None

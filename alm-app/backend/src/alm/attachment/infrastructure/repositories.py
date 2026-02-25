@@ -1,4 +1,5 @@
 """Attachment SQLAlchemy repository."""
+
 from __future__ import annotations
 
 import uuid
@@ -16,9 +17,7 @@ class SqlAlchemyAttachmentRepository(AttachmentRepository):
         self._session = session
 
     async def find_by_id(self, attachment_id: uuid.UUID) -> Attachment | None:
-        result = await self._session.execute(
-            select(AttachmentModel).where(AttachmentModel.id == attachment_id)
-        )
+        result = await self._session.execute(select(AttachmentModel).where(AttachmentModel.id == attachment_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
@@ -46,9 +45,7 @@ class SqlAlchemyAttachmentRepository(AttachmentRepository):
         return attachment
 
     async def delete(self, attachment_id: uuid.UUID) -> bool:
-        result = await self._session.execute(
-            select(AttachmentModel).where(AttachmentModel.id == attachment_id)
-        )
+        result = await self._session.execute(select(AttachmentModel).where(AttachmentModel.id == attachment_id))
         model = result.scalar_one_or_none()
         if model is None:
             return False

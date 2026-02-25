@@ -1,4 +1,5 @@
 """Update task."""
+
 from __future__ import annotations
 
 import uuid
@@ -7,7 +8,6 @@ from dataclasses import dataclass
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
 from alm.task.application.dtos import TaskDTO
-from alm.task.domain.entities import Task
 from alm.task.domain.ports import TaskRepository
 
 

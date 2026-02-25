@@ -5,13 +5,13 @@ from dataclasses import dataclass
 
 from alm.shared.application.command import Command, CommandHandler
 from alm.tenant.application.dtos import TenantDTO
+from alm.tenant.application.sagas.tenant_onboarding import TenantOnboardingSaga
 from alm.tenant.domain.ports import (
     MembershipRepository,
     PrivilegeRepository,
     RoleRepository,
     TenantRepository,
 )
-from alm.tenant.domain.services import TenantOnboardingSaga
 
 
 @dataclass(frozen=True)

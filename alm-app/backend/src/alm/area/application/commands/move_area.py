@@ -1,15 +1,16 @@
 """Move area node to new parent; cycle check; update subtree paths/depths."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ValidationError
 from alm.area.application.dtos import AreaNodeDTO
 from alm.area.domain.entities import AreaNode
 from alm.area.domain.ports import AreaRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)
@@ -70,9 +71,7 @@ class MoveAreaNodeHandler(CommandHandler[AreaNodeDTO]):
                 updated_at=refreshed.updated_at.isoformat() if refreshed.updated_at else None,
             )
 
-        existing = await self._area_repo.find_by_project_and_path(
-            command.project_id, new_path
-        )
+        existing = await self._area_repo.find_by_project_and_path(command.project_id, new_path)
         if existing is not None:
             raise ValidationError("Area path already exists: " + new_path)
 
@@ -82,9 +81,7 @@ class MoveAreaNodeHandler(CommandHandler[AreaNodeDTO]):
         node.set_parent_id(new_parent.id if new_parent else None)
         await self._area_repo.update(node)
 
-        subtree = await self._area_repo.find_by_project_and_path_prefix(
-            command.project_id, old_path
-        )
+        subtree = await self._area_repo.find_by_project_and_path_prefix(command.project_id, old_path)
         for desc in subtree:
             if desc.id == node.id:
                 continue

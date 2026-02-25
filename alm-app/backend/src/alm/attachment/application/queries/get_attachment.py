@@ -1,12 +1,13 @@
 """Get single attachment by id (for download)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
 from alm.attachment.application.dtos import AttachmentDTO
 from alm.attachment.domain.ports import AttachmentRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)

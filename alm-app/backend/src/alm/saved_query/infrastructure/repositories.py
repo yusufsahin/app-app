@@ -1,4 +1,5 @@
 """SavedQuery SQLAlchemy repository."""
+
 from __future__ import annotations
 
 import uuid
@@ -16,9 +17,7 @@ class SqlAlchemySavedQueryRepository(SavedQueryRepository):
         self._session = session
 
     async def find_by_id(self, query_id: uuid.UUID) -> SavedQuery | None:
-        result = await self._session.execute(
-            select(SavedQueryModel).where(SavedQueryModel.id == query_id)
-        )
+        result = await self._session.execute(select(SavedQueryModel).where(SavedQueryModel.id == query_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
@@ -57,6 +56,7 @@ class SqlAlchemySavedQueryRepository(SavedQueryRepository):
 
     async def update(self, saved_query: SavedQuery) -> SavedQuery:
         from sqlalchemy import update
+
         await self._session.execute(
             update(SavedQueryModel)
             .where(SavedQueryModel.id == saved_query.id)
@@ -70,9 +70,7 @@ class SqlAlchemySavedQueryRepository(SavedQueryRepository):
         return saved_query
 
     async def delete(self, query_id: uuid.UUID) -> bool:
-        result = await self._session.execute(
-            select(SavedQueryModel).where(SavedQueryModel.id == query_id)
-        )
+        result = await self._session.execute(select(SavedQueryModel).where(SavedQueryModel.id == query_id))
         model = result.scalar_one_or_none()
         if model is None:
             return False

@@ -1,0 +1,59 @@
+---
+description: Frontend form alanları için paylaşılan form kütüphanesi kullanımı. Yeni veya değiştirilecek formlarda Rhf* bileşenleri ve FormProvider zorunludur.
+globs: alm-app/frontend/**/*.tsx
+alwaysApply: false
+---
+
+# Frontend – Form bileşenleri
+
+## Kural
+
+Tüm form alanları (input, select, checkbox, vb.) **paylaşılan form kütüphanesinden** kullanılmalıdır. Doğrudan MUI `TextField`, `Select`, `FormControl`, `Checkbox` ile form state yönetmeyin.
+
+## Nereden import edilir
+
+```ts
+import { RhfTextField, RhfSelect, RhfCheckbox, RhfSwitch, RhfAutocomplete, RhfDescriptionField, FormProvider, MetadataDrivenForm } from "../../../shared/components/forms";
+// veya shared'a göre relative path: shared/components/forms
+```
+
+Kütüphane yolu: **`frontend/src/shared/components/forms/`** (ve `index.ts` export’ları).
+
+## Kullanım
+
+1. **Form state:** `react-hook-form` ile `useForm()` kullanın; formu `FormProvider` ile sarın.
+2. **Alanlar:** İçeride `RhfTextField`, `RhfSelect`, `RhfCheckbox`, `RhfSwitch`, `RhfAutocomplete`, `RhfDescriptionField` vb. kullanın.
+3. **Schema-driven formlar:** Sabit veya API’den gelen şemaya göre form gerekiyorsa `MetadataDrivenForm` kullanın.
+
+## Örnek
+
+```tsx
+const form = useForm<{ name: string; role: string }>({ defaultValues: { name: "", role: "" } });
+
+<FormProvider {...form}>
+  <form onSubmit={form.handleSubmit(onSubmit)}>
+    <RhfTextField<MyValues> name="name" label="Name" />
+    <RhfSelect<MyValues> name="role" control={form.control} label="Role" options={roleOptions} />
+    <Button type="submit">Save</Button>
+  </form>
+</FormProvider>
+```
+
+## Mevcut bileşenler (özet)
+
+| Bileşen | Kullanım |
+|--------|----------|
+| `RhfTextField` | Metin, e-posta, şifre; `FormProvider` içinde `name` yeterli |
+| `RhfSelect` | Tekil seçim; `control`, `name`, `options` (value/label) |
+| `RhfCheckbox` | Tek checkbox |
+| `RhfSwitch` | Toggle |
+| `RhfAutocomplete` | Serbest metin + öneri listesi |
+| `RhfDescriptionField` | Metin / zengin metin / markdown (mode ile) |
+| `MetadataDrivenForm` | Şema + values + onChange/onSubmit |
+
+## Yapılmaması gerekenler
+
+- Sayfa veya bileşen içinde form alanı için doğrudan `<TextField>`, `<Select>`, `<FormControl>` + `<Select>` kullanmak
+- Form state için sadece `useState` + MUI controlled component kullanmak (yerine `useForm` + Rhf* kullanın)
+
+Menu, dialog veya tree’de **navigasyon/aksiyon** için kullanılan `MenuItem`, `Button` vb. bu kuralın dışındadır; form alanı değillerdir.

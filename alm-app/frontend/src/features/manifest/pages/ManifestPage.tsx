@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useState, useMemo, useEffect } from "react";
 import {
   Container,
@@ -9,15 +9,13 @@ import {
   Chip,
   Skeleton,
   Alert,
-  Breadcrumbs,
-  Link as MuiLink,
   Tabs,
   Tab,
   Snackbar,
   ToggleButtonGroup,
   ToggleButton,
 } from "@mui/material";
-import { ArrowBack, AccountTree, Policy, Preview, Code, ViewModule, Save, DataObject, AccountTreeOutlined } from "@mui/icons-material";
+import { AccountTree, Policy, Preview, Code, ViewModule, Save, DataObject, AccountTreeOutlined } from "@mui/icons-material";
 import yaml from "js-yaml";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 
@@ -43,6 +41,7 @@ import { buildPreviewSchemaFromManifest } from "../../../shared/lib/manifestPrev
 import { MetadataDrivenForm } from "../../../shared/components/forms/MetadataDrivenForm";
 import { ManifestEditor } from "../../../shared/components/ManifestEditor";
 import { useManifestStore } from "../../../shared/stores/manifestStore";
+import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import { WorkflowDesignerView } from "../components/WorkflowDesignerView";
 
 export default function ManifestPage() {
@@ -50,7 +49,6 @@ export default function ManifestPage() {
     orgSlug: string;
     projectSlug: string;
   }>();
-  const navigate = useNavigate();
   const { data: projects } = useOrgProjects(orgSlug);
   const project = projects?.find((p) => p.slug === projectSlug);
 
@@ -153,48 +151,22 @@ export default function ManifestPage() {
     });
   };
 
+  if (!project && projectSlug && orgSlug) {
+    return <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />;
+  }
+  if (is403 && orgSlug && projectSlug) {
+    return <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />;
+  }
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Breadcrumbs sx={{ mb: 2 }}>
-        <MuiLink
-          component={Link}
-          to={orgSlug ? `/${orgSlug}` : "#"}
-          underline="hover"
-          color="inherit"
-        >
-          {orgSlug ?? "Org"}
-        </MuiLink>
-        {project && (
-          <MuiLink
-            component={Link}
-            to={`/${orgSlug}/${projectSlug}`}
-            underline="hover"
-            color="inherit"
-          >
-            {project.name}
-          </MuiLink>
-        )}
-        <Typography color="text.primary">Process manifest</Typography>
-      </Breadcrumbs>
-      <Button
-        startIcon={<ArrowBack />}
-        onClick={() => navigate(orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "..")}
-        sx={{ mb: 3 }}
-      >
-        Back to project
-      </Button>
+      <ProjectBreadcrumbs currentPageLabel="Process manifest" projectName={project?.name} />
 
-      {!project && projectSlug ? (
-        <Typography color="text.secondary">Project &quot;{projectSlug}&quot; not found.</Typography>
-      ) : isLoading ? (
+      {isLoading ? (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <Skeleton variant="text" width={200} height={40} />
           <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
         </Box>
-      ) : is403 ? (
-        <Alert severity="error">
-          You don&apos;t have permission to view the manifest for this project.
-        </Alert>
       ) : is404 ? (
         <Alert
           severity="warning"

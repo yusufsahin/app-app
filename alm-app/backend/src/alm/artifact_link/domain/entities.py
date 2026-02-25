@@ -1,8 +1,10 @@
 """ArtifactLink domain entity — traceability link between two artifacts."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from alm.shared.domain.aggregate import AggregateRoot
 
@@ -36,7 +38,7 @@ class ArtifactLink(AggregateRoot):
         link_type: str,
         *,
         id: uuid.UUID | None = None,
-    ) -> "ArtifactLink":
+    ) -> ArtifactLink:
         return cls(
             project_id=project_id,
             from_artifact_id=from_artifact_id,
@@ -45,7 +47,7 @@ class ArtifactLink(AggregateRoot):
             id=id,
         )
 
-    def to_snapshot_dict(self) -> dict:
+    def to_snapshot_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
             "project_id": str(self.project_id),

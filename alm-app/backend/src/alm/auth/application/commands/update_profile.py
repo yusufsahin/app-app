@@ -41,9 +41,7 @@ class UpdateProfileHandler(CommandHandler[CurrentUserDTO]):
         roles: list[str] = []
         permissions: list[str] = []
         if command.tenant_id is not None:
-            membership = await self._membership_repo.find_by_user_and_tenant(
-                command.user_id, command.tenant_id
-            )
+            membership = await self._membership_repo.find_by_user_and_tenant(command.user_id, command.tenant_id)
             if membership is not None:
                 role_ids = await self._membership_repo.get_role_ids(membership.id)
                 for rid in role_ids:

@@ -1,9 +1,11 @@
 """Redis PubSub: publish tenant-scoped events and run subscriber that forwards to WebSocket manager."""
+
 from __future__ import annotations
 
 import asyncio
 import json
 import uuid
+from typing import Any
 
 import structlog
 
@@ -17,7 +19,7 @@ def event_channel(tenant_id: uuid.UUID) -> str:
     return f"{CHANNEL_PREFIX}{tenant_id}"
 
 
-async def publish_event(tenant_id: uuid.UUID, payload: dict) -> None:
+async def publish_event(tenant_id: uuid.UUID, payload: dict[str, Any]) -> None:
     """Publish a JSON payload to the tenant's event channel (for WebSocket delivery)."""
     try:
         r = get_redis()

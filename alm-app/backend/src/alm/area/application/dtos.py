@@ -1,8 +1,11 @@
 """AreaNode DTOs."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+
+
 @dataclass
 class AreaNodeDTO:
     id: uuid.UUID
@@ -15,4 +18,4 @@ class AreaNodeDTO:
     is_active: bool
     created_at: str | None
     updated_at: str | None
-    children: list["AreaNodeDTO"] = field(default_factory=list)
+    children: list[AreaNodeDTO] = field(default_factory=list)

@@ -1,4 +1,5 @@
 """Unit tests for permitted-transitions query and transition-by-trigger command."""
+
 from __future__ import annotations
 
 import uuid
@@ -6,17 +7,25 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from alm.artifact.application.commands.transition_artifact import (
+    TransitionArtifact,
+    TransitionArtifactHandler,
+)
 from alm.artifact.application.queries.get_permitted_transitions import (
     GetPermittedTransitions,
     GetPermittedTransitionsHandler,
     PermittedTransitionDTO,
 )
-from alm.artifact.application.commands.transition_artifact import (
-    TransitionArtifact,
-    TransitionArtifactHandler,
-)
 from alm.artifact.domain.entities import Artifact
 from alm.shared.domain.exceptions import PolicyDeniedError, ValidationError
+
+
+class _NoOpTransitionMetrics:
+    def record_duration_seconds(self, duration: float) -> None:
+        pass
+
+    def record_result(self, result: str) -> None:
+        pass
 
 
 # Minimal project-like object
@@ -191,6 +200,7 @@ class TestTransitionArtifactHandlerWithTrigger:
             artifact_repo=artifact_repo,
             project_repo=project_repo,
             process_template_repo=process_repo,
+            metrics=_NoOpTransitionMetrics(),
         )
         command = TransitionArtifact(
             tenant_id=tenant_id,
@@ -231,6 +241,7 @@ class TestTransitionArtifactHandlerWithTrigger:
             artifact_repo=artifact_repo,
             project_repo=project_repo,
             process_template_repo=process_repo,
+            metrics=_NoOpTransitionMetrics(),
         )
         command = TransitionArtifact(
             tenant_id=tenant_id,
@@ -265,6 +276,7 @@ class TestTransitionArtifactHandlerWithTrigger:
             artifact_repo=artifact_repo,
             project_repo=project_repo,
             process_template_repo=process_repo,
+            metrics=_NoOpTransitionMetrics(),
         )
         command = TransitionArtifact(
             tenant_id=tenant_id,
@@ -303,6 +315,7 @@ class TestTransitionArtifactHandlerWithTrigger:
             artifact_repo=artifact_repo,
             project_repo=project_repo,
             process_template_repo=process_repo,
+            metrics=_NoOpTransitionMetrics(),
         )
         command = TransitionArtifact(
             tenant_id=tenant_id,

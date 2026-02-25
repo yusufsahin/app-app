@@ -1,4 +1,5 @@
 """SavedQuery repository port."""
+
 from __future__ import annotations
 
 import uuid
@@ -9,8 +10,7 @@ from alm.saved_query.domain.entities import SavedQuery
 
 class SavedQueryRepository:
     @abstractmethod
-    async def find_by_id(self, query_id: uuid.UUID) -> SavedQuery | None:
-        ...
+    async def find_by_id(self, query_id: uuid.UUID) -> SavedQuery | None: ...
 
     @abstractmethod
     async def list_by_project(
@@ -23,13 +23,10 @@ class SavedQueryRepository:
         ...
 
     @abstractmethod
-    async def add(self, saved_query: SavedQuery) -> SavedQuery:
-        ...
+    async def add(self, saved_query: SavedQuery) -> SavedQuery: ...
 
     @abstractmethod
-    async def update(self, saved_query: SavedQuery) -> SavedQuery:
-        ...
+    async def update(self, saved_query: SavedQuery) -> SavedQuery: ...
 
     @abstractmethod
-    async def delete(self, query_id: uuid.UUID) -> bool:
-        ...
+    async def delete(self, query_id: uuid.UUID) -> bool: ...

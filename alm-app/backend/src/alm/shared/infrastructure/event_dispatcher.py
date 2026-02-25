@@ -1,11 +1,12 @@
 """Domain Event Dispatcher implementation — DDD Enterprise Clean Architecture."""
+
 from __future__ import annotations
 
 import structlog
 
 from alm.shared.domain.event_dispatcher import (
-    IDomainEventDispatcher,
     DomainEventHandler,
+    IDomainEventDispatcher,
 )
 from alm.shared.domain.events import DomainEvent
 

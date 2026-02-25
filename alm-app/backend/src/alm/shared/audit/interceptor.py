@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +25,7 @@ def buffer_audit(
     session: AsyncSession,
     entity_type: str,
     entity_id: uuid.UUID,
-    state: dict,
+    state: dict[str, Any],
     change_type: ChangeType,
 ) -> None:
     """Buffer an audit entry in the session info dict.

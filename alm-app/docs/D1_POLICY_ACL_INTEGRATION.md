@@ -2,6 +2,8 @@
 
 MPC PolicyEngine ve ACLEngine ile alm-app entegrasyonu için yol haritası. Mevcut RBAC yapısı korunur; MPC hazır olduğunda GuardPort/AuthPort implementasyonu ve alan maskeleme eklenir.
 
+**Kapsam dışı:** DDD/Clean Architecture refactor kapsamında **field masking** taşınmaz veya port’a çekilmez; `alm.shared.infrastructure.security.field_masking` mevcut haliyle kalır (out of scope).
+
 ---
 
 ## 1. Mevcut Durum

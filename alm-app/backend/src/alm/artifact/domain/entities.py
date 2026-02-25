@@ -1,11 +1,13 @@
 """Artifact domain entities."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
-from alm.shared.domain.aggregate import AggregateRoot
 from alm.artifact.domain.events import ArtifactCreated, ArtifactStateChanged
+from alm.shared.domain.aggregate import AggregateRoot
 
 
 class Artifact(AggregateRoot):
@@ -23,7 +25,7 @@ class Artifact(AggregateRoot):
         description: str = "",
         assignee_id: uuid.UUID | None = None,
         parent_id: uuid.UUID | None = None,
-        custom_fields: dict | None = None,
+        custom_fields: dict[str, Any] | None = None,
         artifact_key: str | None = None,
         state_reason: str | None = None,
         resolution: str | None = None,
@@ -45,13 +47,13 @@ class Artifact(AggregateRoot):
         self.cycle_node_id = cycle_node_id
         self.area_node_id = area_node_id
         self.area_path_snapshot = area_path_snapshot
-        self.custom_fields = custom_fields or {}
+        self.custom_fields: dict[str, Any] = custom_fields or {}
         self.artifact_key = artifact_key
         self.state_reason = state_reason
         self.resolution = resolution
         self.rank_order = rank_order
-        self.created_at = created_at
-        self.updated_at = updated_at
+        self.created_at: datetime | None = created_at
+        self.updated_at: datetime | None = updated_at
 
     @classmethod
     def create(
@@ -65,13 +67,13 @@ class Artifact(AggregateRoot):
         description: str = "",
         assignee_id: uuid.UUID | None = None,
         parent_id: uuid.UUID | None = None,
-        custom_fields: dict | None = None,
+        custom_fields: dict[str, Any] | None = None,
         artifact_key: str | None = None,
         rank_order: float | None = None,
         cycle_node_id: uuid.UUID | None = None,
         area_node_id: uuid.UUID | None = None,
         area_path_snapshot: str | None = None,
-    ) -> "Artifact":
+    ) -> Artifact:
         """Create artifact and register ArtifactCreated domain event."""
         artifact = cls(
             project_id=project_id,
@@ -100,9 +102,7 @@ class Artifact(AggregateRoot):
         )
         return artifact
 
-    def assign_area(
-        self, area_node_id: uuid.UUID | None, path_snapshot: str | None
-    ) -> None:
+    def assign_area(self, area_node_id: uuid.UUID | None, path_snapshot: str | None) -> None:
         """Assign area by id and path snapshot (snapshot = node.path at assign time)."""
         self.area_node_id = area_node_id
         self.area_path_snapshot = path_snapshot
@@ -131,7 +131,7 @@ class Artifact(AggregateRoot):
             )
         )
 
-    def to_snapshot_dict(self) -> dict:
+    def to_snapshot_dict(self) -> dict[str, Any]:
         """Entity snapshot for MPC PolicyEngine (domain-agnostic dict)."""
         return {
             "assignee_id": str(self.assignee_id) if self.assignee_id else None,

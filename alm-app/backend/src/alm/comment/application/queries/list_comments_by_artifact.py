@@ -1,14 +1,15 @@
 """List comments for an artifact."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
+from alm.artifact.domain.ports import ArtifactRepository
 from alm.comment.application.dtos import CommentDTO
 from alm.comment.domain.ports import CommentRepository
-from alm.artifact.domain.ports import ArtifactRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)

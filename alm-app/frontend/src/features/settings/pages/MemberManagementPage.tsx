@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useForm, FormProvider } from "react-hook-form";
 import {
   Box,
   Button,
@@ -7,8 +8,6 @@ import {
   Skeleton,
   Typography,
   Alert,
-  FormControlLabel,
-  Checkbox,
   IconButton,
 } from "@mui/material";
 import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
@@ -22,6 +21,7 @@ import {
 } from "../../../shared/api/adminApi";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
+import { RhfCheckbox } from "../../../shared/components/forms";
 import InviteMemberModal from "../components/InviteMemberModal";
 import CreateUserModal from "../components/CreateUserModal";
 
@@ -95,6 +95,16 @@ export default function MemberManagementPage() {
   const [includeDeleted, setIncludeDeleted] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [createUserOpen, setCreateUserOpen] = useState(false);
+
+  type IncludeDeletedValues = { includeDeleted: boolean };
+  const includeDeletedForm = useForm<IncludeDeletedValues>({ defaultValues: { includeDeleted } });
+  useEffect(() => {
+    includeDeletedForm.reset({ includeDeleted });
+  }, [includeDeleted]);
+  const watchedIncludeDeleted = includeDeletedForm.watch("includeDeleted");
+  useEffect(() => {
+    setIncludeDeleted(watchedIncludeDeleted);
+  }, [watchedIncludeDeleted, setIncludeDeleted]);
 
   const { data: orgMembers, isLoading: orgLoading, isError: orgError } = useOrgMembers(orgSlug);
   const { data: adminUsers, isLoading: adminLoading } = useAdminUsers(includeDeleted);
@@ -187,15 +197,13 @@ export default function MemberManagementPage() {
             Members
           </Typography>
           {isAdmin && (
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={includeDeleted}
-                  onChange={(_, v) => setIncludeDeleted(v)}
-                />
-              }
-              label="Include deleted"
-            />
+            <FormProvider {...includeDeletedForm}>
+              <RhfCheckbox<IncludeDeletedValues>
+                name="includeDeleted"
+                control={includeDeletedForm.control}
+                label="Include deleted"
+              />
+            </FormProvider>
           )}
         </Box>
         <Box sx={{ display: "flex", gap: 1 }}>

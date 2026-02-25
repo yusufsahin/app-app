@@ -50,6 +50,7 @@ class AlmAppAuthPort:
 
     async def get_privileges(self, tenant_id: uuid.UUID, user_id: uuid.UUID) -> list[str]:
         from alm.shared.infrastructure.security.dependencies import get_user_privileges
+
         return await get_user_privileges(tenant_id, user_id)
 
 
@@ -68,5 +69,6 @@ class AlmAppGuardPort:
         resource_id: str | None = None,
     ) -> bool:
         from alm.shared.infrastructure.security.dependencies import _matches_permission
+
         codes = await self._auth.get_privileges(tenant_id, user_id)
         return _matches_permission(codes, action)

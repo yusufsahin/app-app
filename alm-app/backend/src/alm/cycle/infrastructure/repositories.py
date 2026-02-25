@@ -1,4 +1,5 @@
 """CycleNode SQLAlchemy repository."""
+
 from __future__ import annotations
 
 import uuid
@@ -16,17 +17,13 @@ class SqlAlchemyCycleRepository(CycleRepository):
         self._session = session
 
     async def find_by_id(self, cycle_node_id: uuid.UUID) -> CycleNode | None:
-        result = await self._session.execute(
-            select(CycleNodeModel).where(CycleNodeModel.id == cycle_node_id)
-        )
+        result = await self._session.execute(select(CycleNodeModel).where(CycleNodeModel.id == cycle_node_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
     async def list_by_project(self, project_id: uuid.UUID) -> list[CycleNode]:
         result = await self._session.execute(
-            select(CycleNodeModel)
-            .where(CycleNodeModel.project_id == project_id)
-            .order_by(CycleNodeModel.path.asc())
+            select(CycleNodeModel).where(CycleNodeModel.project_id == project_id).order_by(CycleNodeModel.path.asc())
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 
@@ -66,11 +63,9 @@ class SqlAlchemyCycleRepository(CycleRepository):
         return node
 
     async def delete(self, cycle_node_id: uuid.UUID) -> bool:
-        result = await self._session.execute(
-            delete(CycleNodeModel).where(CycleNodeModel.id == cycle_node_id)
-        )
+        result = await self._session.execute(delete(CycleNodeModel).where(CycleNodeModel.id == cycle_node_id))
         await self._session.flush()
-        return result.rowcount > 0
+        return bool(getattr(result, "rowcount", 0))
 
     @staticmethod
     def _to_entity(m: CycleNodeModel) -> CycleNode:

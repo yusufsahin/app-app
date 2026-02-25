@@ -1,23 +1,18 @@
 """Transition artifact workflow state."""
+
 from __future__ import annotations
 
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
 
-from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ConflictError, PolicyDeniedError, ValidationError
-from alm.artifact.infrastructure.metrics import (
-    alm_artifact_transition_duration_seconds,
-    alm_artifact_transition_total,
-)
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.action_runner import run_actions
-from alm.artifact.domain.ports import ArtifactRepository
+from alm.artifact.domain.guard_evaluator import evaluate_guard
 from alm.artifact.domain.mpc_resolver import (
     check_transition_policies,
     evaluate_transition_policy,
@@ -26,19 +21,23 @@ from alm.artifact.domain.mpc_resolver import (
     get_transition_actions,
     get_workflow_transition_options,
 )
-from alm.artifact.domain.guard_evaluator import evaluate_guard
+from alm.artifact.domain.ports import ArtifactRepository, IArtifactTransitionMetrics
 from alm.artifact.domain.workflow_sm import (
     get_permitted_triggers,
     get_transition_guard,
+)
+from alm.artifact.domain.workflow_sm import (
     is_valid_transition as workflow_is_valid_transition,
 )
-from alm.project.domain.ports import ProjectRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.command import Command, CommandHandler
+from alm.shared.domain.exceptions import ConflictError, PolicyDeniedError, ValidationError
 
 
 def _build_transition_event(
     artifact: Any,
-    command: "TransitionArtifact",
+    command: TransitionArtifact,
     *,
     resolved_new_state: str | None = None,
 ) -> dict[str, Any]:
@@ -67,7 +66,7 @@ def _build_transition_event(
             "to_state": to_state,
             "project_id": str(command.project_id),
         },
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -91,29 +90,31 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         artifact_repo: ArtifactRepository,
         project_repo: ProjectRepository,
         process_template_repo: ProcessTemplateRepository,
+        metrics: IArtifactTransitionMetrics,
     ) -> None:
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
+        self._metrics = metrics
 
     async def handle(self, command: Command) -> ArtifactDTO:
         assert isinstance(command, TransitionArtifact)
         start = time.monotonic()
         try:
             result = await self._handle_impl(command)
-            alm_artifact_transition_duration_seconds.observe(time.monotonic() - start)
+            self._metrics.record_duration_seconds(time.monotonic() - start)
             return result
         except PolicyDeniedError:
-            alm_artifact_transition_duration_seconds.observe(time.monotonic() - start)
-            alm_artifact_transition_total.labels(result="policy_denied").inc()
+            self._metrics.record_duration_seconds(time.monotonic() - start)
+            self._metrics.record_result("policy_denied")
             raise
         except ValidationError:
-            alm_artifact_transition_duration_seconds.observe(time.monotonic() - start)
-            alm_artifact_transition_total.labels(result="validation_error").inc()
+            self._metrics.record_duration_seconds(time.monotonic() - start)
+            self._metrics.record_result("validation_error")
             raise
         except ConflictError:
-            alm_artifact_transition_duration_seconds.observe(time.monotonic() - start)
-            alm_artifact_transition_total.labels(result="conflict_error").inc()
+            self._metrics.record_duration_seconds(time.monotonic() - start)
+            self._metrics.record_result("conflict_error")
             raise
 
     async def _handle_impl(self, command: TransitionArtifact) -> ArtifactDTO:
@@ -130,9 +131,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
 
         if project.process_template_version_id is None:
             raise ValidationError("Project has no process template")
-        version = await self._process_template_repo.find_version_by_id(
-            project.process_template_version_id
-        )
+        version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
         if version is None:
             raise ValidationError("Process template version not found")
         manifest = version.manifest_bundle or {}
@@ -140,14 +139,10 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
 
         # Resolve trigger to target state when client sent trigger
         if command.trigger:
-            permitted = get_permitted_triggers(
-                manifest, artifact.artifact_type, artifact.state, ast=ast
-            )
+            permitted = get_permitted_triggers(manifest, artifact.artifact_type, artifact.state, ast=ast)
             match = next((p for p in permitted if p[0] == command.trigger), None)
             if not match:
-                raise ValidationError(
-                    f"Trigger '{command.trigger}' is not permitted from state '{artifact.state}'"
-                )
+                raise ValidationError(f"Trigger '{command.trigger}' is not permitted from state '{artifact.state}'")
             new_state = match[1]
         else:
             new_state = (command.new_state or "").strip()
@@ -163,9 +158,9 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
                 server_dt = getattr(artifact, "updated_at", None)
                 if server_dt is not None:
                     if server_dt.tzinfo is None:
-                        server_dt = server_dt.replace(tzinfo=timezone.utc)
+                        server_dt = server_dt.replace(tzinfo=UTC)
                     if expected_dt.tzinfo is None:
-                        expected_dt = expected_dt.replace(tzinfo=timezone.utc)
+                        expected_dt = expected_dt.replace(tzinfo=UTC)
                     if server_dt != expected_dt:
                         raise ConflictError(
                             "Artifact was modified by someone else. Refresh or choose Overwrite to apply your change."
@@ -178,9 +173,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
             new_state,
             ast=ast,
         ):
-            raise ValidationError(
-                f"Transition from '{artifact.state}' to '{new_state}' not allowed"
-            )
+            raise ValidationError(f"Transition from '{artifact.state}' to '{new_state}' not allowed")
 
         guard = get_transition_guard(
             manifest,
@@ -214,19 +207,13 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
 
         at_def = get_artifact_type_def(manifest, artifact.artifact_type, ast=ast)
         workflow_id = (at_def or {}).get("workflow_id") or ""
-        allowed_reasons, allowed_resolutions = get_workflow_transition_options(
-            manifest, workflow_id
-        )
+        allowed_reasons, allowed_resolutions = get_workflow_transition_options(manifest, workflow_id)
         if allowed_reasons and command.state_reason is not None and command.state_reason != "":
             if command.state_reason not in allowed_reasons:
-                raise ValidationError(
-                    f"state_reason must be one of: {', '.join(allowed_reasons)}"
-                )
+                raise ValidationError(f"state_reason must be one of: {', '.join(allowed_reasons)}")
         if allowed_resolutions and command.resolution is not None and command.resolution != "":
             if command.resolution not in allowed_resolutions:
-                raise ValidationError(
-                    f"resolution must be one of: {', '.join(allowed_resolutions)}"
-                )
+                raise ValidationError(f"resolution must be one of: {', '.join(allowed_resolutions)}")
 
         # Require resolution when transitioning to a resolved/closed/done state
         _RESOLVED_STATES = ("resolved", "closed", "done")
@@ -235,15 +222,11 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
             and allowed_resolutions
             and (not command.resolution or command.resolution.strip() == "")
         ):
-            raise ValidationError(
-                "resolution is required when transitioning to a resolved, closed, or done state"
-            )
+            raise ValidationError("resolution is required when transitioning to a resolved, closed, or done state")
 
         from_state = artifact.state
         to_state = new_state
-        actions = get_transition_actions(
-            manifest, artifact.artifact_type, from_state, to_state, ast=ast
-        )
+        actions = get_transition_actions(manifest, artifact.artifact_type, from_state, to_state, ast=ast)
 
         run_actions(
             actions["on_leave"],
@@ -269,7 +252,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
             to_state=to_state,
         )
 
-        alm_artifact_transition_total.labels(result="success").inc()
+        self._metrics.record_result("success")
         structlog.get_logger().info(
             "artifact_transition",
             artifact_id=str(artifact.id),
@@ -280,6 +263,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         )
         try:
             from opentelemetry import trace
+
             span = trace.get_current_span()
             if span.is_recording():
                 span.set_attribute("artifact.id", str(artifact.id))

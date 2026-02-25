@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, cast
 
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import EntityNotFound, ValidationError
-from alm.shared.infrastructure.security.password import hash_password, verify_password
+from alm.shared.domain.ports import IPasswordHasher
 
 if TYPE_CHECKING:
     import uuid
@@ -25,9 +25,11 @@ class ChangePasswordHandler(CommandHandler[None]):
         self,
         user_repo: UserRepository,
         refresh_token_repo: RefreshTokenRepository,
+        password_hasher: IPasswordHasher,
     ) -> None:
         self._user_repo = user_repo
         self._refresh_token_repo = refresh_token_repo
+        self._password_hasher = password_hasher
 
     async def handle(self, command: Command) -> None:
         cmd = cast("ChangePassword", command)
@@ -36,10 +38,10 @@ class ChangePasswordHandler(CommandHandler[None]):
         if user is None:
             raise EntityNotFound("User", cmd.user_id)
 
-        if not verify_password(cmd.current_password, user.password_hash):
+        if not self._password_hasher.verify(cmd.current_password, user.password_hash):
             raise ValidationError("Current password is incorrect.")
 
-        new_hash = hash_password(cmd.new_password)
+        new_hash = self._password_hasher.hash(cmd.new_password)
         user.change_password(new_hash)
         await self._user_repo.update(user)
 

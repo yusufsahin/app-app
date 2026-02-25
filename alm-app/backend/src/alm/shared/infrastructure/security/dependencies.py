@@ -99,7 +99,7 @@ async def get_user_privileges(tenant_id: uuid.UUID, user_id: uuid.UUID) -> list[
         return codes
 
 
-def require_permission(permission: str):
+def require_permission(permission: str):  # type: ignore[no-untyped-def]
     """FastAPI dependency that checks whether the current user has a specific permission.
 
     Creates a fresh DB session per-request to resolve role→privilege mapping.
@@ -116,7 +116,7 @@ def require_permission(permission: str):
     return Depends(_checker)
 
 
-def require_any_role(*role_slugs: str):
+def require_any_role(*role_slugs: str):  # type: ignore[no-untyped-def]
     """FastAPI dependency that checks whether the user has at least one of the given roles."""
 
     async def _checker(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:

@@ -1,8 +1,10 @@
 """CycleNode domain entity — planning iteration tree (pamera IterationNode-like)."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import Any
 
 from alm.shared.domain.aggregate import AggregateRoot
 
@@ -53,7 +55,7 @@ class CycleNode(AggregateRoot):
         start_date: date | None = None,
         end_date: date | None = None,
         state: str = "planned",
-    ) -> "CycleNode":
+    ) -> CycleNode:
         name_trim = (name or "").strip()
         if not name_trim:
             raise ValueError("Cycle node name cannot be empty")
@@ -76,7 +78,7 @@ class CycleNode(AggregateRoot):
         cls,
         project_id: uuid.UUID,
         name: str,
-        parent: "CycleNode",
+        parent: CycleNode,
         *,
         id: uuid.UUID | None = None,
         sort_order: int = 0,
@@ -84,7 +86,7 @@ class CycleNode(AggregateRoot):
         start_date: date | None = None,
         end_date: date | None = None,
         state: str = "planned",
-    ) -> "CycleNode":
+    ) -> CycleNode:
         if parent.project_id != project_id:
             raise ValueError("Parent must belong to the same project")
         name_trim = (name or "").strip()
@@ -105,7 +107,7 @@ class CycleNode(AggregateRoot):
             state=state,
         )
 
-    def to_snapshot_dict(self) -> dict:
+    def to_snapshot_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
             "project_id": str(self.project_id),

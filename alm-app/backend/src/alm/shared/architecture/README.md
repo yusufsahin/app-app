@@ -90,3 +90,7 @@ Bağımlılık yönü: Dıştan içe (Infrastructure → Domain’e implement ed
 6. `infrastructure/models.py` — ORM modelleri
 7. `infrastructure/repositories.py` — Port implementasyonu
 8. `config/handler_registry.py` — Handler factory kaydı
+
+## Kapsam Dışı
+
+- **Field masking** (`shared.infrastructure.security.field_masking`): Artifact yanıtları için ACL/izin tabanlı maskeleme bu mimari refactor kapsamı dışındadır; shared → artifact.api bağımlılığı kabul edilir.

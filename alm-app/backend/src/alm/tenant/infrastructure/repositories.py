@@ -28,7 +28,6 @@ from alm.tenant.infrastructure.models import (
     TenantModel,
 )
 
-
 # ── Tenant ──
 
 
@@ -108,9 +107,7 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
-    async def find_by_user_and_tenant(
-        self, user_id: uuid.UUID, tenant_id: uuid.UUID
-    ) -> TenantMembership | None:
+    async def find_by_user_and_tenant(self, user_id: uuid.UUID, tenant_id: uuid.UUID) -> TenantMembership | None:
         result = await self._session.execute(
             select(TenantMembershipModel).where(
                 TenantMembershipModel.user_id == user_id,
@@ -149,8 +146,11 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
         self._session.add(model)
         await self._session.flush()
         buffer_audit(
-            self._session, "TenantMembership", membership.id,
-            membership.to_snapshot_dict(), ChangeType.INITIAL,
+            self._session,
+            "TenantMembership",
+            membership.id,
+            membership.to_snapshot_dict(),
+            ChangeType.INITIAL,
         )
         return membership
 
@@ -162,7 +162,9 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
         )
         await self._session.flush()
         buffer_audit(
-            self._session, "TenantMembership", membership_id,
+            self._session,
+            "TenantMembership",
+            membership_id,
             {"id": str(membership_id), "deleted_at": datetime.now(UTC).isoformat(), "deleted_by": str(deleted_by)},
             ChangeType.DELETE,
         )
@@ -175,9 +177,7 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
         )
         return list(result.scalars().all())
 
-    async def set_roles(
-        self, membership_id: uuid.UUID, role_ids: list[uuid.UUID], assigned_by: uuid.UUID
-    ) -> None:
+    async def set_roles(self, membership_id: uuid.UUID, role_ids: list[uuid.UUID], assigned_by: uuid.UUID) -> None:
         await self._session.execute(
             delete(MembershipRoleModel).where(MembershipRoleModel.membership_id == membership_id)
         )
@@ -188,9 +188,7 @@ class SqlAlchemyMembershipRepository(MembershipRepository):
         await self._session.flush()
 
     async def add_role(self, membership_id: uuid.UUID, role_id: uuid.UUID, assigned_by: uuid.UUID) -> None:
-        self._session.add(
-            MembershipRoleModel(membership_id=membership_id, role_id=role_id, assigned_by=assigned_by)
-        )
+        self._session.add(MembershipRoleModel(membership_id=membership_id, role_id=role_id, assigned_by=assigned_by))
         await self._session.flush()
 
     async def remove_role(self, membership_id: uuid.UUID, role_id: uuid.UUID) -> None:
@@ -282,21 +280,19 @@ class SqlAlchemyRoleRepository(RoleRepository):
 
     async def soft_delete(self, role_id: uuid.UUID, deleted_by: uuid.UUID) -> None:
         await self._session.execute(
-            update(RoleModel)
-            .where(RoleModel.id == role_id)
-            .values(deleted_at=datetime.now(UTC), deleted_by=deleted_by)
+            update(RoleModel).where(RoleModel.id == role_id).values(deleted_at=datetime.now(UTC), deleted_by=deleted_by)
         )
         await self._session.flush()
         buffer_audit(
-            self._session, "Role", role_id,
+            self._session,
+            "Role",
+            role_id,
             {"id": str(role_id), "deleted_at": datetime.now(UTC).isoformat(), "deleted_by": str(deleted_by)},
             ChangeType.DELETE,
         )
 
     async def set_privileges(self, role_id: uuid.UUID, privilege_ids: list[uuid.UUID]) -> None:
-        await self._session.execute(
-            delete(RolePrivilegeModel).where(RolePrivilegeModel.role_id == role_id)
-        )
+        await self._session.execute(delete(RolePrivilegeModel).where(RolePrivilegeModel.role_id == role_id))
         for pid in privilege_ids:
             self._session.add(RolePrivilegeModel(role_id=role_id, privilege_id=pid))
         await self._session.flush()
@@ -358,29 +354,25 @@ class SqlAlchemyPrivilegeRepository(PrivilegeRepository):
         self._session = session
 
     async def find_by_id(self, privilege_id: uuid.UUID) -> Privilege | None:
-        result = await self._session.execute(
-            select(PrivilegeModel).where(PrivilegeModel.id == privilege_id)
-        )
+        result = await self._session.execute(select(PrivilegeModel).where(PrivilegeModel.id == privilege_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
     async def find_by_code(self, code: str) -> Privilege | None:
-        result = await self._session.execute(
-            select(PrivilegeModel).where(PrivilegeModel.code == code)
-        )
+        result = await self._session.execute(select(PrivilegeModel).where(PrivilegeModel.code == code))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
     async def find_all(self) -> list[Privilege]:
-        result = await self._session.execute(select(PrivilegeModel).order_by(PrivilegeModel.resource, PrivilegeModel.action))
+        result = await self._session.execute(
+            select(PrivilegeModel).order_by(PrivilegeModel.resource, PrivilegeModel.action)
+        )
         return [self._to_entity(m) for m in result.scalars().all()]
 
     async def find_by_codes(self, codes: list[str]) -> list[Privilege]:
         if not codes:
             return []
-        result = await self._session.execute(
-            select(PrivilegeModel).where(PrivilegeModel.code.in_(codes))
-        )
+        result = await self._session.execute(select(PrivilegeModel).where(PrivilegeModel.code.in_(codes)))
         return [self._to_entity(m) for m in result.scalars().all()]
 
     async def add(self, privilege: Privilege) -> Privilege:
@@ -415,22 +407,16 @@ class SqlAlchemyInvitationRepository(InvitationRepository):
         self._session = session
 
     async def find_by_id(self, invitation_id: uuid.UUID) -> Invitation | None:
-        result = await self._session.execute(
-            select(InvitationModel).where(InvitationModel.id == invitation_id)
-        )
+        result = await self._session.execute(select(InvitationModel).where(InvitationModel.id == invitation_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
     async def find_by_token(self, token: str) -> Invitation | None:
-        result = await self._session.execute(
-            select(InvitationModel).where(InvitationModel.token == token)
-        )
+        result = await self._session.execute(select(InvitationModel).where(InvitationModel.token == token))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
-    async def find_pending_by_email_and_tenant(
-        self, email: str, tenant_id: uuid.UUID
-    ) -> Invitation | None:
+    async def find_pending_by_email_and_tenant(self, email: str, tenant_id: uuid.UUID) -> Invitation | None:
         result = await self._session.execute(
             select(InvitationModel).where(
                 InvitationModel.email == email,
@@ -456,8 +442,11 @@ class SqlAlchemyInvitationRepository(InvitationRepository):
         await self._session.flush()
         buffer_events(self._session, invitation.collect_events())
         buffer_audit(
-            self._session, "Invitation", invitation.id,
-            invitation.to_snapshot_dict(), ChangeType.INITIAL,
+            self._session,
+            "Invitation",
+            invitation.id,
+            invitation.to_snapshot_dict(),
+            ChangeType.INITIAL,
         )
         return invitation
 
@@ -470,8 +459,11 @@ class SqlAlchemyInvitationRepository(InvitationRepository):
         await self._session.flush()
         buffer_events(self._session, invitation.collect_events())
         buffer_audit(
-            self._session, "Invitation", invitation.id,
-            invitation.to_snapshot_dict(), ChangeType.UPDATE,
+            self._session,
+            "Invitation",
+            invitation.id,
+            invitation.to_snapshot_dict(),
+            ChangeType.UPDATE,
         )
         return invitation
 

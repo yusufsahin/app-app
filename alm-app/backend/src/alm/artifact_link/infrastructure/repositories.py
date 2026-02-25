@@ -1,4 +1,5 @@
 """ArtifactLink SQLAlchemy repository."""
+
 from __future__ import annotations
 
 import uuid
@@ -16,9 +17,7 @@ class SqlAlchemyArtifactLinkRepository(ArtifactLinkRepository):
         self._session = session
 
     async def find_by_id(self, link_id: uuid.UUID) -> ArtifactLink | None:
-        result = await self._session.execute(
-            select(ArtifactLinkModel).where(ArtifactLinkModel.id == link_id)
-        )
+        result = await self._session.execute(select(ArtifactLinkModel).where(ArtifactLinkModel.id == link_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
@@ -53,9 +52,7 @@ class SqlAlchemyArtifactLinkRepository(ArtifactLinkRepository):
         return link
 
     async def delete(self, link_id: uuid.UUID) -> bool:
-        result = await self._session.execute(
-            select(ArtifactLinkModel).where(ArtifactLinkModel.id == link_id)
-        )
+        result = await self._session.execute(select(ArtifactLinkModel).where(ArtifactLinkModel.id == link_id))
         model = result.scalar_one_or_none()
         if model is None:
             return False
@@ -70,14 +67,17 @@ class SqlAlchemyArtifactLinkRepository(ArtifactLinkRepository):
         link_type: str,
     ) -> bool:
         from sqlalchemy import and_
+
         result = await self._session.execute(
-            select(ArtifactLinkModel.id).where(
+            select(ArtifactLinkModel.id)
+            .where(
                 and_(
                     ArtifactLinkModel.from_artifact_id == from_artifact_id,
                     ArtifactLinkModel.to_artifact_id == to_artifact_id,
                     ArtifactLinkModel.link_type == link_type,
                 )
-            ).limit(1)
+            )
+            .limit(1)
         )
         return result.scalar_one_or_none() is not None
 

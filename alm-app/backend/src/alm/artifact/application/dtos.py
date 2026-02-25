@@ -1,9 +1,11 @@
 """Artifact DTOs."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -16,7 +18,7 @@ class ArtifactDTO:
     state: str
     assignee_id: uuid.UUID | None
     parent_id: uuid.UUID | None
-    custom_fields: dict
+    custom_fields: dict[str, Any]
     artifact_key: str | None = None
     state_reason: str | None = None
     resolution: str | None = None

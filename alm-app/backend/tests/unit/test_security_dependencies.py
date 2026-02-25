@@ -1,7 +1,6 @@
 """Unit tests for security dependencies (_matches_permission)."""
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from alm.shared.infrastructure.security.dependencies import _matches_permission
 

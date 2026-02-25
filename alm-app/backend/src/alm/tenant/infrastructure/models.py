@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -27,7 +28,7 @@ class TenantModel(Base, TimestampMixin, SoftDeleteMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     tier: Mapped[str] = mapped_column(String(50), nullable=False, default="free")
-    settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    settings: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     memberships: Mapped[list[TenantMembershipModel]] = relationship(back_populates="tenant", lazy="selectin")
     roles: Mapped[list[RoleModel]] = relationship(back_populates="tenant", lazy="selectin")
@@ -80,9 +81,7 @@ class PrivilegeModel(Base):
 class RolePrivilegeModel(Base):
     __tablename__ = "role_privileges"
 
-    role_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
-    )
+    role_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
     privilege_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("privileges.id", ondelete="CASCADE"), primary_key=True
     )
@@ -97,9 +96,7 @@ class MembershipRoleModel(Base):
     membership_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("tenant_memberships.id", ondelete="CASCADE"), primary_key=True
     )
-    role_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
-    )
+    role_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
     assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     assigned_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
 
@@ -129,9 +126,7 @@ class InvitationRoleModel(Base):
     invitation_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("invitations.id", ondelete="CASCADE"), primary_key=True
     )
-    role_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
-    )
+    role_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
 
     invitation: Mapped[InvitationModel] = relationship(back_populates="invitation_roles", lazy="joined")
     role: Mapped[RoleModel] = relationship(lazy="joined")

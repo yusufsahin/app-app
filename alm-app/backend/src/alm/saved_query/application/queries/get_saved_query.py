@@ -1,12 +1,13 @@
 """Get single saved query by id."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
 from alm.saved_query.application.dtos import SavedQueryDTO
 from alm.saved_query.domain.ports import SavedQueryRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)

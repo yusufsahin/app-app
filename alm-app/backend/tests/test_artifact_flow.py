@@ -1,4 +1,5 @@
 """Integration tests for artifact flow (create, list, transition)."""
+
 from __future__ import annotations
 
 import uuid
@@ -44,7 +45,7 @@ async def _ensure_project(
     create_resp = await client.post(
         f"/api/v1/tenants/{tenant_id}/projects/",
         headers={"Authorization": f"Bearer {token}"},
-        json={"code": code, "name": name, "description": ""},
+        json={"code": code, "name": name, "description": "", "process_template_slug": "basic"},
     )
     create_resp.raise_for_status()
     return create_resp.json()["id"]
@@ -54,15 +55,11 @@ async def _ensure_project(
 class TestArtifactFlow:
     async def test_list_artifacts_empty(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         assert isinstance(tenants, list) and len(tenants) >= 1
         tenant_id = tenants[0]["id"]
 
-        project_id = await _ensure_project(
-            client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project"
-        )
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
 
         org_slug = tenants[0]["slug"]
         resp = await client.get(
@@ -77,14 +74,10 @@ class TestArtifactFlow:
 
     async def test_create_and_list_artifact(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         assert isinstance(tenants, list) and len(tenants) >= 1
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
-        project_id = await _ensure_project(
-            client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project"
-        )
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
 
         create_resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
@@ -116,14 +109,10 @@ class TestArtifactFlow:
 
     async def test_transition_artifact(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         assert isinstance(tenants, list) and len(tenants) >= 1
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
-        project_id = await _ensure_project(
-            client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project"
-        )
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
 
         create_resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
@@ -148,14 +137,10 @@ class TestArtifactFlow:
 
     async def test_get_permitted_transitions(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         assert isinstance(tenants, list) and len(tenants) >= 1
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
-        project_id = await _ensure_project(
-            client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project"
-        )
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
         create_resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
@@ -182,13 +167,9 @@ class TestArtifactFlow:
 
     async def test_list_artifacts_pagination(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
-        project_id = await _ensure_project(
-            client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project"
-        )
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
         for i in range(3):
             await client.post(
                 f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
@@ -207,13 +188,9 @@ class TestArtifactFlow:
 
     async def test_list_artifacts_filter_by_type(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
-        project_id = await _ensure_project(
-            client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project"
-        )
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
         await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
@@ -230,13 +207,9 @@ class TestArtifactFlow:
 
     async def test_update_artifact(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
-        project_id = await _ensure_project(
-            client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project"
-        )
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
         create_resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
@@ -256,13 +229,9 @@ class TestArtifactFlow:
 
     async def test_delete_artifact(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
-        project_id = await _ensure_project(
-            client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project"
-        )
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
         create_resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
@@ -285,13 +254,9 @@ class TestArtifactFlow:
 
     async def test_batch_transition_artifacts(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
-        project_id = await _ensure_project(
-            client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project"
-        )
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
         ids = []
         for _ in range(2):
             cr = await client.post(
@@ -315,13 +280,9 @@ class TestArtifactFlow:
 
     async def test_batch_delete_artifacts(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
-        project_id = await _ensure_project(
-            client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project"
-        )
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
         ids = []
         for _ in range(2):
             cr = await client.post(

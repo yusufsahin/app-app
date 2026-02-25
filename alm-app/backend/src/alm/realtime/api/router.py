@@ -1,4 +1,5 @@
 """WebSocket endpoint for real-time events (C1)."""
+
 from __future__ import annotations
 
 import uuid

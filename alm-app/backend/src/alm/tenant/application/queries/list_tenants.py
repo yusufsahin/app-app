@@ -34,12 +34,14 @@ class ListMyTenantsHandler(QueryHandler[list[TenantWithRolesDTO]]):
             if tenant is None:
                 continue
             role_slugs = await self._role_repo.get_role_slugs_for_membership(membership.id)
-            result.append(TenantWithRolesDTO(
-                id=tenant.id,
-                name=tenant.name,
-                slug=tenant.slug,
-                tier=tenant.tier,
-                roles=role_slugs,
-            ))
+            result.append(
+                TenantWithRolesDTO(
+                    id=tenant.id,
+                    name=tenant.name,
+                    slug=tenant.slug,
+                    tier=tenant.tier,
+                    roles=role_slugs,
+                )
+            )
 
         return result

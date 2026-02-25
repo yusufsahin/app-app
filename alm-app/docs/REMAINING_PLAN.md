@@ -18,7 +18,7 @@ Bu doküman, mevcut durum özetinden sonra kalan işleri öncelik sırasıyla li
 - Dashboard: KPI kartları, recent activity (D3); rate limit tenant bazlı (D2)
 - CI: GitHub Actions (backend ruff + pytest + pip-audit, frontend lint + build + build:check-size + test:unit + npm audit); Dependabot (npm, pip)
 - ESLint 9 flat config; test: Playwright e2e, Vitest unit (manifestPreviewSchema, workflowManifest, permissions, savedQueryApi, workflowRuleApi, artifactApi, appPaths, planningApi); pytest unit (backend: mpc_resolver, list_schema, form_schema_builder, security _matches_permission)
-- D1: Tasarım + GuardPort/AuthPort + field masking (artifact:read_sensitive, SENSITIVE_CUSTOM_FIELD_KEYS) + transition policy hook; pytest unit (field_masking)
+- D1: Tasarım + GuardPort/AuthPort + field masking (artifact:read_sensitive, SENSITIVE_CUSTOM_FIELD_KEYS) + transition policy hook; pytest unit (field_masking). **Not:** Field masking’in taşınması veya port refactor’u mimari refactor kapsamı dışındadır (out of scope).
 - **Admin context (G1–G5):** Health (app_version, environment, /health/ready), Access audit (login success/failure, GET /admin/audit/access), Admin kullanıcı oluşturma/liste/soft delete (POST/GET/DELETE /admin/users), Tenant arşivleme (DELETE /tenants/{id}); UI: Members sayfasında admin (include deleted, create user, delete), Access audit sayfası, Settings’te Archive organization
 
 **Referans:** Aşama planının tam listesi için [alm-app.md §12](./alm-app.md#12-asama-plani-phases) kullanılır.
@@ -76,7 +76,7 @@ Bu doküman, mevcut durum özetinden sonra kalan işleri öncelik sırasıyla li
 
 | # | Görev | Detay | Tahmini |
 |---|--------|--------|---------|
-| D1 | MPC PolicyEngine / ACLEngine entegrasyonu | Tasarım + GuardPort/AuthPort + **field masking** (artifact:read_sensitive, custom_fields internal_notes/confidential); transition’da policy hook. PolicyEngine harici çağrı MPC hazır olunca. | Kısmen ✓ |
+| D1 | MPC PolicyEngine / ACLEngine entegrasyonu | Tasarım + GuardPort/AuthPort + **field masking** (artifact:read_sensitive, custom_fields internal_notes/confidential); transition’da policy hook. PolicyEngine harici çağrı MPC hazır olunca. Field masking taşıma/port refactor **out of scope**. | Kısmen ✓ |
 | D2 | Tenant rate limiting | Redis sliding window; 429 + Retry-After | ✓ |
 | D3 | Dashboard sayfası | KPI kartları, basit grafikler, activity feed; backend’te read model / materialized view | ✓ (temel) |
 | D4 | Cycle (CycleNode) iyileştirmeleri (opsiyonel) | Cycle CRUD, artifact cycle_node_id atama, cycle bazlı filtre; Planning’te Cycle backlog sekmesi | ✓ |

@@ -1,13 +1,14 @@
 """Get artifact by ID."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)

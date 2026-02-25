@@ -5,6 +5,7 @@ import { Snackbar, Alert } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { theme } from "./theme";
+import { LayoutUIProvider } from "../shared/contexts/LayoutUIContext";
 import { useNotificationStore } from "../shared/stores/notificationStore";
 
 const queryClient = new QueryClient({
@@ -54,8 +55,10 @@ export function Providers({ children }: ProvidersProps) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={theme}>
         <LocalizationProvider dateAdapter={AdapterDayjs}>
-          {children}
-          <GlobalSnackbar />
+          <LayoutUIProvider>
+            {children}
+            <GlobalSnackbar />
+          </LayoutUIProvider>
         </LocalizationProvider>
       </ThemeProvider>
     </QueryClientProvider>

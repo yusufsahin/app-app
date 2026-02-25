@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
@@ -7,7 +7,6 @@ import {
   Box,
   Card,
   CardContent,
-  TextField,
   Button,
   Typography,
   Alert,
@@ -17,6 +16,7 @@ import {
   IconButton,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { RhfTextField } from "../../../shared/components/forms";
 import { useRegister } from "../../../shared/api/authApi";
 import { useAuthStore } from "../../../shared/stores/authStore";
 
@@ -40,13 +40,10 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<RegisterFormData>({
+  const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
   });
+  const { handleSubmit } = form;
 
   const onSubmit = async (data: RegisterFormData) => {
     setError(null);
@@ -88,78 +85,68 @@ export default function RegisterPage() {
             </Alert>
           )}
 
-          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-            <TextField
-              {...register("display_name")}
-              label="Display Name"
-              fullWidth
-              error={!!errors.display_name}
-              helperText={errors.display_name?.message}
-              sx={{ mb: 2.5 }}
-            />
-
-            <TextField
-              {...register("email")}
-              label="Email"
-              type="email"
-              fullWidth
-              error={!!errors.email}
-              helperText={errors.email?.message}
-              sx={{ mb: 2.5 }}
-              autoComplete="email"
-            />
-
-            <TextField
-              {...register("org_name")}
-              label="Organization Name"
-              fullWidth
-              error={!!errors.org_name}
-              helperText={errors.org_name?.message}
-              sx={{ mb: 2.5 }}
-            />
-
-            <TextField
-              {...register("password")}
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              fullWidth
-              error={!!errors.password}
-              helperText={errors.password?.message}
-              sx={{ mb: 3 }}
-              autoComplete="new-password"
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => setShowPassword((v) => !v)}
-                        edge="end"
-                        size="small"
-                        aria-label="toggle password visibility"
-                      >
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-
-            <Button
-              type="submit"
-              variant="contained"
-              fullWidth
-              size="large"
-              disabled={registerMutation.isPending}
-              sx={{ mb: 2, py: 1.5 }}
-            >
+          <FormProvider {...form}>
+            <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+              <RhfTextField<RegisterFormData>
+                name="display_name"
+                label="Display Name"
+                fullWidth
+                sx={{ mb: 2.5 }}
+              />
+              <RhfTextField<RegisterFormData>
+                name="email"
+                label="Email"
+                type="email"
+                fullWidth
+                sx={{ mb: 2.5 }}
+                autoComplete="email"
+              />
+              <RhfTextField<RegisterFormData>
+                name="org_name"
+                label="Organization Name"
+                fullWidth
+                sx={{ mb: 2.5 }}
+              />
+              <RhfTextField<RegisterFormData>
+                name="password"
+                label="Password"
+                type={showPassword ? "text" : "password"}
+                fullWidth
+                sx={{ mb: 3 }}
+                autoComplete="new-password"
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowPassword((v) => !v)}
+                          edge="end"
+                          size="small"
+                          aria-label="toggle password visibility"
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
+                size="large"
+                disabled={registerMutation.isPending}
+                sx={{ mb: 2, py: 1.5 }}
+              >
               {registerMutation.isPending ? (
                 <CircularProgress size={24} color="inherit" />
               ) : (
                 "Create Account"
               )}
             </Button>
-          </Box>
+            </Box>
+          </FormProvider>
 
           <Typography variant="body2" align="center" color="text.secondary">
             Already have an account?{" "}

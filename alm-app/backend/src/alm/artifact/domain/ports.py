@@ -1,4 +1,5 @@
 """Artifact repository port."""
+
 from __future__ import annotations
 
 import uuid
@@ -15,8 +16,7 @@ class ArtifactRepository(ABC):
     """Port for artifact persistence."""
 
     @abstractmethod
-    async def find_by_id(self, artifact_id: uuid.UUID) -> Artifact | None:
-        ...
+    async def find_by_id(self, artifact_id: uuid.UUID) -> Artifact | None: ...
 
     @abstractmethod
     async def find_by_id_include_deleted(self, artifact_id: uuid.UUID) -> Artifact | None:
@@ -37,8 +37,7 @@ class ArtifactRepository(ABC):
         limit: int | None = None,
         offset: int | None = None,
         include_deleted: bool = False,
-    ) -> list[Artifact]:
-        ...
+    ) -> list[Artifact]: ...
 
     @abstractmethod
     async def count_by_project(
@@ -55,17 +54,15 @@ class ArtifactRepository(ABC):
         ...
 
     @abstractmethod
-    async def list_by_spec(self, spec: "Specification[Artifact]") -> list[Artifact]:
+    async def list_by_spec(self, spec: Specification[Artifact]) -> list[Artifact]:
         """List artifacts satisfying specification (in-memory filter after fetch)."""
         ...
 
     @abstractmethod
-    async def add(self, artifact: Artifact) -> Artifact:
-        ...
+    async def add(self, artifact: Artifact) -> Artifact: ...
 
     @abstractmethod
-    async def update(self, artifact: Artifact) -> Artifact:
-        ...
+    async def update(self, artifact: Artifact) -> Artifact: ...
 
     @abstractmethod
     async def count_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
@@ -73,9 +70,7 @@ class ArtifactRepository(ABC):
         ...
 
     @abstractmethod
-    async def count_open_defects_by_project_ids(
-        self, project_ids: list[uuid.UUID]
-    ) -> int:
+    async def count_open_defects_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
         """Count defects/bugs not in a final state (closed, done)."""
         ...
 
@@ -111,3 +106,13 @@ class ArtifactRepository(ABC):
     ) -> list[tuple[uuid.UUID, float]]:
         """Sum effort (from custom_fields[effort_field]) per cycle for all artifacts in cycle. Returns [(cycle_node_id, total), ...]."""
         ...
+
+
+class IArtifactTransitionMetrics(ABC):
+    """Port for recording artifact transition metrics (observability). Implemented in infrastructure."""
+
+    @abstractmethod
+    def record_duration_seconds(self, duration: float) -> None: ...
+
+    @abstractmethod
+    def record_result(self, result: str) -> None: ...

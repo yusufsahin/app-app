@@ -35,18 +35,21 @@ Sonrasında uygulamayı başlatın; seed otomatik çalışır.
 
 ---
 
-## MPC Path Dependency (Local Dev + Docker)
+## Path Dependencies (Local Dev + Docker)
 
-MPC (`manifest-platform-core-suite`) public PyPI'da değilse path dependency kullanın.
+Backend, MPC ve statelesspy için path dependency kullanabilir (PyPI’da yoksa).
 
 ### Local geliştirme
 
-1. MPC'yi `../manifest-platform-core-suite` konumuna klonlayın (alm-manifest-app ile aynı üst dizinde)
-2. `pyproject.toml` örneği:
+1. **MPC:** `manifest-platform-core-suite` — alm-app ile aynı üst dizinde (örn. `../manifest-platform-core-suite`)
+2. **statelesspy:** Workflow adapter state grafiği için — aynı workspace’te (örn. `../../../statelesspy`)
+
+`backend/pyproject.toml` örneği:
 
 ```toml
 [tool.uv.sources]
-manifest-platform-core-suite = { path = "../manifest-platform-core-suite" }
+mpc = { path = "../../manifest-platform-core-suite" }
+statelesspy = { path = "../../../statelesspy" }
 ```
 
 ### Docker build
@@ -62,8 +65,14 @@ COPY ../manifest-platform-core-suite /tmp/mpc
 RUN pip install /tmp/mpc
 ```
 
-Build context sınırlaması nedeniyle `../` genelde çalışmaz; MPC'yi alm-app altına (`alm-app/mpc`) veya submodule olarak ekleyin.
+Build context sınırlaması nedeniyle `../` genelde çalışmaz; MPC’yi alm-app altına veya submodule olarak ekleyin. statelesspy için de aynı şekilde image’a COPY veya submodule ile dahil edin.
 
 ### README notu
 
-Geliştirici kurulumunda MPC'nin nereye klonlanacağını belirtin.
+Geliştirici kurulumunda MPC ve (isteğe bağlı) statelesspy’nin nereye klonlanacağını belirtin.
+
+---
+
+## Testler ve PostgreSQL
+
+Entegrasyon testleri PostgreSQL ister. (1) Docker ile test container otomatik başlar (`backend/tests/README.md`). (2) Veya `ALM_TEST_DATABASE_URL` ile mevcut DB kullanılır. CI'da servis Postgres kullanılır.

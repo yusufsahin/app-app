@@ -1,4 +1,5 @@
 """ProjectMember SQLAlchemy repository."""
+
 from __future__ import annotations
 
 import uuid
@@ -26,9 +27,7 @@ class SqlAlchemyProjectMemberRepository(ProjectMemberRepository):
         await self._session.flush()
         return member
 
-    async def find_by_project_and_user(
-        self, project_id: uuid.UUID, user_id: uuid.UUID
-    ) -> ProjectMember | None:
+    async def find_by_project_and_user(self, project_id: uuid.UUID, user_id: uuid.UUID) -> ProjectMember | None:
         result = await self._session.execute(
             select(ProjectMemberModel).where(
                 ProjectMemberModel.project_id == project_id,
@@ -40,28 +39,22 @@ class SqlAlchemyProjectMemberRepository(ProjectMemberRepository):
 
     async def list_by_project(self, project_id: uuid.UUID) -> list[ProjectMember]:
         result = await self._session.execute(
-            select(ProjectMemberModel).where(
-                ProjectMemberModel.project_id == project_id
-            )
+            select(ProjectMemberModel).where(ProjectMemberModel.project_id == project_id)
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 
-    async def delete_by_project_and_user(
-        self, project_id: uuid.UUID, user_id: uuid.UUID
-    ) -> bool:
+    async def delete_by_project_and_user(self, project_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         result = await self._session.execute(
             delete(ProjectMemberModel).where(
                 ProjectMemberModel.project_id == project_id,
                 ProjectMemberModel.user_id == user_id,
             )
         )
-        return result.rowcount > 0
+        return bool(getattr(result, "rowcount", 0))
 
     async def update(self, member: ProjectMember) -> ProjectMember:
         await self._session.execute(
-            update(ProjectMemberModel)
-            .where(ProjectMemberModel.id == member.id)
-            .values(role=member.role)
+            update(ProjectMemberModel).where(ProjectMemberModel.id == member.id).values(role=member.role)
         )
         await self._session.flush()
         return member

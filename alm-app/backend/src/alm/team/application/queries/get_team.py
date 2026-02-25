@@ -1,13 +1,14 @@
 """Get team by id (P6)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
+from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.query import Query, QueryHandler
 from alm.team.application.dtos import TeamDTO, TeamMemberDTO
 from alm.team.domain.ports import TeamRepository
-from alm.project.domain.ports import ProjectRepository
 
 
 @dataclass(frozen=True)
@@ -45,8 +46,5 @@ class GetTeamHandler(QueryHandler[TeamDTO | None]):
             description=team.description,
             created_at=team.created_at.isoformat() if team.created_at else None,
             updated_at=team.updated_at.isoformat() if team.updated_at else None,
-            members=[
-                TeamMemberDTO(team_id=m.team_id, user_id=m.user_id, role=m.role)
-                for m in members
-            ],
+            members=[TeamMemberDTO(team_id=m.team_id, user_id=m.user_id, role=m.role) for m in members],
         )

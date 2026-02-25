@@ -1,8 +1,10 @@
 """Artifact API schemas."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -13,7 +15,7 @@ class ArtifactCreateRequest(BaseModel):
     description: str = ""
     parent_id: uuid.UUID | None = None
     assignee_id: uuid.UUID | None = None
-    custom_fields: dict = Field(default_factory=dict)
+    custom_fields: dict[str, Any] = Field(default_factory=dict)
     artifact_key: str | None = None
     rank_order: float | None = None
     cycle_node_id: uuid.UUID | None = None
@@ -41,7 +43,7 @@ class ArtifactResponse(BaseModel):
     state: str
     assignee_id: uuid.UUID | None
     parent_id: uuid.UUID | None
-    custom_fields: dict = Field(default_factory=dict)
+    custom_fields: dict[str, Any] = Field(default_factory=dict)
     artifact_key: str | None = None
     state_reason: str | None = None
     resolution: str | None = None
@@ -94,13 +96,15 @@ class PermittedTransitionsResponse(BaseModel):
 
 class ArtifactTransitionRequest(BaseModel):
     new_state: str | None = Field(default=None, min_length=1)
-    trigger: str | None = Field(default=None, description="If set, transition by trigger (to_state derived from workflow)")
+    trigger: str | None = Field(
+        default=None, description="If set, transition by trigger (to_state derived from workflow)"
+    )
     state_reason: str | None = None
     resolution: str | None = None
     expected_updated_at: str | None = None  # ISO datetime for optimistic lock; omit to skip check (e.g. overwrite)
 
     @model_validator(mode="after")
-    def require_new_state_or_trigger(self) -> "ArtifactTransitionRequest":
+    def require_new_state_or_trigger(self) -> ArtifactTransitionRequest:
         if not (self.new_state or self.trigger):
             raise ValueError("Either new_state or trigger must be set")
         return self
@@ -109,12 +113,14 @@ class ArtifactTransitionRequest(BaseModel):
 class BatchTransitionRequest(BaseModel):
     artifact_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
     new_state: str | None = Field(default=None, min_length=1)
-    trigger: str | None = Field(default=None, description="If set, apply this trigger to each artifact (to_state derived per workflow)")
+    trigger: str | None = Field(
+        default=None, description="If set, apply this trigger to each artifact (to_state derived per workflow)"
+    )
     state_reason: str | None = None
     resolution: str | None = None
 
     @model_validator(mode="after")
-    def require_new_state_or_trigger(self) -> "BatchTransitionRequest":
+    def require_new_state_or_trigger(self) -> BatchTransitionRequest:
         if not (self.new_state or self.trigger):
             raise ValueError("Either new_state or trigger must be set")
         return self

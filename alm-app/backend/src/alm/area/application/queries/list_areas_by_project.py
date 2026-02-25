@@ -1,13 +1,14 @@
 """List area nodes for a project (flat or tree)."""
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.shared.application.query import Query, QueryHandler
 from alm.area.application.dtos import AreaNodeDTO
 from alm.area.domain.ports import AreaRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.shared.application.query import Query, QueryHandler
 
 
 def _build_tree(flat: list[AreaNodeDTO], parent_id: uuid.UUID | None) -> list[AreaNodeDTO]:
