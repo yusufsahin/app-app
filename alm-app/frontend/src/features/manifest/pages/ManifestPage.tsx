@@ -38,6 +38,7 @@ import {
   useUpdateProjectManifest,
   type ManifestResponse,
 } from "../../../shared/api/manifestApi";
+import type { ProblemDetail } from "../../../shared/api/types";
 import { buildPreviewSchemaFromManifest } from "../../../shared/lib/manifestPreviewSchema";
 import { MetadataDrivenForm } from "../../../shared/components/forms/MetadataDrivenForm";
 import { ManifestEditor } from "../../../shared/components/ManifestEditor";
@@ -57,7 +58,12 @@ export default function ManifestPage() {
     data: manifest,
     isLoading,
     isError,
+    error,
+    refetch,
   } = useProjectManifest(orgSlug, project?.id);
+  const apiError = error as unknown as ProblemDetail | undefined;
+  const is404 = isError && apiError?.status === 404;
+  const is403 = isError && apiError?.status === 403;
 
   const {
     activeTab,
@@ -187,9 +193,43 @@ export default function ManifestPage() {
           <Skeleton variant="text" width={200} height={40} />
           <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
         </Box>
+      ) : is403 ? (
+        <Alert severity="error">
+          You don&apos;t have permission to view the manifest for this project.
+        </Alert>
+      ) : is404 ? (
+        <Alert
+          severity="warning"
+          action={
+            project?.id && orgSlug ? (
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() =>
+                  updateManifest.mutate(
+                    {
+                      workflows: [],
+                      artifact_types: [],
+                      link_types: [],
+                    },
+                    {
+                      onSuccess: () => refetch(),
+                      onError: () => {},
+                    },
+                  )
+                }
+                disabled={updateManifest.isPending}
+              >
+                {updateManifest.isPending ? "Initializing…" : "Initialize manifest"}
+              </Button>
+            ) : null
+          }
+        >
+          This project has no process template assigned. Initialize a manifest to get started.
+        </Alert>
       ) : isError ? (
         <Alert severity="warning">
-          This project has no process template assigned, or you don&apos;t have permission to view the manifest.
+          Could not load the manifest. Please try again later.
         </Alert>
       ) : manifest ? (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
