@@ -1,5 +1,6 @@
 # Run from alm-app directory: docker compose up --build -d
-# Backend build context is parent dir; parent must contain manifest-platform-core-suite next to alm-app.
+# Backend build context is parent of alm-manifest-app (.. from alm-app = ../..) so both
+# manifest-platform-core-suite (inside alm-manifest-app) and statelesspy (sibling repo) are available.
 services:
   db:
     image: postgres:16-alpine
@@ -35,8 +36,8 @@ services:
 
   backend:
     build:
-      context: ..
-      dockerfile: alm-app/backend/Dockerfile
+      context: ../..
+      dockerfile: alm-manifest-app/alm-app/backend/Dockerfile
     ports:
       - "8000:8000"
     environment:
