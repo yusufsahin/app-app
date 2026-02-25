@@ -42,6 +42,7 @@ import { useSwitchTenant } from "../../api/authApi";
 import { useNotificationStore } from "../../stores/notificationStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { hasPermission } from "../../utils/permissions";
+import { useRealtime } from "../../realtime/useRealtime";
 
 const DRAWER_WIDTH_EXPANDED = 260;
 const DRAWER_WIDTH_COLLAPSED = 72;
@@ -63,6 +64,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export default function AppLayout() {
+  useRealtime();
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));

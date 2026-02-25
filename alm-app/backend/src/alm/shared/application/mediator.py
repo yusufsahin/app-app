@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.application.query import Query, QueryHandler
 from alm.shared.domain.events import DomainEvent
+from alm.shared.domain.event_dispatcher import IDomainEventDispatcher
 
 logger = structlog.get_logger()
 
@@ -17,6 +18,14 @@ _command_factories: dict[type[Command], Callable[[AsyncSession], CommandHandler[
 _query_factories: dict[type[Query], Callable[[AsyncSession], QueryHandler[Any]]] = {}
 
 SESSION_EVENTS_KEY = "_domain_events"
+
+_domain_event_dispatcher: IDomainEventDispatcher | None = None
+
+
+def set_domain_event_dispatcher(dispatcher: IDomainEventDispatcher) -> None:
+    """Set the domain event dispatcher used by Mediator. Call at startup."""
+    global _domain_event_dispatcher
+    _domain_event_dispatcher = dispatcher
 
 
 def register_command_handler(
@@ -59,7 +68,7 @@ class Mediator:
         result = await handler.handle(command)
         await self._process_audit()
         await self._session.commit()
-        self._dispatch_collected_events()
+        await self._dispatch_collected_events()
         return result
 
     async def query(self, query: Query) -> Any:
@@ -75,12 +84,14 @@ class Mediator:
         interceptor = AuditInterceptor(self._session)
         await interceptor.process()
 
-    def _dispatch_collected_events(self) -> None:
+    async def _dispatch_collected_events(self) -> None:
         events: list[DomainEvent] = self._session.info.pop(SESSION_EVENTS_KEY, [])
+        self._session.info[SESSION_EVENTS_KEY] = []
         if events:
             logger.info(
                 "domain_events_dispatched",
                 count=len(events),
                 types=[type(e).__name__ for e in events],
             )
-        self._session.info[SESSION_EVENTS_KEY] = []
+            if _domain_event_dispatcher is not None:
+                await _domain_event_dispatcher.dispatch(events)

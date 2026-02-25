@@ -9,7 +9,9 @@ from alm.shared.domain.exceptions import ValidationError
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.entities import Artifact
 from alm.artifact.domain.ports import ArtifactRepository
+from alm.area.domain.ports import AreaRepository
 from alm.artifact.domain.mpc_resolver import (
+    get_manifest_ast,
     get_workflow_engine,
     is_valid_parent_child,
 )
@@ -27,6 +29,10 @@ class CreateArtifact(Command):
     parent_id: uuid.UUID | None = None
     assignee_id: uuid.UUID | None = None
     custom_fields: dict | None = None
+    artifact_key: str | None = None
+    rank_order: float | None = None
+    cycle_node_id: uuid.UUID | None = None
+    area_node_id: uuid.UUID | None = None
     created_by: uuid.UUID | None = None
 
 
@@ -36,10 +42,12 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
         artifact_repo: ArtifactRepository,
         project_repo: ProjectRepository,
         process_template_repo: ProcessTemplateRepository,
+        area_repo: AreaRepository,
     ) -> None:
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
+        self._area_repo = area_repo
 
     async def handle(self, command: Command) -> ArtifactDTO:
         assert isinstance(command, CreateArtifact)
@@ -58,7 +66,8 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
             raise ValidationError("Process template version not found")
 
         manifest = version.manifest_bundle or {}
-        engine = get_workflow_engine(manifest, command.artifact_type)
+        ast = get_manifest_ast(version.id, manifest)
+        engine = get_workflow_engine(manifest, command.artifact_type, ast=ast)
         if engine is None:
             raise ValidationError(
                 f"Artifact type '{command.artifact_type}' not defined in manifest"
@@ -73,15 +82,25 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
                     "Parent artifact not found or belongs to another project"
                 )
             if not is_valid_parent_child(
-                manifest, parent.artifact_type, command.artifact_type
+                manifest, parent.artifact_type, command.artifact_type, ast=ast
             ):
                 raise ValidationError(
                     f"Artifact type '{command.artifact_type}' cannot be child of "
                     f"'{parent.artifact_type}' per manifest hierarchy"
                 )
 
+        artifact_key = command.artifact_key
+        if artifact_key is None or artifact_key.strip() == "":
+            seq = await self._project_repo.increment_artifact_seq(command.project_id)
+            artifact_key = f"{project.code}-{seq}"
+
         assignee = command.assignee_id or command.created_by
-        artifact = Artifact(
+        area_path_snapshot: str | None = None
+        if command.area_node_id:
+            area_node = await self._area_repo.find_by_id(command.area_node_id)
+            if area_node and area_node.project_id == command.project_id:
+                area_path_snapshot = area_node.path
+        artifact = Artifact.create(
             project_id=command.project_id,
             artifact_type=command.artifact_type,
             title=command.title.strip() or "Untitled",
@@ -90,6 +109,11 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
             parent_id=command.parent_id,
             assignee_id=assignee,
             custom_fields=command.custom_fields or {},
+            artifact_key=artifact_key,
+            rank_order=command.rank_order,
+            cycle_node_id=command.cycle_node_id,
+            area_node_id=command.area_node_id,
+            area_path_snapshot=area_path_snapshot,
         )
         artifact.created_by = command.created_by
         await self._artifact_repo.add(artifact)
@@ -104,4 +128,13 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
             assignee_id=artifact.assignee_id,
             parent_id=artifact.parent_id,
             custom_fields=artifact.custom_fields,
+            artifact_key=artifact.artifact_key,
+            state_reason=artifact.state_reason,
+            resolution=artifact.resolution,
+            rank_order=artifact.rank_order,
+            cycle_node_id=getattr(artifact, "cycle_node_id", None),
+            area_node_id=getattr(artifact, "area_node_id", None),
+            area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
+            created_at=getattr(artifact, "created_at", None),
+            updated_at=getattr(artifact, "updated_at", None),
         )

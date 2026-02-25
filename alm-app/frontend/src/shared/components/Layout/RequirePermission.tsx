@@ -58,3 +58,30 @@ export function RequireAnyPermission({
 
   return <>{children}</>;
 }
+
+interface RequireRoleProps {
+  requiredRole: string;
+  children: ReactNode;
+  fallbackTo?: string;
+}
+
+/**
+ * Wraps content that requires a specific role (e.g. "admin").
+ */
+export function RequireRole({
+  requiredRole,
+  children,
+  fallbackTo = "/",
+}: RequireRoleProps) {
+  const roles = useAuthStore((s) => s.roles);
+  const { orgSlug } = useParams<{ orgSlug?: string }>();
+  const allowed = roles.includes(requiredRole);
+
+  if (!allowed) {
+    const target =
+      fallbackTo === "/no-access" && orgSlug ? `/${orgSlug}/no-access` : fallbackTo;
+    return <Navigate to={target} replace />;
+  }
+
+  return <>{children}</>;
+}

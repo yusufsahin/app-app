@@ -144,3 +144,6 @@ policies: []
 ### 6.2 Artifact hierarchy — `parent_types`, `child_types` (epic → feature → requirement). CreateArtifact parent_id için doğrulanır.
 - **Custom fields**: manifest’te `fields` tanımı
 - **Actions**: `on_enter`, `on_leave` hook’ları
+
+
+— ↑ [Dokümanlar](README.md)

@@ -28,6 +28,9 @@ class ListProjectsHandler(QueryHandler[list[ProjectDTO]]):
                 name=p.name,
                 slug=p.slug,
                 description=p.description,
+                status=p.status,
+                settings=p.settings,
+                metadata_=p.metadata_,
             )
             for p in projects
         ]

@@ -47,4 +47,13 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
             assignee_id=artifact.assignee_id,
             parent_id=artifact.parent_id,
             custom_fields=artifact.custom_fields,
+            artifact_key=artifact.artifact_key,
+            state_reason=artifact.state_reason,
+            resolution=artifact.resolution,
+            rank_order=artifact.rank_order,
+            cycle_node_id=getattr(artifact, "cycle_node_id", None),
+            area_node_id=getattr(artifact, "area_node_id", None),
+            area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
+            created_at=getattr(artifact, "created_at", None),
+            updated_at=getattr(artifact, "updated_at", None),
         )

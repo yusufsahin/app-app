@@ -46,6 +46,10 @@ privileges:
     resource: artifact
     action: transition
     description: Change artifact workflow state
+  - code: "artifact:read_sensitive"
+    resource: artifact
+    action: read_sensitive
+    description: View sensitive artifact fields (e.g. internal_notes, confidential custom fields)
 
   # Task
   - code: "task:create"

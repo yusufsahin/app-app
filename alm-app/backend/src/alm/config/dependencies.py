@@ -8,8 +8,20 @@ from alm.shared.application.mediator import Mediator
 from alm.shared.audit.interceptor import ACTOR_ID_KEY, TENANT_ID_KEY
 from alm.shared.infrastructure.db.session import async_session_factory
 from alm.shared.infrastructure.security.jwt import InvalidTokenError, decode_token
+from alm.attachment.domain.ports import FileStoragePort
+from alm.attachment.infrastructure.file_storage import LocalFileStorage
+from alm.config.settings import settings
 
 _optional_bearer = HTTPBearer(auto_error=False)
+_file_storage: FileStoragePort | None = None
+
+
+def get_file_storage() -> FileStoragePort:
+    """Singleton file storage for attachment download."""
+    global _file_storage
+    if _file_storage is None:
+        _file_storage = LocalFileStorage(settings.upload_dir)
+    return _file_storage
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

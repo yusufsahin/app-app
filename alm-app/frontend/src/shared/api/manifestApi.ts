@@ -1,12 +1,13 @@
 /**
  * Manifest API: process template manifest for a project
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
 
 export interface ManifestResponse {
   manifest_bundle: {
-    workflows?: unknown[];
+    workflows?: Array<{ id: string; states?: string[] }>;
+    artifact_types?: Array<{ id: string; name?: string; workflow_id?: string; fields?: unknown[] }>;
     policies?: unknown[];
     [key: string]: unknown;
   };
@@ -28,5 +29,28 @@ export function useProjectManifest(
       return data;
     },
     enabled: !!orgSlug && !!projectId,
+  });
+}
+
+export function useUpdateProjectManifest(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (manifest_bundle: ManifestResponse["manifest_bundle"]) => {
+      const { data } = await apiClient.put<ManifestResponse>(
+        `/orgs/${orgSlug}/projects/${projectId}/manifest`,
+        { manifest_bundle },
+      );
+      return data;
+    },
+    onSuccess: () => {
+      if (orgSlug && projectId) {
+        queryClient.invalidateQueries({
+          queryKey: ["orgs", orgSlug, "projects", projectId, "manifest"],
+        });
+      }
+    },
   });
 }

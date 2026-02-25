@@ -11,3 +11,6 @@ class ProjectDTO:
     name: str
     slug: str
     description: str
+    status: str | None = None
+    settings: dict | None = None
+    metadata_: dict | None = None

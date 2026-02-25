@@ -18,10 +18,17 @@ def set_current_tenant_id(tenant_id: uuid.UUID | None) -> None:
     _current_tenant_id.set(tenant_id)
 
 
+_rls_listener_registered: bool = False
+
+
 def setup_tenant_rls(session_factory: async_sessionmaker) -> None:
     """Register after_begin hook to SET LOCAL tenant_id for RLS.
     Uses Session (sync) - AsyncSession's internal session fires the same event.
+    Idempotent: only registers the listener once.
     """
+    global _rls_listener_registered
+    if _rls_listener_registered:
+        return
     del session_factory  # unused; we listen on Session globally
 
     @event.listens_for(Session, "after_begin")
@@ -29,3 +36,5 @@ def setup_tenant_rls(session_factory: async_sessionmaker) -> None:
         tenant_id = get_current_tenant_id()
         if tenant_id is not None:
             connection.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}'"))  # type: ignore[union-attr]
+
+    _rls_listener_registered = True

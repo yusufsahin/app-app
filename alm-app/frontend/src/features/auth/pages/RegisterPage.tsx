@@ -96,7 +96,6 @@ export default function RegisterPage() {
               error={!!errors.display_name}
               helperText={errors.display_name?.message}
               sx={{ mb: 2.5 }}
-              autoFocus
             />
 
             <TextField

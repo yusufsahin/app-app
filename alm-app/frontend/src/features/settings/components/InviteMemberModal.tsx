@@ -85,7 +85,6 @@ export default function InviteMemberModal({ open, onClose, orgSlug }: InviteMemb
             error={!!errors.email}
             helperText={errors.email?.message}
             sx={{ mt: 1, mb: 2.5 }}
-            autoFocus
           />
 
           <Controller

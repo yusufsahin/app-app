@@ -8,7 +8,8 @@ from alm.shared.domain.exceptions import ConflictError, ValidationError
 from alm.shared.domain.value_objects import ProjectCode, Slug
 from alm.project.application.dtos import ProjectDTO
 from alm.project.domain.entities import Project
-from alm.project.domain.ports import ProjectRepository
+from alm.project.domain.ports import ProjectRepository, ProjectMemberRepository
+from alm.project.domain.project_member import ProjectMember
 from alm.process_template.domain.ports import ProcessTemplateRepository
 
 
@@ -18,6 +19,7 @@ class CreateProject(Command):
     code: str
     name: str
     description: str = ""
+    process_template_slug: str | None = None
     created_by: uuid.UUID | None = None
 
 
@@ -26,9 +28,11 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
         self,
         project_repo: ProjectRepository,
         process_template_repo: ProcessTemplateRepository,
+        project_member_repo: ProjectMemberRepository,
     ) -> None:
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
+        self._project_member_repo = project_member_repo
 
     async def handle(self, command: Command) -> ProjectDTO:
         assert isinstance(command, CreateProject)
@@ -56,7 +60,10 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
                 f"Project with slug '{slug.value}' already exists in this tenant"
             )
 
-        default_version = await self._process_template_repo.find_default_version()
+        template_slug = command.process_template_slug or "basic"
+        version = await self._process_template_repo.find_version_by_template_slug(
+            template_slug
+        )
         project = Project.create(
             tenant_id=command.tenant_id,
             name=command.name,
@@ -64,10 +71,19 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
             code=project_code.value,
             description=command.description,
         )
-        if default_version is not None:
-            project.process_template_version_id = default_version.id
+        if version is not None:
+            project.process_template_version_id = version.id
         project.created_by = command.created_by
         project = await self._project_repo.add(project)
+
+        if command.created_by:
+            member = ProjectMember(
+                id=uuid.uuid4(),
+                project_id=project.id,
+                user_id=command.created_by,
+                role="PROJECT_ADMIN",
+            )
+            await self._project_member_repo.add(member)
 
         return ProjectDTO(
             id=project.id,
@@ -75,4 +91,7 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
             name=project.name,
             slug=project.slug,
             description=project.description,
+            status=project.status,
+            settings=project.settings,
+            metadata_=project.metadata_,
         )

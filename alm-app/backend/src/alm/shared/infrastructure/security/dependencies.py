@@ -65,6 +65,40 @@ def _matches_permission(codes: list[str], required_code: str) -> bool:
     return False
 
 
+async def get_user_privileges(tenant_id: uuid.UUID, user_id: uuid.UUID) -> list[str]:
+    """Resolve effective privilege codes for a user in a tenant (for MPC AuthPort/GuardPort)."""
+    from alm.shared.infrastructure.cache import PermissionCache
+    from alm.shared.infrastructure.db.session import async_session_factory
+    from alm.tenant.domain.services import PermissionResolver
+    from alm.tenant.infrastructure.repositories import (
+        SqlAlchemyMembershipRepository,
+        SqlAlchemyRoleRepository,
+    )
+
+    cache = PermissionCache()
+    try:
+        cached = await cache.get(tenant_id, user_id)
+        if cached is not None:
+            return cached
+    except Exception:
+        logger.warning("Redis cache read failed, falling back to DB", exc_info=True)
+
+    async with async_session_factory() as session:
+        membership_repo = SqlAlchemyMembershipRepository(session)
+        role_repo = SqlAlchemyRoleRepository(session)
+        resolver = PermissionResolver(role_repo)
+        membership = await membership_repo.find_by_user_and_tenant(user_id, tenant_id)
+        if membership is None:
+            return []
+        role_ids = await membership_repo.get_role_ids(membership.id)
+        codes = await resolver.get_effective_privileges(role_ids)
+        try:
+            await cache.set(tenant_id, user_id, codes)
+        except Exception:
+            logger.warning("Redis cache write failed", exc_info=True)
+        return codes
+
+
 def require_permission(permission: str):
     """FastAPI dependency that checks whether the current user has a specific permission.
 
@@ -74,46 +108,9 @@ def require_permission(permission: str):
     async def _checker(
         user: CurrentUser = Depends(get_current_user),
     ) -> CurrentUser:
-        from alm.shared.infrastructure.cache import PermissionCache
-        from alm.shared.infrastructure.db.session import async_session_factory
-        from alm.tenant.domain.services import PermissionResolver
-        from alm.tenant.infrastructure.repositories import (
-            SqlAlchemyMembershipRepository,
-            SqlAlchemyRoleRepository,
-        )
-
-        cached_codes: list[str] | None = None
-        cache = PermissionCache()
-        try:
-            cached_codes = await cache.get(user.tenant_id, user.id)
-        except Exception:
-            logger.warning("Redis cache read failed, falling back to DB", exc_info=True)
-
-        if cached_codes is not None:
-            if not _matches_permission(cached_codes, permission):
-                raise AccessDenied(f"Missing permission: {permission}")
-            return user
-
-        async with async_session_factory() as session:
-            membership_repo = SqlAlchemyMembershipRepository(session)
-            role_repo = SqlAlchemyRoleRepository(session)
-            resolver = PermissionResolver(role_repo)
-
-            membership = await membership_repo.find_by_user_and_tenant(user.id, user.tenant_id)
-            if membership is None:
-                raise AccessDenied("Not a member of this tenant")
-
-            role_ids = await membership_repo.get_role_ids(membership.id)
-            codes = await resolver.get_effective_privileges(role_ids)
-
-            try:
-                await cache.set(user.tenant_id, user.id, codes)
-            except Exception:
-                logger.warning("Redis cache write failed", exc_info=True)
-
-            if not _matches_permission(codes, permission):
-                raise AccessDenied(f"Missing permission: {permission}")
-
+        codes = await get_user_privileges(user.tenant_id, user.id)
+        if not _matches_permission(codes, permission):
+            raise AccessDenied(f"Missing permission: {permission}")
         return user
 
     return Depends(_checker)

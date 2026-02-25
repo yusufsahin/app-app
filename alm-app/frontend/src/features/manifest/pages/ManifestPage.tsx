@@ -1,4 +1,5 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
 import {
   Container,
   Typography,
@@ -8,10 +9,40 @@ import {
   Chip,
   Skeleton,
   Alert,
+  Breadcrumbs,
+  Link as MuiLink,
+  Tabs,
+  Tab,
+  Snackbar,
+  ToggleButtonGroup,
+  ToggleButton,
 } from "@mui/material";
-import { ArrowBack, AccountTree, Policy } from "@mui/icons-material";
+import { ArrowBack, AccountTree, Policy, Preview, Code, ViewModule, Save, DataObject, AccountTreeOutlined } from "@mui/icons-material";
+import yaml from "js-yaml";
 import { useOrgProjects } from "../../../shared/api/orgApi";
-import { useProjectManifest } from "../../../shared/api/manifestApi";
+
+/** Get 1-based line number from JSON.parse position (e.g. "Unexpected token at position 42"). */
+function jsonErrorLine(source: string, error: unknown): number | undefined {
+  const msg = error instanceof Error ? error.message : String(error);
+  const match = msg.match(/\bposition\s+(\d+)/i);
+  if (!match) return undefined;
+  const position = Math.max(0, parseInt(match[1] ?? "0", 10));
+  let line = 1;
+  for (let i = 0; i < position && i < source.length; i++) {
+    if (source[i] === "\n") line++;
+  }
+  return line;
+}
+import {
+  useProjectManifest,
+  useUpdateProjectManifest,
+  type ManifestResponse,
+} from "../../../shared/api/manifestApi";
+import { buildPreviewSchemaFromManifest } from "../../../shared/lib/manifestPreviewSchema";
+import { MetadataDrivenForm } from "../../../shared/components/forms/MetadataDrivenForm";
+import { ManifestEditor } from "../../../shared/components/ManifestEditor";
+import { useManifestStore } from "../../../shared/stores/manifestStore";
+import { WorkflowDesignerView } from "../components/WorkflowDesignerView";
 
 export default function ManifestPage() {
   const { orgSlug, projectSlug } = useParams<{
@@ -28,8 +59,119 @@ export default function ManifestPage() {
     isError,
   } = useProjectManifest(orgSlug, project?.id);
 
+  const {
+    activeTab,
+    sourceValue,
+    sourceLanguage,
+    snackMessage,
+    snackOpen,
+    setActiveTab,
+    setSourceValue,
+    setSourceLanguage,
+    showSnack,
+    resetEditorFromBundle,
+    clearSnack,
+  } = useManifestStore();
+
+  const updateManifest = useUpdateProjectManifest(orgSlug, project?.id);
+  const [editorErrorLine, setEditorErrorLine] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (manifest?.manifest_bundle != null) {
+      resetEditorFromBundle(manifest.manifest_bundle);
+    }
+  }, [manifest?.manifest_bundle, resetEditorFromBundle]);
+
+  const handleSourceLanguageChange = (_: React.MouseEvent<HTMLElement>, value: "json" | "yaml" | null) => {
+    if (value === null) return;
+    if (value === sourceLanguage) return;
+    setEditorErrorLine(undefined);
+    try {
+      if (value === "yaml") {
+        const parsed = JSON.parse(sourceValue) as object;
+        setSourceValue(yaml.dump(parsed, { indent: 2, lineWidth: -1 }));
+      } else {
+        const parsed = yaml.load(sourceValue) as object;
+        setSourceValue(JSON.stringify(parsed, null, 2));
+      }
+      setSourceLanguage(value);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const yamlLine = e && typeof e === "object" && "mark" in e ? (e as { mark?: { line?: number } }).mark?.line : undefined;
+      const oneBased = yamlLine != null ? yamlLine + 1 : (jsonErrorLine(sourceValue, e) ?? 1);
+      setEditorErrorLine(oneBased);
+      showSnack(yamlLine != null ? `Parse error at line ${oneBased}: ${msg}` : `Parse error: ${msg}`);
+    }
+  };
+
+  const previewSchema = useMemo(
+    () => (manifest?.manifest_bundle ? buildPreviewSchemaFromManifest(manifest.manifest_bundle) : null),
+    [manifest?.manifest_bundle],
+  );
+  const [previewValues, setPreviewValues] = useState<Record<string, unknown>>({});
+
+  const handleSourceChange = (value: string) => {
+    setEditorErrorLine(undefined);
+    setSourceValue(value);
+  };
+
+  const handleSaveManifest = () => {
+    setEditorErrorLine(undefined);
+    let bundle: unknown;
+    try {
+      if (sourceLanguage === "yaml") {
+        bundle = yaml.load(sourceValue);
+        if (typeof bundle === "string" || typeof bundle === "number" || bundle === null) {
+          showSnack("YAML must parse to an object (workflows, artifact_types, policies).");
+          return;
+        }
+      } else {
+        bundle = JSON.parse(sourceValue);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const yamlLine = e && typeof e === "object" && "mark" in e ? (e as { mark?: { line?: number } }).mark?.line : undefined;
+      const oneBased = yamlLine != null ? yamlLine + 1 : (jsonErrorLine(sourceValue, e) ?? 1);
+      setEditorErrorLine(oneBased);
+      showSnack(yamlLine != null ? `Parse error at line ${oneBased}: ${msg}` : (sourceLanguage === "yaml" ? "Invalid YAML. Fix syntax before saving." : `Invalid JSON at line ${oneBased}. Fix syntax before saving.`));
+      return;
+    }
+    if (typeof bundle !== "object" || bundle === null || Array.isArray(bundle)) {
+      showSnack("Manifest must be an object (workflows, artifact_types, policies).");
+      return;
+    }
+    updateManifest.mutate(bundle as ManifestResponse["manifest_bundle"], {
+      onSuccess: () => {
+        setEditorErrorLine(undefined);
+        showSnack("Manifest saved.");
+      },
+      onError: (err: Error) => showSnack(err?.message ?? "Failed to save manifest."),
+    });
+  };
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Breadcrumbs sx={{ mb: 2 }}>
+        <MuiLink
+          component={Link}
+          to={orgSlug ? `/${orgSlug}` : "#"}
+          underline="hover"
+          color="inherit"
+        >
+          {orgSlug ?? "Org"}
+        </MuiLink>
+        {project && (
+          <MuiLink
+            component={Link}
+            to={`/${orgSlug}/${projectSlug}`}
+            underline="hover"
+            color="inherit"
+          >
+            {project.name}
+          </MuiLink>
+        )}
+        <Typography color="text.primary">Process manifest</Typography>
+      </Breadcrumbs>
       <Button
         startIcon={<ArrowBack />}
         onClick={() => navigate(orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "..")}
@@ -61,6 +203,102 @@ export default function ManifestPage() {
             </Typography>
           </Box>
 
+          <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ borderBottom: 1, borderColor: "divider" }}>
+            <Tab value="overview" label="Overview" icon={<ViewModule fontSize="small" />} iconPosition="start" />
+            <Tab value="workflow" label="Workflow" icon={<AccountTreeOutlined fontSize="small" />} iconPosition="start" />
+            <Tab value="preview" label="Form preview" icon={<Preview fontSize="small" />} iconPosition="start" />
+            <Tab value="source" label="Source" icon={<Code fontSize="small" />} iconPosition="start" />
+          </Tabs>
+
+          {activeTab === "source" && (
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              {editorErrorLine != null && editorErrorLine >= 1 && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setEditorErrorLine(undefined)}>
+                  Parse error at line {editorErrorLine}. Fix the syntax above and try again.
+                </Alert>
+              )}
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1, mb: 1 }}>
+                <ToggleButtonGroup
+                  value={sourceLanguage}
+                  exclusive
+                  onChange={handleSourceLanguageChange}
+                  size="small"
+                  aria-label="Source format"
+                >
+                  <ToggleButton value="json" aria-label="JSON">
+                    <DataObject sx={{ mr: 0.5 }} fontSize="small" />
+                    JSON
+                  </ToggleButton>
+                  <ToggleButton value="yaml" aria-label="YAML">
+                    <Code sx={{ mr: 0.5 }} fontSize="small" />
+                    YAML
+                  </ToggleButton>
+                </ToggleButtonGroup>
+                <Button
+                  variant="contained"
+                  startIcon={<Save />}
+                  onClick={handleSaveManifest}
+                  disabled={updateManifest.isPending}
+                >
+                  {updateManifest.isPending ? "Saving…" : "Save manifest"}
+                </Button>
+              </Box>
+              <ManifestEditor
+                value={sourceValue}
+                onChange={handleSourceChange}
+                language={sourceLanguage}
+                readOnly={false}
+                height={480}
+                errorLine={editorErrorLine}
+              />
+            </Paper>
+          )}
+
+          {activeTab === "workflow" && (
+            <WorkflowDesignerView
+              workflows={(manifest.manifest_bundle?.workflows ?? []) as Array<{ id: string; name?: string; states?: Array<{ id: string; name?: string; category?: string }>; transitions?: Array<{ from: string; to: string }> }>}
+              editable
+              isSaving={updateManifest.isPending}
+              onSaveWorkflow={(updatedWorkflow) => {
+                const bundle = { ...manifest.manifest_bundle } as Record<string, unknown>;
+                const workflows = Array.isArray(bundle.workflows) ? [...bundle.workflows] : [];
+                const idx = workflows.findIndex((w: { id?: string }) => (w as { id?: string }).id === updatedWorkflow.id);
+                if (idx >= 0) workflows[idx] = updatedWorkflow;
+                else workflows.push(updatedWorkflow);
+                updateManifest.mutate(
+                  { ...bundle, workflows } as ManifestResponse["manifest_bundle"],
+                  {
+                    onSuccess: () => showSnack("Workflow saved."),
+                    onError: (err: Error) => showSnack(err?.message ?? "Failed to save workflow."),
+                  },
+                );
+              }}
+            />
+          )}
+
+          {activeTab === "preview" && previewSchema && (
+            <Paper variant="outlined" sx={{ p: 3 }}>
+              <Typography variant="overline" color="primary" fontWeight={600} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                <Preview fontSize="small" />
+                Artifact form preview (from manifest)
+              </Typography>
+              <MetadataDrivenForm
+                schema={previewSchema}
+                values={previewValues}
+                onChange={setPreviewValues}
+                onSubmit={() => {}}
+                submitLabel="Create (preview only)"
+                disabled
+                submitExternally
+              />
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                This is a live preview of the create-artifact form derived from the manifest. Submit is disabled.
+              </Typography>
+            </Paper>
+          )}
+
+          {activeTab === "overview" && (
+            <>
           <Paper variant="outlined" sx={{ p: 3 }}>
             <Typography variant="overline" color="primary" fontWeight={600} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
               <AccountTree fontSize="small" />
@@ -114,8 +352,17 @@ export default function ManifestPage() {
               </Typography>
             )}
           </Paper>
+            </>
+          )}
         </Box>
       ) : null}
+      <Snackbar
+        open={snackOpen}
+        autoHideDuration={6000}
+        onClose={clearSnack}
+        message={snackMessage}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      />
     </Container>
   );
 }

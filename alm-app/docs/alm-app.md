@@ -1,5 +1,26 @@
 # ALM Manifest App - Mimari Tasarim ve Uygulama Plani
 
+↑ [Tüm dokümanlar](README.md)
+
+## İçindekiler
+
+| # | Bölüm |
+|---|--------|
+| 1 | [Mevcut MPC Kütüphanesi Özeti](#1-mevcut-mpc-kutuphanesi-ozeti) |
+| 2 | [Teknoloji Yığını (Tech Stack)](#2-teknoloji-yigini-tech-stack) |
+| 3 | [Mimari Yapı (Architecture)](#3-mimari-yapi-architecture) |
+| 4 | [Soft Delete Stratejisi](#4-soft-delete-stratejisi) |
+| 5 | [Event-Driven Architecture](#5-event-driven-architecture) |
+| 6 | [API Tasarım Standartları](#6-api-tasarim-standartlari) |
+| 7 | [Güvenlik (Security)](#7-guvenlik-security) |
+| 8 | [Observability Stack](#8-observability-stack) |
+| 9 | [Data Stratejisi](#9-data-stratejisi) |
+| 10 | [MPC Entegrasyonu - ALM DomainMeta](#10-mpc-entegrasyonu---alm-domainmeta) |
+| 11 | [Veri Akışı Diyagramı](#11-veri-akisi-diyagrami) |
+| 12 | [Aşama Planı (Phases)](#12-asama-plani-phases) |
+
+---
+
 ## 1. Mevcut MPC Kutuphanesi Ozeti
 
 `manifest-platform-core-suite` (MPC) zaten su yeteneklere sahip:
@@ -247,7 +268,7 @@ backend/
 │   └── versions/
 │
 ├── alm_meta/                          # ALM DomainMeta definitions (YAML/JSON)
-│   ├── domain_meta.yaml               # KindDefs: Requirement, Defect, Task, Epic, Sprint...
+│   ├── domain_meta.yaml               # KindDefs: Requirement, Defect, Task, Epic, Cycle...
 │   ├── domain_meta_changelog.yaml     # DomainMeta versiyon gecmisi
 │   ├── presets/
 │   ├── seed/                          # Tenant onboarding seed data
@@ -385,7 +406,7 @@ class BaseEntity:
     updated_by: uuid.UUID | None    # ← kim guncelledi
     deleted_at: datetime | None
     deleted_by: uuid.UUID | None
-    
+
     def to_snapshot_dict(self) -> dict:  # ← audit icin otomatik serialize
 ```
 
@@ -862,7 +883,7 @@ SPA icin **double-submit cookie** pattern:
 ### 7.5 Security Test Plani
 
 - CI'da otomatik: dependency scan, SAST (bandit/semgrep)
-- Sprint bazinda: OWASP ZAP ile DAST
+- Cycle/iteration bazinda: OWASP ZAP ile DAST
 - Release oncesi: 3rd-party penetration test (Phase 12)
 
 ---
@@ -1020,8 +1041,8 @@ kinds:
   - name: Epic
     required_props: [title, status]
     allowed_types: [string, int, bool, array]
-  - name: Sprint
-    required_props: [name, start_date, end_date, status]
+  - name: Cycle
+    required_props: [name, path, start_date, end_date, state]
     allowed_types: [string, int, date]
   - name: Policy
     required_props: [effect, priority]
@@ -1061,8 +1082,8 @@ changelog:
     date: "2026-03-01"
     changes:
       - type: added
-        kind: Sprint
-        description: "Sprint kind eklendi"
+        kind: Cycle
+        description: "Cycle kind (iteration) eklendi"
       - type: modified
         kind: Defect
         prop: severity
@@ -1312,14 +1333,14 @@ flowchart TB
 - API key management (B2B entegrasyonlar icin)
 - `usePermissions` hook + backend enforcement
 
-### Phase 10 — Dashboard + Sprint (Hafta 13-14)
+### Phase 10 — Dashboard + Cycle (Hafta 13-14)
 
 - Dashboard sayfasi (KPI cards, charts, activity feed)
 - Materialized view projections (`mv_project_summary` vb.)
 - Taskiq job: periyodik materialized view refresh
-- Sprint entity + sprint yonetimi (soft-delete)
+- Cycle (CycleNode) zaten var; artifact cycle_node_id atama, cycle bazli filtre
 - Search + filtering (PG FTS entegrasyonu ile UI)
-- Raporlama (proje bazli, sprint bazli)
+- Raporlama (proje bazli, cycle bazli)
 
 ### Phase 11 — Performance Testing (Hafta 15)
 

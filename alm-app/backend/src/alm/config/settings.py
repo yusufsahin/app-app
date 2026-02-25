@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     model_config = {"env_file": ".env", "env_prefix": "ALM_"}
 
     app_name: str = "ALM"
+    app_version: str = ""  # G4: optional, set via ALM_APP_VERSION
+    environment: str = ""  # G4: optional, e.g. development, staging, production
     debug: bool = False
 
     database_url: str = "postgresql+asyncpg://alm:alm_dev_password@localhost:5432/alm"
@@ -21,6 +23,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
 
     rate_limit_requests_per_minute: int = 60
+    rate_limit_window_seconds: int = 60  # Sliding window size (Faz D2)
 
     smtp_host: str = "localhost"
     smtp_port: int = 1025
@@ -29,6 +32,8 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_tls: bool = False
     base_url: str = "http://localhost:5173"
+
+    upload_dir: str = "uploads"  # Local directory for artifact attachments (ALM_UPLOAD_DIR)
 
     seed_demo_data: bool = True  # Create demo tenant, admin user, sample projects when DB is empty
 

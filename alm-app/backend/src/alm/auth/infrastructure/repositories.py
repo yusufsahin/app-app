@@ -19,10 +19,13 @@ class SqlAlchemyUserRepository(UserRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def find_by_id(self, user_id: uuid.UUID) -> User | None:
-        result = await self._session.execute(
-            select(UserModel).where(UserModel.id == user_id, UserModel.deleted_at.is_(None))
-        )
+    async def find_by_id(
+        self, user_id: uuid.UUID, include_deleted: bool = False
+    ) -> User | None:
+        q = select(UserModel).where(UserModel.id == user_id)
+        if not include_deleted:
+            q = q.where(UserModel.deleted_at.is_(None))
+        result = await self._session.execute(q)
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
@@ -64,6 +67,21 @@ class SqlAlchemyUserRepository(UserRepository):
         buffer_events(self._session, user.collect_events())
         buffer_audit(self._session, "User", user.id, user.to_snapshot_dict(), ChangeType.UPDATE)
         return user
+
+    async def find_all(self, include_deleted: bool = False) -> list[User]:
+        q = select(UserModel)
+        if not include_deleted:
+            q = q.where(UserModel.deleted_at.is_(None))
+        result = await self._session.execute(q)
+        return [self._to_entity(m) for m in result.scalars().all()]
+
+    async def soft_delete(self, user_id: uuid.UUID, deleted_by: uuid.UUID) -> None:
+        await self._session.execute(
+            update(UserModel)
+            .where(UserModel.id == user_id)
+            .values(deleted_at=datetime.now(UTC), deleted_by=deleted_by)
+        )
+        await self._session.flush()
 
     @staticmethod
     def _to_entity(model: UserModel) -> User:
@@ -149,11 +167,19 @@ class SqlAlchemyUserLookupAdapter(UserLookupPort):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def find_by_id(self, user_id: uuid.UUID) -> UserInfo | None:
-        result = await self._session.execute(
-            select(UserModel).where(UserModel.id == user_id, UserModel.deleted_at.is_(None))
-        )
+    async def find_by_id(
+        self, user_id: uuid.UUID, include_deleted: bool = False
+    ) -> UserInfo | None:
+        q = select(UserModel).where(UserModel.id == user_id)
+        if not include_deleted:
+            q = q.where(UserModel.deleted_at.is_(None))
+        result = await self._session.execute(q)
         model = result.scalar_one_or_none()
         if model is None:
             return None
-        return UserInfo(id=model.id, email=model.email, display_name=model.display_name)
+        return UserInfo(
+            id=model.id,
+            email=model.email,
+            display_name=model.display_name,
+            deleted_at=model.deleted_at,
+        )

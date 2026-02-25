@@ -31,3 +31,15 @@ class ProcessTemplateRepository:
     async def find_default_version(self) -> ProcessTemplateVersion | None:
         """Get the default (Basic) template version, if any."""
         ...
+
+    @abstractmethod
+    async def find_version_by_template_slug(
+        self, template_slug: str
+    ) -> ProcessTemplateVersion | None:
+        """Get the latest version for a template by slug."""
+        ...
+
+    @abstractmethod
+    async def add_version(self, version: ProcessTemplateVersion) -> ProcessTemplateVersion:
+        """Persist a new process template version (e.g. when saving project manifest)."""
+        ...

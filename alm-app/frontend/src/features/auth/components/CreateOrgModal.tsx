@@ -72,7 +72,6 @@ export default function CreateOrgModal({
             error={!!errors.name}
             helperText={errors.name?.message}
             sx={{ mt: 1 }}
-            autoFocus
           />
         </DialogContent>
 

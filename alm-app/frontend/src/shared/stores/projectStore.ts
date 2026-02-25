@@ -8,9 +8,16 @@ export interface Project {
   description?: string;
 }
 
+/** Projects list page UI state (Zustand standard). */
+export interface ProjectListState {
+  listTab: number;
+  createModalOpen: boolean;
+}
+
 interface ProjectState {
   currentProject: Project | null;
   projectsByOrg: Record<string, Project[]>;
+  listState: ProjectListState;
   setCurrentProject: (project: Project | null) => void;
   setProjects: (orgSlug: string, projects: Project[]) => void;
   addProject: (orgSlug: string, project: Project) => void;
@@ -18,11 +25,20 @@ interface ProjectState {
   clearProjects: (orgSlug?: string) => void;
   clearAll: () => void;
   getProjects: (orgSlug: string) => Project[];
+  setListTab: (tab: number) => void;
+  setCreateModalOpen: (open: boolean) => void;
+  resetListState: () => void;
 }
+
+const defaultListState: ProjectListState = {
+  listTab: 0,
+  createModalOpen: false,
+};
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
   currentProject: null,
   projectsByOrg: {},
+  listState: defaultListState,
 
   setCurrentProject: (project) => set({ currentProject: project }),
 
@@ -50,7 +66,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return { projectsByOrg: {} };
     }),
 
-  clearAll: () => set({ currentProject: null, projectsByOrg: {} }),
+  clearAll: () => set({ currentProject: null, projectsByOrg: {}, listState: defaultListState }),
 
   getProjects: (orgSlug) => get().projectsByOrg[orgSlug] ?? [],
+
+  setListTab: (tab) =>
+    set((s) => ({ listState: { ...s.listState, listTab: tab } })),
+
+  setCreateModalOpen: (open) =>
+    set((s) => ({ listState: { ...s.listState, createModalOpen: open } })),
+
+  resetListState: () => set({ listState: defaultListState }),
 }));

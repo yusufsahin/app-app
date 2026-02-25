@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useMemo } from "react";
+import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import {
   Container,
   Typography,
@@ -12,6 +12,12 @@ import {
   Box,
   Tabs,
   Tab,
+  Breadcrumbs,
+  Link as MuiLink,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import { Add, Search } from "@mui/icons-material";
@@ -19,6 +25,7 @@ import { useTenantStore } from "../../../shared/stores/tenantStore";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import { hasPermission } from "../../../shared/utils/permissions";
+import { useProjectStore } from "../../../shared/stores/projectStore";
 import CreateProjectModal from "../components/CreateProjectModal";
 
 export default function ProjectsPage() {
@@ -28,27 +35,53 @@ export default function ProjectsPage() {
   const permissions = useAuthStore((s) => s.permissions);
   const canCreateProject = hasPermission(permissions, "project:create");
 
+  const listTab = useProjectStore((s) => s.listState.listTab);
+  const setListTab = useProjectStore((s) => s.setListTab);
+  const createModalOpen = useProjectStore((s) => s.listState.createModalOpen);
+  const setCreateModalOpen = useProjectStore((s) => s.setCreateModalOpen);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const filter = searchParams.get("q") ?? "";
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [tab, setTab] = useState(0);
+  const sortBy = searchParams.get("sort_by") ?? "name";
+  const sortOrder = searchParams.get("sort_order") ?? "asc";
 
   const { data: projects = [], isLoading } = useOrgProjects(orgSlug);
 
-  const filteredProjects = useMemo(() => {
-    if (!filter.trim()) return projects;
-    const q = filter.toLowerCase();
-    return projects.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.code.toLowerCase().includes(q) ||
-        p.slug.toLowerCase().includes(q) ||
-        (p.description?.toLowerCase().includes(q) ?? false),
-    );
-  }, [projects, filter]);
+  const filteredAndSortedProjects = useMemo(() => {
+    let list = projects;
+    if (filter.trim()) {
+      const q = filter.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.code.toLowerCase().includes(q) ||
+          p.slug.toLowerCase().includes(q) ||
+          (p.description?.toLowerCase().includes(q) ?? false),
+      );
+    }
+    const key = sortBy === "slug" ? "slug" : "name";
+    const asc = sortOrder === "asc";
+    return [...list].sort((a, b) => {
+      const va = (a[key] ?? "").toLowerCase();
+      const vb = (b[key] ?? "").toLowerCase();
+      const cmp = va.localeCompare(vb, undefined, { sensitivity: "base" });
+      return asc ? cmp : -cmp;
+    });
+  }, [projects, filter, sortBy, sortOrder]);
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Breadcrumbs sx={{ mb: 2 }}>
+        <MuiLink
+          component={Link}
+          to={orgSlug ? `/${orgSlug}` : "#"}
+          underline="hover"
+          color="inherit"
+        >
+          {orgSlug ?? "Org"}
+        </MuiLink>
+        <Typography color="text.primary">Projects</Typography>
+      </Breadcrumbs>
       <Typography variant="h4" fontWeight={700} sx={{ mb: 3 }}>
         {currentTenantName}
       </Typography>
@@ -64,8 +97,8 @@ export default function ProjectsPage() {
         }}
       >
         <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
+          value={listTab}
+          onChange={(_, v) => setListTab(v)}
           sx={{
             minHeight: 40,
             "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 600 },
@@ -104,18 +137,38 @@ export default function ProjectsPage() {
             </InputAdornment>
           ),
         }}
-        sx={{ mb: 3, maxWidth: 280 }}
+        sx={{ mb: 2, maxWidth: 280 }}
       />
+      <FormControl size="small" sx={{ minWidth: 160, mb: 3, display: "block" }}>
+        <InputLabel id="projects-sort-label">Sort by</InputLabel>
+        <Select
+          labelId="projects-sort-label"
+          label="Sort by"
+          value={`${sortBy}-${sortOrder}`}
+          onChange={(e) => {
+            const [by, order] = (e.target.value as string).split("-") as [string, string];
+            const next = new URLSearchParams(searchParams);
+            next.set("sort_by", by);
+            next.set("sort_order", order);
+            setSearchParams(next, { replace: true });
+          }}
+        >
+          <MenuItem value="name-asc">Name (A → Z)</MenuItem>
+          <MenuItem value="name-desc">Name (Z → A)</MenuItem>
+          <MenuItem value="slug-asc">Slug (A → Z)</MenuItem>
+          <MenuItem value="slug-desc">Slug (Z → A)</MenuItem>
+        </Select>
+      </FormControl>
 
       {isLoading ? (
         <Typography color="text.secondary">Loading projects...</Typography>
-      ) : filteredProjects.length === 0 ? (
+      ) : filteredAndSortedProjects.length === 0 ? (
         <Typography color="text.secondary">
           {filter ? "No projects match your filter." : "No projects yet. Create one to get started."}
         </Typography>
       ) : (
         <Grid container spacing={2}>
-          {filteredProjects.map((project) => (
+          {filteredAndSortedProjects.map((project) => (
             <Grid size={{ xs: 12, sm: 6, md: 4 }} key={project.id}>
               <Card
                 variant="outlined"

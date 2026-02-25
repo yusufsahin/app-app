@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime
 
 from alm.tenant.domain.entities import Invitation, Privilege, Role, Tenant, TenantMembership
 
@@ -14,13 +15,16 @@ class UserInfo:
     id: uuid.UUID
     email: str
     display_name: str
+    deleted_at: datetime | None = None
 
 
 class UserLookupPort(ABC):
     """Read-only port to resolve user details from Auth BC."""
 
     @abstractmethod
-    async def find_by_id(self, user_id: uuid.UUID) -> UserInfo | None: ...
+    async def find_by_id(
+        self, user_id: uuid.UUID, include_deleted: bool = False
+    ) -> UserInfo | None: ...
 
 
 class TenantRepository(ABC):
@@ -35,6 +39,9 @@ class TenantRepository(ABC):
 
     @abstractmethod
     async def update(self, tenant: Tenant) -> Tenant: ...
+
+    @abstractmethod
+    async def soft_delete(self, tenant_id: uuid.UUID, deleted_by: uuid.UUID) -> None: ...
 
 
 class MembershipRepository(ABC):

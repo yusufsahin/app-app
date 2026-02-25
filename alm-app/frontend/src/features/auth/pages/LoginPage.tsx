@@ -104,7 +104,6 @@ export default function LoginPage() {
               helperText={errors.email?.message}
               sx={{ mb: 2.5 }}
               autoComplete="email"
-              autoFocus
             />
 
             <TextField

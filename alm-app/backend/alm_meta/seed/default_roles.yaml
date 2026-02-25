@@ -30,6 +30,7 @@ roles:
       - "task:assign"
       - "workflow:read"
       - "manifest:read"
+      - "manifest:update"
       - "member:read"
       - "member:invite"
 

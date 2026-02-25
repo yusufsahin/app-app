@@ -71,6 +71,14 @@ class SqlAlchemyTenantRepository(TenantRepository):
         buffer_audit(self._session, "Tenant", tenant.id, tenant.to_snapshot_dict(), ChangeType.UPDATE)
         return tenant
 
+    async def soft_delete(self, tenant_id: uuid.UUID, deleted_by: uuid.UUID) -> None:
+        await self._session.execute(
+            update(TenantModel)
+            .where(TenantModel.id == tenant_id)
+            .values(deleted_at=datetime.now(UTC), deleted_by=deleted_by)
+        )
+        await self._session.flush()
+
     @staticmethod
     def _to_entity(m: TenantModel) -> Tenant:
         t = Tenant(name=m.name, slug=m.slug, id=m.id, tier=m.tier, settings=m.settings)

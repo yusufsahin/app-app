@@ -13,6 +13,9 @@ class ProcessTemplate:
     slug: str
     name: str
     is_builtin: bool
+    description: str | None = None
+    type: str | None = None
+    configuration: dict | None = None
 
 
 @dataclass

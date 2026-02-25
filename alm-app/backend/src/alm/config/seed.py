@@ -109,6 +109,8 @@ async def seed_process_templates(
             slug="basic",
             name="Basic",
             is_builtin=True,
+            description="Simple workflow for requirements and defects",
+            type="basic",
         )
         session.add(basic)
         await session.flush()
@@ -134,6 +136,25 @@ async def seed_process_templates(
                             {"from": "resolved", "to": "closed", "on": "close"},
                             {"from": "closed", "to": "active", "on": "reopen"},
                         ],
+                        "state_reason_options": [
+                            {"id": "", "label": "— None —"},
+                            {"id": "new_defect_reported", "label": "New defect reported"},
+                            {"id": "build_failure", "label": "Build failure"},
+                            {"id": "work_started", "label": "Work started"},
+                            {"id": "code_complete", "label": "Code complete"},
+                            {"id": "work_finished", "label": "Work finished"},
+                            {"id": "accepted", "label": "Accepted"},
+                            {"id": "deferred", "label": "Deferred"},
+                        ],
+                        "resolution_options": [
+                            {"id": "", "label": "— None —"},
+                            {"id": "fixed", "label": "Fixed"},
+                            {"id": "fixed_and_verified", "label": "Fixed and verified"},
+                            {"id": "wont_fix", "label": "Won't fix"},
+                            {"id": "duplicate", "label": "Duplicate"},
+                            {"id": "as_designed", "label": "As designed"},
+                            {"id": "not_a_bug", "label": "Not a bug"},
+                        ],
                     },
                     {
                         "kind": "ArtifactType",
@@ -148,7 +169,9 @@ async def seed_process_templates(
                         "workflow_id": "basic",
                         "parent_types": ["epic"],
                         "child_types": ["requirement"],
-                        "fields": [{"id": "story_points", "name": "Story Points", "type": "number"}],
+                        "fields": [
+                            {"id": "story_points", "name": "Story Points", "type": "number", "requiredWhen": {"field": "typeName", "eq": "feature"}},
+                        ],
                     },
                     {
                         "kind": "ArtifactType",
@@ -161,6 +184,20 @@ async def seed_process_templates(
                         "kind": "ArtifactType",
                         "id": "defect",
                         "workflow_id": "basic",
+                        "fields": [
+                            {
+                                "id": "severity",
+                                "name": "Severity",
+                                "type": "choice",
+                                "options": [
+                                    {"id": "low", "label": "Low"},
+                                    {"id": "medium", "label": "Medium"},
+                                    {"id": "high", "label": "High"},
+                                    {"id": "critical", "label": "Critical"},
+                                ],
+                                "visibleWhen": {"field": "typeName", "in": ["defect"]},
+                            },
+                        ],
                     },
                     {
                         "kind": "TransitionPolicy",
@@ -172,8 +209,129 @@ async def seed_process_templates(
             },
         )
         session.add(version)
+
+        # Scrum template
+        scrum = ProcessTemplateModel(
+            slug="scrum",
+            name="Scrum",
+            is_builtin=True,
+            description="Agile framework with sprints and user stories",
+            type="scrum",
+        )
+        session.add(scrum)
+        await session.flush()
+
+        scrum_version = ProcessTemplateVersionModel(
+            template_id=scrum.id,
+            version="1.0.0",
+            manifest_bundle={
+                "schemaVersion": 1,
+                "namespace": "alm",
+                "name": "scrum",
+                "manifestVersion": "1.0.0",
+                "defs": [
+                    {
+                        "kind": "Workflow",
+                        "id": "scrum",
+                        "initial": "new",
+                        "finals": ["done"],
+                        "states": ["new", "approved", "in_progress", "in_review", "done"],
+                        "transitions": [
+                            {"from": "new", "to": "approved", "on": "approve"},
+                            {"from": "approved", "to": "in_progress", "on": "start"},
+                            {"from": "in_progress", "to": "in_review", "on": "submit"},
+                            {"from": "in_review", "to": "done", "on": "complete"},
+                            {"from": "in_review", "to": "in_progress", "on": "rework"},
+                            {"from": "done", "to": "in_progress", "on": "reopen"},
+                        ],
+                        "state_reason_options": [
+                            {"id": "", "label": "— None —"},
+                            {"id": "new_backlog_item", "label": "New backlog item"},
+                            {"id": "approved", "label": "Approved by Product Owner"},
+                            {"id": "commitment_made", "label": "Commitment made by the team"},
+                            {"id": "work_stopped", "label": "Work stopped"},
+                            {"id": "work_finished", "label": "Work finished"},
+                        ],
+                        "resolution_options": [
+                            {"id": "", "label": "— None —"},
+                            {"id": "fixed", "label": "Fixed"},
+                            {"id": "fixed_and_verified", "label": "Fixed and verified"},
+                            {"id": "wont_fix", "label": "Won't fix"},
+                            {"id": "duplicate", "label": "Duplicate"},
+                            {"id": "as_designed", "label": "As designed"},
+                            {"id": "not_a_bug", "label": "Not a bug"},
+                        ],
+                    },
+                    {"kind": "ArtifactType", "id": "epic", "workflow_id": "scrum", "child_types": ["feature"], "fields": [{"id": "priority", "name": "Priority", "type": "string"}]},
+                    {"kind": "ArtifactType", "id": "feature", "workflow_id": "scrum", "parent_types": ["epic"], "child_types": ["user_story"], "fields": [{"id": "story_points", "name": "Story Points", "type": "number"}]},
+                    {"kind": "ArtifactType", "id": "user_story", "workflow_id": "scrum", "parent_types": ["feature"], "fields": [{"id": "story_points", "name": "Story Points", "type": "number", "requiredWhen": {"field": "typeName", "eq": "user_story"}}, {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"}]},
+                    {"kind": "ArtifactType", "id": "bug", "workflow_id": "scrum", "fields": [{"id": "severity", "name": "Severity", "type": "choice", "options": [{"id": "low", "label": "Low"}, {"id": "high", "label": "High"}, {"id": "critical", "label": "Critical"}], "visibleWhen": {"field": "typeName", "in": ["bug"]}}]},
+                    {"kind": "TransitionPolicy", "id": "assignee_in_progress", "when": {"state": "in_progress"}, "require": "assignee"},
+                ],
+            },
+        )
+        session.add(scrum_version)
+
+        # Kanban template
+        kanban = ProcessTemplateModel(
+            slug="kanban",
+            name="Kanban",
+            is_builtin=True,
+            description="Flow-based work management",
+            type="kanban",
+        )
+        session.add(kanban)
+        await session.flush()
+
+        kanban_version = ProcessTemplateVersionModel(
+            template_id=kanban.id,
+            version="1.0.0",
+            manifest_bundle={
+                "schemaVersion": 1,
+                "namespace": "alm",
+                "name": "kanban",
+                "manifestVersion": "1.0.0",
+                "defs": [
+                    {
+                        "kind": "Workflow",
+                        "id": "kanban",
+                        "initial": "backlog",
+                        "finals": ["done"],
+                        "states": ["backlog", "ready", "in_progress", "done"],
+                        "transitions": [
+                            {"from": "backlog", "to": "ready", "on": "prepare"},
+                            {"from": "ready", "to": "in_progress", "on": "start"},
+                            {"from": "in_progress", "to": "done", "on": "complete"},
+                            {"from": "done", "to": "in_progress", "on": "reopen"},
+                        ],
+                        "state_reason_options": [
+                            {"id": "", "label": "— None —"},
+                            {"id": "new_item", "label": "New item"},
+                            {"id": "ready_for_work", "label": "Ready for work"},
+                            {"id": "work_started", "label": "Work started"},
+                            {"id": "work_finished", "label": "Work finished"},
+                        ],
+                        "resolution_options": [
+                            {"id": "", "label": "— None —"},
+                            {"id": "fixed", "label": "Fixed"},
+                            {"id": "fixed_and_verified", "label": "Fixed and verified"},
+                            {"id": "wont_fix", "label": "Won't fix"},
+                            {"id": "duplicate", "label": "Duplicate"},
+                            {"id": "as_designed", "label": "As designed"},
+                        ],
+                    },
+                    {"kind": "ArtifactType", "id": "epic", "workflow_id": "kanban", "child_types": ["feature"], "fields": [{"id": "priority", "name": "Priority", "type": "string"}]},
+                    {"kind": "ArtifactType", "id": "feature", "workflow_id": "kanban", "parent_types": ["epic"], "child_types": ["task"], "fields": [{"id": "story_points", "name": "Story Points", "type": "number"}]},
+                    {"kind": "ArtifactType", "id": "task", "workflow_id": "kanban", "parent_types": ["feature"], "fields": [{"id": "priority", "name": "Priority", "type": "string"}]},
+                    {"kind": "ArtifactType", "id": "bug", "workflow_id": "kanban", "fields": [{"id": "severity", "name": "Severity", "type": "choice", "options": [{"id": "low", "label": "Low"}, {"id": "high", "label": "High"}], "visibleWhen": {"field": "typeName", "in": ["bug"]}}]},
+                    {"kind": "TransitionPolicy", "id": "assignee_in_progress", "when": {"state": "in_progress"}, "require": "assignee"},
+                ],
+            },
+        )
+        session.add(kanban_version)
+
         await session.commit()
-        logger.info("process_templates_seeded", template="basic")
+        logger.info("process_templates_seeded", templates=["basic", "scrum", "kanban"])
 
 
 async def seed_demo_data(

@@ -28,7 +28,15 @@ async def list_process_templates(
     """List all available process templates (global catalog)."""
     templates = await mediator.query(ListProcessTemplates())
     return [
-        {"id": str(t.id), "slug": t.slug, "name": t.name, "is_builtin": t.is_builtin}
+        {
+            "id": str(t.id),
+            "slug": t.slug,
+            "name": t.name,
+            "is_builtin": t.is_builtin,
+            "description": t.description,
+            "type": t.type,
+            "configuration": t.configuration,
+        }
         for t in templates
     ]
 
@@ -48,6 +56,9 @@ async def get_process_template(
         "slug": template.slug,
         "name": template.name,
         "is_builtin": template.is_builtin,
+        "description": template.description,
+        "type": template.type,
+        "configuration": template.configuration,
     }
 
 

@@ -29,7 +29,9 @@ class OnboardingPort(ABC):
 
 class UserRepository(ABC):
     @abstractmethod
-    async def find_by_id(self, user_id: uuid.UUID) -> User | None: ...
+    async def find_by_id(
+        self, user_id: uuid.UUID, include_deleted: bool = False
+    ) -> User | None: ...
 
     @abstractmethod
     async def find_by_email(self, email: str) -> User | None: ...
@@ -39,6 +41,12 @@ class UserRepository(ABC):
 
     @abstractmethod
     async def update(self, user: User) -> User: ...
+
+    @abstractmethod
+    async def find_all(self, include_deleted: bool = False) -> list[User]: ...
+
+    @abstractmethod
+    async def soft_delete(self, user_id: uuid.UUID, deleted_by: uuid.UUID) -> None: ...
 
 
 class RefreshTokenRepository(ABC):

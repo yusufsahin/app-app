@@ -11,6 +11,8 @@ from alm.shared.infrastructure.db.base_model import Base
 import alm.auth.infrastructure.models  # noqa: F401
 import alm.tenant.infrastructure.models  # noqa: F401
 import alm.project.infrastructure.models  # noqa: F401
+import alm.project.infrastructure.project_member_models  # noqa: F401
+import alm.team.infrastructure.models  # noqa: F401
 import alm.process_template.infrastructure.models  # noqa: F401
 import alm.shared.audit.models  # noqa: F401
 

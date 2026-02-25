@@ -12,6 +12,7 @@ from alm.shared.infrastructure.security.dependencies import (
     CurrentUser,
     get_authenticated_user_id,
     get_current_user,
+    require_any_role,
     require_permission,
 )
 from alm.tenant.api.schemas import (
@@ -134,6 +135,21 @@ async def update_tenant(
         UpdateTenant(tenant_id=tenant_id, name=body.name, settings=body.settings)
     )
     return TenantResponse(id=dto.id, name=dto.name, slug=dto.slug, tier=dto.tier)
+
+
+@router.delete("/{tenant_id}", status_code=204)
+async def archive_tenant(
+    tenant_id: uuid.UUID,
+    user: CurrentUser = Depends(require_any_role("admin")),
+    mediator: Mediator = Depends(get_mediator),
+) -> None:
+    """G3: Archive (soft-delete) the tenant. Admin of this tenant only."""
+    from alm.tenant.application.commands.archive_tenant import ArchiveTenant
+
+    if tenant_id != user.tenant_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Can only archive your current tenant.")
+    await mediator.send(ArchiveTenant(tenant_id=tenant_id, archived_by=user.id))
 
 
 # ── Members ──

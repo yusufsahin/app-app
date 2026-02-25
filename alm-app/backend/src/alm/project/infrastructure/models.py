@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import ForeignKey, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from alm.shared.infrastructure.db.base_model import Base, SoftDeleteMixin, TimestampMixin
@@ -26,3 +27,7 @@ class ProjectModel(Base, TimestampMixin, SoftDeleteMixin):
     process_template_version_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, nullable=True, index=True
     )
+    status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
+    artifact_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

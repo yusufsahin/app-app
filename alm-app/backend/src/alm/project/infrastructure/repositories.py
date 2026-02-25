@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alm.shared.application.mediator import buffer_events
@@ -63,6 +63,18 @@ class SqlAlchemyProjectRepository(ProjectRepository):
         models = result.scalars().all()
         return [self._to_entity(m) for m in models]
 
+    async def increment_artifact_seq(self, project_id: uuid.UUID) -> int:
+        result = await self._session.execute(
+            update(ProjectModel)
+            .where(ProjectModel.id == project_id)
+            .values(artifact_seq=ProjectModel.artifact_seq + 1)
+            .returning(ProjectModel.artifact_seq)
+        )
+        row = result.one_or_none()
+        if row is None:
+            raise ValueError(f"Project {project_id} not found")
+        return row[0]
+
     async def add(self, project: Project) -> Project:
         model = ProjectModel(
             id=project.id,
@@ -72,6 +84,10 @@ class SqlAlchemyProjectRepository(ProjectRepository):
             slug=project.slug,
             description=project.description,
             process_template_version_id=project.process_template_version_id,
+            status=project.status,
+            settings=project.settings,
+            metadata_=project.metadata_,
+            artifact_seq=getattr(project, "artifact_seq", 0),
         )
         self._session.add(model)
         await self._session.flush()
@@ -85,6 +101,22 @@ class SqlAlchemyProjectRepository(ProjectRepository):
         )
         return project
 
+    async def update(self, project: Project) -> Project:
+        await self._session.execute(
+            update(ProjectModel)
+            .where(ProjectModel.id == project.id)
+            .values(
+                name=project.name,
+                description=project.description,
+                status=project.status,
+                settings=project.settings,
+                metadata_=project.metadata_,
+                process_template_version_id=project.process_template_version_id,
+            )
+        )
+        await self._session.flush()
+        return project
+
     @staticmethod
     def _to_entity(m: ProjectModel) -> Project:
         p = Project(
@@ -95,6 +127,9 @@ class SqlAlchemyProjectRepository(ProjectRepository):
             description=m.description,
             id=m.id,
             process_template_version_id=m.process_template_version_id,
+            status=getattr(m, "status", None),
+            settings=getattr(m, "settings", None),
+            metadata_=getattr(m, "metadata_", None),
         )
         p.created_at = m.created_at
         p.created_by = m.created_by

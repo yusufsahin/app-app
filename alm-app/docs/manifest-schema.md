@@ -53,3 +53,5 @@ Her artifact tipi hangi workflow'u kullandığını belirtir.
 ## Policies (İleride)
 
 Kurallar: örn. "active" durumuna geçmeden önce assignee zorunlu.
+
+— ↑ [Dokümanlar](README.md)

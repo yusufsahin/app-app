@@ -1,7 +1,10 @@
 import { createBrowserRouter, useRouteError, isRouteErrorResponse, Link } from "react-router-dom";
 import { lazy, Suspense, type ComponentType } from "react";
 import { Box, Button, CircularProgress, Container, Typography } from "@mui/material";
-import RequirePermission, { RequireAnyPermission } from "../shared/components/Layout/RequirePermission";
+import RequirePermission, {
+  RequireAnyPermission,
+  RequireRole,
+} from "../shared/components/Layout/RequirePermission";
 
 const Loading = () => (
   <Box
@@ -45,6 +48,9 @@ const SettingsPage = lazy(
 const PrivilegesPage = lazy(
   () => import("../features/settings/pages/PrivilegesPage"),
 );
+const AccessAuditPage = lazy(
+  () => import("../features/settings/pages/AccessAuditPage"),
+);
 const NoAccessPage = lazy(
   () => import("../features/auth/pages/NoAccessPage"),
 );
@@ -56,6 +62,15 @@ const ManifestPage = lazy(
 );
 const ArtifactsPage = lazy(
   () => import("../features/artifacts/pages/ArtifactsPage"),
+);
+const PlanningPage = lazy(
+  () => import("../features/planning/pages/PlanningPage"),
+);
+const AutomationPage = lazy(
+  () => import("../features/automation/pages/AutomationPage"),
+);
+const BoardPage = lazy(
+  () => import("../features/board/pages/BoardPage"),
 );
 
 const OrgRedirect = lazy(() => import("./OrgRedirect"));
@@ -147,6 +162,16 @@ export const router = createBrowserRouter([
             ),
           },
           { path: "members", element: withPermission("member:read", MemberManagementPage) },
+          {
+            path: "audit",
+            element: (
+              <RequireRole requiredRole="admin" fallbackTo="/no-access">
+                <Suspense fallback={<Loading />}>
+                  <AccessAuditPage />
+                </Suspense>
+              </RequireRole>
+            ),
+          },
           { path: "roles", element: withPermission("role:read", RoleManagementPage) },
           { path: "privileges", element: withPermission("role:read", PrivilegesPage) },
           { path: "no-access", element: withSuspense(NoAccessPage) },
@@ -155,8 +180,20 @@ export const router = createBrowserRouter([
             element: withPermission("manifest:read", ManifestPage),
           },
           {
+            path: ":projectSlug/planning",
+            element: withPermission("project:read", PlanningPage),
+          },
+          {
             path: ":projectSlug/artifacts",
             element: withPermission("artifact:read", ArtifactsPage),
+          },
+          {
+            path: ":projectSlug/board",
+            element: withPermission("artifact:read", BoardPage),
+          },
+          {
+            path: ":projectSlug/automation",
+            element: withPermission("project:read", AutomationPage),
           },
           { path: ":projectSlug", element: withPermission("project:read", ProjectDetailPage) },
         ],

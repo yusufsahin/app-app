@@ -31,4 +31,7 @@ class GetProjectHandler(QueryHandler[ProjectDTO | None]):
             name=project.name,
             slug=project.slug,
             description=project.description,
+            status=project.status,
+            settings=project.settings,
+            metadata_=project.metadata_,
         )

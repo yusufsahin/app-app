@@ -9,8 +9,13 @@ import {
   TextField,
   Button,
   CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import { useCreateOrgProject } from "../../../shared/api/orgApi";
+import { useProcessTemplates } from "../../../shared/api/processTemplateApi";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 
 const createProjectSchema = z.object({
@@ -25,9 +30,12 @@ const createProjectSchema = z.object({
     .transform((v) => v.trim().toUpperCase()),
   name: z.string().min(1, "Project name is required"),
   description: z.string().optional(),
+  process_template_slug: z.string().min(1),
 });
 
-type CreateProjectFormData = z.infer<typeof createProjectSchema>;
+type CreateProjectFormData = z.input<typeof createProjectSchema> & {
+  process_template_slug: string;
+};
 
 interface CreateProjectModalProps {
   open: boolean;
@@ -37,17 +45,22 @@ interface CreateProjectModalProps {
 
 export default function CreateProjectModal({ open, onClose, orgSlug }: CreateProjectModalProps) {
   const createMutation = useCreateOrgProject(orgSlug);
+  const { data: templates } = useProcessTemplates();
   const showNotification = useNotificationStore((s) => s.showNotification);
 
   const {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<CreateProjectFormData>({
     resolver: zodResolver(createProjectSchema),
-    defaultValues: { code: "", name: "", description: "" },
+    defaultValues: { code: "", name: "", description: "", process_template_slug: "basic" },
   });
+
+  const selectedTemplate = watch("process_template_slug");
 
   const handleClose = () => {
     reset();
@@ -61,6 +74,7 @@ export default function CreateProjectModal({ open, onClose, orgSlug }: CreatePro
         code: data.code,
         name: data.name,
         description: data.description,
+        process_template_slug: data.process_template_slug || "basic",
       });
       showNotification("Project created successfully");
       handleClose();
@@ -90,7 +104,6 @@ export default function CreateProjectModal({ open, onClose, orgSlug }: CreatePro
               "2-10 alphanumeric characters, uppercase"
             }
             sx={{ mt: 1, mb: 2 }}
-            autoFocus
             inputProps={{ maxLength: 10 }}
           />
           <TextField
@@ -101,6 +114,21 @@ export default function CreateProjectModal({ open, onClose, orgSlug }: CreatePro
             helperText={errors.name?.message}
             sx={{ mb: 2 }}
           />
+
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>Process template</InputLabel>
+            <Select
+              value={selectedTemplate ?? "basic"}
+              label="Process template"
+              onChange={(e) => setValue("process_template_slug", e.target.value as string)}
+            >
+              {(templates ?? [{ id: "basic", slug: "basic", name: "Basic", is_builtin: true }]).map((t) => (
+                <MenuItem key={t.id} value={t.slug}>
+                  {t.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
           <TextField
             {...register("description")}

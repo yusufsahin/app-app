@@ -14,23 +14,115 @@ export interface CreateArtifactRequest {
   title: string;
   description?: string;
   parent_id?: string | null;
+  assignee_id?: string | null;
   custom_fields?: Record<string, unknown>;
+}
+
+export type ArtifactSortBy =
+  | "artifact_key"
+  | "title"
+  | "state"
+  | "artifact_type"
+  | "created_at"
+  | "updated_at";
+export type ArtifactSortOrder = "asc" | "desc";
+
+export interface ArtifactsListResult {
+  items: Artifact[];
+  total: number;
+  /** Permission-aware UI: actions the current user can perform (e.g. create when list is empty). */
+  allowed_actions?: string[];
+}
+
+export interface ArtifactListParams {
+  state?: string;
+  type?: string;
+  sort_by?: ArtifactSortBy;
+  sort_order?: ArtifactSortOrder;
+  q?: string;
+  limit?: number;
+  offset?: number;
+  include_deleted?: boolean;
+  cycle_node_id?: string;
+  area_node_id?: string;
+}
+
+/**
+ * Build query params for artifact list API (pure, testable).
+ */
+export function buildArtifactListParams(options: {
+  stateFilter?: string;
+  typeFilter?: string;
+  sortBy?: ArtifactSortBy;
+  sortOrder?: ArtifactSortOrder;
+  searchQuery?: string;
+  limit?: number;
+  offset?: number;
+  includeDeleted?: boolean;
+  cycleNodeId?: string | null;
+  areaNodeId?: string | null;
+}): ArtifactListParams {
+  const params: ArtifactListParams = {};
+  const {
+    stateFilter,
+    typeFilter,
+    sortBy,
+    sortOrder,
+    searchQuery,
+    limit,
+    offset,
+    includeDeleted,
+    cycleNodeId,
+    areaNodeId,
+  } = options;
+  if (stateFilter) params.state = stateFilter;
+  if (typeFilter) params.type = typeFilter;
+  if (sortBy) params.sort_by = sortBy;
+  if (sortOrder) params.sort_order = sortOrder;
+  const q = searchQuery?.trim();
+  if (q) params.q = q;
+  if (limit != null) params.limit = limit;
+  if (offset != null) params.offset = offset;
+  if (includeDeleted) params.include_deleted = true;
+  if (cycleNodeId) params.cycle_node_id = cycleNodeId;
+  if (areaNodeId) params.area_node_id = areaNodeId;
+  return params;
 }
 
 export function useArtifacts(
   orgSlug: string | undefined,
   projectId: string | undefined,
   stateFilter?: string,
+  typeFilter?: string,
+  sortBy?: ArtifactSortBy,
+  sortOrder?: ArtifactSortOrder,
+  searchQuery?: string,
+  limit?: number,
+  offset?: number,
+  includeDeleted?: boolean,
+  cycleNodeId?: string | null,
+  areaNodeId?: string | null,
 ) {
   const setArtifacts = useArtifactStore((s) => s.setArtifacts);
-  const params = stateFilter ? { state: stateFilter } : undefined;
+  const params = buildArtifactListParams({
+    stateFilter,
+    typeFilter,
+    sortBy,
+    sortOrder,
+    searchQuery,
+    limit,
+    offset,
+    includeDeleted,
+    cycleNodeId,
+    areaNodeId,
+  });
 
   const query = useQuery({
-    queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", stateFilter],
-    queryFn: async (): Promise<Artifact[]> => {
-      const { data } = await apiClient.get<Artifact[]>(
+    queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", stateFilter, typeFilter, sortBy, sortOrder, searchQuery?.trim() || null, limit, offset, includeDeleted, cycleNodeId || null, areaNodeId || null],
+    queryFn: async (): Promise<ArtifactsListResult> => {
+      const { data } = await apiClient.get<ArtifactsListResult>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts`,
-        { params },
+        { params: Object.keys(params).length ? params : undefined },
       );
       return data;
     },
@@ -38,10 +130,10 @@ export function useArtifacts(
   });
 
   useEffect(() => {
-    if (query.data && projectId) {
-      setArtifacts(projectId, query.data);
+    if (query.data?.items && projectId) {
+      setArtifacts(projectId, query.data.items);
     }
-  }, [query.data, projectId, setArtifacts]);
+  }, [query.data?.items, projectId, setArtifacts]);
 
   return query;
 }
@@ -69,15 +161,17 @@ export function useCreateArtifact(orgSlug: string | undefined, projectId: string
 
   return useMutation({
     mutationFn: async (payload: CreateArtifactRequest): Promise<Artifact> => {
+      const body: Record<string, unknown> = {
+        artifact_type: payload.artifact_type,
+        title: payload.title,
+        description: payload.description ?? "",
+        custom_fields: payload.custom_fields ?? {},
+      };
+      if (payload.parent_id != null && payload.parent_id !== "") body.parent_id = payload.parent_id;
+      if (payload.assignee_id != null && payload.assignee_id !== "") body.assignee_id = payload.assignee_id;
       const { data } = await apiClient.post<Artifact>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts`,
-        {
-          artifact_type: payload.artifact_type,
-          title: payload.title,
-          description: payload.description ?? "",
-          parent_id: payload.parent_id ?? undefined,
-          custom_fields: payload.custom_fields,
-        },
+        body,
       );
       return data;
     },
@@ -86,6 +180,93 @@ export function useCreateArtifact(orgSlug: string | undefined, projectId: string
         queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts"],
       });
       if (projectId) addArtifact(projectId, data);
+    },
+  });
+}
+
+export interface UpdateArtifactRequest {
+  title?: string;
+  description?: string | null;
+  assignee_id?: string | null;
+  cycle_node_id?: string | null;
+  area_node_id?: string | null;
+}
+
+export interface TransitionArtifactRequest {
+  new_state: string;
+  state_reason?: string | null;
+  resolution?: string | null;
+  /** ISO datetime for optimistic lock; omit to skip check (e.g. overwrite). */
+  expected_updated_at?: string | null;
+}
+
+export interface BatchTransitionRequest {
+  artifact_ids: string[];
+  new_state: string;
+  state_reason?: string | null;
+  resolution?: string | null;
+}
+
+export interface BatchDeleteRequest {
+  artifact_ids: string[];
+}
+
+export interface BatchResultResponse {
+  success_count: number;
+  error_count: number;
+  errors: string[];
+}
+
+export function useUpdateArtifact(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+  artifactId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+  const updateArtifact = useArtifactStore((s) => s.updateArtifact);
+
+  return useMutation({
+    mutationFn: async (payload: UpdateArtifactRequest): Promise<Artifact> => {
+      const body: Record<string, unknown> = {};
+      if (payload.title !== undefined) body.title = payload.title;
+      if (payload.description !== undefined) body.description = payload.description;
+      if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id ?? null;
+      if (payload.cycle_node_id !== undefined) body.cycle_node_id = payload.cycle_node_id ?? null;
+      if (payload.area_node_id !== undefined) body.area_node_id = payload.area_node_id ?? null;
+      const { data } = await apiClient.patch<Artifact>(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}`,
+        body,
+      );
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", data.id],
+      });
+      if (projectId) updateArtifact(projectId, data.id, data);
+    },
+  });
+}
+
+export function useDeleteArtifact(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (artifactId: string): Promise<void> => {
+      await apiClient.delete(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}`,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts"],
+      });
     },
   });
 }
@@ -99,10 +280,17 @@ export function useTransitionArtifact(
   const updateArtifact = useArtifactStore((s) => s.updateArtifact);
 
   return useMutation({
-    mutationFn: async (newState: string): Promise<Artifact> => {
+    mutationFn: async (payload: TransitionArtifactRequest): Promise<Artifact> => {
+      const body: Record<string, string> = { new_state: payload.new_state };
+      if (payload.state_reason != null && payload.state_reason !== "")
+        body.state_reason = payload.state_reason;
+      if (payload.resolution != null && payload.resolution !== "")
+        body.resolution = payload.resolution;
+      if (payload.expected_updated_at != null && payload.expected_updated_at !== "")
+        body.expected_updated_at = payload.expected_updated_at;
       const { data } = await apiClient.patch<Artifact>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/transition`,
-        { new_state: newState },
+        body,
       );
       return data;
     },
@@ -114,6 +302,121 @@ export function useTransitionArtifact(
         queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId],
       });
       if (projectId && artifactId) updateArtifact(projectId, artifactId, data);
+    },
+  });
+}
+
+/** Transition any artifact by id (e.g. for board drag-and-drop). */
+export function useTransitionArtifactById(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+  const updateArtifact = useArtifactStore((s) => s.updateArtifact);
+
+  return useMutation({
+    mutationFn: async (payload: { artifactId: string } & TransitionArtifactRequest): Promise<Artifact> => {
+      const body: Record<string, string> = { new_state: payload.new_state };
+      if (payload.state_reason != null && payload.state_reason !== "")
+        body.state_reason = payload.state_reason;
+      if (payload.resolution != null && payload.resolution !== "")
+        body.resolution = payload.resolution;
+      if (payload.expected_updated_at != null && payload.expected_updated_at !== "")
+        body.expected_updated_at = payload.expected_updated_at;
+      const { data } = await apiClient.patch<Artifact>(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/${payload.artifactId}/transition`,
+        body,
+      );
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", data.id],
+      });
+      if (projectId && data.id) updateArtifact(projectId, data.id, data);
+    },
+  });
+}
+
+export function useBatchTransitionArtifacts(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      payload: BatchTransitionRequest,
+    ): Promise<BatchResultResponse> => {
+      const body: Record<string, unknown> = {
+        artifact_ids: payload.artifact_ids,
+        new_state: payload.new_state,
+      };
+      if (payload.state_reason != null && payload.state_reason !== "")
+        body.state_reason = payload.state_reason;
+      if (payload.resolution != null && payload.resolution !== "")
+        body.resolution = payload.resolution;
+      const { data } = await apiClient.post<BatchResultResponse>(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/batch-transition`,
+        body,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts"],
+      });
+    },
+  });
+}
+
+export function useBatchDeleteArtifacts(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      payload: BatchDeleteRequest,
+    ): Promise<BatchResultResponse> => {
+      const { data } = await apiClient.post<BatchResultResponse>(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/batch-delete`,
+        payload,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts"],
+      });
+    },
+  });
+}
+
+export function useRestoreArtifact(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+  const updateArtifact = useArtifactStore((s) => s.updateArtifact);
+
+  return useMutation({
+    mutationFn: async (artifactId: string): Promise<Artifact> => {
+      const { data } = await apiClient.post<Artifact>(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/restore`,
+      );
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", data?.id],
+      });
+      if (projectId && data?.id) updateArtifact(projectId, data.id, data);
     },
   });
 }

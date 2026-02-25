@@ -17,6 +17,9 @@ class Project(AggregateRoot):
         id: uuid.UUID | None = None,
         description: str = "",
         process_template_version_id: uuid.UUID | None = None,
+        status: str | None = None,
+        settings: dict | None = None,
+        metadata_: dict | None = None,
     ) -> None:
         super().__init__(id=id)
         self.tenant_id = tenant_id
@@ -25,6 +28,9 @@ class Project(AggregateRoot):
         self.code = code
         self.description = description
         self.process_template_version_id = process_template_version_id
+        self.status = status
+        self.settings = settings
+        self.metadata_ = metadata_
 
     @classmethod
     def create(
