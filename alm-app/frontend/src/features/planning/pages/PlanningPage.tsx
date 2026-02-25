@@ -454,7 +454,7 @@ export default function PlanningPage() {
         <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />
       ) : (
         <>
-          <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>
+          <Typography component="h1" variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
             Planning
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -470,7 +470,7 @@ export default function PlanningPage() {
           {activeTab === "cycles" && (
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                <Typography variant="subtitle1" fontWeight={600}>
+                <Typography component="h2" variant="h6">
                   Cycle tree
                 </Typography>
                 <Button size="small" startIcon={<Add />} onClick={handleAddCycle} disabled={cyclesLoading}>
@@ -503,7 +503,7 @@ export default function PlanningPage() {
           {activeTab === "areas" && (
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                <Typography variant="subtitle1" fontWeight={600}>
+                <Typography component="h2" variant="h6">
                   Area tree
                 </Typography>
                 <Button size="small" startIcon={<Add />} onClick={handleAddArea} disabled={areasLoading}>

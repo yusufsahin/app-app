@@ -77,7 +77,7 @@ export default function LoginPage() {
       <Card sx={{ maxWidth: 440, width: "100%", p: 2 }}>
         <CardContent>
           <Box sx={{ textAlign: "center", mb: 4 }}>
-            <Typography variant="h4" fontWeight={700} color="primary.main">
+            <Typography component="h1" variant="h4" sx={{ fontWeight: 600, color: "primary.main" }}>
               ALM Manifest
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>

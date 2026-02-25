@@ -51,6 +51,9 @@ const PrivilegesPage = lazy(
 const AccessAuditPage = lazy(
   () => import("../features/settings/pages/AccessAuditPage"),
 );
+const ProcessManifestListPage = lazy(
+  () => import("../features/settings/pages/ProcessManifestListPage"),
+);
 const NoAccessPage = lazy(
   () => import("../features/auth/pages/NoAccessPage"),
 );
@@ -175,6 +178,10 @@ export const router = createBrowserRouter([
           { path: "roles", element: withPermission("role:read", RoleManagementPage) },
           { path: "privileges", element: withPermission("role:read", PrivilegesPage) },
           { path: "no-access", element: withSuspense(NoAccessPage) },
+          {
+            path: "manifest",
+            element: withPermission("manifest:read", ProcessManifestListPage),
+          },
           {
             path: ":projectSlug/manifest",
             element: withPermission("manifest:read", ManifestPage),

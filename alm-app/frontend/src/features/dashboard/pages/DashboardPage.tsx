@@ -148,7 +148,7 @@ export default function DashboardPage() {
         <Typography color="text.primary">Dashboard</Typography>
       </Breadcrumbs>
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, mb: 3 }}>
-        <Typography variant="h4" fontWeight={700}>
+        <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
           Dashboard
         </Typography>
         {orgSlug && (

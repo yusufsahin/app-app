@@ -11,10 +11,6 @@ import {
   IconButton,
   Menu,
   MenuItem,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   ToggleButtonGroup,
   ToggleButton,
   List,
@@ -26,7 +22,6 @@ import {
   Divider,
   ListItemIcon,
   CircularProgress,
-  Alert,
 } from "@mui/material";
 import {
   Add,
@@ -38,7 +33,6 @@ import {
   ExpandLess,
   ExpandMore,
   People,
-  PersonRemove,
   Close,
   ContentCopy,
   Delete,
@@ -55,7 +49,7 @@ import {
   RadioButtonUnchecked,
   Save,
 } from "@mui/icons-material";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { apiClient } from "../../../shared/api/client";
@@ -94,12 +88,12 @@ import {
 } from "../../../shared/api/artifactApi";
 import {
   useTasksByArtifact,
+  useMyTasksInProject,
   useCreateTask,
   useUpdateTask,
   useDeleteTask,
   type Task,
   type CreateTaskRequest,
-  type UpdateTaskRequest,
 } from "../../../shared/api/taskApi";
 import { useCommentsByArtifact, useCreateComment } from "../../../shared/api/commentApi";
 import {
@@ -107,7 +101,6 @@ import {
   useCreateArtifactLink,
   useDeleteArtifactLink,
   type ArtifactLink,
-  type CreateArtifactLinkRequest,
 } from "../../../shared/api/artifactLinkApi";
 import { useCycleNodes, useAreaNodes, areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import {
@@ -126,6 +119,7 @@ import {
 import { useListSchema } from "../../../shared/api/listSchemaApi";
 import { MetadataDrivenList } from "../../../shared/components/lists/MetadataDrivenList";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
+import { modalApi, useModalStore } from "../../../shared/modal";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { useArtifactStore } from "../../../shared/stores/artifactStore";
 
@@ -251,76 +245,6 @@ function buildArtifactTree(artifacts: Artifact[]): ArtifactNode[] {
   return roots;
 }
 
-function ProjectMemberRow({
-  pm,
-  memberLabel,
-  isOnlyAdmin,
-  onUpdateRole,
-  isUpdating,
-  onRemove,
-  isRemoving,
-}: {
-  pm: { id: string; user_id: string; role: string };
-  memberLabel: string;
-  isOnlyAdmin: boolean;
-  onUpdateRole: (userId: string, role: string) => void;
-  isUpdating: boolean;
-  onRemove: (userId: string) => void;
-  isRemoving: boolean;
-}) {
-  type RoleValues = { role: string };
-  const rowForm = useForm<RoleValues>({ defaultValues: { role: pm.role } });
-  const justResetRef = useRef(false);
-  useEffect(() => {
-    rowForm.reset({ role: pm.role });
-    justResetRef.current = true;
-  }, [pm.role]);
-  const watchedRole = rowForm.watch("role");
-  useEffect(() => {
-    if (justResetRef.current) {
-      justResetRef.current = false;
-      return;
-    }
-    if (watchedRole !== pm.role) {
-      onUpdateRole(pm.user_id, watchedRole);
-    }
-  }, [watchedRole]);
-
-  return (
-    <ListItem
-      secondaryAction={
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <FormProvider {...rowForm}>
-            <RhfSelect<RoleValues>
-              name="role"
-              control={rowForm.control}
-              label=""
-              options={[
-                { value: "PROJECT_VIEWER", label: "Viewer" },
-                { value: "PROJECT_CONTRIBUTOR", label: "Contributor" },
-                { value: "PROJECT_ADMIN", label: "Admin" },
-              ]}
-              selectProps={{ size: "small", sx: { minWidth: 120 }, disabled: isUpdating }}
-            />
-          </FormProvider>
-          <IconButton
-            edge="end"
-            size="small"
-            aria-label="Remove member"
-            disabled={isRemoving || isOnlyAdmin}
-            title={isOnlyAdmin ? "Cannot remove the last admin" : "Remove member"}
-            onClick={() => onRemove(pm.user_id)}
-          >
-            <PersonRemove fontSize="small" />
-          </IconButton>
-        </Box>
-      }
-    >
-      <ListItemText primary={memberLabel} />
-    </ListItem>
-  );
-}
-
 export default function ArtifactsPage() {
   const { orgSlug, projectSlug } = useParams<{
     orgSlug: string;
@@ -342,10 +266,10 @@ export default function ArtifactsPage() {
   const { data: taskFormSchema } = useFormSchema(orgSlug, project?.id, "task", "create");
   const { data: editFormSchema } = useFormSchema(orgSlug, project?.id, "artifact", "edit");
   const { data: members } = useOrgMembers(orgSlug);
-  const { data: projectMembers, isLoading: projectMembersLoading } = useProjectMembers(orgSlug, project?.id);
-  const addProjectMemberMutation = useAddProjectMember(orgSlug, project?.id);
-  const removeProjectMemberMutation = useRemoveProjectMember(orgSlug, project?.id);
-  const updateProjectMemberMutation = useUpdateProjectMember(orgSlug, project?.id);
+  useProjectMembers(orgSlug, project?.id);
+  useAddProjectMember(orgSlug, project?.id);
+  useRemoveProjectMember(orgSlug, project?.id);
+  useUpdateProjectMember(orgSlug, project?.id);
   const listState = useArtifactStore((s) => s.listState);
   const setListState = useArtifactStore((s) => s.setListState);
   const setSelectedIds = useArtifactStore((s) => s.setSelectedIds);
@@ -367,7 +291,7 @@ export default function ArtifactsPage() {
     showDeleted,
     selectedIds: selectedIdsList,
     detailArtifactId,
-    createOpen,
+    createOpen: _createOpen,
     transitionArtifactId,
     transitionTargetState,
     transitionStateReason,
@@ -377,9 +301,9 @@ export default function ArtifactsPage() {
     bulkTransitionTrigger,
     bulkTransitionStateReason,
     bulkTransitionResolution,
-    bulkTransitionLastResult,
-    bulkDeleteConfirmOpen,
-    deleteConfirmArtifactId,
+    bulkTransitionLastResult: _bulkTransitionLastResult,
+    bulkDeleteConfirmOpen: _bulkDeleteConfirmOpen,
+    deleteConfirmArtifactId: _deleteConfirmArtifactId,
     membersDialogOpen,
     detailDrawerEditing,
   } = listState;
@@ -500,41 +424,8 @@ export default function ArtifactsPage() {
   const { data: areaNodesFlat = [] } = useAreaNodes(orgSlug, project?.id, true);
   const { data: savedQueries = [] } = useSavedQueries(orgSlug, project?.id);
   const createSavedQueryMutation = useCreateSavedQuery(orgSlug, project?.id);
-  const [saveQueryDialogOpen, setSaveQueryDialogOpen] = useState(false);
-  type SaveQueryFormValues = { name: string; visibility: "private" | "project" };
-  const saveQueryForm = useForm<SaveQueryFormValues>({
-    defaultValues: { name: "", visibility: "private" },
-  });
-  const { reset: resetSaveQueryForm, handleSubmit: handleSaveQuerySubmit, control: saveQueryControl } = saveQueryForm;
-  const onSubmitSaveQuery = (data: SaveQueryFormValues) => {
-    const name = data.name.trim();
-    if (!name || !project?.id) return;
-    const filterParams = listStateToFilterParams({
-      stateFilter,
-      typeFilter,
-      searchQuery,
-      cycleNodeFilter,
-      areaNodeFilter,
-      sortBy,
-      sortOrder,
-    });
-    createSavedQueryMutation.mutate(
-      { name, filter_params: filterParams, visibility: data.visibility },
-      {
-        onSuccess: () => {
-          setSaveQueryDialogOpen(false);
-          resetSaveQueryForm({ name: "", visibility: "private" });
-          showNotification("Saved query created", "success");
-        },
-        onError: (err: Error) => {
-          const body = (err as unknown as { body?: ProblemDetail })?.body;
-          showNotification(body?.detail ?? "Failed to save query", "error");
-        },
-      },
-    );
-  };
-  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
-  const [conflictDetail, setConflictDetail] = useState("");
+  const [_conflictDialogOpen, _setConflictDialogOpen] = useState(false);
+  const [_conflictDetail, _setConflictDetail] = useState("");
   const isBoardView = viewMode === "board";
   const { data: listResult, isLoading, isRefetching, refetch: refetchArtifacts } = useArtifacts(
     orgSlug,
@@ -578,10 +469,10 @@ export default function ArtifactsPage() {
     detailArtifact?.id,
   );
 
-  const [addTaskOpen, setAddTaskOpen] = useState(false);
-  const [taskCreateFormValues, setTaskCreateFormValues] = useState<Record<string, unknown>>({});
+  const [addTaskOpen, _setAddTaskOpen] = useState(false);
+  const [, setTaskCreateFormValues] = useState<Record<string, unknown>>({});
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [taskEditFormValues, setTaskEditFormValues] = useState<Record<string, unknown>>({});
+  const [, setTaskEditFormValues] = useState<Record<string, unknown>>({});
   const [editFormValues, setEditFormValues] = useState<Record<string, unknown>>({});
   const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
 
@@ -598,6 +489,11 @@ export default function ArtifactsPage() {
     editingTask?.id,
   );
   const deleteTaskMutation = useDeleteTask(orgSlug, project?.id, detailArtifact?.id);
+
+  const { data: myTasks = [], isLoading: myTasksLoading } = useMyTasksInProject(
+    orgSlug,
+    project?.id,
+  );
 
   const { data: comments = [], isLoading: commentsLoading } = useCommentsByArtifact(
     orgSlug,
@@ -623,7 +519,7 @@ export default function ArtifactsPage() {
   );
   const uploadAttachmentMutation = useUploadAttachment(orgSlug, project?.id, detailArtifact?.id);
   const deleteAttachmentMutation = useDeleteAttachment(orgSlug, project?.id, detailArtifact?.id);
-  const [addLinkOpen, setAddLinkOpen] = useState(false);
+  const [addLinkOpen, _setAddLinkOpen] = useState(false);
   const [bulkErrorsExpanded, setBulkErrorsExpanded] = useState(true);
   type AddMemberFormValues = { user_id: string; role: string };
   const addMemberForm = useForm<AddMemberFormValues>({
@@ -639,39 +535,6 @@ export default function ArtifactsPage() {
   useEffect(() => {
     if (addLinkOpen) addLinkForm.reset({ linkType: "related", artifactId: "" });
   }, [addLinkOpen, addLinkForm]);
-  const availableMembersForAdd = useMemo(
-    () => (members ?? []).filter((m) => !(projectMembers ?? []).some((pm) => pm.user_id === m.user_id)),
-    [members, projectMembers],
-  );
-  const onSubmitAddMember = (data: AddMemberFormValues) => {
-    if (!data.user_id) return;
-    addProjectMemberMutation.mutate(
-      { user_id: data.user_id, role: data.role as "PROJECT_VIEWER" | "PROJECT_CONTRIBUTOR" | "PROJECT_ADMIN" },
-      {
-        onSuccess: () => {
-          setListState({ membersDialogOpen: false });
-          showNotification("Member added successfully");
-        },
-      },
-    );
-  };
-  const onSubmitAddLink = (data: AddLinkFormValues) => {
-    if (!data.artifactId) return;
-    const payload: CreateArtifactLinkRequest = {
-      to_artifact_id: data.artifactId,
-      link_type: data.linkType,
-    };
-    createLinkMutation.mutate(payload, {
-      onSuccess: () => {
-        setAddLinkOpen(false);
-        showNotification("Link added", "success");
-      },
-      onError: (err: Error) => {
-        const body = (err as unknown as { body?: ProblemDetail })?.body;
-        showNotification(body?.detail ?? "Failed to add link", "error");
-      },
-    });
-  };
   const { data: pickerArtifactsData } = useQuery({
     queryKey: ["orgs", orgSlug, "projects", project?.id, "artifacts", "linkPicker"],
     queryFn: async () => {
@@ -687,7 +550,6 @@ export default function ArtifactsPage() {
 
   const [createFormValues, setCreateFormValues] = useState<Record<string, unknown>>({});
   const [createFormErrors, setCreateFormErrors] = useState<Record<string, string>>({});
-  const duplicateSourceRef = useRef<Artifact | null>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -695,11 +557,6 @@ export default function ArtifactsPage() {
     () => (transitionArtifactId ? artifacts?.find((a) => a.id === transitionArtifactId) ?? null : null),
     [transitionArtifactId, artifacts],
   );
-  const deleteConfirmArtifact = useMemo(
-    () => (deleteConfirmArtifactId ? artifacts?.find((a) => a.id === deleteConfirmArtifactId) ?? null : null),
-    [deleteConfirmArtifactId, artifacts],
-  );
-
   const transitionMutation = useTransitionArtifact(
     orgSlug,
     project?.id,
@@ -807,6 +664,58 @@ export default function ArtifactsPage() {
     () => ({ state_reason: transitionStateReason, resolution: transitionResolution }),
     [transitionStateReason, transitionResolution],
   );
+
+  // Open transition artifact modal when state is set (e.g. from context menu or detail)
+  useEffect(() => {
+    if (!transitionArtifact || !transitionTargetState) return;
+    const { modalType } = useModalStore.getState();
+    if (modalType === "TransitionArtifactModal") return;
+    const items = permittedTransitions?.items ?? [];
+    modalApi.openTransitionArtifact(
+      {
+        artifact: {
+          id: transitionArtifact.id,
+          artifact_key: transitionArtifact.artifact_key ?? null,
+          title: transitionArtifact.title,
+        },
+        targetState: transitionTargetState,
+        permittedTransitions: items,
+        onSelectTargetState: (state) => setListState({ transitionTargetState: state }),
+        schema: transitionFormSchema,
+        values: transitionFormValues,
+        onChange: (v) =>
+          setListState({
+            transitionStateReason: (v.state_reason as string) ?? "",
+            transitionResolution: (v.resolution as string) ?? "",
+          }),
+        onConfirm: handleConfirmTransition,
+        isPending: transitionMutation.isPending,
+        onCloseComplete: handleCloseTransitionDialog,
+      },
+      { title: `Transition to ${transitionTargetState}` },
+    );
+  }, [transitionArtifact?.id, transitionTargetState]); // eslint-disable-line react-hooks/exhaustive-deps -- only open when artifact/target change; handlers/state from closure
+
+  // Sync transition artifact modal when form state or target state change
+  useEffect(() => {
+    if (!transitionArtifact || !transitionTargetState) return;
+    const { modalType, updateModalProps } = useModalStore.getState();
+    if (modalType !== "TransitionArtifactModal") return;
+    updateModalProps({
+      targetState: transitionTargetState,
+      permittedTransitions: permittedTransitions?.items ?? [],
+      schema: transitionFormSchema,
+      values: transitionFormValues,
+      isPending: transitionMutation.isPending,
+    });
+  }, [
+    transitionArtifact?.id,
+    transitionTargetState,
+    transitionFormSchema,
+    transitionFormValues,
+    permittedTransitions?.items,
+    transitionMutation.isPending,
+  ]);
 
   const artifactTypeParentMap = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -934,29 +843,44 @@ export default function ArtifactsPage() {
     bulkTransitionResolution,
   ]);
 
-  type BulkTransitionDialogValues = { state: string; state_reason: string; resolution: string };
-  const bulkTransitionDialogForm = useForm<BulkTransitionDialogValues>({
-    defaultValues: {
+  // When user selects a state in bulk transition modal, clear trigger (state and trigger are mutually exclusive)
+  useEffect(() => {
+    if (bulkTransitionState) setListState({ bulkTransitionTrigger: "" });
+  }, [bulkTransitionState, setListState]);
+
+  // Keep bulk transition modal props in sync with parent state
+  useEffect(() => {
+    if (!bulkTransitionOpen) return;
+    const { modalType, updateModalProps } = useModalStore.getState();
+    if (modalType !== "BulkTransitionModal") return;
+    const transitionValues = {
       state: bulkTransitionState,
       state_reason: bulkTransitionStateReason,
       resolution: bulkTransitionResolution,
-    },
-  });
-  useEffect(() => {
-    if (bulkTransitionOpen) {
-      bulkTransitionDialogForm.reset({
-        state: bulkTransitionState,
-        state_reason: bulkTransitionStateReason,
-        resolution: bulkTransitionResolution,
-      });
-    }
-  }, [bulkTransitionOpen]);
-  const bulkTransitionDialogState = bulkTransitionDialogForm.watch("state");
-  useEffect(() => {
-    if (bulkTransitionDialogState) {
-      setListState({ bulkTransitionTrigger: "" });
-    }
-  }, [bulkTransitionDialogState, setListState]);
+    };
+    const confirmDisabled =
+      (!bulkTransitionTrigger && !bulkTransitionState) ||
+      (bulkShowResolutionField &&
+        (bulkTransitionOptions?.resolutionOptions?.length ?? 0) > 0 &&
+        !bulkTransitionResolution);
+    updateModalProps({
+      currentTrigger: bulkTransitionTrigger,
+      transitionValues,
+      invalidCount: bulkTransitionInvalidCount,
+      confirmDisabled,
+      errorsExpanded: bulkErrorsExpanded,
+    });
+  }, [
+    bulkTransitionOpen,
+    bulkTransitionTrigger,
+    bulkTransitionState,
+    bulkTransitionStateReason,
+    bulkTransitionResolution,
+    bulkTransitionInvalidCount,
+    bulkErrorsExpanded,
+    bulkShowResolutionField,
+    bulkTransitionOptions?.resolutionOptions?.length,
+  ]);
 
   const artifactsByState = useMemo(() => {
     if (!isBoardView || !filterStates.length) return {} as Record<string, Artifact[]>;
@@ -995,39 +919,55 @@ export default function ArtifactsPage() {
 
   const TITLE_MAX_LENGTH = 500;
 
-  const handleCreateOpen = () => {
+  const openCreateArtifactModal = (initialValues?: Record<string, unknown>) => {
     setCreateFormErrors({});
-    setListState({ createOpen: true });
+    const values = initialValues ?? createFormValues;
+    modalApi.openCreateArtifact({
+      formSchema: formSchema ?? null,
+      formValues: values,
+      formErrors: createFormErrors,
+      onFormChange: (v) => {
+        setCreateFormValues(v);
+        setCreateFormErrors({});
+      },
+      onFormErrors: setCreateFormErrors,
+      onCreate: () => handleCreate(),
+      isPending: createMutation.isPending,
+      parentArtifacts: artifacts?.map((a) => ({
+        id: a.id,
+        title: a.title,
+        artifact_type: a.artifact_type,
+      })) ?? [],
+      userOptions: members?.map((m) => ({
+        id: m.user_id,
+        label: m.display_name || m.email || m.user_id,
+      })) ?? [],
+      artifactTypeParentMap,
+      formSchemaError: !!formSchemaError,
+      formSchema403: !!formSchema403,
+    });
+  };
+
+  const handleCreateOpen = () => {
+    openCreateArtifactModal(initialFormValues);
   };
 
   const handleDuplicate = (artifact: Artifact) => {
-    duplicateSourceRef.current = artifact;
-    setListState({ createOpen: true });
+    const base = { ...initialFormValues };
+    const duplicateValues: Record<string, unknown> = {
+      ...base,
+      artifact_type: artifact.artifact_type,
+      title: `${(artifact.title || "").trim() || "Untitled"} (copy)`,
+      description: artifact.description ?? "",
+      assignee_id: artifact.assignee_id ?? null,
+      parent_id: null,
+    };
+    for (const [key, val] of Object.entries(artifact.custom_fields ?? {})) {
+      if (val !== undefined && val !== null) duplicateValues[key] = val;
+    }
+    openCreateArtifactModal(duplicateValues);
     handleMenuClose();
   };
-
-  useEffect(() => {
-    if (!createOpen || !formSchema) return;
-    const artifact = duplicateSourceRef.current;
-    if (artifact) {
-      duplicateSourceRef.current = null;
-      const base = { ...initialFormValues };
-      const duplicateValues: Record<string, unknown> = {
-        ...base,
-        artifact_type: artifact.artifact_type,
-        title: `${(artifact.title || "").trim() || "Untitled"} (copy)`,
-        description: artifact.description ?? "",
-        assignee_id: artifact.assignee_id ?? null,
-        parent_id: null,
-      };
-      for (const [key, val] of Object.entries(artifact.custom_fields ?? {})) {
-        if (val !== undefined && val !== null) duplicateValues[key] = val;
-      }
-      setCreateFormValues(duplicateValues);
-    } else {
-      setCreateFormValues(initialFormValues);
-    }
-  }, [createOpen, formSchema, initialFormValues]);
 
   const taskCreateInitialValues = useMemo(() => {
     const vals: Record<string, unknown> = {};
@@ -1082,6 +1022,7 @@ export default function ArtifactsPage() {
     };
     try {
       await createMutation.mutateAsync(payload);
+      modalApi.closeModal();
       setListState({ createOpen: false });
       setCreateFormValues({});
       setCreateFormErrors({});
@@ -1136,14 +1077,18 @@ export default function ArtifactsPage() {
     };
     try {
       await transitionMutation.mutateAsync(payload);
-      setConflictDialogOpen(false);
+      _setConflictDialogOpen(false);
+      modalApi.closeModal();
       handleCloseTransitionDialog();
       showNotification("State updated successfully");
     } catch (err) {
       const problem = err as ProblemDetail & { status?: number };
       if (problem?.status === 409) {
-        setConflictDetail(problem?.detail ?? "This artifact was updated by someone else.");
-        setConflictDialogOpen(true);
+        modalApi.openConflict({
+          message: problem?.detail ?? "This artifact was updated by someone else.",
+          onOverwrite: handleConflictOverwrite,
+          onCancel: handleCloseTransitionDialog,
+        });
       } else {
         showNotification(
           problem?.detail ?? "Transition failed. Please try again.",
@@ -1164,16 +1109,16 @@ export default function ArtifactsPage() {
     };
     transitionMutation.mutate(payload, {
       onSuccess: () => {
-        setConflictDialogOpen(false);
+        modalApi.closeModal();
         handleCloseTransitionDialog();
         showNotification("State updated successfully", "success");
       },
       onError: (err: Error) => {
         const problem = err as unknown as ProblemDetail & { status?: number };
         if (problem?.status === 409) {
-          setConflictDetail(problem?.detail ?? "Conflict persists. Refresh and try again.");
+          _setConflictDetail(problem?.detail ?? "Conflict persists. Refresh and try again.");
         } else {
-          setConflictDialogOpen(false);
+          _setConflictDialogOpen(false);
           showNotification(problem?.detail ?? "Transition failed", "error");
         }
       },
@@ -1199,9 +1144,46 @@ export default function ArtifactsPage() {
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-              <Typography variant="h4" fontWeight={700}>
+              <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
                 Artifacts
               </Typography>
+              {orgSlug && projectSlug && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                  <Typography variant="body2" color="text.secondary">
+                    My tasks:
+                  </Typography>
+                  {myTasksLoading ? (
+                    <Typography variant="body2" color="text.secondary">
+                      …
+                    </Typography>
+                  ) : myTasks.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                      None assigned
+                    </Typography>
+                  ) : (
+                    myTasks.slice(0, 5).map((task) => (
+                      <Chip
+                        key={task.id}
+                        size="small"
+                        label={task.title}
+                        component={Link}
+                        to={`/${orgSlug}/${projectSlug}/artifacts?artifact=${task.artifact_id}`}
+                        sx={{
+                          maxWidth: 160,
+                          textDecoration: "none",
+                          "&:hover": { textDecoration: "none" },
+                        }}
+                        title={`Open artifact: ${task.artifact_id}`}
+                      />
+                    ))
+                  )}
+                  {myTasks.length > 5 && (
+                    <Typography variant="body2" color="text.secondary">
+                      +{myTasks.length - 5} more
+                    </Typography>
+                  )}
+                </Box>
+              )}
               <FormProvider {...toolbarForm}>
                 <RhfTextField<ToolbarFilterValues>
                   name="searchInput"
@@ -1244,8 +1226,35 @@ export default function ArtifactsPage() {
                   size="small"
                   startIcon={<Save />}
                   onClick={() => {
-                    resetSaveQueryForm({ name: "", visibility: "private" });
-                    setSaveQueryDialogOpen(true);
+                    modalApi.openSaveQuery({
+                      initialName: "",
+                      initialVisibility: "private",
+                      onSave: (name, visibility) => {
+                        if (!project?.id) return;
+                        const filterParams = listStateToFilterParams({
+                          stateFilter,
+                          typeFilter,
+                          searchQuery,
+                          cycleNodeFilter,
+                          areaNodeFilter,
+                          sortBy,
+                          sortOrder,
+                        });
+                        createSavedQueryMutation.mutate(
+                          { name, filter_params: filterParams, visibility: visibility as "private" | "project" },
+                          {
+                            onSuccess: () => {
+                              modalApi.closeModal();
+                              showNotification("Saved query created", "success");
+                            },
+                            onError: (err: Error) => {
+                              const body = (err as unknown as { body?: ProblemDetail })?.body;
+                              showNotification(body?.detail ?? "Failed to save query", "error");
+                            },
+                          },
+                        );
+                      },
+                    });
                   }}
                   aria-label="Save current filters"
                 >
@@ -1345,7 +1354,15 @@ export default function ArtifactsPage() {
               <Button
                 variant="outlined"
                 startIcon={<People />}
-                onClick={() => setListState({ membersDialogOpen: true })}
+                onClick={() =>
+                  project &&
+                  orgSlug &&
+                  modalApi.openProjectMembers({
+                    orgSlug,
+                    projectId: project.id,
+                    projectName: project.name,
+                  })
+                }
                 aria-label="Manage project members"
               >
                 Members
@@ -1384,7 +1401,106 @@ export default function ArtifactsPage() {
                 <Button
                   size="small"
                   startIcon={<SwapHoriz />}
-                  onClick={() => setListState({ bulkTransitionOpen: true, bulkTransitionLastResult: null })}
+                  onClick={() => {
+                    setListState({
+                      bulkTransitionOpen: true,
+                      bulkTransitionLastResult: null,
+                      bulkTransitionState: "",
+                      bulkTransitionTrigger: "",
+                      bulkTransitionStateReason: "",
+                      bulkTransitionResolution: "",
+                    });
+                    const transitionValues = {
+                      state: "",
+                      state_reason: "",
+                      resolution: "",
+                    };
+                    modalApi.openBulkTransition({
+                      selectedCount: selectedIds.size,
+                      commonTriggers,
+                      currentTrigger: "",
+                      onSelectTrigger: (t) =>
+                        setListState({ bulkTransitionTrigger: t, bulkTransitionState: "" }),
+                      stateOptions: filterStates.map((s) => ({ value: s, label: s })),
+                      transitionSchema: bulkTransitionForm.schema,
+                      transitionValues,
+                      onTransitionFormChange: (v) =>
+                        setListState({
+                          bulkTransitionState: (v.state as string) ?? "",
+                          bulkTransitionStateReason: (v.state_reason as string) ?? "",
+                          bulkTransitionResolution: (v.resolution as string) ?? "",
+                        }),
+                      lastResult: null,
+                      errorsExpanded: bulkErrorsExpanded,
+                      onToggleErrors: () => setBulkErrorsExpanded((e) => !e),
+                      onConfirm: (payload) => {
+                        batchTransitionMutation.mutate(
+                          {
+                            artifact_ids: [...selectedIds],
+                            ...(payload.trigger
+                              ? { trigger: payload.trigger }
+                              : { new_state: payload.state }),
+                            state_reason: payload.state_reason || undefined,
+                            resolution: payload.resolution || undefined,
+                          },
+                          {
+                            onSuccess: (res) => {
+                              if (res.error_count > 0) {
+                                useModalStore.getState().updateModalProps({
+                                  lastResult: {
+                                    success_count: res.success_count,
+                                    error_count: res.error_count,
+                                    errors: res.errors,
+                                    results: res.results,
+                                  },
+                                });
+                                showNotification(
+                                  `${res.success_count} transitioned, ${res.error_count} failed.`,
+                                  "warning",
+                                );
+                              } else {
+                                setListState({
+                                  bulkTransitionOpen: false,
+                                  bulkTransitionState: "",
+                                  bulkTransitionTrigger: "",
+                                  bulkTransitionStateReason: "",
+                                  bulkTransitionResolution: "",
+                                });
+                                clearSelection();
+                                if (detailArtifact && selectedIds.has(detailArtifact.id)) {
+                                  setListState({ detailArtifactId: null });
+                                  setSearchParams((prev) => {
+                                    const p = new URLSearchParams(prev);
+                                    p.delete("artifact");
+                                    return p;
+                                  });
+                                }
+                                modalApi.closeModal();
+                                showNotification(`${res.success_count} transitioned.`, "success");
+                              }
+                            },
+                            onError: () => {
+                              showNotification("Bulk transition failed", "error");
+                            },
+                          },
+                        );
+                      },
+                      isPending: batchTransitionMutation.isPending,
+                      confirmDisabled: true,
+                      invalidCount: bulkTransitionInvalidCount,
+                      onCloseComplete: () => {
+                        setListState({
+                          bulkTransitionOpen: false,
+                          bulkTransitionState: "",
+                          bulkTransitionTrigger: "",
+                          bulkTransitionStateReason: "",
+                          bulkTransitionResolution: "",
+                          bulkTransitionLastResult: null,
+                        });
+                        clearSelection();
+                      },
+                    });
+                  }}
                   disabled={batchTransitionMutation.isPending}
                 >
                   Transition
@@ -1395,7 +1511,37 @@ export default function ArtifactsPage() {
                   size="small"
                   color="error"
                   startIcon={<Delete />}
-                  onClick={() => setListState({ bulkDeleteConfirmOpen: true })}
+                  onClick={() => {
+                  modalApi.openBulkDelete({
+                    selectedIds: [...selectedIds],
+                    onConfirm: () => {
+                      batchDeleteMutation.mutate(
+                        { artifact_ids: [...selectedIds] },
+                        {
+                          onSuccess: (res) => {
+                            setListState({ bulkDeleteConfirmOpen: false });
+                            clearSelection();
+                            if (detailArtifact && selectedIds.has(detailArtifact.id)) {
+                              setListState({ detailArtifactId: null });
+                              setSearchParams((prev) => {
+                                const p = new URLSearchParams(prev);
+                                p.delete("artifact");
+                                return p;
+                              });
+                            }
+                            showNotification(
+                              `${res.success_count} deleted${res.error_count > 0 ? `, ${res.error_count} failed` : ""}.`,
+                              res.error_count > 0 ? "warning" : "success",
+                            );
+                          },
+                          onError: () => {
+                            showNotification("Bulk delete failed", "error");
+                          },
+                        },
+                      );
+                    },
+                  });
+                }}
                   disabled={batchDeleteMutation.isPending}
                 >
                   Delete
@@ -1696,7 +1842,36 @@ export default function ArtifactsPage() {
                 {selectedArtifact.allowed_actions?.includes("delete") && (
                   <MenuItem
                     onClick={() => {
-                      setListState({ deleteConfirmArtifactId: selectedArtifact?.id ?? null });
+                      if (!selectedArtifact) return;
+                      modalApi.openDeleteArtifact({
+                        artifact: {
+                          id: selectedArtifact.id,
+                          title: selectedArtifact.title,
+                          artifact_key: selectedArtifact.artifact_key,
+                        },
+                        onConfirm: () => {
+                          deleteMutation.mutate(selectedArtifact.id, {
+                            onSuccess: () => {
+                              if (detailArtifact?.id === selectedArtifact.id) {
+                                setListState({ detailArtifactId: null });
+                                setSearchParams((prev) => {
+                                  const p = new URLSearchParams(prev);
+                                  p.delete("artifact");
+                                  return p;
+                                });
+                              }
+                              showNotification("Artifact deleted successfully.", "success");
+                            },
+                            onError: (error: Error) => {
+                              const body = (error as unknown as { body?: ProblemDetail })?.body;
+                              showNotification(
+                                body?.detail ?? "Failed to delete artifact",
+                                "error",
+                              );
+                            },
+                          });
+                        },
+                      });
                       handleMenuClose();
                     }}
                     sx={{ color: "error.main" }}
@@ -1710,864 +1885,8 @@ export default function ArtifactsPage() {
               </>
             )}
           </Menu>
-
-          <Dialog
-            open={!!deleteConfirmArtifact}
-            onClose={() => setListState({ deleteConfirmArtifactId: null })}
-            maxWidth="xs"
-            fullWidth
-            aria-labelledby="delete-artifact-dialog-title"
-          >
-            <DialogTitle id="delete-artifact-dialog-title">Delete artifact</DialogTitle>
-            <DialogContent>
-              {deleteConfirmArtifact && (
-                <Typography>
-                  Delete <strong>{deleteConfirmArtifact.artifact_key ?? deleteConfirmArtifact.id}</strong> — {deleteConfirmArtifact.title}? This will remove the artifact from the list.
-                </Typography>
-              )}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setListState({ deleteConfirmArtifactId: null })}>Cancel</Button>
-              <Button
-                color="error"
-                variant="contained"
-                disabled={deleteMutation.isPending}
-                onClick={() => {
-                  if (!deleteConfirmArtifact) return;
-                  deleteMutation.mutate(deleteConfirmArtifact.id, {
-                    onSuccess: () => {
-                      setListState({ deleteConfirmArtifactId: null });
-                      if (detailArtifact?.id === deleteConfirmArtifact.id) {
-                        setListState({ detailArtifactId: null });
-                        setSearchParams((prev) => {
-                          const p = new URLSearchParams(prev);
-                          p.delete("artifact");
-                          return p;
-                        });
-                      }
-                      showNotification("Artifact deleted successfully.", "success");
-                    },
-                    onError: (error: Error) => {
-                      const body = (error as unknown as { body?: ProblemDetail })?.body;
-                      showNotification(
-                        body?.detail ?? "Failed to delete artifact",
-                        "error",
-                      );
-                    },
-                  });
-                }}
-              >
-                Delete
-              </Button>
-            </DialogActions>
-          </Dialog>
         </Box>
       )}
-
-      <Dialog
-        open={createOpen}
-        onClose={() => setListState({ createOpen: false })}
-        maxWidth="sm"
-        fullWidth
-        aria-labelledby="create-artifact-dialog-title"
-      >
-        <DialogTitle id="create-artifact-dialog-title">Create artifact</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          {formSchema ? (
-            <MetadataDrivenForm
-              schema={formSchema}
-              values={createFormValues}
-              onChange={(v) => { setCreateFormValues(v); setCreateFormErrors({}); }}
-              onSubmit={handleCreate}
-              submitLabel="Create"
-              disabled={createMutation.isPending}
-              submitExternally
-              errors={createFormErrors}
-              parentArtifacts={artifacts?.map((a) => ({
-                id: a.id,
-                title: a.title,
-                artifact_type: a.artifact_type,
-              })) ?? []}
-              artifactTypeParentMap={artifactTypeParentMap}
-              userOptions={members?.map((m) => ({
-                id: m.user_id,
-                label: m.display_name || m.email,
-              })) ?? []}
-            />
-          ) : formSchema403 ? (
-            <Alert severity="error">
-              You don&apos;t have permission to view the process manifest for this project. The create form cannot be loaded.
-            </Alert>
-          ) : formSchemaError ? (
-            <Alert severity="warning">
-              Could not load the form. Please try again or check your permission to view the process manifest.
-            </Alert>
-          ) : (
-            <Typography color="text.secondary">Loading form schema…</Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setListState({ createOpen: false })}>Cancel</Button>
-          {formSchema && (
-            <Button
-              variant="contained"
-              onClick={handleCreate}
-              disabled={
-                !(createFormValues.title as string)?.trim() || createMutation.isPending
-              }
-            >
-              Create
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={bulkTransitionOpen}
-        onClose={() => {
-          setListState({
-            bulkTransitionOpen: false,
-            bulkTransitionState: "",
-            bulkTransitionTrigger: "",
-            bulkTransitionStateReason: "",
-            bulkTransitionResolution: "",
-            bulkTransitionLastResult: null,
-          });
-        }}
-        maxWidth="xs"
-        fullWidth
-        aria-labelledby="bulk-transition-dialog-title"
-      >
-        <DialogTitle id="bulk-transition-dialog-title">
-          Transition {selectedIds.size} artifact(s)
-        </DialogTitle>
-        <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          {bulkTransitionLastResult ? (
-            <>
-              <Alert severity={bulkTransitionLastResult.error_count > 0 ? "warning" : "success"}>
-                {bulkTransitionLastResult.success_count} succeeded, {bulkTransitionLastResult.error_count} failed.
-              </Alert>
-              {bulkTransitionLastResult.errors.length > 0 && (
-                <Box>
-                  <Button
-                    size="small"
-                    onClick={() => setBulkErrorsExpanded((e) => !e)}
-                  >
-                    {bulkErrorsExpanded ? "Hide" : "Show"} failed items
-                  </Button>
-                  <Collapse in={bulkErrorsExpanded}>
-                    <List dense sx={{ bgcolor: "action.hover" }}>
-                      {bulkTransitionLastResult.errors.slice(0, 20).map((err, i) => {
-                        const colonIdx = err.indexOf(": ");
-                        const artifactId = colonIdx > 0 ? err.slice(0, colonIdx) : "";
-                        const message = colonIdx > 0 ? err.slice(colonIdx + 2) : err;
-                        const resultType = artifactId && bulkTransitionLastResult.results?.[artifactId];
-                        const resultLabel =
-                          resultType === "policy_denied"
-                            ? "Policy denied"
-                            : resultType === "validation_error"
-                              ? "Validation"
-                              : resultType === "conflict_error"
-                                ? "Conflict"
-                                : null;
-                        return (
-                          <ListItem key={i} sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-                            <ListItemText primary={message} primaryTypographyProps={{ variant: "body2" }} />
-                            {resultLabel && (
-                              <Chip size="small" label={resultLabel} variant="outlined" sx={{ flexShrink: 0, mt: 0.25 }} />
-                            )}
-                          </ListItem>
-                        );
-                      })}
-                      {bulkTransitionLastResult.errors.length > 20 && (
-                        <ListItem>
-                          <ListItemText primary={`... and ${bulkTransitionLastResult.errors.length - 20} more`} primaryTypographyProps={{ variant: "body2" }} />
-                        </ListItem>
-                      )}
-                    </List>
-                  </Collapse>
-                </Box>
-              )}
-            </>
-          ) : (
-            <>
-              {commonTriggers.length > 0 && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                    Common actions (apply to all selected)
-                  </Typography>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                    {commonTriggers.map((item) => (
-                      <Chip
-                        key={item.trigger}
-                        label={item.label ?? item.to_state}
-                        onClick={() => {
-                          setListState({
-                            bulkTransitionTrigger: item.trigger,
-                            bulkTransitionState: "",
-                          });
-                          bulkTransitionDialogForm.setValue("state", "");
-                        }}
-                        variant={bulkTransitionTrigger === item.trigger ? "filled" : "outlined"}
-                        size="small"
-                      />
-                    ))}
-                  </Box>
-                </Box>
-              )}
-              <FormProvider {...bulkTransitionDialogForm}>
-                <RhfSelect<BulkTransitionDialogValues>
-                  name="state"
-                  control={bulkTransitionDialogForm.control}
-                  label="New state"
-                  options={filterStates.map((s) => ({ value: s, label: s }))}
-                  selectProps={{ fullWidth: true, size: "small" }}
-                  helperText={
-                    bulkTransitionInvalidCount > 0 && bulkTransitionDialogForm.watch("state")
-                      ? `${bulkTransitionInvalidCount} item(s) cannot transition to this state`
-                      : undefined
-                  }
-                />
-                {bulkTransitionForm.schema ? (
-                  <MetadataDrivenForm
-                    schema={bulkTransitionForm.schema}
-                    values={bulkTransitionForm.values}
-                    onChange={(v) =>
-                      setListState({
-                        bulkTransitionStateReason: (v.state_reason as string) ?? "",
-                        bulkTransitionResolution: (v.resolution as string) ?? "",
-                      })
-                    }
-                    onSubmit={() => {}}
-                    submitLabel="Transition"
-                    disabled={batchTransitionMutation.isPending}
-                    submitExternally
-                  />
-                ) : (
-                  <>
-                    <RhfTextField<BulkTransitionDialogValues>
-                      name="state_reason"
-                      label="State reason (optional)"
-                      size="small"
-                      fullWidth
-                    />
-                    <RhfTextField<BulkTransitionDialogValues>
-                      name="resolution"
-                      label="Resolution (optional)"
-                      size="small"
-                      fullWidth
-                    />
-                  </>
-                )}
-              </FormProvider>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions>
-          {bulkTransitionLastResult ? (
-            <Button
-              variant="contained"
-                onClick={() => {
-                  setListState({
-                    bulkTransitionOpen: false,
-                    bulkTransitionState: "",
-                    bulkTransitionTrigger: "",
-                    bulkTransitionStateReason: "",
-                    bulkTransitionResolution: "",
-                    bulkTransitionLastResult: null,
-                  });
-                  clearSelection();
-                }}
-            >
-              Close
-            </Button>
-          ) : (
-            <>
-              <Button
-                onClick={() => {
-                  setListState({
-                    bulkTransitionOpen: false,
-                    bulkTransitionState: "",
-                    bulkTransitionTrigger: "",
-                    bulkTransitionStateReason: "",
-                    bulkTransitionResolution: "",
-                  });
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="contained"
-                disabled={
-                  (!bulkTransitionTrigger && !bulkTransitionDialogForm.watch("state")) ||
-                  batchTransitionMutation.isPending ||
-                  (bulkShowResolutionField &&
-                    bulkTransitionOptions.resolutionOptions.length > 0 &&
-                    !bulkTransitionDialogForm.watch("resolution"))
-                }
-                onClick={() => {
-                  const { state, state_reason, resolution } = bulkTransitionDialogForm.getValues();
-                  batchTransitionMutation.mutate(
-                    {
-                      artifact_ids: [...selectedIds],
-                      ...(bulkTransitionTrigger
-                        ? { trigger: bulkTransitionTrigger }
-                        : { new_state: state }),
-                      state_reason: state_reason || undefined,
-                      resolution: resolution || undefined,
-                    },
-                    {
-                      onSuccess: (res) => {
-                        if (res.error_count > 0) {
-                          setListState({
-                            bulkTransitionLastResult: {
-                              success_count: res.success_count,
-                              error_count: res.error_count,
-                              errors: res.errors,
-                              results: res.results,
-                            },
-                          });
-                          showNotification(
-                            `${res.success_count} transitioned, ${res.error_count} failed.`,
-                            "warning",
-                          );
-                        } else {
-                          setListState({
-                            bulkTransitionOpen: false,
-                            bulkTransitionState: "",
-                            bulkTransitionTrigger: "",
-                            bulkTransitionStateReason: "",
-                            bulkTransitionResolution: "",
-                          });
-                          clearSelection();
-                          if (detailArtifact && selectedIds.has(detailArtifact.id)) {
-                            setListState({ detailArtifactId: null });
-                            setSearchParams((prev) => {
-                              const p = new URLSearchParams(prev);
-                              p.delete("artifact");
-                              return p;
-                            });
-                          }
-                          showNotification(`${res.success_count} transitioned.`, "success");
-                        }
-                      },
-                      onError: () => {
-                        showNotification("Bulk transition failed", "error");
-                      },
-                    },
-                  );
-                }}
-              >
-                Transition
-              </Button>
-            </>
-          )}
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={bulkDeleteConfirmOpen}
-        onClose={() => setListState({ bulkDeleteConfirmOpen: false })}
-        maxWidth="xs"
-        fullWidth
-        aria-labelledby="bulk-delete-dialog-title"
-      >
-        <DialogTitle id="bulk-delete-dialog-title">
-          Delete {selectedIds.size} artifact(s)?
-        </DialogTitle>
-        <DialogContent>
-          <Typography color="text.secondary">
-            This will soft-delete the selected artifacts. This action cannot be undone from this screen.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setListState({ bulkDeleteConfirmOpen: false })}>Cancel</Button>
-          <Button
-            color="error"
-            variant="contained"
-            disabled={batchDeleteMutation.isPending}
-            onClick={() => {
-              batchDeleteMutation.mutate(
-                { artifact_ids: [...selectedIds] },
-                {
-                  onSuccess: (res) => {
-                    setListState({ bulkDeleteConfirmOpen: false });
-                    clearSelection();
-                    if (detailArtifact && selectedIds.has(detailArtifact.id)) {
-                      setListState({ detailArtifactId: null });
-                      setSearchParams((prev) => {
-                        const p = new URLSearchParams(prev);
-                        p.delete("artifact");
-                        return p;
-                      });
-                    }
-                    showNotification(
-                      `${res.success_count} deleted${res.error_count > 0 ? `, ${res.error_count} failed` : ""}.`,
-                      res.error_count > 0 ? "warning" : "success",
-                    );
-                  },
-                  onError: () => {
-                    showNotification("Bulk delete failed", "error");
-                  },
-                },
-              );
-            }}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={!!transitionArtifact && !!transitionTargetState}
-        onClose={handleCloseTransitionDialog}
-        maxWidth="sm"
-        fullWidth
-        aria-labelledby="transition-artifact-dialog-title"
-      >
-        <DialogTitle id="transition-artifact-dialog-title">
-          Transition to {transitionTargetState ?? ""}
-          {transitionArtifact && (
-            <Typography component="span" display="block" variant="body2" color="text.secondary" fontWeight={400}>
-              {transitionArtifact.artifact_key ?? transitionArtifact.id} — {transitionArtifact.title}
-            </Typography>
-          )}
-        </DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          {permittedTransitions?.items && permittedTransitions.items.length > 1 && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-                Change target
-              </Typography>
-              <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                {permittedTransitions.items.map((item) => (
-                  <Chip
-                    key={item.trigger}
-                    label={item.label ?? item.to_state}
-                    onClick={() => setListState({ transitionTargetState: item.to_state })}
-                    variant={transitionTargetState === item.to_state ? "filled" : "outlined"}
-                    size="small"
-                  />
-                ))}
-              </Box>
-            </Box>
-          )}
-          {transitionFormSchema && (
-            <MetadataDrivenForm
-              schema={transitionFormSchema}
-              values={transitionFormValues}
-              onChange={(v) =>
-                setListState({
-                  transitionStateReason: (v.state_reason as string) ?? "",
-                  transitionResolution: (v.resolution as string) ?? "",
-                })
-              }
-              onSubmit={handleConfirmTransition}
-              submitLabel="Transition"
-              disabled={transitionMutation.isPending}
-              submitExternally
-            />
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseTransitionDialog}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleConfirmTransition}
-            disabled={
-              transitionMutation.isPending ||
-              (showResolutionField &&
-                transitionOptions.resolutionOptions.length > 0 &&
-                !transitionResolution)
-            }
-          >
-            Transition
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={conflictDialogOpen}
-        onClose={() => setConflictDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        aria-labelledby="conflict-resolution-dialog-title"
-      >
-        <DialogTitle id="conflict-resolution-dialog-title">Conflict</DialogTitle>
-        <DialogContent>
-          <Typography variant="body1" color="text.secondary">
-            {conflictDetail}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Do you want to apply your state change anyway (overwrite)?
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              setConflictDialogOpen(false);
-              handleCloseTransitionDialog();
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleConflictOverwrite}
-            disabled={transitionMutation.isPending}
-          >
-            Overwrite
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={membersDialogOpen}
-        onClose={() => setListState({ membersDialogOpen: false })}
-        maxWidth="sm"
-        fullWidth
-        aria-labelledby="project-members-dialog-title"
-      >
-        <DialogTitle id="project-members-dialog-title">Project members</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          {projectMembersLoading ? (
-            <Typography color="text.secondary">Loading members…</Typography>
-          ) : (
-            <>
-              <List dense disablePadding>
-                {(projectMembers ?? []).map((pm) => {
-                  const orgMember = members?.find((m) => m.user_id === pm.user_id);
-                  const label = orgMember?.display_name || orgMember?.email || pm.user_id;
-                  const isOnlyAdmin =
-                    pm.role === "PROJECT_ADMIN" &&
-                    (projectMembers ?? []).filter((m) => m.role === "PROJECT_ADMIN").length <= 1;
-                  return (
-                    <ProjectMemberRow
-                      key={pm.id}
-                      pm={pm}
-                      memberLabel={label}
-                      isOnlyAdmin={isOnlyAdmin}
-                      onUpdateRole={(userId, role) =>
-                        updateProjectMemberMutation.mutate(
-                          { userId, role },
-                          { onSuccess: () => showNotification("Role updated successfully") },
-                        )
-                      }
-                      isUpdating={updateProjectMemberMutation.isPending}
-                      onRemove={(userId) =>
-                        removeProjectMemberMutation.mutate(userId, {
-                          onSuccess: () => showNotification("Member removed successfully"),
-                          onError: (error: Error) => {
-                            const body = (error as unknown as { body?: ProblemDetail })?.body;
-                            showNotification(body?.detail ?? "Failed to remove member.", "error");
-                          },
-                        })
-                      }
-                      isRemoving={removeProjectMemberMutation.isPending}
-                    />
-                  );
-                })}
-                {(projectMembers ?? []).length === 0 && (
-                  <ListItem>
-                    <ListItemText
-                      primary="No members yet"
-                      secondary="Add org members below."
-                    />
-                  </ListItem>
-                )}
-              </List>
-              <FormProvider {...addMemberForm}>
-                <Box component="form" onSubmit={addMemberForm.handleSubmit(onSubmitAddMember)} noValidate sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Add member
-                  </Typography>
-                  <RhfSelect<AddMemberFormValues>
-                    name="user_id"
-                    control={addMemberForm.control}
-                    label="User"
-                    placeholder={availableMembersForAdd.length === 0 ? "All org members are already in the project" : undefined}
-                    options={
-                      availableMembersForAdd.length === 0
-                        ? []
-                        : availableMembersForAdd.map((m) => ({ value: m.user_id, label: (m.display_name || m.email) ?? m.user_id }))
-                    }
-                    selectProps={{ size: "small" }}
-                  />
-                  <RhfSelect<AddMemberFormValues>
-                    name="role"
-                    control={addMemberForm.control}
-                    label="Role"
-                    options={[
-                      { value: "PROJECT_VIEWER", label: "Viewer" },
-                      { value: "PROJECT_CONTRIBUTOR", label: "Contributor" },
-                      { value: "PROJECT_ADMIN", label: "Admin" },
-                    ]}
-                    selectProps={{ size: "small" }}
-                  />
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    disabled={
-                      projectMembersLoading ||
-                      addProjectMemberMutation.isPending ||
-                      !addMemberForm.watch("user_id") ||
-                      availableMembersForAdd.length === 0
-                    }
-                  >
-                    Add member
-                  </Button>
-                </Box>
-              </FormProvider>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setListState({ membersDialogOpen: false })}>Close</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={addTaskOpen} onClose={() => setAddTaskOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add task</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          {taskFormSchema ? (
-            <MetadataDrivenForm
-              schema={taskFormSchema}
-              values={taskCreateFormValues}
-              onChange={setTaskCreateFormValues}
-              onSubmit={() => {
-                const title = (taskCreateFormValues.title as string)?.trim();
-                if (!title) return;
-                const payload: CreateTaskRequest = {
-                  title,
-                  description: (taskCreateFormValues.description as string) || undefined,
-                  state: (taskCreateFormValues.state as string) || "todo",
-                  assignee_id: (taskCreateFormValues.assignee_id as string) || null,
-                  rank_order: typeof taskCreateFormValues.rank_order === "number" ? taskCreateFormValues.rank_order : undefined,
-                };
-                createTaskMutation.mutate(payload, {
-                  onSuccess: () => {
-                    setAddTaskOpen(false);
-                    setTaskCreateFormValues({});
-                    showNotification("Task added", "success");
-                  },
-                  onError: (err: Error) => {
-                    const body = (err as unknown as { body?: ProblemDetail })?.body;
-                    showNotification(body?.detail ?? "Failed to add task", "error");
-                  },
-                });
-              }}
-              submitLabel="Add"
-              disabled={createTaskMutation.isPending}
-              submitExternally
-              userOptions={members?.map((m) => ({ id: m.user_id, label: m.display_name || m.email || m.user_id })) ?? []}
-            />
-          ) : (
-            <Typography color="text.secondary">Loading form…</Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddTaskOpen(false)}>Cancel</Button>
-          {taskFormSchema && (
-            <Button
-              variant="contained"
-              disabled={!(taskCreateFormValues.title as string)?.trim() || createTaskMutation.isPending}
-              onClick={() => {
-                const title = (taskCreateFormValues.title as string)?.trim();
-                if (!title) return;
-                const payload: CreateTaskRequest = {
-                  title,
-                  description: (taskCreateFormValues.description as string) || undefined,
-                  state: (taskCreateFormValues.state as string) || "todo",
-                  assignee_id: (taskCreateFormValues.assignee_id as string) || null,
-                  rank_order: typeof taskCreateFormValues.rank_order === "number" ? taskCreateFormValues.rank_order : undefined,
-                };
-                createTaskMutation.mutate(payload, {
-                  onSuccess: () => {
-                    setAddTaskOpen(false);
-                    setTaskCreateFormValues({});
-                    showNotification("Task added", "success");
-                  },
-                  onError: (err: Error) => {
-                    const body = (err as unknown as { body?: ProblemDetail })?.body;
-                    showNotification(body?.detail ?? "Failed to add task", "error");
-                  },
-                });
-              }}
-            >
-              Add
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={!!editingTask}
-        onClose={() => setEditingTask(null)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Edit task</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          {taskFormSchema && editingTask ? (
-            <MetadataDrivenForm
-              schema={taskFormSchema}
-              values={taskEditFormValues}
-              onChange={setTaskEditFormValues}
-              onSubmit={() => {
-                const title = (taskEditFormValues.title as string)?.trim();
-                if (!title || !editingTask) return;
-                const payload: UpdateTaskRequest = {
-                  title,
-                  description: (taskEditFormValues.description as string) ?? null,
-                  state: (taskEditFormValues.state as string) ?? undefined,
-                  assignee_id: (taskEditFormValues.assignee_id as string) || null,
-                  rank_order: typeof taskEditFormValues.rank_order === "number" ? taskEditFormValues.rank_order : undefined,
-                };
-                updateTaskMutation.mutate(payload, {
-                  onSuccess: () => {
-                    setEditingTask(null);
-                    showNotification("Task updated", "success");
-                  },
-                  onError: (err: Error) => {
-                    const body = (err as unknown as { body?: ProblemDetail })?.body;
-                    showNotification(body?.detail ?? "Failed to update task", "error");
-                  },
-                });
-              }}
-              submitLabel="Save"
-              disabled={updateTaskMutation.isPending}
-              submitExternally
-              userOptions={members?.map((m) => ({ id: m.user_id, label: m.display_name || m.email || m.user_id })) ?? []}
-            />
-          ) : editingTask ? (
-            <Typography color="text.secondary">Loading form…</Typography>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditingTask(null)}>Cancel</Button>
-          {taskFormSchema && editingTask && (
-            <Button
-              variant="contained"
-              disabled={!(taskEditFormValues.title as string)?.trim() || updateTaskMutation.isPending}
-              onClick={() => {
-                const title = (taskEditFormValues.title as string)?.trim();
-                if (!title || !editingTask) return;
-                const payload: UpdateTaskRequest = {
-                  title,
-                  description: (taskEditFormValues.description as string) ?? null,
-                  state: (taskEditFormValues.state as string) ?? undefined,
-                  assignee_id: (taskEditFormValues.assignee_id as string) || null,
-                  rank_order: typeof taskEditFormValues.rank_order === "number" ? taskEditFormValues.rank_order : undefined,
-                };
-                updateTaskMutation.mutate(payload, {
-                  onSuccess: () => {
-                    setEditingTask(null);
-                    showNotification("Task updated", "success");
-                  },
-                  onError: (err: Error) => {
-                    const body = (err as unknown as { body?: ProblemDetail })?.body;
-                    showNotification(body?.detail ?? "Failed to update task", "error");
-                  },
-                });
-              }}
-            >
-              Save
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={addLinkOpen}
-        onClose={() => setAddLinkOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Add link</DialogTitle>
-        <FormProvider {...addLinkForm}>
-          <Box component="form" onSubmit={addLinkForm.handleSubmit(onSubmitAddLink)} noValidate>
-            <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-              <RhfSelect<AddLinkFormValues>
-                name="linkType"
-                control={addLinkForm.control}
-                label="Link type"
-                options={[
-                  { value: "related", label: "Related" },
-                  { value: "parent", label: "Parent" },
-                  { value: "child", label: "Child" },
-                  { value: "blocks", label: "Blocks" },
-                  { value: "duplicate", label: "Duplicate" },
-                ]}
-                selectProps={{ size: "small" }}
-              />
-              <RhfSelect<AddLinkFormValues>
-                name="artifactId"
-                control={addLinkForm.control}
-                label="Artifact to link to"
-                placeholder="Select an artifact"
-                options={pickerArtifacts
-                  .filter((a) => a.id !== detailArtifact?.id)
-                  .map((a) => ({ value: a.id, label: `[${a.artifact_key ?? a.id.slice(0, 8)}] ${a.title}` }))}
-                selectProps={{ size: "small" }}
-              />
-            </DialogContent>
-            <DialogActions>
-              <Button type="button" onClick={() => setAddLinkOpen(false)}>Cancel</Button>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={!addLinkForm.watch("artifactId") || createLinkMutation.isPending}
-              >
-                Add link
-              </Button>
-            </DialogActions>
-          </Box>
-        </FormProvider>
-      </Dialog>
-
-      <Dialog
-        open={saveQueryDialogOpen}
-        onClose={() => setSaveQueryDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle id="save-query-dialog-title">Save current filters</DialogTitle>
-        <FormProvider {...saveQueryForm}>
-          <Box component="form" onSubmit={handleSaveQuerySubmit(onSubmitSaveQuery)} noValidate>
-            <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-              <RhfTextField<SaveQueryFormValues>
-                name="name"
-                label="Query name"
-                fullWidth
-                placeholder="e.g. My open bugs"
-                autoFocus
-              />
-              <RhfSelect<SaveQueryFormValues>
-                name="visibility"
-                control={saveQueryControl}
-                label="Visibility"
-                options={[
-                  { value: "private", label: "Private (only me)" },
-                  { value: "project", label: "Project (all members)" },
-                ]}
-              />
-            </DialogContent>
-            <DialogActions>
-              <Button type="button" onClick={() => setSaveQueryDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={createSavedQueryMutation.isPending}
-              >
-                Save
-              </Button>
-            </DialogActions>
-          </Box>
-        </FormProvider>
-      </Dialog>
 
       <Drawer
         anchor="right"
@@ -2891,7 +2210,50 @@ export default function ArtifactsPage() {
                                 <IconButton
                                   size="small"
                                   aria-label="Edit task"
-                                  onClick={() => setEditingTask(task)}
+                                  onClick={() => {
+                                    const editValues = {
+                                      title: task.title,
+                                      description: task.description ?? "",
+                                      state: task.state,
+                                      assignee_id: task.assignee_id ?? "",
+                                      rank_order: task.rank_order ?? "",
+                                    };
+                                    modalApi.openEditTask({
+                                      taskFormSchema: taskFormSchema ?? null,
+                                      task,
+                                      values: editValues,
+                                      onChange: setTaskEditFormValues,
+                                      onSubmit: (values) => {
+                                        const title = (values.title as string)?.trim();
+                                        if (!title) return;
+                                        updateTaskMutation.mutate(
+                                          {
+                                            title,
+                                            description: (values.description as string) ?? null,
+                                            state: (values.state as string) ?? undefined,
+                                            assignee_id: (values.assignee_id as string) || null,
+                                            rank_order: typeof values.rank_order === "number" ? values.rank_order : undefined,
+                                          },
+                                          {
+                                            onSuccess: () => {
+                                              modalApi.closeModal();
+                                              setEditingTask(null);
+                                              showNotification("Task updated", "success");
+                                            },
+                                            onError: (err: Error) => {
+                                              const body = (err as unknown as { body?: ProblemDetail })?.body;
+                                              showNotification(body?.detail ?? "Failed to update task", "error");
+                                            },
+                                          },
+                                        );
+                                      },
+                                      isPending: updateTaskMutation.isPending,
+                                      userOptions: members?.map((m) => ({
+                                        id: m.user_id,
+                                        label: m.display_name || m.email || m.user_id,
+                                      })) ?? [],
+                                    });
+                                  }}
                                 >
                                   <Edit fontSize="small" />
                                 </IconButton>
@@ -2947,7 +2309,40 @@ export default function ArtifactsPage() {
                       <Button
                         size="small"
                         startIcon={<Add />}
-                        onClick={() => setAddTaskOpen(true)}
+                        onClick={() => {
+                          const payloadFromValues = (v: Record<string, unknown>): CreateTaskRequest => ({
+                            title: (v.title as string)?.trim() ?? "",
+                            description: (v.description as string) || undefined,
+                            state: (v.state as string) || "todo",
+                            assignee_id: (v.assignee_id as string) || null,
+                            rank_order: typeof v.rank_order === "number" ? v.rank_order : undefined,
+                          });
+                          modalApi.openAddTask({
+                            taskFormSchema: taskFormSchema ?? null,
+                            initialValues: taskCreateInitialValues,
+                            onChange: setTaskCreateFormValues,
+                            onSubmit: (values) => {
+                              const title = (values.title as string)?.trim();
+                              if (!title) return;
+                              createTaskMutation.mutate(payloadFromValues(values), {
+                                onSuccess: () => {
+                                  modalApi.closeModal();
+                                  setTaskCreateFormValues({});
+                                  showNotification("Task added", "success");
+                                },
+                                onError: (err: Error) => {
+                                  const body = (err as unknown as { body?: ProblemDetail })?.body;
+                                  showNotification(body?.detail ?? "Failed to add task", "error");
+                                },
+                              });
+                            },
+                            isPending: createTaskMutation.isPending,
+                            userOptions: members?.map((m) => ({
+                              id: m.user_id,
+                              label: m.display_name || m.email || m.user_id,
+                            })) ?? [],
+                          });
+                        }}
                       >
                         Add task
                       </Button>
@@ -3028,7 +2423,32 @@ export default function ArtifactsPage() {
                       <Button
                         size="small"
                         startIcon={<Add />}
-                        onClick={() => setAddLinkOpen(true)}
+                        onClick={() => {
+                          modalApi.openAddLink({
+                            sourceArtifactId: detailArtifact!.id,
+                            artifactOptions: pickerArtifacts
+                              .filter((a) => a.id !== detailArtifact?.id)
+                              .map((a) => ({
+                                value: a.id,
+                                label: `[${a.artifact_key ?? a.id.slice(0, 8)}] ${a.title}`,
+                              })),
+                            onCreateLink: (linkType, targetArtifactId) => {
+                              createLinkMutation.mutate(
+                                { to_artifact_id: targetArtifactId, link_type: linkType },
+                                {
+                                  onSuccess: () => {
+                                    modalApi.closeModal();
+                                    showNotification("Link added", "success");
+                                  },
+                                  onError: (err: Error) => {
+                                    const body = (err as unknown as { body?: ProblemDetail })?.body;
+                                    showNotification(body?.detail ?? "Failed to add link", "error");
+                                  },
+                                },
+                              );
+                            },
+                          });
+                        }}
                       >
                         Add link
                       </Button>

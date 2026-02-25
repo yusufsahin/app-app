@@ -39,6 +39,23 @@ class SqlAlchemyTaskRepository(TaskRepository):
         result = await self._session.execute(q)
         return [self._to_entity(m) for m in result.scalars().all()]
 
+    async def list_by_project_and_assignee(
+        self,
+        project_id: uuid.UUID,
+        assignee_id: uuid.UUID,
+    ) -> list[Task]:
+        q = (
+            select(TaskModel)
+            .where(
+                TaskModel.project_id == project_id,
+                TaskModel.assignee_id == assignee_id,
+                TaskModel.deleted_at.is_(None),
+            )
+            .order_by(TaskModel.rank_order.asc().nullslast(), TaskModel.created_at.asc())
+        )
+        result = await self._session.execute(q)
+        return [self._to_entity(m) for m in result.scalars().all()]
+
     async def count_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
         if not project_ids:
             return 0

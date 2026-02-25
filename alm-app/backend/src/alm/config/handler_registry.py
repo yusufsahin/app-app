@@ -279,6 +279,10 @@ from alm.task.application.queries.list_tasks_by_artifact import (
     ListTasksByArtifact,
     ListTasksByArtifactHandler,
 )
+from alm.task.application.queries.list_tasks_by_project_and_assignee import (
+    ListTasksByProjectAndAssignee,
+    ListTasksByProjectAndAssigneeHandler,
+)
 from alm.task.infrastructure.repositories import SqlAlchemyTaskRepository
 from alm.team.application.commands.add_team_member import AddTeamMember, AddTeamMemberHandler
 
@@ -915,6 +919,12 @@ def register_all_handlers() -> None:
     register_query_handler(
         ListTasksByArtifact,
         lambda s: ListTasksByArtifactHandler(
+            task_repo=SqlAlchemyTaskRepository(s),
+        ),
+    )
+    register_query_handler(
+        ListTasksByProjectAndAssignee,
+        lambda s: ListTasksByProjectAndAssigneeHandler(
             task_repo=SqlAlchemyTaskRepository(s),
         ),
     )

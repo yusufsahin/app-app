@@ -1,7 +1,6 @@
 import {
   Box,
   Chip,
-  Container,
   Skeleton,
   Typography,
   Alert,
@@ -9,6 +8,8 @@ import {
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { useParams } from "react-router-dom";
 import { useOrgRoles, type TenantRoleDetail } from "../../../shared/api/orgApi";
+import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
+import { OrgSettingsBreadcrumbs } from "../../../shared/components/Layout";
 
 const columns: GridColDef<TenantRoleDetail>[] = [
   {
@@ -64,17 +65,18 @@ export default function RoleManagementPage() {
 
   if (isLoading) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <SettingsPageWrapper>
         <Skeleton variant="text" width={160} height={40} sx={{ mb: 2 }} />
         <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 1 }} />
-      </Container>
+      </SettingsPageWrapper>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <SettingsPageWrapper>
+      <OrgSettingsBreadcrumbs currentPageLabel="Roles" />
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" fontWeight={700}>
+        <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
           Roles
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -104,6 +106,6 @@ export default function RoleManagementPage() {
           },
         }}
       />
-    </Container>
+    </SettingsPageWrapper>
   );
 }

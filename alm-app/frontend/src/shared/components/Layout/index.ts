@@ -1,6 +1,10 @@
 export { default as AppLayout } from "./AppLayout";
 export { ProjectBreadcrumbs } from "./ProjectBreadcrumbs";
 export type { ProjectBreadcrumbsProps } from "./ProjectBreadcrumbs";
+export { OrgSettingsBreadcrumbs } from "./OrgSettingsBreadcrumbs";
+export type { OrgSettingsBreadcrumbsProps } from "./OrgSettingsBreadcrumbs";
+export { StandardPageLayout } from "./StandardPageLayout";
+export type { StandardPageLayoutProps } from "./StandardPageLayout";
 export { ProjectNotFoundView } from "./ProjectNotFoundView";
 export type { ProjectNotFoundViewProps } from "./ProjectNotFoundView";
 export { ProjectSwitcher } from "./ProjectSwitcher";

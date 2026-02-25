@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import {
   Box,
-  Container,
   Typography,
   Card,
   CardContent,
@@ -14,13 +13,17 @@ import {
   DialogActions,
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
-import { Folder, People, Security, VerifiedUser, History, Archive } from "@mui/icons-material";
+import { Folder, People, Security, VerifiedUser, History, Archive, AccountTree } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "../../../shared/api/client";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { useTenantStore } from "../../../shared/stores/tenantStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { hasPermission } from "../../../shared/utils/permissions";
+import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
+import { OrgSettingsBreadcrumbs } from "../../../shared/components/Layout";
+
+type SettingsGroupId = "general" | "security" | "compliance";
 
 interface SettingCard {
   title: string;
@@ -28,6 +31,7 @@ interface SettingCard {
   path: string;
   icon: React.ReactNode;
   permission: string;
+  group: SettingsGroupId;
 }
 
 const SETTING_CARDS: SettingCard[] = [
@@ -37,6 +41,15 @@ const SETTING_CARDS: SettingCard[] = [
     path: "..",
     icon: <Folder color="primary" sx={{ fontSize: 40 }} />,
     permission: "project:read",
+    group: "general",
+  },
+  {
+    title: "Process manifest",
+    description: "Edit workflow and process template per project",
+    path: "../manifest",
+    icon: <AccountTree color="primary" sx={{ fontSize: 40 }} />,
+    permission: "manifest:read",
+    group: "general",
   },
   {
     title: "Members",
@@ -44,6 +57,7 @@ const SETTING_CARDS: SettingCard[] = [
     path: "../members",
     icon: <People color="primary" sx={{ fontSize: 40 }} />,
     permission: "member:read",
+    group: "security",
   },
   {
     title: "Roles",
@@ -51,6 +65,7 @@ const SETTING_CARDS: SettingCard[] = [
     path: "../roles",
     icon: <Security color="primary" sx={{ fontSize: 40 }} />,
     permission: "role:read",
+    group: "security",
   },
   {
     title: "Privileges",
@@ -58,15 +73,23 @@ const SETTING_CARDS: SettingCard[] = [
     path: "../privileges",
     icon: <VerifiedUser color="primary" sx={{ fontSize: 40 }} />,
     permission: "role:read",
+    group: "security",
   },
   {
     title: "Access audit",
     description: "View login and access audit log",
     path: "../audit",
     icon: <History color="primary" sx={{ fontSize: 40 }} />,
-    permission: "admin:audit", // shown only when user has admin role
+    permission: "admin:audit",
+    group: "compliance",
   },
 ];
+
+const GROUP_LABELS: Record<SettingsGroupId, string> = {
+  general: "General",
+  security: "Security & permissions",
+  compliance: "Compliance",
+};
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -83,6 +106,16 @@ export default function SettingsPage() {
       ),
     [permissions, isAdmin],
   );
+
+  const cardsByGroup = useMemo(() => {
+    const map: Partial<Record<SettingsGroupId, SettingCard[]>> = {};
+    for (const card of visibleCards) {
+      const list = map[card.group] ?? [];
+      list.push(card);
+      map[card.group] = list;
+    }
+    return map;
+  }, [visibleCards]);
 
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -108,29 +141,44 @@ export default function SettingsPage() {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom fontWeight={700}>
-        Settings
+    <SettingsPageWrapper>
+      <OrgSettingsBreadcrumbs currentPageLabel="Overview" />
+      <Typography component="h1" variant="h4" gutterBottom>
+        Organization settings
       </Typography>
-      <Grid container spacing={3}>
-        {visibleCards.map((card) => (
-          <Grid key={card.path} size={{ xs: 12, sm: 6, md: 4 }}>
-            <Card>
-              <CardActionArea onClick={() => navigate(card.path)}>
-                <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                  {card.icon}
-                  <Box>
-                    <Typography variant="h6">{card.title}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {card.description}
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </CardActionArea>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Manage projects, members, roles, and security.
+      </Typography>
+
+      {(["general", "security", "compliance"] as const).map(
+        (group) =>
+          cardsByGroup[group]?.length && (
+            <Box key={group} sx={{ mb: 4 }}>
+              <Typography variant="subtitle1" fontWeight={600} color="text.secondary" sx={{ mb: 2 }}>
+                {GROUP_LABELS[group]}
+              </Typography>
+              <Grid container spacing={3}>
+                {cardsByGroup[group]!.map((card) => (
+                  <Grid key={card.path} size={{ xs: 12, sm: 6, md: 4 }}>
+                    <Card>
+                      <CardActionArea onClick={() => navigate(card.path)}>
+                        <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                          {card.icon}
+                          <Box>
+                            <Typography variant="h6">{card.title}</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {card.description}
+                            </Typography>
+                          </Box>
+                        </CardContent>
+                      </CardActionArea>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          ),
+      )}
 
       {isAdmin && (
         <Box sx={{ mt: 6 }}>
@@ -173,6 +221,6 @@ export default function SettingsPage() {
           </Button>
         </DialogActions>
       </Dialog>
-    </Container>
+    </SettingsPageWrapper>
   );
 }

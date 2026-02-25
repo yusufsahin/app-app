@@ -37,7 +37,6 @@ import {
   Dashboard,
   History,
   FolderOpen,
-  AccountTree,
   CalendarMonth,
   ViewList,
   ViewColumn,
@@ -53,6 +52,7 @@ import { useProjectStore } from "../../stores/projectStore";
 import { useArtifactStore } from "../../stores/artifactStore";
 import { useLayoutUI } from "../../contexts/LayoutUIContext";
 import { useSwitchTenant } from "../../api/authApi";
+import { ModalManager } from "../../modal";
 import { useNotificationStore } from "../../stores/notificationStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { hasPermission } from "../../utils/permissions";
@@ -76,10 +76,9 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", path: "dashboard", icon: <Dashboard />, permission: "project:read" },
 ];
 
-/** Project-scoped nav (shown when URL has projectSlug). Paths relative to /:orgSlug/:projectSlug */
+/** Project-scoped nav (shown when URL has projectSlug). Paths relative to /:orgSlug/:projectSlug. Manifest is under Organization settings, not here. */
 const PROJECT_NAV_ITEMS: NavItem[] = [
   { label: "Overview", path: "", icon: <FolderOpen />, permission: "project:read" },
-  { label: "Manifest", path: "manifest", icon: <AccountTree />, permission: "manifest:read" },
   { label: "Planning", path: "planning", icon: <CalendarMonth />, permission: "project:read" },
   { label: "Artifacts", path: "artifacts", icon: <ViewList />, permission: "artifact:read" },
   { label: "Board", path: "board", icon: <ViewColumn />, permission: "artifact:read" },
@@ -169,15 +168,6 @@ export default function AppLayout() {
   const isCollapsed = isDesktop && sidebarCollapsed;
   const drawerWidth = isCollapsed ? DRAWER_WIDTH_COLLAPSED : DRAWER_WIDTH_EXPANDED;
 
-  // OrgGuard: URL org must match current tenant (JWT is tenant-scoped)
-  if (
-    orgSlug &&
-    currentTenant?.slug &&
-    orgSlug !== currentTenant.slug
-  ) {
-    return <Navigate to={`/${currentTenant.slug}`} replace />;
-  }
-
   const toggleSidebar = () => {
     setSidebarCollapsed((prev) => !prev);
   };
@@ -215,6 +205,15 @@ export default function AppLayout() {
     }
     return list;
   }, [orgSlug, projectSlug, visibleNavItems, permissions, isAdmin]);
+
+  // OrgGuard: URL org must match current tenant (JWT is tenant-scoped)
+  if (
+    orgSlug &&
+    currentTenant?.slug &&
+    orgSlug !== currentTenant.slug
+  ) {
+    return <Navigate to={`/${currentTenant.slug}`} replace />;
+  }
 
   const handleLogout = () => {
     setUserMenuAnchor(null);
@@ -432,7 +431,13 @@ export default function AppLayout() {
                 navigate(orgSlug ? `/${orgSlug}/settings` : "/");
                 setMobileOpen(false);
               }}
-              selected={location.pathname === `/${orgSlug}/settings`}
+              selected={
+                location.pathname === `/${orgSlug}/settings` ||
+                location.pathname === `/${orgSlug}/members` ||
+                location.pathname === `/${orgSlug}/roles` ||
+                location.pathname === `/${orgSlug}/privileges` ||
+                location.pathname === `/${orgSlug}/audit`
+              }
               title={isCollapsed ? "Organization settings" : undefined}
               sx={{
                 borderRadius: 1,
@@ -451,32 +456,6 @@ export default function AppLayout() {
                 />
               )}
             </ListItemButton>
-            {isAdmin && (
-              <ListItemButton
-                onClick={() => {
-                  navigate(orgSlug ? `/${orgSlug}/audit` : "/");
-                  setMobileOpen(false);
-                }}
-                selected={location.pathname === `/${orgSlug}/audit`}
-                title={isCollapsed ? "Access audit" : undefined}
-                sx={{
-                  borderRadius: 1,
-                  mx: isCollapsed ? 0.5 : 1,
-                  mb: 0.5,
-                  justifyContent: isCollapsed ? "center" : "flex-start",
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40 }}>
-                  <History fontSize="small" />
-                </ListItemIcon>
-                {!isCollapsed && (
-                  <ListItemText
-                    primary="Access audit"
-                    primaryTypographyProps={{ variant: "body2" }}
-                  />
-                )}
-              </ListItemButton>
-            )}
           </List>
         </>
       )}
@@ -742,6 +721,7 @@ export default function AppLayout() {
         items={commandPaletteItems}
         onSelect={(path) => navigate(path)}
       />
+      <ModalManager />
     </Box>
   );
 }

@@ -4,11 +4,15 @@ import {
   Box,
   Button,
   Chip,
-  Container,
   Skeleton,
   Typography,
   Alert,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import { PersonAdd, PersonAddAlt1, Delete } from "@mui/icons-material";
@@ -24,6 +28,8 @@ import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { RhfCheckbox } from "../../../shared/components/forms";
 import InviteMemberModal from "../components/InviteMemberModal";
 import CreateUserModal from "../components/CreateUserModal";
+import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
+import { OrgSettingsBreadcrumbs } from "../../../shared/components/Layout";
 
 type MemberRow = TenantMember & { deleted_at?: string | null; role_slugs?: string[] };
 
@@ -95,6 +101,7 @@ export default function MemberManagementPage() {
   const [includeDeleted, setIncludeDeleted] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [createUserOpen, setCreateUserOpen] = useState(false);
+  const [removeDialogUser, setRemoveDialogUser] = useState<{ user_id: string; email: string } | null>(null);
 
   type IncludeDeletedValues = { includeDeleted: boolean };
   const includeDeletedForm = useForm<IncludeDeletedValues>({ defaultValues: { includeDeleted } });
@@ -152,16 +159,7 @@ export default function MemberManagementPage() {
                   size="small"
                   color="error"
                   aria-label="Delete user"
-                  onClick={async () => {
-                    if (!window.confirm(`Remove ${params.row.email}? They will not be able to sign in.`)) return;
-                    try {
-                      await deleteUser.mutateAsync(params.row.user_id);
-                      showNotification("User removed");
-                    } catch (e) {
-                      const err = e as { detail?: string };
-                      showNotification(err.detail ?? "Failed to remove user", "error");
-                    }
-                  }}
+                  onClick={() => setRemoveDialogUser({ user_id: params.row.user_id, email: params.row.email })}
                 >
                   <Delete />
                 </IconButton>
@@ -171,17 +169,30 @@ export default function MemberManagementPage() {
       : []),
   ];
 
+  const handleConfirmRemove = async () => {
+    if (!removeDialogUser) return;
+    try {
+      await deleteUser.mutateAsync(removeDialogUser.user_id);
+      showNotification("User removed");
+      setRemoveDialogUser(null);
+    } catch (e) {
+      const err = e as { detail?: string };
+      showNotification(err.detail ?? "Failed to remove user", "error");
+    }
+  };
+
   if (isLoading) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <SettingsPageWrapper>
         <Skeleton variant="text" width={200} height={40} sx={{ mb: 2 }} />
         <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 1 }} />
-      </Container>
+      </SettingsPageWrapper>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <SettingsPageWrapper>
+      <OrgSettingsBreadcrumbs currentPageLabel="Members" />
       <Box
         sx={{
           display: "flex",
@@ -193,7 +204,7 @@ export default function MemberManagementPage() {
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-          <Typography variant="h4" fontWeight={700}>
+          <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
             Members
           </Typography>
           {isAdmin && (
@@ -260,6 +271,32 @@ export default function MemberManagementPage() {
         onClose={() => setCreateUserOpen(false)}
         orgSlug={orgSlug}
       />
-    </Container>
+
+      <Dialog
+        open={!!removeDialogUser}
+        onClose={() => !deleteUser.isPending && setRemoveDialogUser(null)}
+      >
+        <DialogTitle>Remove user?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Remove {removeDialogUser?.email}? They will no longer be able to sign in. This can be
+            reversed by an administrator.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRemoveDialogUser(null)} disabled={deleteUser.isPending}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={handleConfirmRemove}
+            disabled={deleteUser.isPending}
+          >
+            {deleteUser.isPending ? "Removing…" : "Remove"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </SettingsPageWrapper>
   );
 }

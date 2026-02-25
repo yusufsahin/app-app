@@ -91,7 +91,7 @@ export default function TenantSelectorPage() {
         p: 3,
       }}
     >
-      <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
+      <Typography component="h1" variant="h4" gutterBottom sx={{ fontWeight: 600, color: "primary.main" }}>
         ALM Manifest
       </Typography>
       <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>

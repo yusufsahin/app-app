@@ -142,6 +142,9 @@ from alm.task.application.commands.delete_task import DeleteTask
 from alm.task.application.commands.update_task import UpdateTask
 from alm.task.application.queries.get_task import GetTask
 from alm.task.application.queries.list_tasks_by_artifact import ListTasksByArtifact
+from alm.task.application.queries.list_tasks_by_project_and_assignee import (
+    ListTasksByProjectAndAssignee,
+)
 from alm.team.api.schemas import (
     AddTeamMemberRequest,
     TeamCreateRequest,
@@ -853,6 +856,45 @@ async def restore_artifact(
 
 
 # ── Tasks (artifact-linked) ──
+
+
+@router.get(
+    "/projects/{project_id}/tasks",
+    response_model=list[TaskResponse],
+)
+async def list_tasks_by_project_and_assignee(
+    project_id: uuid.UUID,
+    assignee_id: str = Query(..., description="Use 'me' for current user's tasks"),
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("task:read"),
+    mediator: Mediator = Depends(get_mediator),
+) -> list[TaskResponse]:
+    """List tasks in a project. Use assignee_id=me to get tasks assigned to the current user."""
+    if assignee_id.lower() != "me":
+        raise HTTPException(400, "Only assignee_id=me is supported")
+    assignee_uuid = user.id
+    dtos = await mediator.query(
+        ListTasksByProjectAndAssignee(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            assignee_id=assignee_uuid,
+        )
+    )
+    return [
+        TaskResponse(
+            id=d.id,
+            project_id=d.project_id,
+            artifact_id=d.artifact_id,
+            title=d.title,
+            state=d.state,
+            description=d.description,
+            assignee_id=d.assignee_id,
+            rank_order=d.rank_order,
+            created_at=d.created_at,
+            updated_at=d.updated_at,
+        )
+        for d in dtos
+    ]
 
 
 @router.get(

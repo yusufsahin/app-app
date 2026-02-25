@@ -133,8 +133,10 @@ export default function BoardPage() {
       <ProjectBreadcrumbs currentPageLabel="Board" projectName={project?.name} />
 
       <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
-        <ViewColumn fontSize="small" />
-        <Typography variant="h6">Kanban Board</Typography>
+        <ViewColumn fontSize="small" aria-hidden />
+        <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
+          Board
+        </Typography>
         <Button
           component={Link}
           to={artifactsPath(orgSlug, projectSlug, {

@@ -1,6 +1,5 @@
 import {
   Box,
-  Container,
   Typography,
   Skeleton,
   Alert,
@@ -9,6 +8,8 @@ import { useForm, FormProvider } from "react-hook-form";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useAccessAudit, type AccessAuditEntry } from "../../../shared/api/adminApi";
+import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
+import { OrgSettingsBreadcrumbs } from "../../../shared/components/Layout";
 
 const typeOptions = [
   { value: "", label: "All" },
@@ -69,18 +70,24 @@ export default function AccessAuditPage() {
 
   if (isLoading) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <SettingsPageWrapper>
         <Skeleton variant="text" width={200} height={40} sx={{ mb: 2 }} />
         <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 1 }} />
-      </Container>
+      </SettingsPageWrapper>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" fontWeight={700} sx={{ mb: 3 }}>
-        Access audit
-      </Typography>
+    <SettingsPageWrapper>
+      <OrgSettingsBreadcrumbs currentPageLabel="Access audit" />
+      <Box sx={{ mb: 3 }}>
+        <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
+          Access audit
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          View login and access audit log for this organization.
+        </Typography>
+      </Box>
 
       {isError && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -89,6 +96,9 @@ export default function AccessAuditPage() {
       )}
 
       <FormProvider {...form}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
+          Filters
+        </Typography>
         <Box
           sx={{
             display: "flex",
@@ -151,6 +161,6 @@ export default function AccessAuditPage() {
           },
         }}
       />
-    </Container>
+    </SettingsPageWrapper>
   );
 }

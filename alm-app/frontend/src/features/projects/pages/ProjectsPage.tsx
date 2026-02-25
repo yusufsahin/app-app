@@ -16,7 +16,9 @@ import {
   Link as MuiLink,
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
-import { Add, Search } from "@mui/icons-material";
+import { Add, FolderOff, Search } from "@mui/icons-material";
+import { EmptyState } from "../../../shared/components/EmptyState";
+import { LoadingState } from "../../../shared/components/LoadingState";
 import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useTenantStore } from "../../../shared/stores/tenantStore";
 import { useAuthStore } from "../../../shared/stores/authStore";
@@ -117,7 +119,7 @@ export default function ProjectsPage() {
         </MuiLink>
         <Typography color="text.primary">Projects</Typography>
       </Breadcrumbs>
-      <Typography variant="h4" fontWeight={700} sx={{ mb: 3 }}>
+      <Typography component="h1" variant="h4" sx={{ mb: 3 }}>
         {currentTenantName}
       </Typography>
 
@@ -182,11 +184,20 @@ export default function ProjectsPage() {
       </FormProvider>
 
       {isLoading ? (
-        <Typography color="text.secondary">Loading projects...</Typography>
+        <LoadingState label="Loading projects…" />
       ) : filteredAndSortedProjects.length === 0 ? (
-        <Typography color="text.secondary">
-          {filter ? "No projects match your filter." : "No projects yet. Create one to get started."}
-        </Typography>
+        <EmptyState
+          icon={<FolderOff />}
+          title={filter ? "No matches" : "No projects yet"}
+          description={
+            filter
+              ? "No projects match your filter. Try a different search."
+              : "Create a project to get started."
+          }
+          actionLabel={!filter && canCreateProject ? "Create project" : undefined}
+          onAction={!filter && canCreateProject ? () => setCreateModalOpen(true) : undefined}
+          bordered
+        />
       ) : (
         <Grid container spacing={2}>
           {filteredAndSortedProjects.map((project) => (

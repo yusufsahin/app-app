@@ -204,7 +204,7 @@ export default function ManifestPage() {
       ) : manifest ? (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-            <Typography variant="h4" fontWeight={700}>
+            <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
               Process Manifest
             </Typography>
             <Chip label={manifest.template_name} size="small" color="primary" />

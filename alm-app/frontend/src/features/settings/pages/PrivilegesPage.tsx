@@ -1,6 +1,5 @@
 import {
   Box,
-  Container,
   Skeleton,
   Typography,
   Alert,
@@ -8,6 +7,8 @@ import {
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { usePrivileges, type Privilege } from "../../../shared/api/tenantApi";
+import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
+import { OrgSettingsBreadcrumbs } from "../../../shared/components/Layout";
 
 const columns: GridColDef<Privilege>[] = [
   {
@@ -47,17 +48,18 @@ export default function PrivilegesPage() {
 
   if (isLoading) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <SettingsPageWrapper>
         <Skeleton variant="text" width={160} height={40} sx={{ mb: 2 }} />
         <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 1 }} />
-      </Container>
+      </SettingsPageWrapper>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <SettingsPageWrapper>
+      <OrgSettingsBreadcrumbs currentPageLabel="Privileges" />
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" fontWeight={700}>
+        <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
           Privileges
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -88,6 +90,6 @@ export default function PrivilegesPage() {
           },
         }}
       />
-    </Container>
+    </SettingsPageWrapper>
   );
 }

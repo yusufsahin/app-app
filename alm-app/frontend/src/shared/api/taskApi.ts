@@ -50,6 +50,24 @@ export function useTasksByArtifact(
   });
 }
 
+/** List tasks in a project assigned to the current user ("my tasks"). */
+export function useMyTasksInProject(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ["orgs", orgSlug, "projects", projectId, "tasks", "assignee=me"],
+    queryFn: async (): Promise<Task[]> => {
+      const { data } = await apiClient.get<Task[]>(
+        `/orgs/${orgSlug}/projects/${projectId}/tasks`,
+        { params: { assignee_id: "me" } },
+      );
+      return data;
+    },
+    enabled: !!orgSlug && !!projectId,
+  });
+}
+
 export function useCreateTask(
   orgSlug: string | undefined,
   projectId: string | undefined,

@@ -18,9 +18,8 @@ import {
   DialogContent,
   DialogActions,
   Chip,
-  Skeleton,
 } from "@mui/material";
-import { Add, Delete } from "@mui/icons-material";
+import { Add, Delete, Rule } from "@mui/icons-material";
 import { useState } from "react";
 import { RhfSelect, RhfSwitch, RhfTextField } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
@@ -31,6 +30,8 @@ import {
   TRIGGER_EVENT_TYPES,
   type WorkflowRuleCreateRequest,
 } from "../../../shared/api/workflowRuleApi";
+import { EmptyState } from "../../../shared/components/EmptyState";
+import { LoadingState } from "../../../shared/components/LoadingState";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import type { ProblemDetail } from "../../../shared/api/types";
@@ -131,7 +132,7 @@ export default function AutomationPage() {
     <Container maxWidth="md" sx={{ py: 4 }}>
       <ProjectBreadcrumbs currentPageLabel="Automation" projectName={project?.name} />
 
-      <Typography variant="h4" fontWeight={700} gutterBottom>
+      <Typography component="h1" variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
         Workflow rules
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -143,11 +144,16 @@ export default function AutomationPage() {
       </Button>
 
       {isLoading ? (
-        <Skeleton variant="rectangular" height={120} />
+        <LoadingState label="Loading rules…" />
       ) : rules.length === 0 ? (
-        <Paper variant="outlined" sx={{ p: 3, textAlign: "center" }}>
-          <Typography color="text.secondary">No workflow rules yet. Add one to get started.</Typography>
-        </Paper>
+        <EmptyState
+          icon={<Rule />}
+          title="No workflow rules"
+          description="Add a rule to run actions when events happen (e.g. artifact created, state changed)."
+          actionLabel="Add rule"
+          onAction={handleOpenDialog}
+          bordered
+        />
       ) : (
         <Paper variant="outlined">
           <List disablePadding>

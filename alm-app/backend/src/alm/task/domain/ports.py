@@ -20,6 +20,13 @@ class TaskRepository:
     ) -> list[Task]: ...
 
     @abstractmethod
+    async def list_by_project_and_assignee(
+        self,
+        project_id: uuid.UUID,
+        assignee_id: uuid.UUID,
+    ) -> list[Task]: ...
+
+    @abstractmethod
     async def count_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
         """Count non-deleted tasks for the given projects (for dashboard)."""
         ...

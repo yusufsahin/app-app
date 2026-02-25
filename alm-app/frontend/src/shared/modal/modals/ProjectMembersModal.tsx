@@ -1,0 +1,239 @@
+import { useEffect, useRef } from "react";
+import { useForm, FormProvider } from "react-hook-form";
+import {
+  Box,
+  Button,
+  List,
+  ListItem,
+  ListItemText,
+  IconButton,
+  Typography,
+} from "@mui/material";
+import { PersonRemove } from "@mui/icons-material";
+import { RhfSelect } from "../../components/forms";
+import {
+  useProjectMembers,
+  useOrgMembers,
+  useAddProjectMember,
+  useRemoveProjectMember,
+  useUpdateProjectMember,
+} from "../../api/orgApi";
+import { useNotificationStore } from "../../stores/notificationStore";
+import type { ProjectMembersModalProps } from "../modalTypes";
+
+type Props = ProjectMembersModalProps & { onClose: () => void };
+
+function ProjectMemberRow({
+  pm,
+  memberLabel,
+  isOnlyAdmin,
+  onUpdateRole,
+  isUpdating,
+  onRemove,
+  isRemoving,
+}: {
+  pm: { id: string; user_id: string; role: string };
+  memberLabel: string;
+  isOnlyAdmin: boolean;
+  onUpdateRole: (userId: string, role: string) => void;
+  isUpdating: boolean;
+  onRemove: (userId: string) => void;
+  isRemoving: boolean;
+}) {
+  type RoleValues = { role: string };
+  const rowForm = useForm<RoleValues>({ defaultValues: { role: pm.role } });
+  const justResetRef = useRef(false);
+  useEffect(() => {
+    rowForm.reset({ role: pm.role });
+    justResetRef.current = true;
+  }, [pm.role]);
+  const watchedRole = rowForm.watch("role");
+  useEffect(() => {
+    if (justResetRef.current) {
+      justResetRef.current = false;
+      return;
+    }
+    if (watchedRole !== pm.role) {
+      onUpdateRole(pm.user_id, watchedRole);
+    }
+  }, [watchedRole]);
+
+  return (
+    <ListItem
+      secondaryAction={
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <FormProvider {...rowForm}>
+            <RhfSelect<RoleValues>
+              name="role"
+              control={rowForm.control}
+              label=""
+              options={[
+                { value: "PROJECT_VIEWER", label: "Viewer" },
+                { value: "PROJECT_CONTRIBUTOR", label: "Contributor" },
+                { value: "PROJECT_ADMIN", label: "Admin" },
+              ]}
+              selectProps={{ size: "small", sx: { minWidth: 120 }, disabled: isUpdating }}
+            />
+          </FormProvider>
+          <IconButton
+            edge="end"
+            size="small"
+            aria-label="Remove member"
+            disabled={isRemoving || isOnlyAdmin}
+            title={isOnlyAdmin ? "Cannot remove the last admin" : "Remove member"}
+            onClick={() => onRemove(pm.user_id)}
+          >
+            <PersonRemove fontSize="small" />
+          </IconButton>
+        </Box>
+      }
+    >
+      <ListItemText primary={memberLabel} />
+    </ListItem>
+  );
+}
+
+type AddMemberFormValues = { user_id: string; role: string };
+
+export function ProjectMembersModal({ orgSlug, projectId, projectName: _projectName, onClose }: Props) {
+  const showNotification = useNotificationStore((s) => s.showNotification);
+  const { data: projectMembers, isLoading: projectMembersLoading } = useProjectMembers(
+    orgSlug,
+    projectId,
+  );
+  const { data: members } = useOrgMembers(orgSlug);
+  const addProjectMemberMutation = useAddProjectMember(orgSlug, projectId);
+  const removeProjectMemberMutation = useRemoveProjectMember(orgSlug, projectId);
+  const updateProjectMemberMutation = useUpdateProjectMember(orgSlug, projectId);
+
+  const addMemberForm = useForm<AddMemberFormValues>({
+    defaultValues: { user_id: "", role: "PROJECT_VIEWER" },
+  });
+
+  const availableMembersForAdd = (members ?? []).filter(
+    (m) => !(projectMembers ?? []).some((pm) => pm.user_id === m.user_id),
+  );
+
+  const onSubmitAddMember = (data: AddMemberFormValues) => {
+    if (!data.user_id) return;
+    addProjectMemberMutation.mutate(
+      {
+        user_id: data.user_id,
+        role: data.role as "PROJECT_VIEWER" | "PROJECT_CONTRIBUTOR" | "PROJECT_ADMIN",
+      },
+      {
+        onSuccess: () => {
+          showNotification("Member added successfully");
+          addMemberForm.reset({ user_id: "", role: "PROJECT_VIEWER" });
+        },
+      },
+    );
+  };
+
+  return (
+    <>
+      {projectMembersLoading ? (
+        <Typography color="text.secondary">Loading members…</Typography>
+      ) : (
+        <>
+          <List dense disablePadding>
+            {(projectMembers ?? []).map((pm) => {
+              const orgMember = members?.find((m) => m.user_id === pm.user_id);
+              const label = orgMember?.display_name || orgMember?.email || pm.user_id;
+              const isOnlyAdmin =
+                pm.role === "PROJECT_ADMIN" &&
+                (projectMembers ?? []).filter((m) => m.role === "PROJECT_ADMIN").length <= 1;
+              return (
+                <ProjectMemberRow
+                  key={pm.id}
+                  pm={pm}
+                  memberLabel={label}
+                  isOnlyAdmin={isOnlyAdmin}
+                  onUpdateRole={(userId, role) =>
+                    updateProjectMemberMutation.mutate(
+                      { userId, role },
+                      { onSuccess: () => showNotification("Role updated successfully") },
+                    )
+                  }
+                  isUpdating={updateProjectMemberMutation.isPending}
+                  onRemove={(userId) =>
+                    removeProjectMemberMutation.mutate(userId, {
+                      onSuccess: () => showNotification("Member removed successfully"),
+                      onError: (error: Error) => {
+                        const body = (error as unknown as { body?: { detail?: string } })?.body;
+                        showNotification(body?.detail ?? "Failed to remove member.", "error");
+                      },
+                    })
+                  }
+                  isRemoving={removeProjectMemberMutation.isPending}
+                />
+              );
+            })}
+            {(projectMembers ?? []).length === 0 && (
+              <ListItem>
+                <ListItemText primary="No members yet" secondary="Add org members below." />
+              </ListItem>
+            )}
+          </List>
+          <FormProvider {...addMemberForm}>
+            <Box
+              component="form"
+              onSubmit={addMemberForm.handleSubmit(onSubmitAddMember)}
+              noValidate
+              sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 2 }}
+            >
+              <Typography variant="subtitle2" color="text.secondary">
+                Add member
+              </Typography>
+              <RhfSelect<AddMemberFormValues>
+                name="user_id"
+                control={addMemberForm.control}
+                label="User"
+                placeholder={
+                  availableMembersForAdd.length === 0
+                    ? "All org members are already in the project"
+                    : undefined
+                }
+                options={
+                  availableMembersForAdd.length === 0
+                    ? []
+                    : availableMembersForAdd.map((m) => ({
+                        value: m.user_id,
+                        label: (m.display_name || m.email) ?? m.user_id,
+                      }))
+                }
+                selectProps={{ size: "small" }}
+              />
+              <RhfSelect<AddMemberFormValues>
+                name="role"
+                control={addMemberForm.control}
+                label="Role"
+                options={[
+                  { value: "PROJECT_VIEWER", label: "Viewer" },
+                  { value: "PROJECT_CONTRIBUTOR", label: "Contributor" },
+                  { value: "PROJECT_ADMIN", label: "Admin" },
+                ]}
+                selectProps={{ size: "small" }}
+              />
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={
+                  projectMembersLoading ||
+                  addProjectMemberMutation.isPending ||
+                  !addMemberForm.watch("user_id") ||
+                  availableMembersForAdd.length === 0
+                }
+              >
+                Add member
+              </Button>
+            </Box>
+          </FormProvider>
+        </>
+      )}
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+        <Button onClick={onClose}>Close</Button>
+      </Box>
+    </>
+  );
+}
