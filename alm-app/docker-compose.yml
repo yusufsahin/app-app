@@ -50,6 +50,7 @@ services:
       ALM_SMTP_PORT: "1025"
       ALM_SMTP_FROM: "noreply@alm.local"
       ALM_BASE_URL: "http://localhost:3000"
+      ALM_RATE_LIMIT_REQUESTS_PER_MINUTE: "600"
     depends_on:
       db:
         condition: service_healthy
