@@ -7,20 +7,22 @@ import {
   Container,
   Typography,
   Button,
-  Paper,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
   IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   Chip,
+  Card,
+  CardContent,
+  Stack,
+  Paper,
+  InputAdornment,
+  TextField,
 } from "@mui/material";
-import { Add, Delete, Rule } from "@mui/icons-material";
-import { useState } from "react";
+import Grid from "@mui/material/Grid2";
+import { Add, Delete, Rule, AutoAwesome, CheckCircle, Circle, PlayArrow, Pause, Search } from "@mui/icons-material";
+import { useState, useMemo } from "react";
 import { RhfSelect, RhfSwitch, RhfTextField } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import {
@@ -70,6 +72,21 @@ export default function AutomationPage() {
   const showNotification = useNotificationStore((s) => s.showNotification);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const totalRules = rules.length;
+  const activeRules = rules.filter((r) => r.is_active).length;
+  const inactiveRules = totalRules - activeRules;
+
+  const filteredRules = useMemo(() => {
+    if (!searchTerm.trim()) return rules;
+    const q = searchTerm.toLowerCase();
+    return rules.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.trigger_event_type.toLowerCase().includes(q),
+    );
+  }, [rules, searchTerm]);
 
   const form = useForm<AddRuleFormValues>({
     resolver: zodResolver(addRuleSchema),
@@ -132,16 +149,123 @@ export default function AutomationPage() {
     <Container maxWidth="md" sx={{ py: 4 }}>
       <ProjectBreadcrumbs currentPageLabel="Automation" projectName={project?.name} />
 
-      <Typography component="h1" variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
-        Workflow rules
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Run actions when events happen (e.g. artifact created, state changed). Actions: log, notification.
-      </Typography>
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={3}>
+        <Box>
+          <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
+            <AutoAwesome color="primary" />
+            <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>
+              Automation
+            </Typography>
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            Run actions when events happen (e.g. artifact created, state changed). Actions: log, notification.
+          </Typography>
+        </Box>
+        <Button variant="contained" startIcon={<Add />} onClick={handleOpenDialog}>
+          Add rule
+        </Button>
+      </Stack>
 
-      <Button variant="contained" startIcon={<Add />} onClick={handleOpenDialog} sx={{ mb: 2 }}>
-        Add rule
-      </Button>
+      {/* Stat Cards */}
+      {!isLoading && totalRules > 0 && (
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Card>
+              <CardContent>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 2,
+                      bgcolor: "primary.light",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Rule sx={{ color: "primary.main" }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h4" fontWeight={700}>{totalRules}</Typography>
+                    <Typography variant="body2" color="text.secondary">Total Rules</Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Card>
+              <CardContent>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 2,
+                      bgcolor: "success.light",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <PlayArrow sx={{ color: "success.main" }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h4" fontWeight={700}>{activeRules}</Typography>
+                    <Typography variant="body2" color="text.secondary">Active Rules</Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Card>
+              <CardContent>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 2,
+                      bgcolor: "warning.light",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Pause sx={{ color: "warning.main" }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h4" fontWeight={700}>{inactiveRules}</Typography>
+                    <Typography variant="body2" color="text.secondary">Inactive Rules</Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Search */}
+      {!isLoading && totalRules > 0 && (
+        <Paper sx={{ p: 1.5, mb: 2 }}>
+          <TextField
+            placeholder="Search rules by name or trigger…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            size="small"
+            fullWidth
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Paper>
+      )}
 
       {isLoading ? (
         <LoadingState label="Loading rules…" />
@@ -154,36 +278,67 @@ export default function AutomationPage() {
           onAction={handleOpenDialog}
           bordered
         />
+      ) : filteredRules.length === 0 ? (
+        <EmptyState
+          icon={<Search />}
+          title="No matching rules"
+          description={`No rules match "${searchTerm}".`}
+          bordered
+        />
       ) : (
-        <Paper variant="outlined">
-          <List disablePadding>
-            {rules.map((r) => (
-              <ListItem key={r.id} divider>
-                <ListItemText
-                  primary={r.name}
-                  secondary={
-                    <>
-                      Trigger: {TRIGGER_EVENT_TYPES.find((t) => t.value === r.trigger_event_type)?.label ?? r.trigger_event_type}
-                      {!r.is_active && (
-                        <Chip size="small" label="Inactive" color="default" sx={{ ml: 1 }} />
-                      )}
-                    </>
-                  }
-                />
-                <ListItemSecondaryAction>
+        <Stack spacing={2}>
+          {filteredRules.map((r) => (
+            <Card key={r.id} variant="outlined" sx={{ transition: "box-shadow 0.2s", "&:hover": { boxShadow: 3 } }}>
+              <CardContent sx={{ py: 2, px: 3, "&:last-child": { pb: 2 } }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Box
+                      sx={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 1.5,
+                        bgcolor: r.is_active ? "primary.light" : "grey.100",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Rule sx={{ color: r.is_active ? "primary.main" : "text.disabled", fontSize: 20 }} />
+                    </Box>
+                    <Box>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="subtitle2" fontWeight={600}>
+                          {r.name}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          label={r.is_active ? "Active" : "Inactive"}
+                          color={r.is_active ? "success" : "default"}
+                          variant="filled"
+                          icon={r.is_active ? <CheckCircle sx={{ fontSize: "12px !important" }} /> : <Circle sx={{ fontSize: "12px !important" }} />}
+                          sx={{ height: 20, fontSize: "0.7rem" }}
+                        />
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        Trigger: {TRIGGER_EVENT_TYPES.find((t) => t.value === r.trigger_event_type)?.label ?? r.trigger_event_type}
+                      </Typography>
+                    </Box>
+                  </Stack>
                   <IconButton
-                    edge="end"
+                    size="small"
+                    color="error"
                     aria-label="Delete rule"
                     onClick={() => handleDelete(r.id)}
                     disabled={deleteRule.isPending}
                   >
-                    <Delete />
+                    <Delete fontSize="small" />
                   </IconButton>
-                </ListItemSecondaryAction>
-              </ListItem>
-            ))}
-          </List>
-        </Paper>
+                </Stack>
+              </CardContent>
+            </Card>
+          ))}
+        </Stack>
       )}
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>

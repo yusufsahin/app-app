@@ -39,7 +39,11 @@ import {
   ViewList,
   ViewColumn,
   AutoAwesome,
+  AccountTree as AccountTreeIcon,
+  Notifications as NotificationsIcon,
 } from "@mui/icons-material";
+import Stack from "@mui/material/Stack";
+import Tooltip from "@mui/material/Tooltip";
 import { useAuthStore } from "../../stores/authStore";
 import { useOrgProjects } from "../../api/orgApi";
 import { ProjectSwitcher } from "./ProjectSwitcher";
@@ -56,7 +60,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { hasPermission } from "../../utils/permissions";
 import { useRealtime } from "../../realtime/useRealtime";
 
-const DRAWER_WIDTH_EXPANDED = 260;
+const DRAWER_WIDTH_EXPANDED = 280;
 const DRAWER_WIDTH_COLLAPSED = 72;
 
 interface NavItem {
@@ -233,72 +237,83 @@ export default function AppLayout() {
 
   const userInitial = user?.display_name?.charAt(0).toUpperCase() ?? "U";
 
-  const orgInitial = (currentTenant?.name ?? "O").charAt(0).toUpperCase();
-
   const drawerContent = (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: "background.paper", color: "text.primary", borderRight: "1px solid", borderColor: "divider" }}>
+      {/* Logo Header */}
       <Box
-        onClick={(e) => setTenantAnchor(e.currentTarget)}
         sx={{
-          p: isCollapsed ? 1.5 : 2,
-          cursor: "pointer",
+          p: 2,
           display: "flex",
           alignItems: "center",
-          justifyContent: isCollapsed ? "center" : "flex-start",
-          bgcolor: "action.selected",
-          "&:hover": { bgcolor: "action.hover" },
+          justifyContent: isCollapsed ? "center" : "space-between",
+          minHeight: 64,
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
       >
-        <Avatar
-          sx={{
-            width: 40,
-            height: 40,
-            bgcolor: "primary.main",
-            fontSize: 18,
-            fontWeight: 600,
-          }}
-        >
-          {orgInitial}
-        </Avatar>
-        {!isCollapsed && (
-          <Box sx={{ flex: 1, minWidth: 0, ml: 1.5 }}>
-            <Typography variant="subtitle2" fontWeight={600} noWrap>
-              {currentTenant?.name ?? "No Organization"}
-            </Typography>
-            {currentTenant?.slug && (
-              <Typography variant="caption" color="text.secondary" noWrap component="p">
-                {currentTenant.slug}
-              </Typography>
-            )}
+        {isCollapsed ? (
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: 2,
+              bgcolor: "primary.main",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "white",
+            }}
+          >
+            <AccountTreeIcon />
           </Box>
+        ) : (
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: 2,
+                bgcolor: "primary.main",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "white",
+                flexShrink: 0,
+              }}
+            >
+              <AccountTreeIcon />
+            </Box>
+            <Box
+              onClick={(e) => setTenantAnchor(e.currentTarget)}
+              sx={{ cursor: "pointer", minWidth: 0, flex: 1 }}
+            >
+              <Typography variant="subtitle2" fontWeight={700} noWrap color="text.primary">
+                {currentTenant?.name ?? "Pamera"}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" noWrap component="p">
+                Management Suite
+              </Typography>
+            </Box>
+          </Stack>
+        )}
+
+        {isCollapsed && (
+          <Box
+            onClick={(e) => setTenantAnchor(e.currentTarget)}
+            sx={{ position: "absolute", top: 12, left: 12, cursor: "pointer" }}
+          />
+        )}
+        {isCollapsed && (
+          <Box
+            onClick={(e) => setTenantAnchor(e.currentTarget)}
+            sx={{ cursor: "pointer", position: "absolute", inset: 0, top: 0, left: 0, width: DRAWER_WIDTH_COLLAPSED }}
+          />
         )}
       </Box>
 
-      {!isCollapsed && (
-        <ListItemButton
-          onClick={() => {
-            navigate("/select-tenant");
-            setMobileOpen(false);
-          }}
-          sx={{
-            mx: 1,
-            mt: 1,
-            borderRadius: 1,
-            justifyContent: "flex-start",
-            color: "primary.main",
-            "&:hover": { bgcolor: "action.hover" },
-          }}
-        >
-          <Add fontSize="small" sx={{ mr: 1.5 }} />
-          <Typography variant="body2" fontWeight={500}>
-            New organization
-          </Typography>
-        </ListItemButton>
-      )}
+      <Divider />
 
-      <Divider sx={{ mt: 1 }} />
-
-      <List sx={{ flex: 1, px: isCollapsed ? 0.5 : 1, py: 1.5 }}>
+      <List sx={{ flex: 1, px: isCollapsed ? 0.5 : 1, py: 2 }}>
         {visibleNavItems.map((item) => {
           const basePath = orgSlug ? `/${orgSlug}` : "";
           const fullPath = item.path ? `${basePath}/${item.path}` : basePath || "/";
@@ -307,37 +322,51 @@ export default function AppLayout() {
             : location.pathname.startsWith(`${basePath}/${item.path}`);
 
           return (
-            <ListItemButton
-              key={item.path || "projects"}
-              onClick={() => {
-                navigate(fullPath);
-                setMobileOpen(false);
-              }}
-              selected={isActive}
-              title={isCollapsed ? item.label : undefined}
-              sx={{
-                borderRadius: 1.5,
-                mb: 0.5,
-                justifyContent: isCollapsed ? "center" : "flex-start",
-                px: isCollapsed ? 1 : 2,
-                "&.Mui-selected": {
-                  bgcolor: "primary.main",
-                  color: "primary.contrastText",
-                  "&:hover": { bgcolor: "primary.dark" },
-                  "& .MuiListItemIcon-root": { color: "inherit" },
-                },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40 }}>
-                {item.icon}
-              </ListItemIcon>
-              {!isCollapsed && (
-                <ListItemText
-                  primary={item.label}
-                  primaryTypographyProps={{ fontWeight: isActive ? 600 : 400 }}
-                />
-              )}
-            </ListItemButton>
+            <Tooltip key={item.path || "projects"} title={isCollapsed ? item.label : ""} placement="right" arrow>
+              <ListItemButton
+                onClick={() => {
+                  navigate(fullPath);
+                  setMobileOpen(false);
+                }}
+                title={isCollapsed ? item.label : undefined}
+                sx={{
+                  borderRadius: 2,
+                  mb: 0.5,
+                  minHeight: 48,
+                  justifyContent: isCollapsed ? "center" : "flex-start",
+                  px: isCollapsed ? 1 : 2,
+                  position: "relative",
+                  bgcolor: isActive ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                  color: isActive ? "primary.main" : "text.secondary",
+                  "&:hover": {
+                    bgcolor: isActive ? "rgba(37, 99, 235, 0.12)" : "rgba(0,0,0,0.04)",
+                    color: isActive ? "primary.main" : "text.primary",
+                  },
+                  "&::before": isActive ? {
+                    content: '""',
+                    position: "absolute",
+                    left: 0,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 3,
+                    height: 24,
+                    borderRadius: "0 4px 4px 0",
+                    bgcolor: "primary.main",
+                  } : {},
+                  transition: "all 0.2s",
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40, color: "inherit", justifyContent: "center" }}>
+                  {item.icon}
+                </ListItemIcon>
+                {!isCollapsed && (
+                  <ListItemText
+                    primary={item.label}
+                    primaryTypographyProps={{ fontSize: "0.9rem", fontWeight: isActive ? 600 : 500 }}
+                  />
+                )}
+              </ListItemButton>
+            </Tooltip>
           );
         })}
       </List>
@@ -362,37 +391,51 @@ export default function AppLayout() {
                   ? location.pathname === basePath || location.pathname === `${basePath}/`
                   : location.pathname.startsWith(`${basePath}/${item.path}`);
               return (
-                <ListItemButton
-                  key={item.path || "overview"}
-                  onClick={() => {
-                    navigate(fullPath);
-                    setMobileOpen(false);
-                  }}
-                  selected={isActive}
-                  title={isCollapsed ? item.label : undefined}
-                  sx={{
-                    borderRadius: 1.5,
-                    mb: 0.5,
-                    justifyContent: isCollapsed ? "center" : "flex-start",
-                    px: isCollapsed ? 1 : 2,
-                    "&.Mui-selected": {
-                      bgcolor: "primary.main",
-                      color: "primary.contrastText",
-                      "&:hover": { bgcolor: "primary.dark" },
-                      "& .MuiListItemIcon-root": { color: "inherit" },
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40 }}>
-                    {item.icon}
-                  </ListItemIcon>
-                  {!isCollapsed && (
-                    <ListItemText
-                      primary={item.label}
-                      primaryTypographyProps={{ fontWeight: isActive ? 600 : 400 }}
-                    />
-                  )}
-                </ListItemButton>
+                <Tooltip key={item.path || "overview"} title={isCollapsed ? item.label : ""} placement="right" arrow>
+                  <ListItemButton
+                    onClick={() => {
+                      navigate(fullPath);
+                      setMobileOpen(false);
+                    }}
+                    title={isCollapsed ? item.label : undefined}
+                    sx={{
+                      borderRadius: 2,
+                      mb: 0.5,
+                      minHeight: 44,
+                      justifyContent: isCollapsed ? "center" : "flex-start",
+                      px: isCollapsed ? 1 : 2,
+                      position: "relative",
+                      bgcolor: isActive ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                      color: isActive ? "primary.main" : "text.secondary",
+                      "&:hover": {
+                        bgcolor: isActive ? "rgba(37, 99, 235, 0.12)" : "rgba(0,0,0,0.04)",
+                        color: isActive ? "primary.main" : "text.primary",
+                      },
+                      "&::before": isActive ? {
+                        content: '""',
+                        position: "absolute",
+                        left: 0,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 3,
+                        height: 20,
+                        borderRadius: "0 4px 4px 0",
+                        bgcolor: "primary.main",
+                      } : {},
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40, color: "inherit", justifyContent: "center" }}>
+                      {item.icon}
+                    </ListItemIcon>
+                    {!isCollapsed && (
+                      <ListItemText
+                        primary={item.label}
+                        primaryTypographyProps={{ fontSize: "0.9rem", fontWeight: isActive ? 600 : 500 }}
+                      />
+                    )}
+                  </ListItemButton>
+                </Tooltip>
               );
             })}
           </List>
@@ -402,42 +445,91 @@ export default function AppLayout() {
       {(hasPermission(permissions, "tenant:read") ||
         hasPermission(permissions, "member:read") ||
         hasPermission(permissions, "role:read")) && (
-        <>
-          <Divider />
-          <List sx={{ py: 0 }}>
-            <ListItemButton
-              onClick={() => {
-                navigate(orgSlug ? `/${orgSlug}/settings` : "/");
-                setMobileOpen(false);
-              }}
-              selected={
-                location.pathname === `/${orgSlug}/settings` ||
-                location.pathname === `/${orgSlug}/members` ||
-                location.pathname === `/${orgSlug}/roles` ||
-                location.pathname === `/${orgSlug}/privileges` ||
-                location.pathname === `/${orgSlug}/audit`
-              }
-              title={isCollapsed ? "Organization settings" : undefined}
-              sx={{
-                borderRadius: 1,
-                mx: isCollapsed ? 0.5 : 1,
-                mb: 0.5,
-                justifyContent: isCollapsed ? "center" : "flex-start",
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40 }}>
-                <Settings fontSize="small" />
-              </ListItemIcon>
-              {!isCollapsed && (
-                <ListItemText
-                  primary="Organization settings"
-                  primaryTypographyProps={{ variant: "body2" }}
-                />
-              )}
-            </ListItemButton>
-          </List>
-        </>
-      )}
+          <>
+            <Divider />
+            <List sx={{ py: 0.5, px: isCollapsed ? 0.5 : 1 }}>
+              <Tooltip title={isCollapsed ? "Organization settings" : ""} placement="right" arrow>
+                <ListItemButton
+                  onClick={() => {
+                    navigate(orgSlug ? `/${orgSlug}/settings` : "/");
+                    setMobileOpen(false);
+                  }}
+                  title={isCollapsed ? "Organization settings" : undefined}
+                  sx={{
+                    borderRadius: 2,
+                    mb: 0.5,
+                    minHeight: 48,
+                    justifyContent: isCollapsed ? "center" : "flex-start",
+                    px: isCollapsed ? 1 : 2,
+                    position: "relative",
+                    bgcolor:
+                      location.pathname === `/${orgSlug}/settings` ||
+                        location.pathname === `/${orgSlug}/members` ||
+                        location.pathname === `/${orgSlug}/roles` ||
+                        location.pathname === `/${orgSlug}/privileges` ||
+                        location.pathname === `/${orgSlug}/audit`
+                        ? "rgba(37, 99, 235, 0.08)"
+                        : "transparent",
+                    color:
+                      location.pathname === `/${orgSlug}/settings` ||
+                        location.pathname === `/${orgSlug}/members` ||
+                        location.pathname === `/${orgSlug}/roles` ||
+                        location.pathname === `/${orgSlug}/privileges` ||
+                        location.pathname === `/${orgSlug}/audit`
+                        ? "primary.main"
+                        : "text.secondary",
+                    "&:hover": { bgcolor: "rgba(0,0,0,0.04)", color: "text.primary" },
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40, color: "inherit", justifyContent: "center" }}>
+                    <Settings fontSize="small" />
+                  </ListItemIcon>
+                  {!isCollapsed && (
+                    <ListItemText
+                      primary="Organization settings"
+                      primaryTypographyProps={{ fontSize: "0.9rem", fontWeight: 500 }}
+                    />
+                  )}
+                </ListItemButton>
+              </Tooltip>
+            </List>
+          </>
+        )}
+
+      {/* User Profile */}
+      <Divider />
+      <Box sx={{ p: 2 }}>
+        <Stack
+          direction="row"
+          spacing={isCollapsed ? 0 : 1.5}
+          alignItems="center"
+          sx={{
+            p: 1.5,
+            borderRadius: 2,
+            bgcolor: "grey.50",
+            cursor: "pointer",
+            "&:hover": { bgcolor: "grey.100" },
+            justifyContent: isCollapsed ? "center" : "flex-start",
+            transition: "all 0.2s",
+          }}
+          onClick={(e) => setUserMenuAnchor(e.currentTarget)}
+        >
+          <Avatar sx={{ width: 36, height: 36, bgcolor: "primary.main", fontSize: 15, flexShrink: 0 }}>
+            {userInitial}
+          </Avatar>
+          {!isCollapsed && user && (
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography variant="body2" fontWeight={600} color="text.primary" noWrap>
+                {user.display_name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" noWrap component="p">
+                {user.email}
+              </Typography>
+            </Box>
+          )}
+        </Stack>
+      </Box>
 
       {isDesktop && (
         <>
@@ -472,49 +564,65 @@ export default function AppLayout() {
           transition: (theme) =>
             theme.transitions.create(["margin", "width"], {
               easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
+              duration: theme.transitions.duration.leavingScreen,
             }),
-          bgcolor: "background.paper",
-          borderBottom: 1,
-          borderColor: "divider",
+          bgcolor: "white",
+          color: "text.primary",
+          boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1)",
         }}
       >
         <Toolbar>
           <IconButton
+            color="inherit"
             edge="start"
             onClick={() => setMobileOpen(true)}
-            sx={{ mr: 1, display: { md: "none" } }}
+            sx={{ mr: 2, display: { md: "none" } }}
           >
             <MenuIcon />
           </IconButton>
 
-          <Box sx={{ flex: 1 }} />
+          {/* Page title for mobile */}
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, display: { xs: "block", md: "none" } }}>
+            Pamera
+          </Typography>
 
-          <Chip
-            label={typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl+K"}
-            size="small"
-            onClick={() => setCommandPaletteOpen(true)}
-            sx={{
-              display: { xs: "none", sm: "inline-flex" },
-              mr: 1,
-              "& .MuiChip-label": { fontSize: "0.75rem" },
-              cursor: "pointer",
-            }}
-            title="Quick navigation"
-          />
+          <Box sx={{ flex: 1, display: { xs: "none", md: "block" } }} />
 
-          <IconButton onClick={(e) => setUserMenuAnchor(e.currentTarget)} sx={{ ml: 1 }}>
-            <Avatar
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Chip
+              label={typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl+K"}
+              size="small"
+              onClick={() => setCommandPaletteOpen(true)}
               sx={{
-                width: 36,
-                height: 36,
-                bgcolor: "primary.main",
-                fontSize: 16,
+                display: { xs: "none", sm: "inline-flex" },
+                "& .MuiChip-label": { fontSize: "0.75rem" },
+                cursor: "pointer",
               }}
-            >
-              {userInitial}
-            </Avatar>
-          </IconButton>
+              title="Quick navigation"
+            />
+
+            <Tooltip title="Notifications">
+              <IconButton size="small" sx={{ color: "text.secondary" }}>
+                <NotificationsIcon />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title="Settings">
+              <IconButton
+                size="small"
+                onClick={() => navigate(orgSlug ? `/${orgSlug}/settings` : "/")}
+                sx={{ color: "text.secondary" }}
+              >
+                <Settings fontSize="small" />
+              </IconButton>
+            </Tooltip>
+
+            <IconButton onClick={(e) => setUserMenuAnchor(e.currentTarget)} sx={{ ml: 0.5 }}>
+              <Avatar sx={{ width: 36, height: 36, bgcolor: "primary.main", fontSize: 15 }}>
+                {userInitial}
+              </Avatar>
+            </IconButton>
+          </Stack>
 
           <Menu
             anchorEl={userMenuAnchor}
@@ -522,9 +630,10 @@ export default function AppLayout() {
             onClose={() => setUserMenuAnchor(null)}
             transformOrigin={{ horizontal: "right", vertical: "top" }}
             anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+            slotProps={{ paper: { sx: { minWidth: 200, mt: 0.5 } } }}
           >
-            <Box sx={{ px: 2, py: 1, minWidth: 180 }}>
-              <Typography variant="subtitle2" fontWeight={600}>
+            <Box sx={{ px: 2, py: 1.5 }}>
+              <Typography variant="subtitle2" fontWeight={700}>
                 {user?.display_name}
               </Typography>
               <Typography variant="caption" color="text.secondary">
@@ -534,7 +643,7 @@ export default function AppLayout() {
             <Divider />
             <MenuItem
               onClick={handleLogout}
-              sx={{ color: "error.main", gap: 1 }}
+              sx={{ color: "error.main", gap: 1, mt: 0.5 }}
             >
               <Logout fontSize="small" />
               Sign Out

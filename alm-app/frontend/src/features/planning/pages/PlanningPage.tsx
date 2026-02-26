@@ -454,26 +454,46 @@ export default function PlanningPage() {
         <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />
       ) : (
         <>
-          <Typography component="h1" variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-            Planning
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.5 }}>
+            <AccountTree color="primary" />
+            <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>
+              Planning
+            </Typography>
+          </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Cycles (iterations) and Areas for backlog and assignment.
           </Typography>
 
-          <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
-            <Tab value="cycles" label="Cycles (iterations)" icon={<AccountTree fontSize="small" />} iconPosition="start" />
-            <Tab value="areas" label="Areas" icon={<Folder fontSize="small" />} iconPosition="start" />
+          <Tabs
+            value={activeTab}
+            onChange={(_, v) => setActiveTab(v)}
+            sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
+          >
+            <Tab
+              value="cycles"
+              label={`Cycles${!cyclesLoading ? ` (${cycleNodes.length})` : ""}`}
+              icon={<AccountTree fontSize="small" />}
+              iconPosition="start"
+            />
+            <Tab
+              value="areas"
+              label={`Areas${!areasLoading ? ` (${areaNodes.length})` : ""}`}
+              icon={<Folder fontSize="small" />}
+              iconPosition="start"
+            />
             <Tab value="backlog" label="Cycle backlog" icon={<ViewList fontSize="small" />} iconPosition="start" />
           </Tabs>
 
           {activeTab === "cycles" && (
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                <Typography component="h2" variant="h6">
-                  Cycle tree
-                </Typography>
-                <Button size="small" startIcon={<Add />} onClick={handleAddCycle} disabled={cyclesLoading}>
+            <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "primary.main" }} />
+                  <Typography component="h2" variant="h6" fontWeight={600}>
+                    Cycle tree
+                  </Typography>
+                </Box>
+                <Button size="small" variant="contained" startIcon={<Add />} onClick={handleAddCycle} disabled={cyclesLoading}>
                   Add cycle
                 </Button>
               </Box>
@@ -501,12 +521,15 @@ export default function PlanningPage() {
           )}
 
           {activeTab === "areas" && (
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                <Typography component="h2" variant="h6">
-                  Area tree
-                </Typography>
-                <Button size="small" startIcon={<Add />} onClick={handleAddArea} disabled={areasLoading}>
+            <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "secondary.main" }} />
+                  <Typography component="h2" variant="h6" fontWeight={600}>
+                    Area tree
+                  </Typography>
+                </Box>
+                <Button size="small" variant="contained" startIcon={<Add />} onClick={handleAddArea} disabled={areasLoading}>
                   Add area
                 </Button>
               </Box>
@@ -534,10 +557,13 @@ export default function PlanningPage() {
           )}
 
           {activeTab === "backlog" && (
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
-                Cycle backlog
-              </Typography>
+            <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "success.main" }} />
+                <Typography variant="h6" fontWeight={600}>
+                  Cycle backlog
+                </Typography>
+              </Box>
               <FormProvider {...backlogForm}>
                 <Box sx={{ minWidth: 220, mb: 2 }}>
                   <RhfSelect<{ cycleId: string }>

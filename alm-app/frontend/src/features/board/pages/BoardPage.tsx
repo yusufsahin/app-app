@@ -10,9 +10,14 @@ import {
   Card,
   CardContent,
   Chip,
+  Stack,
+  Avatar,
+  Tooltip,
 } from "@mui/material";
 import { ViewColumn } from "@mui/icons-material";
 import { useMemo, useCallback } from "react";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
 import { useForm, FormProvider } from "react-hook-form";
 import { RhfSelect } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
@@ -26,6 +31,30 @@ import { artifactDetailPath, artifactsPath } from "../../../shared/utils/appPath
 import { getWorkflowStatesForType, type ManifestBundleShape } from "../../../shared/lib/workflowManifest";
 
 type WorkflowState = string;
+
+const COLUMN_COLORS = [
+  "#f59e0b",
+  "#8b5cf6",
+  "#2563eb",
+  "#10b981",
+  "#ef4444",
+  "#06b6d4",
+  "#f97316",
+  "#84cc16",
+];
+
+const TYPE_COLORS: Record<string, "default" | "primary" | "secondary" | "success" | "error" | "warning" | "info"> = {
+  epic: "secondary",
+  requirement: "primary",
+  defect: "error",
+  task: "default",
+  story: "info",
+  bug: "error",
+};
+
+function getTypeColor(type: string): "default" | "primary" | "secondary" | "success" | "error" | "warning" | "info" {
+  return TYPE_COLORS[type.toLowerCase()] ?? "default";
+}
 
 export default function BoardPage() {
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
@@ -129,12 +158,13 @@ export default function BoardPage() {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
-      <ProjectBreadcrumbs currentPageLabel="Board" projectName={project?.name} />
+    <DndProvider backend={HTML5Backend}>
+      <Container maxWidth="xl" sx={{ py: 2 }}>
+        <ProjectBreadcrumbs currentPageLabel="Board" projectName={project?.name} />
 
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
-        <ViewColumn fontSize="small" aria-hidden />
-        <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
+      <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3, flexWrap: "wrap" }}>
+        <ViewColumn fontSize="small" color="primary" aria-hidden />
+        <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>
           Board
         </Typography>
         <Button
@@ -145,6 +175,7 @@ export default function BoardPage() {
             areaNodeFilter: areaFilter || undefined,
           })}
           size="small"
+          variant="outlined"
           sx={{ ml: 1 }}
         >
           View in Artifacts
@@ -189,16 +220,16 @@ export default function BoardPage() {
             )}
           </Box>
         </FormProvider>
-      </Box>
+      </Stack>
 
       {manifestLoading || artifactsLoading ? (
-        <Skeleton variant="rectangular" height={400} />
+        <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 2 }} />
       ) : states.length === 0 ? (
         <Paper variant="outlined" sx={{ p: 3, textAlign: "center" }}>
           <Typography color="text.secondary">
             No workflow states in manifest. Define workflows with states in Process manifest to use the board.
           </Typography>
-          <Button component={Link} to={`/${orgSlug}/${projectSlug}/manifest`} sx={{ mt: 2 }}>
+          <Button component={Link} to={`/${orgSlug}/${projectSlug}/manifest`} sx={{ mt: 2 }} variant="contained">
             Open Manifest
           </Button>
         </Paper>
@@ -209,65 +240,164 @@ export default function BoardPage() {
             gap: 2,
             overflowX: "auto",
             pb: 2,
-            minHeight: 360,
+            minHeight: 400,
           }}
         >
-          {states.map((state) => (
-            <Paper
-              key={state}
-              variant="outlined"
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, state)}
-              sx={{
-                minWidth: 280,
-                maxWidth: 280,
-                flexShrink: 0,
-                p: 1.5,
-                bgcolor: "action.hover",
-                "&:hover": { bgcolor: "action.selected" },
-              }}
-            >
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1, px: 0.5 }}>
-                {state}
-              </Typography>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {(byState.get(state) ?? []).map((a) => (
-                  <Card
-                    key={a.id}
-                    variant="outlined"
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, a.id, a.state)}
+          {states.map((state, colIndex) => {
+            const colColor = COLUMN_COLORS[colIndex % COLUMN_COLORS.length];
+            const colArtifacts = byState.get(state) ?? [];
+            return (
+              <Paper
+                key={state}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, state)}
+                sx={{
+                  minWidth: 300,
+                  maxWidth: 300,
+                  flexShrink: 0,
+                  p: 2,
+                  bgcolor: "grey.50",
+                  borderRadius: 2,
+                  minHeight: 500,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  transition: "background-color 0.2s",
+                  "&:hover": { bgcolor: "grey.100" },
+                }}
+              >
+                {/* Column Header */}
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Box
+                      sx={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: "50%",
+                        bgcolor: colColor,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <Typography variant="subtitle1" fontWeight={700} sx={{ color: "text.primary" }}>
+                      {state}
+                    </Typography>
+                  </Stack>
+                  <Chip
+                    label={colArtifacts.length}
+                    size="small"
                     sx={{
-                      cursor: "grab",
-                      "&:active": { cursor: "grabbing" },
-                      textAlign: "left",
+                      bgcolor: colColor,
+                      color: "white",
+                      fontWeight: 700,
+                      height: 22,
+                      fontSize: "0.75rem",
                     }}
-                  >
-                    <CardContent sx={{ py: 1, px: 1.5, "&:last-child": { pb: 1 } }}>
-                      <MuiLink
-                        component={Link}
-                        to={artifactDetailPath(orgSlug, projectSlug, a.id)}
-                        underline="hover"
-                        color="inherit"
-                        fontWeight={600}
-                        sx={{ fontSize: "0.875rem" }}
-                      >
-                        {a.artifact_key ?? a.id.slice(0, 8)}
-                      </MuiLink>
-                      <Typography variant="body2" color="text.secondary" noWrap sx={{ mt: 0.25 }}>
-                        {a.title || "—"}
-                      </Typography>
-                      {a.artifact_type && (
-                        <Chip label={a.artifact_type} size="small" sx={{ mt: 0.5 }} />
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </Box>
-            </Paper>
-          ))}
+                  />
+                </Stack>
+
+                {/* Cards */}
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  {colArtifacts.map((a) => (
+                    <Card
+                      key={a.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, a.id, a.state)}
+                      sx={{
+                        cursor: "grab",
+                        "&:active": { cursor: "grabbing" },
+                        boxShadow: 1,
+                        transition: "box-shadow 0.2s, transform 0.15s",
+                        "&:hover": {
+                          boxShadow: 4,
+                          transform: "translateY(-1px)",
+                        },
+                      }}
+                    >
+                      <CardContent sx={{ py: 1.5, px: 2, "&:last-child": { pb: 1.5 } }}>
+                        {/* Key + Type Row */}
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                          <Stack direction="row" spacing={0.5} alignItems="center">
+                            <Typography variant="caption" color="primary.main" fontWeight={700}>
+                              {a.artifact_key ?? a.id.slice(0, 8)}
+                            </Typography>
+                            {a.artifact_type && (
+                              <Chip
+                                label={a.artifact_type}
+                                size="small"
+                                color={getTypeColor(a.artifact_type)}
+                                sx={{ height: 18, fontSize: "0.65rem" }}
+                              />
+                            )}
+                          </Stack>
+                        </Stack>
+
+                        {/* Title */}
+                        <MuiLink
+                          component={Link}
+                          to={artifactDetailPath(orgSlug, projectSlug, a.id)}
+                          underline="hover"
+                          color="text.primary"
+                          sx={{
+                            fontWeight: 600,
+                            fontSize: "0.875rem",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                            mb: 1,
+                          }}
+                        >
+                          {a.title || "—"}
+                        </MuiLink>
+
+                        {/* Footer */}
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" mt={1}>
+                          {a.assignee_id ? (
+                            <Tooltip title="Assignee">
+                              <Avatar
+                                sx={{
+                                  width: 24,
+                                  height: 24,
+                                  fontSize: "0.7rem",
+                                  bgcolor: "primary.main",
+                                }}
+                              >
+                                {a.assignee_id.charAt(0).toUpperCase()}
+                              </Avatar>
+                            </Tooltip>
+                          ) : (
+                            <Box />
+                          )}
+                          {a.updated_at && (
+                            <Typography variant="caption" color="text.disabled" fontSize="0.65rem">
+                              {new Date(a.updated_at).toLocaleDateString()}
+                            </Typography>
+                          )}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {colArtifacts.length === 0 && (
+                    <Box
+                      sx={{
+                        py: 4,
+                        textAlign: "center",
+                        border: "2px dashed",
+                        borderColor: "divider",
+                        borderRadius: 2,
+                        color: "text.disabled",
+                      }}
+                    >
+                      <Typography variant="caption">Drop here</Typography>
+                    </Box>
+                  )}
+                </Box>
+              </Paper>
+            );
+          })}
         </Box>
       )}
-    </Container>
+      </Container>
+    </DndProvider>
   );
 }

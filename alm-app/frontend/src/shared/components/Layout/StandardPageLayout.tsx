@@ -44,7 +44,7 @@ export function StandardPageLayout({
           sx={{
             borderBottom: 1,
             borderColor: "divider",
-            bgcolor: "action.hover",
+            bgcolor: "background.paper",
             px: { xs: 2, sm: 3 },
             py: 1.5,
           }}
@@ -62,13 +62,13 @@ export function StandardPageLayout({
             justifyContent: { sm: "space-between" },
             gap: 2,
             px: { xs: 2, sm: 3 },
-            py: 2,
+            py: 3,
           }}
         >
           <Box sx={{ minWidth: 0 }}>
             {title != null &&
               (typeof title === "string" ? (
-                <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
+                <Typography component="h1" variant="h4" fontWeight="bold">
                   {title}
                 </Typography>
               ) : (

@@ -11,6 +11,8 @@ import {
   Box,
   Breadcrumbs,
   Link as MuiLink,
+  Stack,
+  Chip,
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import { Add, FolderOff, Search } from "@mui/icons-material";
@@ -187,40 +189,66 @@ export default function ProjectsPage() {
                   sx={{
                     borderRadius: 2,
                     overflow: "hidden",
-                    transition: "box-shadow 0.2s",
-                    "&:hover": { boxShadow: 2 },
+                    transition: "box-shadow 0.2s, transform 0.15s",
+                    "&:hover": { boxShadow: 3, transform: "translateY(-1px)" },
                   }}
                 >
                   <CardActionArea
                     onClick={() => navigate(project.slug)}
                     sx={{ height: "100%", display: "block", textAlign: "left" }}
                   >
-                    <CardContent sx={{ p: 3, display: "flex", alignItems: "flex-start", gap: 2 }}>
-                      <Box
-                        sx={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: 1,
-                          bgcolor: "success.main",
-                          color: "success.contrastText",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 24,
-                          fontWeight: 700,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {(project.name ?? project.code).charAt(0).toUpperCase()}
-                      </Box>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="h6" fontWeight={600} sx={{ mb: 0.5 }}>
-                          {project.name}
+                    <CardContent sx={{ p: 3 }}>
+                      <Stack direction="row" spacing={2} mb={2} alignItems="flex-start">
+                        <Box
+                          sx={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 1,
+                            bgcolor: "primary.light",
+                            color: "primary.main",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 22,
+                            fontWeight: 700,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {(project.name ?? project.code).charAt(0).toUpperCase()}
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="h6" fontWeight={600} noWrap sx={{ mb: 0.5 }}>
+                            {project.name}
+                          </Typography>
+                          <Chip label={project.code} size="small" color="primary" variant="outlined" />
+                        </Box>
+                      </Stack>
+                      {project.description && (
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                            mb: 1.5,
+                          }}
+                        >
+                          {project.description}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {project.description ?? project.code}
+                      )}
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mt={1.5}>
+                        <Chip
+                          label="Active"
+                          size="small"
+                          color="success"
+                          variant="filled"
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          {project.slug}
                         </Typography>
-                      </Box>
+                      </Stack>
                     </CardContent>
                   </CardActionArea>
                 </Card>

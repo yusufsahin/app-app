@@ -1,7 +1,7 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Snackbar, Alert } from "@mui/material";
+import { SnackbarProvider, useSnackbar } from "notistack";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { theme } from "./theme";
@@ -25,29 +25,24 @@ interface ProvidersProps {
   children: ReactNode;
 }
 
-function GlobalSnackbar() {
+/** Bridges Zustand notification store to notistack (top-right, max 3, 3s). */
+function NotistackBridge() {
   const notification = useNotificationStore((s) => s.notification);
   const clearNotification = useNotificationStore((s) => s.clearNotification);
+  const { enqueueSnackbar } = useSnackbar();
+  const prevRef = useRef<typeof notification>(null);
 
-  return (
-    <Snackbar
-      open={!!notification}
-      autoHideDuration={4000}
-      onClose={clearNotification}
-      anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-    >
-      {notification ? (
-        <Alert
-          onClose={clearNotification}
-          severity={notification.severity}
-          variant="filled"
-          sx={{ width: "100%" }}
-        >
-          {notification.message}
-        </Alert>
-      ) : undefined}
-    </Snackbar>
-  );
+  useEffect(() => {
+    if (!notification || notification === prevRef.current) return;
+    prevRef.current = notification;
+    enqueueSnackbar(notification.message, {
+      variant: notification.severity,
+      autoHideDuration: 3000,
+    });
+    clearNotification();
+  }, [notification, enqueueSnackbar, clearNotification]);
+
+  return null;
 }
 
 export function Providers({ children }: ProvidersProps) {
@@ -56,8 +51,14 @@ export function Providers({ children }: ProvidersProps) {
       <ThemeProvider theme={theme}>
         <LocalizationProvider dateAdapter={AdapterDayjs}>
           <LayoutUIProvider>
-            {children}
-            <GlobalSnackbar />
+            <SnackbarProvider
+              maxSnack={3}
+              anchorOrigin={{ vertical: "top", horizontal: "right" }}
+              autoHideDuration={3000}
+            >
+              {children}
+              <NotistackBridge />
+            </SnackbarProvider>
           </LayoutUIProvider>
         </LocalizationProvider>
       </ThemeProvider>

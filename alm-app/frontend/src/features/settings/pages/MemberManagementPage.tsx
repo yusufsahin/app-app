@@ -13,9 +13,13 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Card,
+  CardContent,
+  Stack,
 } from "@mui/material";
+import Grid from "@mui/material/Grid2";
 import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
-import { PersonAdd, PersonAddAlt1, Delete } from "@mui/icons-material";
+import { PersonAdd, PersonAddAlt1, Delete, People, PersonOff, ManageAccounts } from "@mui/icons-material";
 import { useParams } from "react-router-dom";
 import { useOrgMembers, type TenantMember } from "../../../shared/api/orgApi";
 import {
@@ -236,6 +240,91 @@ export default function MemberManagementPage() {
           )}
         </Box>
       </Box>
+
+      {/* Stat Cards */}
+      {rows.length > 0 && (
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Card>
+              <CardContent>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 2,
+                      bgcolor: "primary.light",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <People sx={{ color: "primary.main" }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h4" fontWeight={700}>{rows.length}</Typography>
+                    <Typography variant="body2" color="text.secondary">Total Members</Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Card>
+              <CardContent>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 2,
+                      bgcolor: "success.light",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <ManageAccounts sx={{ color: "success.main" }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h4" fontWeight={700}>
+                      {rows.filter((r) => !r.deleted_at).length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Active Members</Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Card>
+              <CardContent>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 2,
+                      bgcolor: "error.light",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <PersonOff sx={{ color: "error.main" }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h4" fontWeight={700}>
+                      {rows.filter((r) => r.deleted_at).length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Removed Members</Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
 
       {isError && (
         <Alert severity="error" sx={{ mb: 3 }}>

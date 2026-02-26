@@ -14,9 +14,17 @@ import {
   ListItem,
   ListItemText,
   Chip,
+  Stack,
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
-import { Settings, History } from "@mui/icons-material";
+import {
+  Settings,
+  History,
+  Assignment as AssignmentIcon,
+  CheckCircle as CheckCircleIcon,
+  BugReport as BugReportIcon,
+} from "@mui/icons-material";
+import { motion } from "motion/react";
 import { RhfDescriptionField, RhfTextField } from "../../../shared/components/forms";
 import { ProjectNotFoundView } from "../../../shared/components/Layout";
 import { StandardPageLayout } from "../../../shared/components/Layout";
@@ -140,54 +148,69 @@ export default function ProjectDetailPage() {
         <Box>
           {/* Stats row */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography color="text.secondary" variant="body2" gutterBottom>
-                    Total artifacts
-                  </Typography>
-                  {statsLoading ? (
-                    <CircularProgress size={24} />
-                  ) : (
-                    <Typography variant="h4" fontWeight={700}>
-                      {stats?.artifacts ?? 0}
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography color="text.secondary" variant="body2" gutterBottom>
-                    Open tasks
-                  </Typography>
-                  {statsLoading ? (
-                    <CircularProgress size={24} />
-                  ) : (
-                    <Typography variant="h4" fontWeight={700}>
-                      {stats?.tasks ?? 0}
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography color="text.secondary" variant="body2" gutterBottom>
-                    Open defects
-                  </Typography>
-                  {statsLoading ? (
-                    <CircularProgress size={24} />
-                  ) : (
-                    <Typography variant="h4" fontWeight={700}>
-                      {stats?.openDefects ?? 0}
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
+            {[
+              {
+                label: "Total Artifacts",
+                value: stats?.artifacts ?? 0,
+                color: "warning" as const,
+                icon: <AssignmentIcon sx={{ fontSize: 28 }} />,
+                delay: 0,
+              },
+              {
+                label: "Open Tasks",
+                value: stats?.tasks ?? 0,
+                color: "success" as const,
+                icon: <CheckCircleIcon sx={{ fontSize: 28 }} />,
+                delay: 0.1,
+              },
+              {
+                label: "Open Defects",
+                value: stats?.openDefects ?? 0,
+                color: "error" as const,
+                icon: <BugReportIcon sx={{ fontSize: 28 }} />,
+                delay: 0.2,
+              },
+            ].map((item) => (
+              <Grid key={item.label} size={{ xs: 12, sm: 4 }}>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: item.delay }}
+                >
+                  <Card sx={{ bgcolor: `${item.color}.main`, color: "white" }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                        <Box>
+                          <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                            {item.label}
+                          </Typography>
+                          {statsLoading ? (
+                            <CircularProgress size={28} sx={{ color: "white" }} />
+                          ) : (
+                            <Typography variant="h3" fontWeight={700}>
+                              {item.value}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Box
+                          sx={{
+                            width: 52,
+                            height: 52,
+                            borderRadius: 2,
+                            bgcolor: "rgba(255,255,255,0.2)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {item.icon}
+                        </Box>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </Grid>
+            ))}
           </Grid>
 
           {/* Activity + Settings two-column layout */}
