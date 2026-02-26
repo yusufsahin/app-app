@@ -242,7 +242,7 @@ export default function AppLayout() {
       {/* Logo Header */}
       <Box
         sx={{
-          p: 2,
+          p: 0,
           display: "flex",
           alignItems: "center",
           justifyContent: isCollapsed ? "center" : "space-between",
