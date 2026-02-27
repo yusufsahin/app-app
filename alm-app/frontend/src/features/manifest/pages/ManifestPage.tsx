@@ -37,6 +37,38 @@ import {
   type ManifestResponse,
 } from "../../../shared/api/manifestApi";
 import type { ProblemDetail } from "../../../shared/api/types";
+
+/** Backend errors are ProblemDetail { detail }; mutations receive that, not Error. */
+function getApiErrorMessage(err: unknown, fallback = "Failed to save manifest."): string {
+  if (err && typeof err === "object" && "detail" in err && typeof (err as { detail: unknown }).detail === "string") {
+    return (err as { detail: string }).detail;
+  }
+  return err instanceof Error ? err.message : fallback;
+}
+
+/** Sync defs ArtifactType.fields from artifact_types so types (e.g. date) match and save succeeds. */
+function syncDefsFromArtifactTypes(bundle: Record<string, unknown>): void {
+  const defs = bundle.defs as Array<Record<string, unknown>> | undefined;
+  const artifactTypes = bundle.artifact_types as Array<Record<string, unknown>> | undefined;
+  if (!defs?.length || !artifactTypes?.length) return;
+  for (const at of artifactTypes) {
+    const id = at.id as string | undefined;
+    const flatFields = at.fields as Array<Record<string, unknown>> | undefined;
+    if (!id || !flatFields?.length) continue;
+    const def = defs.find((d) => d.kind === "ArtifactType" && d.id === id) as Record<string, unknown> | undefined;
+    if (!def?.fields || !Array.isArray(def.fields)) continue;
+    const defFields = def.fields as Array<Record<string, unknown>>;
+    for (const ff of flatFields) {
+      const fid = ff.id as string | undefined;
+      if (!fid) continue;
+      const existing = defFields.find((f) => (f.id as string) === fid);
+      if (existing) {
+        existing.type = ff.type ?? existing.type;
+        if (ff.options != null) existing.options = ff.options;
+      }
+    }
+  }
+}
 import { buildPreviewSchemaFromManifest } from "../../../shared/lib/manifestPreviewSchema";
 import { MetadataDrivenForm } from "../../../shared/components/forms/MetadataDrivenForm";
 import { ManifestEditor } from "../../../shared/components/ManifestEditor";
@@ -142,12 +174,14 @@ export default function ManifestPage() {
       showSnack("Manifest must be an object (workflows, artifact_types, policies).");
       return;
     }
-    updateManifest.mutate(bundle as ManifestResponse["manifest_bundle"], {
+    const bundleObj = bundle as Record<string, unknown>;
+    syncDefsFromArtifactTypes(bundleObj);
+    updateManifest.mutate(bundleObj as ManifestResponse["manifest_bundle"], {
       onSuccess: () => {
         setEditorErrorLine(undefined);
         showSnack("Manifest saved.");
       },
-      onError: (err: Error) => showSnack(err?.message ?? "Failed to save manifest."),
+      onError: (err: unknown) => showSnack(getApiErrorMessage(err)),
     });
   };
 
@@ -279,7 +313,7 @@ export default function ManifestPage() {
                   { ...bundle, workflows } as ManifestResponse["manifest_bundle"],
                   {
                     onSuccess: () => showSnack("Workflow saved."),
-                    onError: (err: Error) => showSnack(err?.message ?? "Failed to save workflow."),
+                    onError: (err: unknown) => showSnack(getApiErrorMessage(err, "Failed to save workflow.")),
                   },
                 );
               }}

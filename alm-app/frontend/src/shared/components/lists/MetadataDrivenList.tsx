@@ -44,6 +44,8 @@ export interface MetadataDrivenListProps<T> {
   onToggleSelect?: (rowKey: string) => void;
   /** Called when header "select all" is toggled (true = select all on page, false = deselect all). */
   onSelectAll?: (checked: boolean) => void;
+  /** When true, do not render the filter row (filters are shown elsewhere, e.g. toolbar). */
+  hideFilters?: boolean;
 }
 
 export function MetadataDrivenList<T>({
@@ -60,6 +62,7 @@ export function MetadataDrivenList<T>({
   selectedKeys,
   onToggleSelect,
   onSelectAll,
+  hideFilters = false,
 }: MetadataDrivenListProps<T>) {
   const sortedColumns = useMemo(
     () => [...(schema.columns ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
@@ -71,7 +74,7 @@ export function MetadataDrivenList<T>({
     [schema.filters],
   );
 
-  const hasFilters = sortedFilters.length > 0 && onFilterChange;
+  const hasFilters = sortedFilters.length > 0 && onFilterChange && !hideFilters;
 
   type FilterFormValues = Record<string, string>;
   const filterDefaultValues = useMemo<FilterFormValues>(
@@ -81,6 +84,7 @@ export function MetadataDrivenList<T>({
   const filterForm = useForm<FilterFormValues>({ defaultValues: filterDefaultValues });
   useEffect(() => {
     filterForm.reset(Object.fromEntries(sortedFilters.map((f) => [f.key, filterValues[f.key] ?? ""])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when filter values/tabs change; filterForm omitted to avoid loops
   }, [filterValues, sortedFilters]);
   const watchedFilterValues = filterForm.watch();
   const filterInitialMount = useRef(true);
@@ -97,6 +101,7 @@ export function MetadataDrivenList<T>({
         break;
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run on watchedFilterValues change only; onFilterChange/filterValues/sortedFilters omitted
   }, [watchedFilterValues]);
 
   const selectedSet = useMemo(() => {
@@ -131,8 +136,8 @@ export function MetadataDrivenList<T>({
         </FormProvider>
       )}
 
-      <TableContainer component={Paper} variant="outlined">
-        <Table size="small" aria-label={schema.entity_type}>
+      <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: "70vh" }}>
+        <Table size="small" aria-label={schema.entity_type} stickyHeader>
           <TableHead>
             <TableRow>
               {selectionColumn && (

@@ -17,7 +17,7 @@ import {
   CardContent,
   Stack,
 } from "@mui/material";
-import Grid from "@mui/material/Grid2";
+import Grid from "@mui/material/Grid";
 import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import { PersonAdd, PersonAddAlt1, Delete, People, PersonOff, ManageAccounts } from "@mui/icons-material";
 import { useParams } from "react-router-dom";
@@ -111,6 +111,7 @@ export default function MemberManagementPage() {
   const includeDeletedForm = useForm<IncludeDeletedValues>({ defaultValues: { includeDeleted } });
   useEffect(() => {
     includeDeletedForm.reset({ includeDeleted });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync prop into form only; includeDeletedForm omitted
   }, [includeDeleted]);
   const watchedIncludeDeleted = includeDeletedForm.watch("includeDeleted");
   useEffect(() => {

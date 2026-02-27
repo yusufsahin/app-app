@@ -12,7 +12,7 @@ export type DescriptionInputMode = "text" | "richtext" | "markdown";
 
 export interface FormFieldSchema {
   key: string;
-  type: "string" | "number" | "choice" | "entity_ref";
+  type: "string" | "number" | "choice" | "entity_ref" | "date" | "datetime";
   label_key: string;
   required?: boolean;
   options?: Array<{ id: string; label: string }>;

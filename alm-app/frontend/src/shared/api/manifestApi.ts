@@ -45,11 +45,12 @@ export function useUpdateProjectManifest(
       );
       return data;
     },
-    onSuccess: () => {
-      if (orgSlug && projectId) {
-        queryClient.invalidateQueries({
-          queryKey: ["orgs", orgSlug, "projects", projectId, "manifest"],
-        });
+    onSuccess: (data) => {
+      if (orgSlug && projectId && data) {
+        queryClient.setQueryData(
+          ["orgs", orgSlug, "projects", projectId, "manifest"],
+          data,
+        );
       }
     },
   });

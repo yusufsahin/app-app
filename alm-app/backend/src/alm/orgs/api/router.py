@@ -585,7 +585,7 @@ async def create_artifact(
     body: ArtifactCreateRequest,
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("artifact:create"),
-    _acl: None = require_manifest_acl("artifact", "update"),
+    _acl: None = require_manifest_acl("artifact", "create"),
     mediator: Mediator = Depends(get_mediator),
 ) -> ArtifactResponse:
     dto = await mediator.send(

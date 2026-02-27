@@ -423,8 +423,135 @@ async def seed_process_templates(
         )
         session.add(kanban_version)
 
+        # Azure DevOps Basic (Epic, Issue only; Task is a separate entity in ALM)
+        ado_basic = ProcessTemplateModel(
+            slug="azure_devops_basic",
+            name="Azure DevOps Basic",
+            is_builtin=True,
+            description="Epic, Issue — aligned with Azure DevOps Basic (Task is separate entity)",
+            type="basic",
+        )
+        session.add(ado_basic)
+        await session.flush()
+
+        ado_basic_version = ProcessTemplateVersionModel(
+            template_id=ado_basic.id,
+            version="1.0.0",
+            manifest_bundle={
+                "schemaVersion": 1,
+                "namespace": "alm",
+                "name": "azure_devops_basic",
+                "manifestVersion": "1.0.0",
+                "defs": [
+                    {
+                        "kind": "Workflow",
+                        "id": "ado_basic",
+                        "initial": "new",
+                        "finals": ["closed"],
+                        "states": ["new", "active", "resolved", "closed"],
+                        "transitions": [
+                            {
+                                "from": "new",
+                                "to": "active",
+                                "trigger": "start",
+                                "trigger_label": "Start",
+                                "guard": "assignee_required",
+                            },
+                            {"from": "active", "to": "resolved", "trigger": "resolve", "trigger_label": "Resolve"},
+                            {"from": "resolved", "to": "closed", "trigger": "close", "trigger_label": "Close"},
+                            {"from": "closed", "to": "active", "trigger": "reopen", "trigger_label": "Reopen"},
+                        ],
+                        "state_reason_options": [
+                            {"id": "", "label": "— None —"},
+                            {"id": "new_item", "label": "New item"},
+                            {"id": "work_started", "label": "Work started"},
+                            {"id": "work_finished", "label": "Work finished"},
+                            {"id": "deferred", "label": "Deferred"},
+                        ],
+                        "resolution_options": [
+                            {"id": "", "label": "— None —"},
+                            {"id": "fixed", "label": "Fixed"},
+                            {"id": "wont_fix", "label": "Won't fix"},
+                            {"id": "duplicate", "label": "Duplicate"},
+                            {"id": "as_designed", "label": "As designed"},
+                        ],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "epic",
+                        "name": "Epic",
+                        "workflow_id": "ado_basic",
+                        "child_types": ["issue"],
+                        "fields": [
+                            {
+                                "id": "priority",
+                                "name": "Priority",
+                                "type": "choice",
+                                "options": [
+                                    {"id": "1", "label": "1 - Critical"},
+                                    {"id": "2", "label": "2 - High"},
+                                    {"id": "3", "label": "3 - Medium"},
+                                    {"id": "4", "label": "4 - Low"},
+                                ],
+                            },
+                            {"id": "business_value", "name": "Business Value", "type": "number"},
+                            {"id": "target_date", "name": "Target Date", "type": "date"},
+                        ],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "issue",
+                        "name": "Issue",
+                        "workflow_id": "ado_basic",
+                        "parent_types": ["epic"],
+                        "child_types": [],
+                        "fields": [
+                            {
+                                "id": "priority",
+                                "name": "Priority",
+                                "type": "choice",
+                                "options": [
+                                    {"id": "1", "label": "1 - Critical"},
+                                    {"id": "2", "label": "2 - High"},
+                                    {"id": "3", "label": "3 - Medium"},
+                                    {"id": "4", "label": "4 - Low"},
+                                ],
+                            },
+                            {
+                                "id": "severity",
+                                "name": "Severity",
+                                "type": "choice",
+                                "options": [
+                                    {"id": "low", "label": "Low"},
+                                    {"id": "medium", "label": "Medium"},
+                                    {"id": "high", "label": "High"},
+                                    {"id": "critical", "label": "Critical"},
+                                ],
+                            },
+                            {"id": "story_points", "name": "Story Points", "type": "number"},
+                            {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"},
+                            {"id": "repro_steps", "name": "Repro Steps", "type": "string"},
+                        ],
+                    },
+                    {"kind": "LinkType", "id": "hierarchy", "name": "Hierarchy"},
+                    {"kind": "LinkType", "id": "related", "name": "Related"},
+                    {"kind": "LinkType", "id": "blocks", "name": "Blocks"},
+                    {
+                        "kind": "TransitionPolicy",
+                        "id": "assignee_required_on_active",
+                        "when": {"state": "active"},
+                        "require": "assignee",
+                    },
+                ],
+            },
+        )
+        session.add(ado_basic_version)
+
         await session.commit()
-        logger.info("process_templates_seeded", templates=["basic", "scrum", "kanban"])
+        logger.info(
+            "process_templates_seeded",
+            templates=["basic", "scrum", "kanban", "azure_devops_basic"],
+        )
 
 
 async def seed_demo_data(

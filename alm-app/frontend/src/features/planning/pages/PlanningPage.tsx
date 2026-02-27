@@ -220,6 +220,7 @@ function BacklogArtifactRow({
   useEffect(() => {
     rowForm.reset({ cycleId: currentCycleId });
     justResetRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rowForm stable, reset only when currentCycleId changes
   }, [currentCycleId]);
 
   const watchedCycleId = rowForm.watch("cycleId");
@@ -238,6 +239,7 @@ function BacklogArtifactRow({
         },
       );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when watchedCycleId changes; currentCycleId/showNotification/updateArtifact omitted
   }, [watchedCycleId]);
 
   return (
@@ -631,6 +633,7 @@ export default function PlanningPage() {
                 label="Name"
                 fullWidth
                 size="small"
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialog first field
                 autoFocus
                 sx={{ mt: 1 }}
               />
@@ -664,6 +667,7 @@ export default function PlanningPage() {
                 label="Name"
                 fullWidth
                 size="small"
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialog first field
                 autoFocus
                 sx={{ mt: 1 }}
               />

@@ -190,7 +190,10 @@ def get_workflow_transition_options(
     """Return (allowed_state_reason_ids, allowed_resolution_ids) for the workflow."""
     allowed_reasons: list[str] = []
     allowed_resolutions: list[str] = []
-    for d in (manifest_bundle or {}).get("defs", []):
+    bundle = manifest_bundle or {}
+
+    # Defs format
+    for d in bundle.get("defs", []):
         if not isinstance(d, dict) or d.get("kind") != "Workflow" or d.get("id") != workflow_id:
             continue
         for opt in d.get("state_reason_options") or []:
@@ -199,25 +202,73 @@ def get_workflow_transition_options(
         for opt in d.get("resolution_options") or []:
             if isinstance(opt, dict) and "id" in opt:
                 allowed_resolutions.append(str(opt["id"]))
+        return (allowed_reasons, allowed_resolutions)
+
+    # Flat format (top-level workflows)
+    for wf in bundle.get("workflows") or []:
+        if not isinstance(wf, dict) or wf.get("id") != workflow_id:
+            continue
+        for opt in wf.get("state_reason_options") or []:
+            if isinstance(opt, dict) and "id" in opt:
+                allowed_reasons.append(str(opt["id"]))
+        for opt in wf.get("resolution_options") or []:
+            if isinstance(opt, dict) and "id" in opt:
+                allowed_resolutions.append(str(opt["id"]))
         break
     return (allowed_reasons, allowed_resolutions)
 
 
+# Canonical state order for board columns when defs are missing (flat-only manifest).
+_CANONICAL_STATE_ORDER = (
+    "new",
+    "active",
+    "resolved",
+    "closed",
+    "backlog",
+    "ready",
+    "in_progress",
+    "in_review",
+    "approved",
+    "done",
+)
+
+
+def _order_workflow_states(state_ids: list[Any]) -> list[str]:
+    """Return state ids in canonical lifecycle order so board columns are consistent."""
+    if not state_ids:
+        return []
+    order_map = {s.lower(): i for i, s in enumerate(_CANONICAL_STATE_ORDER)}
+    fallback = {str(s): i for i, s in enumerate(state_ids) if isinstance(s, (str, int))}
+    return sorted(
+        [str(s) for s in state_ids if isinstance(s, (str, int))],
+        key=lambda x: (order_map.get(x.lower(), len(_CANONICAL_STATE_ORDER)), fallback.get(x, 0)),
+    )
+
+
 def manifest_defs_to_flat(manifest_bundle: dict[str, Any]) -> dict[str, Any]:
     """Convert defs format to flat workflows + artifact_types + link_types for frontend consumption.
-    If bundle has top-level workflows/artifact_types but no defs, returns them as-is (flat format).
+    State order: from def when defs exist; when flat-only, states are sorted for consistent board columns.
     """
     if not manifest_bundle:
         return {"workflows": [], "artifact_types": [], "link_types": []}
 
     defs_list = manifest_bundle.get("defs", [])
     if not defs_list:
-        # Flat format: top-level workflows, artifact_types, link_types (e.g. from UI save)
-        wf = manifest_bundle.get("workflows")
+        # Flat format: normalize state order so board columns are new -> active -> resolved -> closed
+        wf_list = manifest_bundle.get("workflows")
         at = manifest_bundle.get("artifact_types")
         lt = manifest_bundle.get("link_types")
+        raw_workflows = wf_list if isinstance(wf_list, list) else []
+        workflows = []
+        for w in raw_workflows:
+            if not isinstance(w, dict):
+                continue
+            w_copy = dict(w)
+            if "states" in w_copy and isinstance(w_copy["states"], list):
+                w_copy["states"] = _order_workflow_states(w_copy["states"])
+            workflows.append(w_copy)
         return {
-            "workflows": wf if isinstance(wf, list) else [],
+            "workflows": workflows,
             "artifact_types": at if isinstance(at, list) else [],
             "link_types": lt if isinstance(lt, list) else [],
         }

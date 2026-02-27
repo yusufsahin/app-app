@@ -109,6 +109,20 @@ export default function BoardPage() {
       if (list) list.push(a);
       else map.set(a.state, [a]);
     }
+    // Stable order within each column: rank_order then created_at
+    const sortArtifacts = (list: Artifact[]) =>
+      [...list].sort((x, y) => {
+        const rx = x.rank_order ?? 0;
+        const ry = y.rank_order ?? 0;
+        if (rx !== ry) return rx - ry;
+        const cx = x.created_at ?? "";
+        const cy = y.created_at ?? "";
+        return cx.localeCompare(cy);
+      });
+    for (const s of states) {
+      const list = map.get(s) ?? [];
+      map.set(s, sortArtifacts(list));
+    }
     return map;
   }, [states, artifacts]);
 

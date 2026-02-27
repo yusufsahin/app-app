@@ -21,7 +21,8 @@ export type CreateArtifactModalProps = {
   formErrors: Record<string, string>;
   onFormChange: (v: Record<string, unknown>) => void;
   onFormErrors: (e: Record<string, string>) => void;
-  onCreate: () => void;
+  /** Called on Save; parent may pass no args and read state, or modal may call with current form values to avoid stale state. */
+  onCreate: (currentValues?: Record<string, unknown>) => void;
   isPending: boolean;
   parentArtifacts: Array<{ id: string; title: string; artifact_type: string }>;
   userOptions: Array<{ id: string; label: string }>;

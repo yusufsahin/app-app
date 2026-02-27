@@ -21,8 +21,12 @@ npm run test:e2e
 ## Tests
 
 - **auth.setup.ts** – Logs in as demo user and saves storage state for reuse.
-- **artifact-flow.spec.ts** – Create artifact → transition → delete (single flow).
+- **login-and-projects.spec.ts** – Login, org home, navigate to Artifacts.
+- **artifact-flow.spec.ts** – New Epic/Issue → create artifact → transition → delete.
 
 ## Config
 
-`playwright.config.ts` in the frontend root. Base URL: `http://localhost:5173` (override with `PLAYWRIGHT_BASE_URL`).
+`playwright.config.ts` in the frontend root.
+
+- **Dev:** Base URL `http://localhost:5173` (default).
+- **Deployed (Docker):** `PLAYWRIGHT_BASE_URL=http://localhost:3000`.

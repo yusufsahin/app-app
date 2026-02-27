@@ -13,8 +13,8 @@ export const MODALS = {
   },
   CreateArtifactModal: {
     component: lazy(() => import("./modals/CreateArtifactModal").then((m) => ({ default: m.CreateArtifactModal }))),
-    options: { maxWidth: "sm", destroyOnClose: true },
-    title: "Create artifact",
+    options: { maxWidth: "lg", destroyOnClose: true },
+    title: "New artifact",
   },
   AddTaskModal: {
     component: lazy(() => import("./modals/AddTaskModal").then((m) => ({ default: m.AddTaskModal }))),

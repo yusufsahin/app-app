@@ -169,6 +169,7 @@ export function RichTextEditorInner({
   helperText,
   lastExternalValueRef,
 }: RichTextEditorInnerProps) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- initial content only, value changes handled by editor
   const initialContent = useMemo(() => value ?? "<p></p>", []);
   const placeholderText = placeholder ?? "Write something…";
   const editor = useEditor(

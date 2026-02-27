@@ -22,13 +22,13 @@ test.describe("Artifact flow", () => {
     await page.waitForURL(/\/artifacts/, { timeout: 10000 });
     await expect(page.getByRole("heading", { name: /artifacts/i })).toBeVisible({ timeout: 10000 });
 
-    await page.getByRole("button", { name: "New artifact" }).click();
-    const createDialog = page.getByRole("dialog", { name: /create artifact/i });
+    await page.getByRole("button", { name: /New (artifact|work item|epic|issue)/i }).click();
+    const menuItem = page.getByRole("menuitem", { name: /epic|issue/i }).first();
+    if (await menuItem.isVisible().catch(() => false)) await menuItem.click();
+    const createDialog = page.getByRole("dialog", { name: /new artifact/i });
     await createDialog.waitFor({ state: "visible", timeout: 5000 });
-    await createDialog.getByRole("textbox", { name: /title/i }).fill(E2E_ARTIFACT_TITLE);
-    await createDialog.getByRole("combobox").first().click();
-    await page.getByRole("option").first().click();
-    await createDialog.getByRole("button", { name: "Create" }).click();
+    await createDialog.getByRole("textbox", { name: /title|enter title/i }).fill(E2E_ARTIFACT_TITLE);
+    await createDialog.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText(E2E_ARTIFACT_TITLE)).toBeVisible({ timeout: 15000 });
 
     const row = page.locator("tr").filter({ hasText: E2E_ARTIFACT_TITLE });

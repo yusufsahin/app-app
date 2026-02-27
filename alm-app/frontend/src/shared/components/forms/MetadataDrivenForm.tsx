@@ -11,6 +11,9 @@ import {
   Select,
   TextField,
 } from "@mui/material";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
+import dayjs, { type Dayjs } from "dayjs";
 import { useMemo } from "react";
 import type { DescriptionInputMode, FormFieldSchema, FormSchemaDto } from "../../types/formSchema";
 import { DescriptionField } from "./DescriptionField";
@@ -47,6 +50,8 @@ export interface MetadataDrivenFormProps {
   areaOptions?: Array<{ id: string; label: string }>;
   /** Field-level validation errors (key -> message) */
   errors?: Record<string, string>;
+  /** When true, do not set native HTML required on inputs (avoids browser blocking submit on empty optional-looking fields); validation still runs in parent. */
+  disableNativeRequired?: boolean;
 }
 
 function evaluateVisibleWhen(
@@ -84,6 +89,7 @@ export function MetadataDrivenForm({
   cycleOptions = [],
   areaOptions = [],
   errors = {},
+  disableNativeRequired = false,
 }: MetadataDrivenFormProps) {
   const visibleFields = useMemo(
     () => getVisibleFields(schema, values).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
@@ -109,6 +115,8 @@ export function MetadataDrivenForm({
     }
     return false;
   };
+
+  const useNativeRequired = !disableNativeRequired;
 
   const parentOptions = useMemo(() => {
     if (!artifactTypeParentMap) return parentArtifacts;
@@ -261,9 +269,34 @@ export function MetadataDrivenForm({
                     v === "" ? undefined : Number(v),
                   );
                 }}
-                required={required}
+                required={useNativeRequired && required}
                 error={!!err}
                 helperText={err}
+              />
+            );
+          }
+
+          if (field.type === "date" || field.type === "datetime") {
+            const err = errors[field.key];
+            const raw = (val ?? field.default_value ?? "") as string;
+            const dayjsVal: Dayjs | null = raw && dayjs(raw).isValid() ? dayjs(raw) : null;
+            const Picker = field.type === "datetime" ? DateTimePicker : DatePicker;
+            return (
+              <Picker
+                key={field.key}
+                label={field.label_key}
+                value={dayjsVal}
+                onChange={(v: Dayjs | null) =>
+                  updateField(field.key, v?.toISOString() ?? "")
+                }
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    required: useNativeRequired && required,
+                    error: !!err,
+                    helperText: err,
+                  },
+                }}
               />
             );
           }
@@ -294,7 +327,7 @@ export function MetadataDrivenForm({
               label={field.label_key}
               value={val ?? field.default_value ?? ""}
               onChange={(e) => updateField(field.key, e.target.value)}
-              required={required}
+              required={useNativeRequired && required}
               error={!!err}
               helperText={err}
             />

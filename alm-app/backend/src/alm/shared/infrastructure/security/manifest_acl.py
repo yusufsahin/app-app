@@ -42,9 +42,13 @@ def require_manifest_acl(resource: str, action: str):  # type: ignore[no-untyped
         # Tenant-level permission bypass: skip manifest ACL when user has the right privilege
         if resource == "manifest" and action == "read" and _matches_permission(codes, "manifest:read"):
             return
+        if resource == "manifest" and action == "update" and _matches_permission(codes, "manifest:update"):
+            return
         if resource == "artifact" and action == "read" and _matches_permission(codes, "artifact:read"):
             return
         if resource == "artifact" and action == "update" and _matches_permission(codes, "artifact:update"):
+            return
+        if resource == "artifact" and action == "create" and _matches_permission(codes, "artifact:create"):
             return
         allowed, reasons = acl_checker.check(
             manifest.manifest_bundle or {},

@@ -20,7 +20,7 @@ import {
   InputAdornment,
   TextField,
 } from "@mui/material";
-import Grid from "@mui/material/Grid2";
+import Grid from "@mui/material/Grid";
 import { Add, Delete, Rule, AutoAwesome, CheckCircle, Circle, PlayArrow, Pause, Search } from "@mui/icons-material";
 import { useState, useMemo } from "react";
 import { RhfSelect, RhfSwitch, RhfTextField } from "../../../shared/components/forms";
@@ -351,6 +351,7 @@ export default function AutomationPage() {
                 label="Rule name"
                 fullWidth
                 placeholder="e.g. Log new artifacts"
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- add-rule dialog first field
                 autoFocus
               />
               <RhfSelect<AddRuleFormValues>

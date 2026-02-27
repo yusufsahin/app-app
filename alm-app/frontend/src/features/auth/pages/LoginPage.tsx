@@ -28,6 +28,9 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
+const ERROR_ALERT_ID = "login-error";
+const FORM_ID = "login-form";
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const login = useLogin();
@@ -63,6 +66,8 @@ export default function LoginPage() {
     }
   };
 
+  const isPending = login.isPending;
+
   return (
     <Box
       sx={{
@@ -74,9 +79,9 @@ export default function LoginPage() {
         p: 2,
       }}
     >
-      <Card sx={{ maxWidth: 440, width: "100%", p: 2 }}>
-        <CardContent>
-          <Box sx={{ textAlign: "center", mb: 4 }}>
+      <Card sx={{ maxWidth: 440, width: "100%", p: 2 }} elevation={1}>
+        <CardContent sx={{ "&:last-child": { pb: 3 } }}>
+          <Box sx={{ textAlign: "center", mb: 4 }} id="login-heading">
             <Typography component="h1" variant="h4" sx={{ fontWeight: 600, color: "primary.main" }}>
               ALM Manifest
             </Typography>
@@ -86,13 +91,26 @@ export default function LoginPage() {
           </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
+            <Alert
+              id={ERROR_ALERT_ID}
+              severity="error"
+              role="alert"
+              sx={{ mb: 3 }}
+              onClose={() => setError(null)}
+            >
               {error}
             </Alert>
           )}
 
           <FormProvider {...form}>
-            <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <Box
+              component="form"
+              id={FORM_ID}
+              onSubmit={handleSubmit(onSubmit)}
+              noValidate
+              aria-labelledby="login-heading"
+              aria-describedby={error ? ERROR_ALERT_ID : undefined}
+            >
               <RhfTextField<LoginFormData>
                 name="email"
                 label="Email"
@@ -100,6 +118,9 @@ export default function LoginPage() {
                 fullWidth
                 sx={{ mb: 2.5 }}
                 autoComplete="email"
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional for login form UX
+                autoFocus
+                disabled={isPending}
               />
               <RhfTextField<LoginFormData>
                 name="password"
@@ -108,6 +129,7 @@ export default function LoginPage() {
                 fullWidth
                 sx={{ mb: 3 }}
                 autoComplete="current-password"
+                disabled={isPending}
                 slotProps={{
                   input: {
                     endAdornment: (
@@ -116,7 +138,8 @@ export default function LoginPage() {
                           onClick={() => setShowPassword((v) => !v)}
                           edge="end"
                           size="small"
-                          aria-label="toggle password visibility"
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                          disabled={isPending}
                         >
                           {showPassword ? <VisibilityOff /> : <Visibility />}
                         </IconButton>
@@ -131,11 +154,12 @@ export default function LoginPage() {
                 variant="contained"
                 fullWidth
                 size="large"
-                disabled={login.isPending}
+                disabled={isPending}
                 sx={{ mb: 2, py: 1.5 }}
+                aria-busy={isPending}
               >
-                {login.isPending ? (
-                  <CircularProgress size={24} color="inherit" />
+                {isPending ? (
+                  <CircularProgress size={24} color="inherit" aria-hidden />
                 ) : (
                   "Sign In"
                 )}
@@ -143,12 +167,14 @@ export default function LoginPage() {
             </Box>
           </FormProvider>
 
-          <Typography variant="body2" align="center" color="text.secondary">
-            Don&apos;t have an account?{" "}
-            <Link component={RouterLink} to="/register" underline="hover">
-              Register
-            </Link>
-          </Typography>
+          <Box sx={{ borderTop: 1, borderColor: "divider", pt: 2.5, mt: 1 }}>
+            <Typography variant="body2" align="center" color="text.secondary">
+              Don&apos;t have an account?{" "}
+              <Link component={RouterLink} to="/register" underline="hover">
+                Register
+              </Link>
+            </Typography>
+          </Box>
         </CardContent>
       </Card>
     </Box>

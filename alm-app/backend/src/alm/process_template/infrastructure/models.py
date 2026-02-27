@@ -52,7 +52,7 @@ class ProcessTemplateVersionModel(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    version: Mapped[str] = mapped_column(String(20), nullable=False)
+    version: Mapped[str] = mapped_column(String(32), nullable=False)
     manifest_bundle: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
     template: Mapped[ProcessTemplateModel] = relationship(

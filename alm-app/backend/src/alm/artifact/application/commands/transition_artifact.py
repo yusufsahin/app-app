@@ -211,18 +211,20 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         if allowed_reasons and command.state_reason is not None and command.state_reason != "":
             if command.state_reason not in allowed_reasons:
                 raise ValidationError(f"state_reason must be one of: {', '.join(allowed_reasons)}")
+
+        _RESOLVED_STATES = ("resolved", "closed", "done")
+        # When transitioning to resolved/closed/done and workflow has resolution_options, use provided
+        # resolution or default to first non-empty option (e.g. board drag-and-drop without a prompt)
+        effective_resolution = (command.resolution or "").strip()
         if allowed_resolutions and command.resolution is not None and command.resolution != "":
             if command.resolution not in allowed_resolutions:
                 raise ValidationError(f"resolution must be one of: {', '.join(allowed_resolutions)}")
-
-        # Require resolution when transitioning to a resolved/closed/done state
-        _RESOLVED_STATES = ("resolved", "closed", "done")
-        if (
-            new_state in _RESOLVED_STATES
-            and allowed_resolutions
-            and (not command.resolution or command.resolution.strip() == "")
-        ):
-            raise ValidationError("resolution is required when transitioning to a resolved, closed, or done state")
+        if new_state in _RESOLVED_STATES and allowed_resolutions:
+            if not effective_resolution:
+                non_empty = [r for r in allowed_resolutions if r and str(r).strip()]
+                effective_resolution = (non_empty[0] if non_empty else allowed_resolutions[0]) or ""
+            if not effective_resolution:
+                raise ValidationError("resolution is required when transitioning to a resolved, closed, or done state")
 
         from_state = artifact.state
         to_state = new_state
@@ -239,7 +241,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         artifact.transition(
             to_state,
             state_reason=command.state_reason,
-            resolution=command.resolution,
+            resolution=effective_resolution or command.resolution,
         )
         artifact.updated_by = command.updated_by
         await self._artifact_repo.update(artifact)

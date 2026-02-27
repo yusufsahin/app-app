@@ -2,8 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 /**
  * E2E tests for ALM frontend.
- * Run with: npx playwright test
- * Requires: backend (port 8000) and frontend (npm run dev, port 5173) running.
+ * Run: npx playwright test
+ * Dev (Vite): PLAYWRIGHT_BASE_URL=http://localhost:5173 (default)
+ * Deployed (Docker): PLAYWRIGHT_BASE_URL=http://localhost:3000
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
@@ -12,7 +13,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: "html",
+  reporter: process.env.CI ? "dot" : "html",
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173",
     trace: "on-first-retry",
@@ -23,6 +24,15 @@ export default defineConfig({
     {
       name: "setup",
       testMatch: /auth\.setup\.ts/,
+    },
+    {
+      name: "login-and-projects",
+      testMatch: /login-and-projects\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/user.json",
+      },
+      dependencies: ["setup"],
     },
     {
       name: "artifact-flow",

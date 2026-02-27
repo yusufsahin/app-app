@@ -1,0 +1,184 @@
+Entity,Field,Type/Description
+Artifact,project_id,UUID
+Artifact,artifact_type,string (requirement/defect/epic vb.)
+Artifact,title,string
+Artifact,description,string
+Artifact,state,string (workflow)
+Artifact,assignee_id,UUID (optional)
+Artifact,parent_id,UUID (optional)
+Artifact,custom_fields,dict
+Artifact,artifact_key,string (optional)
+Artifact,state_reason,string (optional)
+Artifact,resolution,string (optional)
+Artifact,rank_order,float (optional)
+Artifact,cycle_node_id,UUID (optional)
+Artifact,area_node_id,UUID (optional)
+Artifact,area_path_snapshot,string (optional)
+Artifact,created_at,datetime
+Artifact,updated_at,datetime
+Task,project_id,UUID
+Task,artifact_id,UUID
+Task,title,string
+Task,state,string (todo/in_progress/done)
+Task,description,string
+Task,assignee_id,UUID (optional)
+Task,rank_order,float (optional)
+Task,created_at,datetime
+Task,updated_at,datetime
+Project,tenant_id,UUID
+Project,name,string
+Project,slug,string
+Project,code,string
+Project,description,string
+Project,process_template_version_id,UUID (optional)
+Project,status,string (optional)
+Project,settings,dict (optional)
+Project,metadata_,dict (optional)
+Tenant,name,string
+Tenant,slug,string
+Tenant,tier,string (e.g. free)
+Tenant,settings,dict
+TenantMembership,user_id,UUID
+TenantMembership,tenant_id,UUID
+TenantMembership,invited_by,UUID (optional)
+TenantMembership,joined_at,datetime
+Role,tenant_id,UUID
+Role,name,string
+Role,slug,string
+Role,description,string
+Role,is_system,bool
+Role,hierarchy_level,int
+Role,privilege_ids,list of UUID
+Privilege,id,UUID
+Privilege,code,string
+Privilege,resource,string
+Privilege,action,string
+Privilege,description,string
+Invitation,tenant_id,UUID
+Invitation,email,string
+Invitation,invited_by,UUID
+Invitation,token,string
+Invitation,expires_at,datetime
+Invitation,accepted_at,datetime (optional)
+Invitation,role_ids,list of UUID
+User,email,string
+User,display_name,string
+User,password_hash,string
+User,is_active,bool
+User,email_verified,bool
+RefreshToken,user_id,UUID
+RefreshToken,token_hash,string
+RefreshToken,expires_at,datetime
+RefreshToken,revoked_at,datetime (optional)
+Comment,project_id,UUID
+Comment,artifact_id,UUID
+Comment,body,string
+Comment,created_by,UUID
+Comment,created_at,datetime
+Comment,updated_at,datetime
+Attachment,project_id,UUID
+Attachment,artifact_id,UUID
+Attachment,file_name,string
+Attachment,content_type,string (MIME)
+Attachment,size,int (bytes)
+Attachment,storage_key,string
+Attachment,created_by,UUID (optional)
+Attachment,created_at,datetime
+ArtifactLink,project_id,UUID
+ArtifactLink,from_artifact_id,UUID
+ArtifactLink,to_artifact_id,UUID
+ArtifactLink,link_type,string
+ArtifactLink,created_at,datetime
+SavedQuery,project_id,UUID
+SavedQuery,name,string
+SavedQuery,owner_id,UUID
+SavedQuery,visibility,string (private/public)
+SavedQuery,filter_params,dict
+SavedQuery,created_at,datetime
+SavedQuery,updated_at,datetime
+WorkflowRule,project_id,UUID
+WorkflowRule,name,string
+WorkflowRule,trigger_event_type,string
+WorkflowRule,condition_expression,string (optional)
+WorkflowRule,actions,list of dict
+WorkflowRule,is_active,bool
+WorkflowRule,created_at,datetime
+WorkflowRule,updated_at,datetime
+CycleNode,project_id,UUID
+CycleNode,name,string
+CycleNode,path,string
+CycleNode,parent_id,UUID (optional)
+CycleNode,depth,int
+CycleNode,sort_order,int
+CycleNode,goal,string
+CycleNode,start_date,date (optional)
+CycleNode,end_date,date (optional)
+CycleNode,state,string (e.g. planned)
+CycleNode,created_at,datetime
+CycleNode,updated_at,datetime
+AreaNode,project_id,UUID
+AreaNode,name,string
+AreaNode,path,string
+AreaNode,parent_id,UUID (optional)
+AreaNode,depth,int
+AreaNode,sort_order,int
+AreaNode,is_active,bool
+AreaNode,created_at,datetime
+AreaNode,updated_at,datetime
+Team,project_id,UUID
+Team,name,string
+Team,description,string
+Team,created_at,datetime
+Team,updated_at,datetime
+TeamMember,team_id,UUID
+TeamMember,user_id,UUID
+TeamMember,role,string (e.g. member)
+ProcessTemplate,id,UUID
+ProcessTemplate,slug,string
+ProcessTemplate,name,string
+ProcessTemplate,is_builtin,bool
+ProcessTemplate,description,string (optional)
+ProcessTemplate,type,string (optional)
+ProcessTemplate,configuration,dict (optional)
+ProcessTemplateVersion,id,UUID
+ProcessTemplateVersion,template_id,UUID
+ProcessTemplateVersion,version,string
+ProcessTemplateVersion,manifest_bundle,dict
+FormSchema,entity_type,string
+FormSchema,context,string
+FormSchema,fields,tuple FormFieldSchema
+FormSchema,artifact_type_options,tuple of {id label}
+FormFieldSchema,key,string
+FormFieldSchema,type,string (string/number/choice/entity_ref)
+FormFieldSchema,label_key,string
+FormFieldSchema,required,bool
+FormFieldSchema,options,list (optional)
+FormFieldSchema,default_value,any (optional)
+FormFieldSchema,order,int
+FormFieldSchema,visible_when,dict (optional)
+FormFieldSchema,required_when,dict (optional)
+FormFieldSchema,entity_ref,string (optional: artifact/user/cycle/area)
+FormFieldSchema,allowed_parent_types,list (optional)
+ListSchema,entity_type,string
+ListSchema,columns,tuple ListColumnSchema
+ListSchema,filters,tuple ListFilterSchema
+ListColumnSchema,key,string
+ListColumnSchema,label,string (optional)
+ListColumnSchema,label_key,string (optional)
+ListColumnSchema,type,string (optional)
+ListColumnSchema,order,int
+ListColumnSchema,sortable,bool
+ListColumnSchema,width,int (optional)
+ListFilterSchema,key,string
+ListFilterSchema,label,string (optional)
+ListFilterSchema,label_key,string (optional)
+ListFilterSchema,type,string (optional)
+ListFilterSchema,order,int
+ListFilterSchema,options,list (optional)
+BaseEntity (ortak),id,UUID
+BaseEntity (ortak),created_at,datetime
+BaseEntity (ortak),created_by,UUID (optional)
+BaseEntity (ortak),updated_at,datetime
+BaseEntity (ortak),updated_by,UUID (optional)
+BaseEntity (ortak),deleted_at,datetime (optional)
+BaseEntity (ortak),deleted_by,UUID (optional)

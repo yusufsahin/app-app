@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
-import { Outlet, useNavigate, useLocation, useParams, Navigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation, useParams, Navigate, Link as RouterLink } from "react-router-dom";
 import {
   AppBar,
   Box,
+  Button,
   Drawer,
   IconButton,
   List,
@@ -23,6 +24,7 @@ import {
   CardContent,
   CircularProgress,
   Chip,
+  Link,
 } from "@mui/material";
 import {
   Menu as MenuIcon,
@@ -41,6 +43,7 @@ import {
   AutoAwesome,
   AccountTree as AccountTreeIcon,
   Notifications as NotificationsIcon,
+  Search as SearchIcon,
 } from "@mui/icons-material";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
@@ -59,8 +62,10 @@ import { useNotificationStore } from "../../stores/notificationStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { hasPermission } from "../../utils/permissions";
 import { useRealtime } from "../../realtime/useRealtime";
+import ColorModeIconDropdown from "../../../app/theme/ColorModeIconDropdown";
+import CreateProjectModal from "../../../features/projects/components/CreateProjectModal";
 
-const DRAWER_WIDTH_EXPANDED = 280;
+const DRAWER_WIDTH_EXPANDED = 240;
 const DRAWER_WIDTH_COLLAPSED = 72;
 
 interface NavItem {
@@ -236,9 +241,13 @@ export default function AppLayout() {
   };
 
   const userInitial = user?.display_name?.charAt(0).toUpperCase() ?? "U";
+  const isOrgHome = !!orgSlug && !projectSlug && (location.pathname === `/${orgSlug}` || location.pathname === `/${orgSlug}/`);
+  const canCreateProject = hasPermission(permissions, "project:create");
+  const createModalOpen = useProjectStore((s) => s.listState.createModalOpen);
+  const setCreateModalOpen = useProjectStore((s) => s.setCreateModalOpen);
 
   const drawerContent = (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: "background.paper", color: "text.primary", borderRight: "1px solid", borderColor: "divider" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: "grey.50", color: "text.primary", borderRight: "1px solid", borderColor: "divider" }}>
       {/* Logo Header */}
       <Box
         sx={{
@@ -566,40 +575,106 @@ export default function AppLayout() {
               easing: theme.transitions.easing.sharp,
               duration: theme.transitions.duration.leavingScreen,
             }),
-          bgcolor: "white",
+          bgcolor: "background.paper",
           color: "text.primary",
           boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1)",
         }}
       >
-        <Toolbar>
+        <Toolbar sx={{ gap: 2, minHeight: { xs: 56, md: 64 } }}>
           <IconButton
             color="inherit"
             edge="start"
             onClick={() => setMobileOpen(true)}
-            sx={{ mr: 2, display: { md: "none" } }}
+            sx={{ mr: 0, display: { md: "none" } }}
           >
             <MenuIcon />
           </IconButton>
 
-          {/* Page title for mobile */}
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, display: { xs: "block", md: "none" } }}>
-            Pamera
-          </Typography>
+          {/* Brand / org home link (desktop) */}
+          <Link
+            component={RouterLink}
+            to={orgSlug ? `/${orgSlug}` : "/"}
+            underline="none"
+            color="text.primary"
+            sx={{
+              display: { xs: "none", md: "flex" },
+              alignItems: "center",
+              gap: 1,
+              minWidth: 0,
+              mr: 1,
+            }}
+          >
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: 1,
+                bgcolor: "primary.main",
+                color: "primary.contrastText",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: "1rem",
+              }}
+            >
+              <AccountTreeIcon sx={{ fontSize: 20 }} />
+            </Box>
+            <Typography variant="subtitle1" fontWeight={600} noWrap>
+              ALM
+            </Typography>
+          </Link>
 
-          <Box sx={{ flex: 1, display: { xs: "none", md: "block" } }} />
-
-          <Stack direction="row" spacing={1} alignItems="center">
+          {/* Search (opens command palette) - Azure DevOps style */}
+          <Box
+            onClick={() => setCommandPaletteOpen(true)}
+            sx={{
+              display: { xs: "none", sm: "flex" },
+              alignItems: "center",
+              gap: 1,
+              flex: 1,
+              maxWidth: 400,
+              height: 36,
+              px: 1.5,
+              borderRadius: 1,
+              border: "1px solid",
+              borderColor: "divider",
+              bgcolor: "background.default",
+              cursor: "pointer",
+              "&:hover": { borderColor: "grey.400", bgcolor: "grey.50" },
+            }}
+          >
+            <SearchIcon sx={{ fontSize: 20, color: "text.secondary" }} />
+            <Typography variant="body2" color="text.secondary">
+              Search
+            </Typography>
             <Chip
               label={typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl+K"}
               size="small"
-              onClick={() => setCommandPaletteOpen(true)}
-              sx={{
-                display: { xs: "none", sm: "inline-flex" },
-                "& .MuiChip-label": { fontSize: "0.75rem" },
-                cursor: "pointer",
-              }}
-              title="Quick navigation"
+              sx={{ ml: "auto", "& .MuiChip-label": { fontSize: "0.7rem" }, height: 20 }}
             />
+          </Box>
+
+          {/* Mobile title */}
+          <Typography variant="h6" noWrap component="div" sx={{ flex: 1, display: { xs: "block", md: "none" } }}>
+            ALM
+          </Typography>
+
+          <Box sx={{ flex: { xs: 0, md: 1 } }} />
+
+          <Stack direction="row" spacing={1} alignItems="center">
+            {isOrgHome && canCreateProject && (
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<Add />}
+                onClick={() => setCreateModalOpen(true)}
+                sx={{ display: { xs: "none", sm: "inline-flex" } }}
+              >
+                New project
+              </Button>
+            )}
+            <ColorModeIconDropdown sx={{ display: { xs: "none", sm: "inline-flex" } }} />
 
             <Tooltip title="Notifications">
               <IconButton size="small" sx={{ color: "text.secondary" }}>
@@ -757,20 +832,22 @@ export default function AppLayout() {
 
       <Box
         component="main"
-        sx={{
+        sx={(theme) => ({
           flexGrow: 1,
           width: { md: `calc(100% - ${drawerWidth}px)` },
-          transition: (theme) =>
-            theme.transitions.create("width", {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
+          transition: theme.transitions.create("width", {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
           mt: "64px",
-          bgcolor: "background.default",
           minHeight: "calc(100vh - 64px)",
-        }}
+          overflow: "auto",
+          bgcolor: "background.default",
+        })}
       >
-        <Outlet />
+        <Stack spacing={2} sx={{ alignItems: "stretch", mx: 3, pb: 5, pt: 2 }}>
+          <Outlet />
+        </Stack>
       </Box>
 
       <CommandPalette
@@ -779,6 +856,13 @@ export default function AppLayout() {
         items={commandPaletteItems}
         onSelect={(path) => navigate(path)}
       />
+      {orgSlug && (
+        <CreateProjectModal
+          open={createModalOpen}
+          onClose={() => setCreateModalOpen(false)}
+          orgSlug={orgSlug}
+        />
+      )}
       <ModalManager />
     </Box>
   );

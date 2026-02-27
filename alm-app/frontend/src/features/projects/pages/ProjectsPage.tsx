@@ -14,7 +14,7 @@ import {
   Stack,
   Chip,
 } from "@mui/material";
-import Grid from "@mui/material/Grid2";
+import Grid from "@mui/material/Grid";
 import { Add, FolderOff, Search } from "@mui/icons-material";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { LoadingState } from "../../../shared/components/LoadingState";
@@ -25,7 +25,6 @@ import { useAuthStore } from "../../../shared/stores/authStore";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import { hasPermission } from "../../../shared/utils/permissions";
 import { useProjectStore } from "../../../shared/stores/projectStore";
-import CreateProjectModal from "../components/CreateProjectModal";
 
 type ProjectsFilterValues = {
   q: string;
@@ -47,7 +46,6 @@ export default function ProjectsPage() {
   const permissions = useAuthStore((s) => s.permissions);
   const canCreateProject = hasPermission(permissions, "project:create");
 
-  const createModalOpen = useProjectStore((s) => s.listState.createModalOpen);
   const setCreateModalOpen = useProjectStore((s) => s.setCreateModalOpen);
 
   const filter = searchParams.get("q") ?? "";
@@ -78,6 +76,7 @@ export default function ProjectsPage() {
     next.set("sort_by", by ?? "name");
     next.set("sort_order", order ?? "asc");
     setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync values→URL only; searchParams/setSearchParams omitted to avoid loops
   }, [values.q, values.sort_value]);
 
   const { data: projects = [], isLoading } = useOrgProjects(orgSlug);
@@ -151,7 +150,8 @@ export default function ProjectsPage() {
     <>
       <StandardPageLayout
         breadcrumbs={breadcrumbs}
-        title={currentTenantName}
+        title="Projects"
+        description={currentTenantName}
         actions={
           canCreateProject ? (
             <Button
@@ -187,10 +187,12 @@ export default function ProjectsPage() {
                 <Card
                   variant="outlined"
                   sx={{
-                    borderRadius: 2,
+                    borderRadius: 1,
                     overflow: "hidden",
-                    transition: "box-shadow 0.2s, transform 0.15s",
-                    "&:hover": { boxShadow: 3, transform: "translateY(-1px)" },
+                    borderColor: "divider",
+                    bgcolor: "background.paper",
+                    transition: "box-shadow 0.2s, border-color 0.2s",
+                    "&:hover": { boxShadow: 1, borderColor: "grey.400" },
                   }}
                 >
                   <CardActionArea
@@ -204,8 +206,8 @@ export default function ProjectsPage() {
                             width: 48,
                             height: 48,
                             borderRadius: 1,
-                            bgcolor: "primary.light",
-                            color: "primary.main",
+                            bgcolor: "primary.main",
+                            color: "primary.contrastText",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -257,12 +259,6 @@ export default function ProjectsPage() {
           </Grid>
         )}
       </StandardPageLayout>
-
-      <CreateProjectModal
-        open={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-        orgSlug={orgSlug}
-      />
     </>
   );
 }

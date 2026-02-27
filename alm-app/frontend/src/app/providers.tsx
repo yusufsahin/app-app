@@ -1,10 +1,9 @@
 import { type ReactNode, useEffect, useRef } from "react";
-import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SnackbarProvider, useSnackbar } from "notistack";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { theme } from "./theme";
+import AppTheme from "./theme/AppTheme";
 import { LayoutUIProvider } from "../shared/contexts/LayoutUIContext";
 import { useNotificationStore } from "../shared/stores/notificationStore";
 
@@ -48,7 +47,7 @@ function NotistackBridge() {
 export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
+      <AppTheme>
         <LocalizationProvider dateAdapter={AdapterDayjs}>
           <LayoutUIProvider>
             <SnackbarProvider
@@ -61,7 +60,7 @@ export function Providers({ children }: ProvidersProps) {
             </SnackbarProvider>
           </LayoutUIProvider>
         </LocalizationProvider>
-      </ThemeProvider>
+      </AppTheme>
     </QueryClientProvider>
   );
 }

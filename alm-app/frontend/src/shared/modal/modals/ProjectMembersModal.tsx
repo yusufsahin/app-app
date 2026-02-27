@@ -46,6 +46,7 @@ function ProjectMemberRow({
   useEffect(() => {
     rowForm.reset({ role: pm.role });
     justResetRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when pm.role changes; rowForm omitted
   }, [pm.role]);
   const watchedRole = rowForm.watch("role");
   useEffect(() => {
@@ -56,6 +57,7 @@ function ProjectMemberRow({
     if (watchedRole !== pm.role) {
       onUpdateRole(pm.user_id, watchedRole);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when watchedRole changes; onUpdateRole/pm omitted to avoid loops
   }, [watchedRole]);
 
   return (
