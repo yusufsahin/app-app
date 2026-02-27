@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Button, Box, Typography } from "@mui/material";
+import { Button } from "../../components/ui";
 import { MetadataDrivenForm } from "../../components/forms";
 import type { AddTaskModalProps } from "../modalTypes";
 
@@ -40,20 +40,19 @@ export function AddTaskModal({
           userOptions={userOptions}
         />
       ) : (
-        <Typography color="text.secondary">Loading form…</Typography>
+        <p className="text-muted-foreground">Loading form…</p>
       )}
-      <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end", mt: 2 }}>
-        <Button onClick={onClose}>Cancel</Button>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
         {taskFormSchema && (
           <Button
-            variant="contained"
             onClick={handleSubmit}
             disabled={!(values.title as string)?.trim() || isPending}
           >
             Add
           </Button>
         )}
-      </Box>
+      </div>
     </>
   );
 }

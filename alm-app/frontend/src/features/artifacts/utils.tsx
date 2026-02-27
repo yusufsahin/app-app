@@ -2,7 +2,7 @@
  * Shared artifact helpers for ArtifactsPage and subcomponents.
  */
 import type { ReactElement } from "react";
-import { BugReport, Assignment } from "@mui/icons-material";
+import { Bug, FileText } from "lucide-react";
 import type { Artifact } from "../../shared/stores/artifactStore";
 
 export const CORE_FIELD_KEYS = new Set(["artifact_type", "parent_id", "title", "description", "assignee_id"]);
@@ -78,11 +78,11 @@ export function downloadArtifactsCsv(
 export function getArtifactIcon(type: string): ReactElement {
   switch (type) {
     case "defect":
-      return <BugReport fontSize="small" />;
+      return <Bug className="size-4" />;
     case "requirement":
-      return <Assignment fontSize="small" />;
+      return <FileText className="size-4" />;
     default:
-      return <Assignment fontSize="small" />;
+      return <FileText className="size-4" />;
   }
 }
 

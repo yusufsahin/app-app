@@ -1,18 +1,7 @@
 /**
  * Metadata-driven list — renders table from ListSchemaDto (columns + optional filters).
  */
-import {
-  Box,
-  Checkbox,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Typography,
-} from "@mui/material";
+import { Checkbox } from "../ui";
 import { useMemo, useEffect, useRef } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { RhfSelect } from "../forms";
@@ -118,10 +107,10 @@ export function MetadataDrivenList<T>({
     sortedColumns.length + (renderRowActions ? 1 : 0) + (selectionColumn ? 1 : 0);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+    <div className="flex flex-col gap-4">
       {hasFilters && (
         <FormProvider {...filterForm}>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+          <div className="flex flex-wrap gap-4">
             {sortedFilters.map((f) => (
               <RhfSelect<FilterFormValues>
                 key={f.key}
@@ -129,88 +118,82 @@ export function MetadataDrivenList<T>({
                 control={filterForm.control}
                 label={filterLabel(f)}
                 options={[{ value: "", label: "All" }, ...(f.options ?? []).map((opt) => ({ value: opt, label: opt }))]}
-                selectProps={{ size: "small", sx: { minWidth: 140 } }}
+                selectProps={{ size: "sm" }}
               />
             ))}
-          </Box>
+          </div>
         </FormProvider>
       )}
 
-      <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: "70vh" }}>
-        <Table size="small" aria-label={schema.entity_type} stickyHeader>
-          <TableHead>
-            <TableRow>
+      <div className="max-h-[70vh] overflow-auto rounded-md border border-border">
+        <table className="w-full border-collapse text-sm" aria-label={schema.entity_type}>
+          <thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur">
+            <tr>
               {selectionColumn && (
-                <TableCell padding="checkbox">
+                <th className="w-12 border-b border-border p-2">
                   <Checkbox
-                    indeterminate={someSelected && !allSelected}
-                    checked={allSelected}
-                    onChange={(_, checked) => onSelectAll?.(checked)}
+                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                    onCheckedChange={(checked) => onSelectAll?.(!!checked)}
                     disabled={data.length === 0}
                     aria-label="Select all on page"
                     onClick={(e) => e.stopPropagation()}
                   />
-                </TableCell>
+                </th>
               )}
               {sortedColumns.map((col) => (
-                <TableCell key={col.key}>
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    {columnLabel(col)}
-                  </Typography>
-                </TableCell>
+                <th key={col.key} className="border-b border-border px-2 py-2 text-left font-semibold">
+                  {columnLabel(col)}
+                </th>
               ))}
-              {renderRowActions && <TableCell width={80}>Actions</TableCell>}
-            </TableRow>
-          </TableHead>
-          <TableBody>
+              {renderRowActions && <th className="w-20 border-b border-border px-2 py-2 text-left">Actions</th>}
+            </tr>
+          </thead>
+          <tbody>
             {data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={colSpan} align="center">
-                  <Typography variant="body2" color="text.secondary">
-                    {emptyMessage}
-                  </Typography>
-                </TableCell>
-              </TableRow>
+              <tr>
+                <td colSpan={colSpan} className="border-b border-border px-2 py-6 text-center text-muted-foreground">
+                  {emptyMessage}
+                </td>
+              </tr>
             ) : (
               data.map((row) => {
                 const rowKey = getRowKey(row);
                 const checked = selectedSet.has(rowKey);
                 return (
-                  <TableRow
+                  <tr
                     key={rowKey}
-                    hover={!!onRowClick}
                     onClick={() => onRowClick?.(row)}
-                    sx={onRowClick ? { cursor: "pointer" } : undefined}
+                    className={onRowClick ? "cursor-pointer hover:bg-muted/50" : ""}
                   >
                     {selectionColumn && (
-                      <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                      <td className="border-b border-border p-2" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={checked}
-                          onChange={() => onToggleSelect?.(rowKey)}
+                          onCheckedChange={() => onToggleSelect?.(rowKey)}
                           aria-label={`Select ${rowKey}`}
                         />
-                      </TableCell>
+                      </td>
                     )}
                     {sortedColumns.map((col) => {
                       const val = getCellValue(row, col.key);
                       return (
-                        <TableCell key={col.key}>
+                        <td key={col.key} className="border-b border-border px-2 py-2">
                           {val !== undefined && val !== null ? String(val) : "—"}
-                        </TableCell>
+                        </td>
                       );
                     })}
                     {renderRowActions && (
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <td className="border-b border-border px-2 py-2" onClick={(e) => e.stopPropagation()}>
                         {renderRowActions(row)}
-                      </TableCell>
+                      </td>
                     )}
-                  </TableRow>
+                  </tr>
                 );
               })
             )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

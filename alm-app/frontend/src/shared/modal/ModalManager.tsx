@@ -1,10 +1,10 @@
 import type { ComponentType } from "react";
 import { Suspense, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { Box, CircularProgress } from "@mui/material";
 import { MODALS } from "./modalRegistry";
 import { useModalStore } from "./useModalStore";
 import { ModalWrapper } from "./ModalWrapper";
+import { Skeleton } from "../components/ui";
 
 export function ModalManager() {
   const location = useLocation();
@@ -27,9 +27,9 @@ export function ModalManager() {
     <ModalWrapper title={title} options={options} onClose={closeModal}>
       <Suspense
         fallback={
-          <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-            <CircularProgress size={24} />
-          </Box>
+          <div className="flex justify-center py-6">
+            <Skeleton className="h-6 w-24" />
+          </div>
         }
       >
         <Cmp {...(modalProps as object)} onClose={closeModal} />

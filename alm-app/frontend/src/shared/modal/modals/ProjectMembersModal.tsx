@@ -1,15 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useForm, FormProvider } from "react-hook-form";
-import {
-  Box,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
-  Typography,
-} from "@mui/material";
-import { PersonRemove } from "@mui/icons-material";
+import { UserMinus } from "lucide-react";
+import { Button } from "../../components/ui";
 import { RhfSelect } from "../../components/forms";
 import {
   useProjectMembers,
@@ -61,37 +53,35 @@ function ProjectMemberRow({
   }, [watchedRole]);
 
   return (
-    <ListItem
-      secondaryAction={
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <FormProvider {...rowForm}>
-            <RhfSelect<RoleValues>
-              name="role"
-              control={rowForm.control}
-              label=""
-              options={[
-                { value: "PROJECT_VIEWER", label: "Viewer" },
-                { value: "PROJECT_CONTRIBUTOR", label: "Contributor" },
-                { value: "PROJECT_ADMIN", label: "Admin" },
-              ]}
-              selectProps={{ size: "small", sx: { minWidth: 120 }, disabled: isUpdating }}
-            />
-          </FormProvider>
-          <IconButton
-            edge="end"
-            size="small"
-            aria-label="Remove member"
-            disabled={isRemoving || isOnlyAdmin}
-            title={isOnlyAdmin ? "Cannot remove the last admin" : "Remove member"}
-            onClick={() => onRemove(pm.user_id)}
-          >
-            <PersonRemove fontSize="small" />
-          </IconButton>
-        </Box>
-      }
-    >
-      <ListItemText primary={memberLabel} />
-    </ListItem>
+    <li className="flex list-none items-center justify-between gap-2 border-b border-border py-2 last:border-0">
+      <span className="text-sm">{memberLabel}</span>
+      <div className="flex items-center gap-2">
+        <FormProvider {...rowForm}>
+          <RhfSelect<RoleValues>
+            name="role"
+            control={rowForm.control}
+            label=""
+            options={[
+              { value: "PROJECT_VIEWER", label: "Viewer" },
+              { value: "PROJECT_CONTRIBUTOR", label: "Contributor" },
+              { value: "PROJECT_ADMIN", label: "Admin" },
+            ]}
+            selectProps={{ size: "sm", disabled: isUpdating }}
+          />
+        </FormProvider>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          aria-label="Remove member"
+          disabled={isRemoving || isOnlyAdmin}
+          title={isOnlyAdmin ? "Cannot remove the last admin" : "Remove member"}
+          onClick={() => onRemove(pm.user_id)}
+        >
+          <UserMinus className="size-4" />
+        </Button>
+      </div>
+    </li>
   );
 }
 
@@ -135,10 +125,10 @@ export function ProjectMembersModal({ orgSlug, projectId, projectName: _projectN
   return (
     <>
       {projectMembersLoading ? (
-        <Typography color="text.secondary">Loading members…</Typography>
+        <p className="text-muted-foreground">Loading members…</p>
       ) : (
         <>
-          <List dense disablePadding>
+          <ul className="divide-y">
             {(projectMembers ?? []).map((pm) => {
               const orgMember = members?.find((m) => m.user_id === pm.user_id);
               const label = orgMember?.display_name || orgMember?.email || pm.user_id;
@@ -172,21 +162,20 @@ export function ProjectMembersModal({ orgSlug, projectId, projectName: _projectN
               );
             })}
             {(projectMembers ?? []).length === 0 && (
-              <ListItem>
-                <ListItemText primary="No members yet" secondary="Add org members below." />
-              </ListItem>
+              <li className="py-4 text-center text-sm text-muted-foreground">
+                No members yet. Add org members below.
+              </li>
             )}
-          </List>
+          </ul>
           <FormProvider {...addMemberForm}>
-            <Box
-              component="form"
+            <form
               onSubmit={addMemberForm.handleSubmit(onSubmitAddMember)}
               noValidate
-              sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 2 }}
+              className="mt-4 flex flex-col gap-4"
             >
-              <Typography variant="subtitle2" color="text.secondary">
+              <p className="text-sm font-medium text-muted-foreground">
                 Add member
-              </Typography>
+              </p>
               <RhfSelect<AddMemberFormValues>
                 name="user_id"
                 control={addMemberForm.control}
@@ -204,7 +193,7 @@ export function ProjectMembersModal({ orgSlug, projectId, projectName: _projectN
                         label: (m.display_name || m.email) ?? m.user_id,
                       }))
                 }
-                selectProps={{ size: "small" }}
+                selectProps={{ size: "sm" }}
               />
               <RhfSelect<AddMemberFormValues>
                 name="role"
@@ -215,11 +204,10 @@ export function ProjectMembersModal({ orgSlug, projectId, projectName: _projectN
                   { value: "PROJECT_CONTRIBUTOR", label: "Contributor" },
                   { value: "PROJECT_ADMIN", label: "Admin" },
                 ]}
-                selectProps={{ size: "small" }}
+                selectProps={{ size: "sm" }}
               />
               <Button
                 type="submit"
-                variant="contained"
                 disabled={
                   projectMembersLoading ||
                   addProjectMemberMutation.isPending ||
@@ -229,13 +217,13 @@ export function ProjectMembersModal({ orgSlug, projectId, projectName: _projectN
               >
                 Add member
               </Button>
-            </Box>
+            </form>
           </FormProvider>
         </>
       )}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
-        <Button onClick={onClose}>Close</Button>
-      </Box>
+      <div className="mt-4 flex justify-end">
+        <Button variant="outline" onClick={onClose}>Close</Button>
+      </div>
     </>
   );
 }

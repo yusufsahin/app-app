@@ -1,33 +1,22 @@
 import { useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useForm, FormProvider } from "react-hook-form";
+import { Settings, History, ClipboardList, CheckCircle, Bug } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
-  Typography,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
   Button,
-  Box,
   Card,
   CardContent,
-  Breadcrumbs,
-  Link as MuiLink,
-  CircularProgress,
-  List,
-  ListItem,
-  ListItemText,
-  Chip,
-  Stack,
-} from "@mui/material";
-import Grid from "@mui/material/Grid";
-import {
-  Settings,
-  History,
-  Assignment as AssignmentIcon,
-  CheckCircle as CheckCircleIcon,
-  BugReport as BugReportIcon,
-} from "@mui/icons-material";
-import { motion } from "motion/react";
+  Badge,
+} from "../../../shared/components/ui";
+import { ProjectNotFoundView, StandardPageLayout } from "../../../shared/components/Layout";
 import { RhfDescriptionField, RhfTextField } from "../../../shared/components/forms";
-import { ProjectNotFoundView } from "../../../shared/components/Layout";
-import { StandardPageLayout } from "../../../shared/components/Layout";
 import {
   useOrgProjects,
   useUpdateOrgProject,
@@ -37,6 +26,7 @@ import {
 } from "../../../shared/api/orgApi";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
+import { motion } from "motion/react";
 
 type SettingsFormValues = {
   name: string;
@@ -58,15 +48,24 @@ function formatRelativeTime(iso: string | null): string {
   return date.toLocaleDateString();
 }
 
+const statCardColors = {
+  warning: "bg-amber-500",
+  success: "bg-emerald-500",
+  error: "bg-red-500",
+} as const;
+
 export default function ProjectDetailPage() {
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
-  const { data: projects } = useOrgProjects(orgSlug);
+  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
   const { data: stats, isLoading: statsLoading } = useOrgDashboardStats(orgSlug);
   const { data: activity, isLoading: activityLoading } = useOrgDashboardActivity(orgSlug, 8);
+  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
   const setCurrentProject = useProjectStore((s) => s.setCurrentProject);
   const clearCurrentProject = useProjectStore((s) => s.clearCurrentProject);
 
-  const project = projects?.find((p) => p.slug === projectSlug);
+  const project =
+    projects?.find((p) => p.slug === projectSlug) ??
+    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
   const updateProject = useUpdateOrgProject(orgSlug, project?.id);
   const showNotification = useNotificationStore((s) => s.showNotification);
 
@@ -104,27 +103,32 @@ export default function ProjectDetailPage() {
     );
   };
 
-  if (!project && projectSlug && orgSlug) {
+  if (projectSlug && orgSlug && !projectsLoading && !project) {
     return <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />;
+  }
+  if (projectSlug && orgSlug && projectsLoading) {
+    return (
+      <div className="flex items-center gap-2 p-6 text-muted-foreground">Loading project…</div>
+    );
   }
 
   const activityList: DashboardActivityItem[] = (activity as DashboardActivityItem[] | undefined) ?? [];
   const projectActivity = activityList.filter((item) => item.project_slug === projectSlug);
 
   const breadcrumbs = (
-    <Breadcrumbs>
-      <MuiLink
-        component={Link}
-        to={orgSlug ? `/${orgSlug}` : "#"}
-        underline="hover"
-        color="inherit"
-      >
-        {orgSlug ?? "Org"}
-      </MuiLink>
-      <Typography color="text.primary">
-        {project?.name ?? projectSlug ?? "Project"}
-      </Typography>
-    </Breadcrumbs>
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link to={orgSlug ? `/${orgSlug}` : "#"}>{orgSlug ?? "Org"}</Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbPage>{project?.name ?? projectSlug ?? "Project"}</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
   );
 
   return (
@@ -132,151 +136,123 @@ export default function ProjectDetailPage() {
       breadcrumbs={breadcrumbs}
       title={
         project ? (
-          <Box>
-            <Typography variant="overline" color="primary" fontWeight={600} component="p">
-              {project.code}
-            </Typography>
-            <Typography component="h1" variant="h4" fontWeight={600}>
-              {project.name}
-            </Typography>
-          </Box>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">{project.code}</p>
+            <h1 className="text-2xl font-semibold">{project.name}</h1>
+          </div>
         ) : undefined
       }
       description={project?.description ?? undefined}
     >
       {project ? (
-        <Box>
+        <div>
           {/* Stats row */}
-          <Grid container spacing={2} sx={{ mb: 3 }}>
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             {[
               {
                 label: "Total Artifacts",
                 value: stats?.artifacts ?? 0,
                 color: "warning" as const,
-                icon: <AssignmentIcon sx={{ fontSize: 28 }} />,
+                icon: <ClipboardList className="size-7" />,
                 delay: 0,
               },
               {
                 label: "Open Tasks",
                 value: stats?.tasks ?? 0,
                 color: "success" as const,
-                icon: <CheckCircleIcon sx={{ fontSize: 28 }} />,
+                icon: <CheckCircle className="size-7" />,
                 delay: 0.1,
               },
               {
                 label: "Open Defects",
                 value: stats?.openDefects ?? 0,
                 color: "error" as const,
-                icon: <BugReportIcon sx={{ fontSize: 28 }} />,
+                icon: <Bug className="size-7" />,
                 delay: 0.2,
               },
             ].map((item) => (
-              <Grid key={item.label} size={{ xs: 12, sm: 4 }}>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: item.delay }}
-                >
-                  <Card sx={{ bgcolor: `${item.color}.main`, color: "white" }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                        <Box>
-                          <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
-                            {item.label}
-                          </Typography>
-                          {statsLoading ? (
-                            <CircularProgress size={28} sx={{ color: "white" }} />
-                          ) : (
-                            <Typography variant="h3" fontWeight={700}>
-                              {item.value}
-                            </Typography>
-                          )}
-                        </Box>
-                        <Box
-                          sx={{
-                            width: 52,
-                            height: 52,
-                            borderRadius: 2,
-                            bgcolor: "rgba(255,255,255,0.2)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          {item.icon}
-                        </Box>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </Grid>
+              <motion.div
+                key={item.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: item.delay }}
+              >
+                <Card className={`${statCardColors[item.color]} text-white`}>
+                  <CardContent>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="mb-1 text-sm opacity-90">{item.label}</p>
+                        {statsLoading ? (
+                          <Loader2 className="size-7 animate-spin text-white" />
+                        ) : (
+                          <p className="text-3xl font-bold">{item.value}</p>
+                        )}
+                      </div>
+                      <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-white/20">
+                        {item.icon}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
             ))}
-          </Grid>
+          </div>
 
-          {/* Activity + Settings two-column layout */}
-          <Grid container spacing={3}>
-            {/* Recent activity */}
-            <Grid size={{ xs: 12, md: 7 }}>
-              <Card variant="outlined" sx={{ height: "100%" }}>
+          {/* Activity + Settings */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-7">
+            <div className="md:col-span-4">
+              <Card className="h-full border border-border">
                 <CardContent>
-                  <Typography
-                    variant="overline"
-                    color="primary"
-                    fontWeight={600}
-                    sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}
-                  >
-                    <History fontSize="small" />
+                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
+                    <History className="size-4" />
                     Recent activity
-                  </Typography>
+                  </p>
                   {activityLoading ? (
-                    <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
-                      <CircularProgress size={28} />
-                    </Box>
+                    <div className="flex justify-center py-6">
+                      <Loader2 className="size-7 animate-spin text-muted-foreground" />
+                    </div>
                   ) : projectActivity.length > 0 ? (
-                    <List dense disablePadding>
+                    <ul className="divide-y divide-border">
                       {projectActivity.map((item) => (
-                        <ListItem
-                          key={item.artifact_id}
-                          component={Link}
-                          to={orgSlug && item.project_slug ? `/${orgSlug}/${item.project_slug}/artifacts` : "#"}
-                          sx={{ textDecoration: "none", color: "inherit", px: 0 }}
-                        >
-                          <ListItemText
-                            primary={item.title}
-                            secondary={
-                              <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
-                                <Chip size="small" label={item.state} variant="outlined" />
-                                <Typography component="span" variant="caption" color="text.secondary">
-                                  {item.artifact_type}
-                                </Typography>
-                                <Typography component="span" variant="caption" color="text.secondary">
-                                  {formatRelativeTime(item.updated_at)}
-                                </Typography>
-                              </Box>
+                        <li key={item.artifact_id}>
+                          <Link
+                            to={
+                              orgSlug && item.project_slug
+                                ? `/${orgSlug}/${item.project_slug}/artifacts`
+                                : "#"
                             }
-                          />
-                        </ListItem>
+                            className="block px-0 py-3 no-underline text-foreground hover:opacity-80"
+                          >
+                            <span className="font-medium">{item.title}</span>
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                {item.state}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">{item.artifact_type}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatRelativeTime(item.updated_at)}
+                              </span>
+                            </div>
+                          </Link>
+                        </li>
                       ))}
-                    </List>
+                    </ul>
                   ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      No recent activity in this project.
-                    </Typography>
+                    <p className="text-sm text-muted-foreground">No recent activity in this project.</p>
                   )}
                 </CardContent>
               </Card>
-            </Grid>
+            </div>
 
-            {/* Project settings */}
-            <Grid size={{ xs: 12, md: 5 }}>
-              <Card variant="outlined">
+            <div className="md:col-span-3">
+              <Card className="border border-border">
                 <CardContent>
-                  <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Settings fontSize="small" />
+                  <p className="mb-4 flex items-center gap-2 font-semibold">
+                    <Settings className="size-4" />
                     Settings
-                  </Typography>
+                  </p>
                   <FormProvider {...form}>
-                    <Box component="form" onSubmit={handleSubmit(onSaveSettings)} noValidate>
+                    <form onSubmit={handleSubmit(onSaveSettings)} noValidate className="space-y-4">
                       <RhfTextField<SettingsFormValues>
                         name="name"
                         label="Name"
@@ -284,7 +260,7 @@ export default function ProjectDetailPage() {
                         size="small"
                         sx={{ mb: 2 }}
                       />
-                      <Box sx={{ mb: 2 }}>
+                      <div>
                         <RhfDescriptionField<SettingsFormValues>
                           name="description"
                           control={control}
@@ -293,7 +269,7 @@ export default function ProjectDetailPage() {
                           allowModeSwitch
                           rows={4}
                         />
-                      </Box>
+                      </div>
                       <RhfTextField<SettingsFormValues>
                         name="status"
                         label="Status"
@@ -302,22 +278,18 @@ export default function ProjectDetailPage() {
                         placeholder="e.g. active, on-hold"
                         sx={{ mb: 2 }}
                       />
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={updateProject.isPending}
-                      >
+                      <Button type="submit" disabled={updateProject.isPending}>
                         Save
                       </Button>
-                    </Box>
+                    </form>
                   </FormProvider>
                 </CardContent>
               </Card>
-            </Grid>
-          </Grid>
-        </Box>
+            </div>
+          </div>
+        </div>
       ) : (
-        <Typography color="text.secondary">No project selected.</Typography>
+        <p className="text-muted-foreground">No project selected.</p>
       )}
     </StandardPageLayout>
   );

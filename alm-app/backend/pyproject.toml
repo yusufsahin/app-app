@@ -4,7 +4,6 @@ build-backend = "hatchling.build"
 
 [tool.uv.sources]
 mpc = { path = "../../manifest-platform-core-suite" }
-statelesspy = { path = "../../../statelesspy" }
 
 [project]
 name = "alm"
@@ -23,7 +22,7 @@ dependencies = [
     "structlog>=24.4.0",
     "python-jose[cryptography]>=3.3.0",
     "bcrypt>=4.0.0",
-    "taskiq[redis]>=0.11.0",
+    "taskiq>=0.12.1",
     "taskiq-redis>=1.0.0",
     "opentelemetry-api>=1.29.0",
     "opentelemetry-sdk>=1.29.0",
@@ -35,7 +34,6 @@ dependencies = [
     "python-multipart>=0.0.9",
     "email-validator>=2.2.0",
     "mpc>=0.0.6",
-    "statelesspy>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -48,8 +46,6 @@ dev = [
     "mypy>=1.13.0",
     "schemathesis>=3.37.0",
     "pip-audit>=2.7.0",
-    "psycopg2-binary>=2.9.0",
-    "testcontainers[postgres]>=4.7.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -62,23 +58,6 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "A", "SIM", "TCH"]
-ignore = [
-    "A002",   # entity/API params named 'id' are conventional
-    "B008",   # FastAPI Depends() in defaults is the standard pattern
-    "E402",   # module import not at top (intentional in some schemas)
-    "E501",   # line length; enforce via format or separate pass
-    "N806",   # variable in function uppercase (e.g. _RESOLVED_STATES constant)
-    "N818",   # exception naming; DomainException is established
-    "SIM102", # nested if vs single and
-    "SIM103", # return negated condition
-    "SIM105", # try/except/pass vs contextlib.suppress; optional
-    "TC001",  # type-checking-only imports; optional across codebase
-    "TC002",
-    "TC003",
-    "UP037",  # quoted annotations needed when using TYPE_CHECKING for forward refs
-    "UP042",  # str, Enum -> StrEnum (py312+)
-    "UP046",  # Generic subclass vs type params
-]
 
 [tool.mypy]
 python_version = "3.12"
@@ -88,5 +67,4 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
-asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]

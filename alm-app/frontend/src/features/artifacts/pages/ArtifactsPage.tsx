@@ -1,48 +1,39 @@
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import {
-  Container,
-  Typography,
   Button,
-  Box,
-  TablePagination,
-  Paper,
-  Chip,
   Skeleton,
-  IconButton,
-  Menu,
-  MenuItem,
-  List,
-  ListItem,
-  ListItemText,
-  Collapse,
-  Drawer,
-  Link as MuiLink,
-  Divider,
-  ListItemIcon,
   Tabs,
-  Tab,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Sheet,
+  SheetContent,
   Tooltip,
-} from "@mui/material";
+  TooltipTrigger,
+  TooltipContent,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  Badge,
+} from "../../../shared/components/ui";
 import {
-  Add,
-  MoreVert,
-  ExpandLess,
-  ExpandMore,
-  Close,
-  ContentCopy,
-  Delete,
-  Download,
-  Edit,
-  InsertDriveFile,
-  Link as LinkIcon,
-  UploadFile,
-  SwapHoriz,
-  CheckCircle,
-  RadioButtonUnchecked,
-  ChevronLeft,
+  Plus,
+  MoreHorizontal,
+  ChevronDown,
   ChevronRight,
-  FilterListOff,
-} from "@mui/icons-material";
+  X,
+  Copy,
+  Trash2,
+  Download,
+  Pencil,
+  FileText,
+  Link as LinkIcon,
+  Upload,
+  ArrowLeftRight,
+  ChevronLeft,
+  FilterX,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { useQuery, useQueries } from "@tanstack/react-query";
@@ -50,6 +41,9 @@ import { apiClient } from "../../../shared/api/client";
 import {
   useOrgProjects,
   useOrgMembers,
+} from "../../../shared/api/orgApi";
+import { useProjectStore } from "../../../shared/stores/projectStore";
+import {
   useProjectMembers,
   useAddProjectMember,
   useRemoveProjectMember,
@@ -141,10 +135,13 @@ export default function ArtifactsPage() {
   const stateFromUrl = searchParams.get("state") ?? "";
   const cycleNodeIdFromUrl = searchParams.get("cycle_node_id") ?? "";
   const areaNodeIdFromUrl = searchParams.get("area_node_id") ?? "";
-  const { data: projects } = useOrgProjects(orgSlug);
-  const project = projects?.find((p) => p.slug === projectSlug);
+  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
+  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
+  const project =
+    projects?.find((p) => p.slug === projectSlug) ??
+    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
   const { data: manifest } = useProjectManifest(orgSlug, project?.id);
-  const { data: listSchema } = useListSchema(orgSlug, project?.id, "artifact");
+  const { data: listSchema, isLoading: listSchemaLoading, isError: listSchemaError, refetch: refetchListSchema } = useListSchema(orgSlug, project?.id, "artifact");
   const { data: formSchema, isError: formSchemaError, error: formSchemaErr } = useFormSchema(orgSlug, project?.id);
   const formSchema403 = formSchemaError && (formSchemaErr as unknown as ProblemDetail)?.status === 403;
   const { data: taskFormSchema } = useFormSchema(orgSlug, project?.id, "task", "create");
@@ -429,8 +426,6 @@ export default function ArtifactsPage() {
   const createFormValuesRef = useRef<Record<string, unknown>>({});
   /** Type chosen when opening create modal via button (New Epic / New Issue); used as fallback at save so button choice is never lost. */
   const createArtifactTypeIdRef = useRef<string>("");
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null);
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
   const [myTasksMenuAnchor, setMyTasksMenuAnchor] = useState<null | HTMLElement>(null);
   const [detailDrawerTab, setDetailDrawerTab] = useState<"details" | "tasks" | "links" | "attachments" | "comments">("details");
@@ -908,7 +903,6 @@ export default function ArtifactsPage() {
       if (val !== undefined && val !== null) duplicateValues[key] = val;
     }
     openCreateArtifactModal(duplicateValues);
-    handleMenuClose();
   };
 
   const taskCreateInitialValues = useMemo(() => {
@@ -993,22 +987,12 @@ export default function ArtifactsPage() {
     });
   };
 
-  const handleMenuOpen = (e: React.MouseEvent<HTMLElement>, a: Artifact) => {
-    setAnchorEl(e.currentTarget);
-    setSelectedArtifact(a);
-  };
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-    setSelectedArtifact(null);
-  };
-
   const handleOpenTransitionDialog = (artifact: Artifact, targetState: string) => {
     setListState({
       transitionArtifactId: artifact.id,
       transitionTargetState: targetState,
     });
     setListState({ transitionStateReason: "", transitionResolution: "" });
-    handleMenuClose();
   };
   const handleCloseTransitionDialog = () => {
     setListState({
@@ -1078,17 +1062,19 @@ export default function ArtifactsPage() {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <div className="mx-auto max-w-5xl py-6">
       <ProjectBreadcrumbs currentPageLabel="Artifacts" projectName={project?.name} />
 
-      {!project && projectSlug && orgSlug ? (
+      {projectSlug && orgSlug && !projectsLoading && !project ? (
         <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />
+      ) : projectSlug && orgSlug && projectsLoading ? (
+        <div className="py-8 text-center text-muted-foreground">Loading project…</div>
       ) : (
-        <Box>
+        <div>
           <ArtifactsToolbar
             orgSlug={orgSlug}
             projectSlug={projectSlug}
-            project={project}
+            project={project ?? undefined}
             listState={listState}
             setListState={setListState}
             toolbarForm={toolbarForm}
@@ -1117,25 +1103,14 @@ export default function ArtifactsPage() {
 
           <ArtifactsList>
           {selectedIds.size > 0 && !showDeleted && (
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 2,
-                py: 1.5,
-                px: 2,
-                mb: 2,
-                bgcolor: "action.selected",
-                borderRadius: 1,
-              }}
-            >
-              <Typography variant="body2" fontWeight={600}>
+            <div className="mb-4 flex items-center gap-4 rounded-md border border-border bg-muted/50 px-4 py-3">
+              <span className="text-sm font-semibold">
                 {selectedIds.size} selected
-              </Typography>
+              </span>
               {canBulkTransition && (
                 <Button
-                  size="small"
-                  startIcon={<SwapHoriz />}
+                  size="sm"
+                  variant="outline"
                   onClick={() => {
                     setListState({
                       bulkTransitionOpen: true,
@@ -1238,14 +1213,14 @@ export default function ArtifactsPage() {
                   }}
                   disabled={batchTransitionMutation.isPending}
                 >
+                  <ArrowLeftRight className="mr-2 size-4" />
                   Transition
                 </Button>
               )}
               {canBulkDelete && (
                 <Button
-                  size="small"
-                  color="error"
-                  startIcon={<Delete />}
+                  size="sm"
+                  variant="destructive"
                   onClick={() => {
                   modalApi.openBulkDelete({
                     selectedIds: [...selectedIds],
@@ -1279,46 +1254,34 @@ export default function ArtifactsPage() {
                 }}
                   disabled={batchDeleteMutation.isPending}
                 >
+                  <Trash2 className="mr-2 size-4" />
                   Delete
                 </Button>
               )}
-              <Button size="small" onClick={clearSelection}>
+              <Button size="sm" variant="ghost" onClick={clearSelection}>
                 Clear selection
               </Button>
-            </Box>
+            </div>
           )}
 
           {isLoading ? (
-            <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
+            <Skeleton className="h-[200px] rounded-md" />
           ) : viewMode === "board" ? (
-            <Box
-              sx={{
-                display: "flex",
-                gap: 2,
-                overflowX: "auto",
-                pb: 2,
-                minHeight: 400,
-                opacity: isRefetching ? 0.8 : 1,
-              }}
+            <div
+              className="flex gap-4 overflow-x-auto pb-4 min-h-[400px]"
+              style={{ opacity: isRefetching ? 0.8 : 1 }}
               aria-label="Kanban board"
             >
               {filterStates.length === 0 ? (
-                <Typography color="text.secondary" sx={{ py: 4 }}>
+                <p className="py-8 text-muted-foreground">
                   No workflow states in manifest. Define workflows in Process manifest to use the board.
-                </Typography>
+                </p>
               ) : (
               filterStates.map((state) => (
-                <Paper
+                <div
                   key={state}
-                  variant="outlined"
-                  sx={{
-                    minWidth: 240,
-                    maxWidth: 280,
-                    flex: "0 0 260px",
-                    display: "flex",
-                    flexDirection: "column",
-                    bgcolor: "action.hover",
-                  }}
+                  className="flex min-w-[240px] max-w-[280px] flex-shrink-0 flex flex-col rounded-lg border bg-muted/50"
+                  style={{ width: 260 }}
                   onDragOver={(e) => {
                     e.preventDefault();
                     e.currentTarget.setAttribute("data-drag-over", "true");
@@ -1342,25 +1305,15 @@ export default function ArtifactsPage() {
                     );
                   }}
                 >
-                  <Typography
-                    variant="subtitle2"
-                    fontWeight={600}
-                    sx={{ p: 1.5, borderBottom: 1, borderColor: "divider" }}
-                  >
+                  <p className="border-b px-3 py-2 text-sm font-semibold">
                     {state.replace(/_/g, " ")}
-                  </Typography>
-                  <Box sx={{ flex: 1, p: 1, overflowY: "auto", minHeight: 120 }}>
+                  </p>
+                  <div className="flex-1 overflow-y-auto p-2 min-h-[120px]">
                     {(artifactsByState[state] ?? []).map((a) => (
-                      <Paper
+                      <div
                         key={a.id}
-                        variant="outlined"
-                        sx={{
-                          p: 1,
-                          mb: 1,
-                          cursor: a.allowed_actions?.includes("transition") ? "grab" : "default",
-                          "&:active": { cursor: a.allowed_actions?.includes("transition") ? "grabbing" : "default" },
-                          "&:hover": { bgcolor: "action.selected" },
-                        }}
+                        className="mb-2 rounded border p-2 cursor-grab active:cursor-grabbing hover:bg-muted"
+                        style={{ cursor: a.allowed_actions?.includes("transition") ? "grab" : "default" }}
                         draggable={a.allowed_actions?.includes("transition") ?? true}
                         onDragStart={(e) => {
                           if (!a.allowed_actions?.includes("transition")) {
@@ -1380,31 +1333,31 @@ export default function ArtifactsPage() {
                           });
                         }}
                       >
-                        <Typography variant="body2" fontWeight={500} noWrap>
+                        <p className="truncate text-sm font-medium">
                           {a.artifact_key ?? a.id.slice(0, 8)} — {a.title}
-                        </Typography>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
-                          <Typography variant="caption" color="text.secondary">
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          <span className="text-xs text-muted-foreground">
                             {a.artifact_type}
-                          </Typography>
+                          </span>
                           {(a.custom_fields?.priority != null && String(a.custom_fields.priority) !== "") && (
-                            <Chip size="small" label={String(a.custom_fields.priority)} sx={{ height: 18, fontSize: "0.7rem" }} />
+                            <Badge variant="secondary" className="h-[18px] text-[0.7rem]">{String(a.custom_fields.priority)}</Badge>
                           )}
                           {a.assignee_id && (
-                            <Typography variant="caption" color="text.secondary" noWrap title={members?.find((m) => m.user_id === a.assignee_id)?.display_name || members?.find((m) => m.user_id === a.assignee_id)?.email || a.assignee_id}>
+                            <span className="truncate text-xs text-muted-foreground" title={members?.find((m) => m.user_id === a.assignee_id)?.display_name || members?.find((m) => m.user_id === a.assignee_id)?.email || a.assignee_id}>
                               {(members?.find((m) => m.user_id === a.assignee_id)?.display_name || members?.find((m) => m.user_id === a.assignee_id)?.email || a.assignee_id).slice(0, 14)}
-                            </Typography>
+                            </span>
                           )}
-                        </Box>
-                      </Paper>
+                        </div>
+                      </div>
                     ))}
-                  </Box>
-                </Paper>
+                  </div>
+                </div>
               ))
               )}
-            </Box>
+            </div>
           ) : viewMode === "table" && listSchema ? (
-            <Box sx={{ opacity: isRefetching ? 0.7 : 1, transition: "opacity 0.2s" }}>
+            <div className="transition-opacity duration-200" style={{ opacity: isRefetching ? 0.7 : 1 }}>
               <MetadataDrivenList<Artifact>
                 schema={listSchema}
                 data={artifacts ?? []}
@@ -1421,11 +1374,11 @@ export default function ArtifactsPage() {
                 onToggleSelect={toggleSelect}
                 onSelectAll={handleSelectAllInTable}
                 renderRowActions={(row) => (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, justifyContent: "flex-end" }}>
+                  <div className="flex items-center justify-end gap-1">
                     {showDeleted && (
                       <Button
-                        size="small"
-                        variant="outlined"
+                        size="sm"
+                        variant="outline"
                         onClick={(e) => {
                           e.stopPropagation();
                           restoreMutation.mutate(row.id, {
@@ -1441,17 +1394,72 @@ export default function ArtifactsPage() {
                         Restore
                       </Button>
                     )}
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMenuOpen(e, row);
-                      }}
-                      aria-label="Actions"
-                    >
-                      <MoreVert />
-                    </IconButton>
-                  </Box>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label="Actions"
+                        >
+                          <MoreHorizontal className="size-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        {row.allowed_actions?.includes("transition") &&
+                          getValidTransitions(manifest, row.artifact_type, row.state).map((targetState) => (
+                            <TransitionMenuItem
+                              key={targetState}
+                              artifact={row}
+                              targetState={targetState}
+                              onSelect={() => handleOpenTransitionDialog(row, targetState)}
+                            />
+                          ))}
+                        {row.allowed_actions?.includes("transition") &&
+                          getValidTransitions(manifest, row.artifact_type, row.state).length === 0 && (
+                            <DropdownMenuItem disabled>No valid transitions</DropdownMenuItem>
+                          )}
+                        {row.allowed_actions?.includes("create") && (
+                          <DropdownMenuItem onClick={() => handleDuplicate(row)}>
+                            <Copy className="mr-2 size-4" />
+                            Duplicate
+                          </DropdownMenuItem>
+                        )}
+                        {row.allowed_actions?.includes("delete") && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => {
+                              modalApi.openDeleteArtifact({
+                                artifact: { id: row.id, title: row.title, artifact_key: row.artifact_key },
+                                onConfirm: () => {
+                                  deleteMutation.mutate(row.id, {
+                                    onSuccess: () => {
+                                      if (detailArtifact?.id === row.id) {
+                                        setListState({ detailArtifactId: null });
+                                        setSearchParams((prev) => {
+                                          const p = new URLSearchParams(prev);
+                                          p.delete("artifact");
+                                          return p;
+                                        });
+                                      }
+                                      showNotification("Artifact deleted successfully.", "success");
+                                    },
+                                    onError: (error: Error) => {
+                                      const body = (error as unknown as { body?: ProblemDetail })?.body;
+                                      showNotification(body?.detail ?? "Failed to delete artifact", "error");
+                                    },
+                                  });
+                                },
+                              });
+                            }}
+                          >
+                            <Trash2 className="mr-2 size-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 )}
                 emptyMessage={
                   stateFilter || typeFilter || cycleNodeFilter || areaNodeFilter || searchQuery
@@ -1467,29 +1475,41 @@ export default function ArtifactsPage() {
                   });
                 }}
               />
-            </Box>
+            </div>
           ) : viewMode === "table" ? (
-            <Paper variant="outlined" sx={{ p: 4, textAlign: "center" }}>
-              <Typography color="text.secondary">
-                List schema is loading or not available. Switch to Board or Tree view, or try again later.
-              </Typography>
-            </Paper>
+            <div className="rounded-lg border p-8 text-center">
+              {listSchemaLoading ? (
+                <p className="text-muted-foreground">Loading list schema…</p>
+              ) : listSchemaError ? (
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-muted-foreground">
+                    Could not load list schema. Switch to Board or Tree view, or try again.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => refetchListSchema()}>
+                    Try again
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  List schema is not available. Switch to Board or Tree view, or try again later.
+                </p>
+              )}
+            </div>
           ) : (
-            <Paper
-              variant="outlined"
-              sx={{ opacity: isRefetching ? 0.7 : 1, transition: "opacity 0.2s" }}
+            <div
+              className="rounded-lg border transition-opacity duration-200"
+              style={{ opacity: isRefetching ? 0.7 : 1 }}
             >
               {artifacts?.length === 0 ? (
-                <Box sx={{ py: 4, px: 2, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                  <Typography color="text.secondary">
+                <div className="flex flex-col items-center gap-2 py-8 px-4 text-center">
+                  <p className="text-muted-foreground">
                     {(stateFilter || typeFilter || cycleNodeFilter || areaNodeFilter || searchQuery)
                       ? "No artifacts match your filters."
                       : "No artifacts yet. Create one to get started."}
-                  </Typography>
+                  </p>
                   {(stateFilter || typeFilter || cycleNodeFilter || areaNodeFilter || searchQuery) && (
                     <Button
-                      size="small"
-                      startIcon={<FilterListOff />}
+                      size="sm"
                       onClick={() =>
                         setListState({
                           stateFilter: "",
@@ -1499,19 +1519,70 @@ export default function ArtifactsPage() {
                         })
                       }
                     >
+                      <FilterX className="size-4" />
                       Clear filters
                     </Button>
                   )}
-                </Box>
+                </div>
               ) : (
-                <List disablePadding>
+                <ul className="list-none p-0">
                   {buildArtifactTree(artifacts ?? []).map((node) => (
                     <ArtifactTreeNode
                       key={node.id}
                       node={node}
                       manifest={manifest}
                       customFieldColumns={customFieldColumns}
-                      onMenuOpen={handleMenuOpen}
+                      renderMenuContent={(artifact) => (
+                        <>
+                          {artifact.allowed_actions?.includes("transition") &&
+                            getValidTransitions(manifest, artifact.artifact_type, artifact.state).map((targetState) => (
+                              <TransitionMenuItem
+                                key={targetState}
+                                artifact={artifact}
+                                targetState={targetState}
+                                onSelect={() => handleOpenTransitionDialog(artifact, targetState)}
+                              />
+                            ))}
+                          {artifact.allowed_actions?.includes("create") && (
+                            <DropdownMenuItem onClick={() => handleDuplicate(artifact)}>
+                              <Copy className="mr-2 size-4" />
+                              Duplicate
+                            </DropdownMenuItem>
+                          )}
+                          {artifact.allowed_actions?.includes("delete") && (
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => {
+                                modalApi.openDeleteArtifact({
+                                  artifact: { id: artifact.id, title: artifact.title, artifact_key: artifact.artifact_key },
+                                  onConfirm: () => {
+                                    deleteMutation.mutate(artifact.id, {
+                                      onSuccess: () => {
+                                        if (detailArtifact?.id === artifact.id) {
+                                          setListState({ detailArtifactId: null });
+                                          setSearchParams((prev) => {
+                                            const p = new URLSearchParams(prev);
+                                            p.delete("artifact");
+                                            return p;
+                                          });
+                                        }
+                                        showNotification("Artifact deleted successfully.", "success");
+                                      },
+                                      onError: (error: Error) => {
+                                        const body = (error as unknown as { body?: ProblemDetail })?.body;
+                                        showNotification(body?.detail ?? "Failed to delete artifact", "error");
+                                      },
+                                    });
+                                  },
+                                });
+                              }}
+                            >
+                              <Trash2 className="mr-2 size-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </>
+                      )}
                       onSelect={(a) => {
                         setListState({ detailArtifactId: a.id });
                         setSearchParams((prev) => {
@@ -1527,142 +1598,76 @@ export default function ArtifactsPage() {
                       projectId={project?.id}
                     />
                   ))}
-                </List>
+                </ul>
               )}
-            </Paper>
+            </div>
           )}
 
-          <TablePagination
-            component="div"
-            count={totalArtifacts}
-            page={page}
-            onPageChange={(_, newPage) => setListState({ page: newPage })}
-            rowsPerPage={pageSize}
-            onRowsPerPageChange={(e) =>
-              setListState({ pageSize: parseInt(e.target.value, 10), page: 0 })
-            }
-            rowsPerPageOptions={[10, 20, 50, 100]}
-            labelRowsPerPage="Per page:"
-            sx={{ borderTop: 1, borderColor: "divider" }}
-          />
-
-          <Menu
-            anchorEl={anchorEl}
-            open={!!anchorEl}
-            onClose={handleMenuClose}
-            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-          >
-            {selectedArtifact &&
-              selectedArtifact.allowed_actions?.includes("transition") &&
-              getValidTransitions(
-                manifest,
-                selectedArtifact.artifact_type,
-                selectedArtifact.state,
-              ).map((targetState) => (
-                <TransitionMenuItem
-                  key={targetState}
-                  artifact={selectedArtifact}
-                  targetState={targetState}
-                  onSelect={() => handleOpenTransitionDialog(selectedArtifact, targetState)}
-                />
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2">
+            <span className="text-sm text-muted-foreground">Per page:</span>
+            <select
+              className="rounded-md border bg-background px-2 py-1 text-sm"
+              value={pageSize}
+              onChange={(e) =>
+                setListState({ pageSize: parseInt(e.target.value, 10), page: 0 })
+              }
+            >
+              {[10, 20, 50, 100].map((n) => (
+                <option key={n} value={n}>{n}</option>
               ))}
-            {selectedArtifact &&
-              selectedArtifact.allowed_actions?.includes("transition") &&
-              getValidTransitions(
-                manifest,
-                selectedArtifact.artifact_type,
-                selectedArtifact.state,
-              ).length === 0 && (
-                <MenuItem disabled>No valid transitions</MenuItem>
-              )}
-            {selectedArtifact && (
-              <>
-                <Divider />
-                {selectedArtifact.allowed_actions?.includes("create") && (
-                  <MenuItem onClick={() => handleDuplicate(selectedArtifact)}>
-                    <ListItemIcon>
-                      <ContentCopy fontSize="small" />
-                    </ListItemIcon>
-                    Duplicate
-                  </MenuItem>
-                )}
-                {selectedArtifact.allowed_actions?.includes("delete") && (
-                  <MenuItem
-                    onClick={() => {
-                      if (!selectedArtifact) return;
-                      modalApi.openDeleteArtifact({
-                        artifact: {
-                          id: selectedArtifact.id,
-                          title: selectedArtifact.title,
-                          artifact_key: selectedArtifact.artifact_key,
-                        },
-                        onConfirm: () => {
-                          deleteMutation.mutate(selectedArtifact.id, {
-                            onSuccess: () => {
-                              if (detailArtifact?.id === selectedArtifact.id) {
-                                setListState({ detailArtifactId: null });
-                                setSearchParams((prev) => {
-                                  const p = new URLSearchParams(prev);
-                                  p.delete("artifact");
-                                  return p;
-                                });
-                              }
-                              showNotification("Artifact deleted successfully.", "success");
-                            },
-                            onError: (error: Error) => {
-                              const body = (error as unknown as { body?: ProblemDetail })?.body;
-                              showNotification(
-                                body?.detail ?? "Failed to delete artifact",
-                                "error",
-                              );
-                            },
-                          });
-                        },
-                      });
-                      handleMenuClose();
-                    }}
-                    sx={{ color: "error.main" }}
-                  >
-                    <ListItemIcon sx={{ color: "error.main" }}>
-                      <Delete fontSize="small" />
-                    </ListItemIcon>
-                    Delete
-                  </MenuItem>
-                )}
-              </>
-            )}
-          </Menu>
+            </select>
+            <span className="text-sm text-muted-foreground">
+              {page * pageSize + 1}-{Math.min(page * pageSize + pageSize, totalArtifacts)} of {totalArtifacts}
+            </span>
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setListState({ page: page - 1 })}
+                disabled={page <= 0}
+              >
+                Previous
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setListState({ page: page + 1 })}
+                disabled={page >= Math.ceil(totalArtifacts / pageSize) - 1}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+
           </ArtifactsList>
-        </Box>
+        </div>
       )}
 
-      <Drawer
-        anchor="right"
+      <Sheet
         open={!!detailArtifact || detailDrawerLoadingFromUrl}
-        onClose={() => {
-          setListState({ detailArtifactId: null });
-          setListState({ detailDrawerEditing: false });
-          setSearchParams((prev) => {
-            const p = new URLSearchParams(prev);
-            p.delete("artifact");
-            return p;
-          });
-        }}
-        slotProps={{
-          backdrop: { sx: { bgcolor: "rgba(0,0,0,0.2)" } },
-          root: { "aria-label": "Artifact details" },
+        onOpenChange={(open) => {
+          if (!open) {
+            setListState({ detailArtifactId: null, detailDrawerEditing: false });
+            setSearchParams((prev) => {
+              const p = new URLSearchParams(prev);
+              p.delete("artifact");
+              return p;
+            });
+          }
         }}
       >
+        <SheetContent side="right" className="w-full sm:max-w-[420px] p-4" aria-label="Artifact details">
         <ArtifactDetailDrawer>
-        <Box sx={{ width: { xs: "100%", sm: 420 }, p: 2 }} role="document" aria-label="Artifact details">
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        <div className="w-full sm:w-[420px] p-4" role="document" aria-label="Artifact details">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
               {detailArtifact && !detailDrawerLoadingFromUrl && (
                 <>
-                  <Tooltip title="Previous artifact">
-                    <span>
-                      <IconButton
-                        size="small"
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
                         onClick={() => {
                           if (detailDrawerPrevNext.prevId) {
                             setListState({ detailArtifactId: detailDrawerPrevNext.prevId });
@@ -1676,14 +1681,16 @@ export default function ArtifactsPage() {
                         disabled={!detailDrawerPrevNext.prevId}
                         aria-label="Previous artifact"
                       >
-                        <ChevronLeft />
-                      </IconButton>
-                    </span>
+                        <ChevronLeft className="size-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Previous artifact</TooltipContent>
                   </Tooltip>
-                  <Tooltip title="Next artifact">
-                    <span>
-                      <IconButton
-                        size="small"
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
                         onClick={() => {
                           if (detailDrawerPrevNext.nextId) {
                             setListState({ detailArtifactId: detailDrawerPrevNext.nextId });
@@ -1697,92 +1704,103 @@ export default function ArtifactsPage() {
                         disabled={!detailDrawerPrevNext.nextId}
                         aria-label="Next artifact"
                       >
-                        <ChevronRight />
-                      </IconButton>
-                    </span>
+                        <ChevronRight className="size-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Next artifact</TooltipContent>
                   </Tooltip>
                 </>
               )}
-            </Box>
-            <Typography variant="h6" sx={{ flex: 1, minWidth: 0 }}>Artifact details</Typography>
-            <Box sx={{ display: "flex", gap: 0.5 }}>
+            </div>
+            <h2 className="min-w-0 flex-1 text-lg font-semibold">Artifact details</h2>
+            <div className="flex gap-1">
               {detailDrawerLoadingFromUrl && (
-                <Typography variant="body2" color="text.secondary">
-                  Loading…
-                </Typography>
+                <span className="text-sm text-muted-foreground">Loading…</span>
               )}
               {detailArtifact && !detailDrawerEditing && (
                 <>
-                  <Tooltip title="Copy link">
-                    <IconButton
-                      size="small"
-                      onClick={() => {
-                        const url = `${window.location.origin}${window.location.pathname}?artifact=${detailArtifact.id}`;
-                        void navigator.clipboard.writeText(url);
-                        showNotification("Link copied to clipboard", "success");
-                      }}
-                      aria-label="Copy link to artifact"
-                    >
-                      <LinkIcon fontSize="small" />
-                    </IconButton>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
+                        onClick={() => {
+                          const url = `${window.location.origin}${window.location.pathname}?artifact=${detailArtifact.id}`;
+                          void navigator.clipboard.writeText(url);
+                          showNotification("Link copied to clipboard", "success");
+                        }}
+                        aria-label="Copy link to artifact"
+                      >
+                        <LinkIcon className="size-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Copy link</TooltipContent>
                   </Tooltip>
                   {detailArtifact.allowed_actions?.includes("update") && (
-                    <Tooltip title="Edit">
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          setEditFormValues({
-                            title: detailArtifact.title,
-                            description: detailArtifact.description ?? "",
-                            assignee_id: detailArtifact.assignee_id ?? "",
-                            cycle_node_id: detailArtifact.cycle_node_id ?? "",
-                            area_node_id: detailArtifact.area_node_id ?? "",
-                          });
-                          setEditFormErrors({});
-                          setListState({ detailDrawerEditing: true });
-                        }}
-                        aria-label="Edit artifact"
-                      >
-                        <Edit fontSize="small" />
-                      </IconButton>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
+                          onClick={() => {
+                            setEditFormValues({
+                              title: detailArtifact.title,
+                              description: detailArtifact.description ?? "",
+                              assignee_id: detailArtifact.assignee_id ?? "",
+                              cycle_node_id: detailArtifact.cycle_node_id ?? "",
+                              area_node_id: detailArtifact.area_node_id ?? "",
+                            });
+                            setEditFormErrors({});
+                            setListState({ detailDrawerEditing: true });
+                          }}
+                          aria-label="Edit artifact"
+                        >
+                          <Pencil className="size-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit</TooltipContent>
                     </Tooltip>
                   )}
                 </>
               )}
               {!detailDrawerLoadingFromUrl && (
-                <Tooltip title="Close (Escape)">
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      setListState({ detailArtifactId: null, detailDrawerEditing: false });
-                      setSearchParams((prev) => {
-                        const p = new URLSearchParams(prev);
-                        p.delete("artifact");
-                        return p;
-                      });
-                    }}
-                    aria-label="Close"
-                  >
-                    <Close />
-                  </IconButton>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
+                      onClick={() => {
+                        setListState({ detailArtifactId: null, detailDrawerEditing: false });
+                        setSearchParams((prev) => {
+                          const p = new URLSearchParams(prev);
+                          p.delete("artifact");
+                          return p;
+                        });
+                      }}
+                      aria-label="Close"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Close (Escape)</TooltipContent>
                 </Tooltip>
               )}
-            </Box>
-          </Box>
+            </div>
+          </div>
           {detailDrawerLoadingFromUrl && (
-            <Box sx={{ py: 2 }}>
-              <Skeleton variant="text" width="60%" height={24} sx={{ mb: 1 }} />
-              <Skeleton variant="text" width="90%" height={32} sx={{ mb: 2 }} />
-              <Skeleton variant="rectangular" height={80} sx={{ borderRadius: 1 }} />
-            </Box>
+            <div className="py-4">
+              <Skeleton className="mb-2 h-6 w-[60%]" />
+              <Skeleton className="mb-4 h-8 w-[90%]" />
+              <Skeleton className="h-20 rounded-md" />
+            </div>
           )}
           {detailArtifact && !detailDrawerLoadingFromUrl && (
             <>
-              <Typography variant="overline" color="text.secondary" fontFamily="monospace">
+              <p className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
                 {detailArtifact.artifact_key ?? detailArtifact.id}
-              </Typography>
+              </p>
               {detailDrawerEditing ? (
-                <Box sx={{ mt: 1 }}>
+                <div className="mt-2">
                   {editFormSchema ? (
                     <MetadataDrivenForm
                       schema={editFormSchema}
@@ -1829,10 +1847,11 @@ export default function ArtifactsPage() {
                       areaOptions={areaNodesFlat.map((a) => ({ id: a.id, label: areaNodeDisplayLabel(a) }))}
                     />
                   ) : (
-                    <Typography color="text.secondary">Loading form…</Typography>
+                    <p className="text-muted-foreground">Loading form…</p>
                   )}
-                  <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end", mt: 2 }}>
+                  <div className="mt-4 flex justify-end gap-2">
                     <Button
+                      variant="outline"
                       onClick={() => setListState({ detailDrawerEditing: false })}
                       disabled={updateArtifactMutation.isPending}
                     >
@@ -1840,7 +1859,6 @@ export default function ArtifactsPage() {
                     </Button>
                     {editFormSchema && (
                       <Button
-                        variant="contained"
                         disabled={updateArtifactMutation.isPending || !(editFormValues.title as string)?.trim()}
                         onClick={() => {
                           const titleTrim = (editFormValues.title as string)?.trim();
@@ -1878,30 +1896,30 @@ export default function ArtifactsPage() {
                         Save
                       </Button>
                     )}
-                  </Box>
-                </Box>
+                  </div>
+                </div>
               ) : (
                 <>
-                  <Typography variant="h6" sx={{ mt: 0.5, mb: 1 }}>
+                  <h3 className="mb-2 mt-1 text-lg font-semibold">
                     {detailArtifact.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  </h3>
+                  <p className="mb-2 text-sm text-muted-foreground">
                     Type: {detailArtifact.artifact_type} · State: {detailArtifact.state}
-                  </Typography>
+                  </p>
                   {!detailDrawerEditing && (detailArtifact.created_at || detailArtifact.updated_at) && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    <p className="mb-2 text-sm text-muted-foreground">
                       {detailArtifact.created_at && <>Created: {formatDateTime(detailArtifact.created_at)}</>}
                       {detailArtifact.created_at && detailArtifact.updated_at && " · "}
                       {detailArtifact.updated_at && <>Updated: {formatDateTime(detailArtifact.updated_at)}</>}
-                    </Typography>
+                    </p>
                   )}
                   {!detailDrawerEditing && detailArtifact.assignee_id && (
-                    <Typography variant="body2" sx={{ mb: 1 }}>
+                    <p className="mb-2 text-sm">
                       <strong>Assignee:</strong>{" "}
                       {members?.find((m) => m.user_id === detailArtifact.assignee_id)?.display_name ||
                         members?.find((m) => m.user_id === detailArtifact.assignee_id)?.email ||
                         detailArtifact.assignee_id}
-                    </Typography>
+                    </p>
                   )}
                   {!detailDrawerEditing &&
                     detailArtifact.allowed_actions?.includes("transition") &&
@@ -1910,8 +1928,8 @@ export default function ArtifactsPage() {
                       detailArtifact.artifact_type,
                       detailArtifact.state,
                     ).length > 0 && (
-                    <Box sx={{ mt: 1.5, mb: 2 }}>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    <div className="mb-4 mt-3">
+                      <div className="flex flex-wrap gap-2">
                         {getValidTransitions(
                           manifest,
                           detailArtifact.artifact_type,
@@ -1919,8 +1937,8 @@ export default function ArtifactsPage() {
                         ).map((targetState) => (
                           <Button
                             key={targetState}
-                            size="small"
-                            variant="outlined"
+                            size="sm"
+                            variant="outline"
                             onClick={() => {
                               handleOpenTransitionDialog(detailArtifact, targetState);
                             }}
@@ -1928,41 +1946,33 @@ export default function ArtifactsPage() {
                             Move to {targetState}
                           </Button>
                         ))}
-                      </Box>
-                    </Box>
+                      </div>
+                    </div>
                   )}
-                  <Tabs
-                    value={detailDrawerTab}
-                    onChange={(_, v) => setDetailDrawerTab(v)}
-                    variant="scrollable"
-                    scrollButtons="auto"
-                    sx={{ minHeight: 40, mb: 1 }}
-                  >
-                    <Tab label="Details" value="details" />
-                    <Tab label={`Tasks (${tasks.length})`} value="tasks" />
-                    <Tab label={`Links (${artifactLinks.length})`} value="links" />
-                    <Tab label={`Attachments (${attachments.length})`} value="attachments" />
-                    <Tab label={`Comments (${comments.length})`} value="comments" />
-                  </Tabs>
-                  {detailDrawerTab === "details" && (
-                    <Box sx={{ py: 1 }}>
+                  <Tabs value={detailDrawerTab} onValueChange={(v) => setDetailDrawerTab(v as typeof detailDrawerTab)} className="mb-2 min-h-[40px]">
+                    <TabsList className="w-full">
+                      <TabsTrigger value="details">Details</TabsTrigger>
+                      <TabsTrigger value="tasks">Tasks ({tasks.length})</TabsTrigger>
+                      <TabsTrigger value="links">Links ({artifactLinks.length})</TabsTrigger>
+                      <TabsTrigger value="attachments">Attachments ({attachments.length})</TabsTrigger>
+                      <TabsTrigger value="comments">Comments ({comments.length})</TabsTrigger>
+                    </TabsList>
+                  <TabsContent value="details" className="py-2">
                       {detailArtifact.description && (
-                        <Typography variant="body2" sx={{ mb: 2 }}>
-                          {detailArtifact.description}
-                        </Typography>
+                        <p className="mb-4 text-sm">{detailArtifact.description}</p>
                       )}
                       {detailArtifact.state_reason && (
-                        <Typography variant="body2" sx={{ mb: 1 }}>
+                        <p className="mb-2 text-sm">
                           <strong>State reason:</strong> {detailArtifact.state_reason}
-                        </Typography>
+                        </p>
                       )}
                       {detailArtifact.resolution && (
-                        <Typography variant="body2" sx={{ mb: 2 }}>
+                        <p className="mb-4 text-sm">
                           <strong>Resolution:</strong> {detailArtifact.resolution}
-                        </Typography>
+                        </p>
                       )}
                       {(detailArtifact.cycle_node_id || detailArtifact.area_node_id) && (
-                        <Typography variant="body2" sx={{ mb: 2 }}>
+                        <p className="mb-4 text-sm">
                           {detailArtifact.cycle_node_id && (
                             <>
                               <strong>Cycle:</strong>{" "}
@@ -1981,38 +1991,47 @@ export default function ArtifactsPage() {
                               })()}
                             </>
                           )}
-                        </Typography>
+                        </p>
                       )}
                       {detailArtifact.custom_fields && Object.keys(detailArtifact.custom_fields).length > 0 && (
-                        <Box sx={{ mt: 2 }}>
-                          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                            Custom fields
-                          </Typography>
+                        <div className="mt-4">
+                          <p className="mb-2 text-sm font-medium text-muted-foreground">Custom fields</p>
                           {Object.entries(detailArtifact.custom_fields).map(([key, val]) => (
-                            <Typography key={key} variant="body2">
+                            <p key={key} className="text-sm">
                               {key}: {String(val)}
-                            </Typography>
+                            </p>
                           ))}
-                        </Box>
+                        </div>
                       )}
-                    </Box>
-                  )}
+                    </TabsContent>
                   {detailDrawerTab === "tasks" && (
-                    <Box sx={{ py: 1 }}>
+                    <TabsContent value="tasks" className="py-2">
                   {tasksLoading ? (
-                    <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 1 }} />
+                    <Skeleton className="h-16 rounded-md" />
                   ) : (
                     <>
-                      <List dense disablePadding>
+                      <ul className="space-y-1">
                         {tasks.map((task) => (
-                          <ListItem
+                          <li
                             key={task.id}
-                            secondaryAction={
-                              <Box sx={{ display: "flex", gap: 0.5 }}>
-                                <IconButton
-                                  size="small"
-                                  aria-label="Edit task"
-                                  onClick={() => {
+                            className="flex items-center justify-between gap-2 py-2"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium">{task.title}</p>
+                              <div className="flex flex-wrap items-center gap-1">
+                                <Badge variant="outline" className="text-xs">{task.state}</Badge>
+                                {task.assignee_id &&
+                                  (members?.find((m) => m.user_id === task.assignee_id)?.display_name ||
+                                    members?.find((m) => m.user_id === task.assignee_id)?.email ||
+                                    task.assignee_id)}
+                              </div>
+                            </div>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
+                                aria-label="Edit task"
+                                onClick={() => {
                                     const editValues = {
                                       title: task.title,
                                       description: task.description ?? "",
@@ -2057,68 +2076,43 @@ export default function ArtifactsPage() {
                                     });
                                   }}
                                 >
-                                  <Edit fontSize="small" />
-                                </IconButton>
-                                <IconButton
-                                  size="small"
-                                  aria-label="Delete task"
-                                  onClick={() => {
-                                    modalApi.openConfirm(
-                                      {
-                                        message: "Delete this task?",
-                                        confirmLabel: "Delete",
-                                        variant: "destructive",
-                                        onConfirm: () => {
-                                          deleteTaskMutation.mutate(task.id, {
-                                            onError: (err: Error) => {
-                                              const body = (err as unknown as { body?: ProblemDetail })?.body;
-                                              showNotification(
-                                                body?.detail ?? "Failed to delete task",
-                                                "error",
-                                              );
-                                            },
-                                          });
-                                        },
+                                  <Pencil className="size-4" />
+                                </button>
+                              <button
+                                type="button"
+                                className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted text-destructive"
+                                aria-label="Delete task"
+                                onClick={() => {
+                                  modalApi.openConfirm(
+                                    {
+                                      message: "Delete this task?",
+                                      confirmLabel: "Delete",
+                                      variant: "destructive",
+                                      onConfirm: () => {
+                                        deleteTaskMutation.mutate(task.id, {
+                                          onError: (err: Error) => {
+                                            const body = (err as unknown as { body?: ProblemDetail })?.body;
+                                            showNotification(
+                                              body?.detail ?? "Failed to delete task",
+                                              "error",
+                                            );
+                                          },
+                                        });
                                       },
-                                      { title: "Delete task" },
-                                    );
-                                  }}
-                                >
-                                  <Delete fontSize="small" />
-                                </IconButton>
-                              </Box>
-                            }
-                            sx={{ py: 0.5, px: 0 }}
-                          >
-                            <ListItemIcon sx={{ minWidth: 32 }}>
-                              {task.state === "done" ? (
-                                <CheckCircle fontSize="small" color="primary" />
-                              ) : (
-                                <RadioButtonUnchecked fontSize="small" color="action" />
-                              )}
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={task.title}
-                              secondary={
-                                <>
-                                  <Chip
-                                    size="small"
-                                    label={task.state}
-                                    sx={{ mr: 0.5, mt: 0.25 }}
-                                  />
-                                  {task.assignee_id &&
-                                    (members?.find((m) => m.user_id === task.assignee_id)?.display_name ||
-                                      members?.find((m) => m.user_id === task.assignee_id)?.email ||
-                                      task.assignee_id)}
-                                </>
-                              }
-                            />
-                          </ListItem>
+                                    },
+                                    { title: "Delete task" },
+                                  );
+                                }}
+                              >
+                                <Trash2 className="size-4" />
+                              </button>
+                            </div>
+                          </li>
                         ))}
-                      </List>
+                      </ul>
                       <Button
-                        size="small"
-                        startIcon={<Add />}
+                        size="sm"
+                        className="mt-2"
                         onClick={() => {
                           const payloadFromValues = (v: Record<string, unknown>): CreateTaskRequest => ({
                             title: (v.title as string)?.trim() ?? "",
@@ -2154,22 +2148,21 @@ export default function ArtifactsPage() {
                           });
                         }}
                       >
+                        <Plus className="size-4" />
                         Add task
                       </Button>
                     </>
                   )}
-                    </Box>
+                    </TabsContent>
                   )}
                   {detailDrawerTab === "links" && (
-                    <Box sx={{ py: 1 }}>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Links
-                  </Typography>
+                    <TabsContent value="links" className="py-2">
+                  <p className="mb-2 text-sm font-medium text-muted-foreground">Links</p>
                   {linksLoading ? (
-                    <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 1 }} />
+                    <Skeleton className="h-16 rounded-md" />
                   ) : (
                     <>
-                      <List dense disablePadding>
+                      <ul className="space-y-2">
                         {artifactLinks.map((link: ArtifactLink) => {
                           const otherId =
                             link.from_artifact_id === detailArtifact?.id
@@ -2179,68 +2172,52 @@ export default function ArtifactsPage() {
                           const otherArtifact = artifacts?.find((a) => a.id === otherId);
                           const otherTitle = otherArtifact?.title ?? `Artifact ${otherId.slice(0, 8)}…`;
                           return (
-                            <ListItem
-                              key={link.id}
-                              secondaryAction={
-                                <IconButton
-                                  size="small"
-                                  aria-label="Remove link"
-                                  onClick={() => {
-                                    modalApi.openConfirm(
-                                      {
-                                        message: "Remove this link?",
-                                        confirmLabel: "Remove",
-                                        variant: "destructive",
-                                        onConfirm: () => {
-                                          deleteLinkMutation.mutate(link.id, {
-                                            onError: (err: Error) => {
-                                              const body = (err as unknown as { body?: ProblemDetail })?.body;
-                                              showNotification(
-                                                body?.detail ?? "Failed to remove link",
-                                                "error",
-                                              );
-                                            },
-                                          });
-                                        },
-                                      },
-                                      { title: "Remove link" },
-                                    );
-                                  }}
+                            <li key={link.id} className="flex items-center justify-between gap-2 py-1">
+                              <div>
+                                <Link
+                                  to={`/${orgSlug}/${projectSlug}/artifacts?artifact=${otherId}`}
+                                  className="font-medium text-foreground hover:underline"
+                                  onClick={() => setListState({ detailArtifactId: otherId })}
                                 >
-                                  <Delete fontSize="small" />
-                                </IconButton>
-                              }
-                              sx={{ py: 0.5, px: 0 }}
-                            >
-                              <ListItemIcon sx={{ minWidth: 32 }}>
-                                <LinkIcon fontSize="small" color="action" />
-                              </ListItemIcon>
-                              <ListItemText
-                                primary={
-                                  <MuiLink
-                                    component={Link}
-                                    to={`/${orgSlug}/${projectSlug}/artifacts?artifact=${otherId}`}
-                                    underline="hover"
-                                    onClick={() => setListState({ detailArtifactId: otherId })}
-                                  >
-                                    {otherTitle}
-                                  </MuiLink>
-                                }
-                                secondary={
-                                  <Chip
-                                    size="small"
-                                    label={`${isOutgoing ? "→" : "←"} ${link.link_type}`}
-                                    sx={{ mt: 0.25 }}
-                                  />
-                                }
-                              />
-                            </ListItem>
+                                  {otherTitle}
+                                </Link>
+                                <Badge variant="secondary" className="ml-1 text-xs">{isOutgoing ? "→" : "←"} {link.link_type}</Badge>
+                              </div>
+                              <button
+                                type="button"
+                                className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted text-destructive"
+                                aria-label="Remove link"
+                                onClick={() => {
+                                  modalApi.openConfirm(
+                                    {
+                                      message: "Remove this link?",
+                                      confirmLabel: "Remove",
+                                      variant: "destructive",
+                                      onConfirm: () => {
+                                        deleteLinkMutation.mutate(link.id, {
+                                          onError: (err: Error) => {
+                                            const body = (err as unknown as { body?: ProblemDetail })?.body;
+                                            showNotification(
+                                              body?.detail ?? "Failed to remove link",
+                                              "error",
+                                            );
+                                          },
+                                        });
+                                      },
+                                    },
+                                    { title: "Remove link" },
+                                  );
+                                }}
+                              >
+                                <Trash2 className="size-4" />
+                              </button>
+                            </li>
                           );
                         })}
-                      </List>
+                      </ul>
                       <Button
-                        size="small"
-                        startIcon={<Add />}
+                        size="sm"
+                        className="mt-2"
                         onClick={() => {
                           modalApi.openAddLink({
                             sourceArtifactId: detailArtifact!.id,
@@ -2272,149 +2249,142 @@ export default function ArtifactsPage() {
                       </Button>
                     </>
                   )}
-                    </Box>
+                    </TabsContent>
                   )}
                   {detailDrawerTab === "attachments" && (
-                    <Box sx={{ py: 1 }}>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Attachments
-                  </Typography>
+                    <TabsContent value="attachments" className="py-2">
+                  <p className="mb-2 text-sm font-medium text-muted-foreground">Attachments</p>
                   {attachmentsLoading ? (
-                    <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 1 }} />
+                    <Skeleton className="h-16 rounded-md" />
                   ) : (
                     <>
-                      <List dense disablePadding>
+                      <ul className="space-y-2">
                         {attachments.map((att: AttachmentType) => (
-                          <ListItem
-                            key={att.id}
-                            secondaryAction={
-                              <Box sx={{ display: "flex", gap: 0.5 }}>
-                                <IconButton
-                                  size="small"
-                                  aria-label="Download"
-                                  onClick={async () => {
-                                    try {
-                                      const blob = await downloadAttachmentBlob(
-                                        orgSlug!,
-                                        project!.id,
-                                        detailArtifact!.id,
-                                        att.id,
-                                      );
-                                      const url = URL.createObjectURL(blob);
-                                      const a = document.createElement("a");
-                                      a.href = url;
-                                      a.download = att.file_name;
-                                      a.click();
-                                      URL.revokeObjectURL(url);
-                                    } catch {
-                                      showNotification("Download failed", "error");
-                                    }
-                                  }}
-                                >
-                                  <Download fontSize="small" />
-                                </IconButton>
-                                <IconButton
-                                  size="small"
-                                  aria-label="Delete attachment"
-                                  onClick={() => {
-                                    modalApi.openConfirm(
-                                      {
-                                        message: "Delete this attachment?",
-                                        confirmLabel: "Delete",
-                                        variant: "destructive",
-                                        onConfirm: () => {
-                                          deleteAttachmentMutation.mutate(att.id, {
-                                            onError: (err: Error) => {
-                                              const body = (err as unknown as { body?: ProblemDetail })?.body;
-                                              showNotification(
-                                                body?.detail ?? "Failed to delete attachment",
-                                                "error",
-                                              );
-                                            },
-                                          });
-                                        },
-                                      },
-                                      { title: "Delete attachment" },
+                          <li key={att.id} className="flex items-center justify-between gap-2 py-1">
+                            <div className="flex items-center gap-2">
+                              <FileText className="size-4 text-muted-foreground" />
+                              <div>
+                                <p className="font-medium">{att.file_name}</p>
+                                <p className="text-xs text-muted-foreground">{(att.size / 1024).toFixed(1)} KB</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
+                                aria-label="Download"
+                                onClick={async () => {
+                                  try {
+                                    const blob = await downloadAttachmentBlob(
+                                      orgSlug!,
+                                      project!.id,
+                                      detailArtifact!.id,
+                                      att.id,
                                     );
-                                  }}
-                                >
-                                  <Delete fontSize="small" />
-                                </IconButton>
-                              </Box>
-                            }
-                            sx={{ py: 0.5, px: 0 }}
-                          >
-                            <ListItemIcon sx={{ minWidth: 32 }}>
-                              <InsertDriveFile fontSize="small" color="action" />
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={att.file_name}
-                              secondary={`${(att.size / 1024).toFixed(1)} KB`}
-                            />
-                          </ListItem>
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = att.file_name;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                  } catch {
+                                    showNotification("Download failed", "error");
+                                  }
+                                }}
+                              >
+                                <Download className="size-4" />
+                              </button>
+                              <button
+                                type="button"
+                                className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted text-destructive"
+                                aria-label="Delete attachment"
+                                onClick={() => {
+                                  modalApi.openConfirm(
+                                    {
+                                      message: "Delete this attachment?",
+                                      confirmLabel: "Delete",
+                                      variant: "destructive",
+                                      onConfirm: () => {
+                                        deleteAttachmentMutation.mutate(att.id, {
+                                          onError: (err: Error) => {
+                                            const body = (err as unknown as { body?: ProblemDetail })?.body;
+                                            showNotification(
+                                              body?.detail ?? "Failed to delete attachment",
+                                              "error",
+                                            );
+                                          },
+                                        });
+                                      },
+                                    },
+                                    { title: "Delete attachment" },
+                                  );
+                                }}
+                              >
+                                <Trash2 className="size-4" />
+                              </button>
+                            </div>
+                          </li>
                         ))}
-                      </List>
+                      </ul>
                       <Button
-                        size="small"
-                        startIcon={<UploadFile />}
-                        component="label"
-                        disabled={uploadAttachmentMutation.isPending}
+                        size="sm"
+                        className="mt-2"
+                        asChild
                       >
-                        Upload file
-                        <input
-                          type="file"
-                          hidden
-                          multiple
-                          onChange={(e) => {
-                            const files = e.target.files;
-                            if (!files?.length) return;
-                            for (let i = 0; i < files.length; i++) {
-                              const file = files[i];
-                              if (!file) continue;
-                              uploadAttachmentMutation.mutate(file, {
-                                onSuccess: () => showNotification("File uploaded", "success"),
-                                onError: (err: Error) =>
-                                  showNotification(err?.message ?? "Upload failed", "error"),
-                              });
-                            }
-                            e.target.value = "";
-                          }}
-                        />
+                        <label className="cursor-pointer">
+                          <Upload className="size-4" />
+                          Upload file
+                          <input
+                            type="file"
+                            className="hidden"
+                            multiple
+                            onChange={(e) => {
+                              const files = e.target.files;
+                              if (!files?.length) return;
+                              for (let i = 0; i < files.length; i++) {
+                                const file = files[i];
+                                if (!file) continue;
+                                uploadAttachmentMutation.mutate(file, {
+                                  onSuccess: () => showNotification("File uploaded", "success"),
+                                  onError: (err: Error) =>
+                                    showNotification(err?.message ?? "Upload failed", "error"),
+                                });
+                              }
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
                       </Button>
                     </>
                   )}
-                    </Box>
+                    </TabsContent>
                   )}
                   {detailDrawerTab === "comments" && (
-                    <Box sx={{ py: 1 }}>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Comments
-                  </Typography>
+                    <TabsContent value="comments" className="py-2">
+                  <p className="mb-2 text-sm font-medium text-muted-foreground">Comments</p>
                   {commentsLoading ? (
-                    <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 1 }} />
+                    <Skeleton className="h-16 rounded-md" />
                   ) : (
                     <>
-                      <List dense disablePadding>
+                      <ul className="space-y-2">
                         {comments.map((c) => (
-                          <ListItem key={c.id} sx={{ py: 0.5, px: 0, flexDirection: "column", alignItems: "stretch" }}>
-                            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                              {c.body}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                          <li key={c.id} className="flex flex-col gap-0.5 py-1">
+                            <p className="whitespace-pre-wrap text-sm">{c.body}</p>
+                            <p className="text-xs text-muted-foreground">
                               {c.created_by
                                 ? (members?.find((m) => m.user_id === c.created_by)?.display_name ||
                                     members?.find((m) => m.user_id === c.created_by)?.email ||
                                     c.created_by)
                                 : "Unknown"}{" "}
                               · {formatDateTime(c.created_at)}
-                            </Typography>
-                          </ListItem>
+                            </p>
+                          </li>
                         ))}
-                      </List>
-                      <Box sx={{ mt: 1, display: "flex", flexDirection: "column", gap: 1 }}>
+                      </ul>
+                      <div className="mt-2 flex flex-col gap-2">
                         <FormProvider {...commentForm}>
-                          <Box
-                            component="form"
+                          <form
+                            className="flex flex-col gap-2"
                             onSubmit={commentForm.handleSubmit((data) => {
                               const body = data.body.trim();
                               if (!body) return;
@@ -2432,40 +2402,37 @@ export default function ArtifactsPage() {
                                 },
                               );
                             })}
-                            sx={{ display: "flex", flexDirection: "column", gap: 1 }}
                           >
                             <RhfTextField<CommentFormValues>
                               name="body"
                               label=""
                               placeholder="Add a comment..."
-                              size="small"
-                              fullWidth
-                              multiline
-                              minRows={2}
                             />
                             <Button
                               type="submit"
-                              size="small"
-                              variant="outlined"
+                              size="sm"
+                              variant="outline"
                               disabled={!commentBody?.trim() || createCommentMutation.isPending}
                             >
                               Add comment
                             </Button>
-                          </Box>
+                          </form>
                         </FormProvider>
-                      </Box>
+                      </div>
                     </>
                   )}
-                    </Box>
+                    </TabsContent>
                   )}
+                  </Tabs>
                 </>
               )}
             </>
           )}
-        </Box>
+        </div>
         </ArtifactDetailDrawer>
-      </Drawer>
-    </Container>
+        </SheetContent>
+      </Sheet>
+    </div>
   );
 }
 
@@ -2473,7 +2440,7 @@ function ArtifactTreeNode({
   node,
   manifest,
   customFieldColumns,
-  onMenuOpen,
+  renderMenuContent,
   onSelect,
   expandedIds,
   onToggleExpand,
@@ -2484,7 +2451,7 @@ function ArtifactTreeNode({
   node: ArtifactNode;
   manifest: Parameters<typeof getValidTransitions>[0];
   customFieldColumns: { key: string; label: string }[];
-  onMenuOpen: (e: React.MouseEvent<HTMLElement>, a: Artifact) => void;
+  renderMenuContent: (artifact: Artifact) => React.ReactNode;
   onSelect?: (artifact: Artifact) => void;
   expandedIds: Set<string>;
   onToggleExpand: (id: string) => void;
@@ -2497,89 +2464,79 @@ function ArtifactTreeNode({
 
   return (
     <>
-      <ListItem
-        sx={{
-          pl: 2 + depth * 3,
-          py: 0.75,
-          borderBottom: "1px solid",
-          borderColor: "divider",
-          cursor: onSelect ? "pointer" : undefined,
-        }}
+      <div
+        className="flex items-center gap-2 border-b py-2"
+        style={{ paddingLeft: 8 + depth * 12 }}
         onClick={() => onSelect?.(node)}
-        secondaryAction={
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              onMenuOpen(e, node);
-            }}
-            aria-label="Actions"
-          >
-            <MoreVert />
-          </IconButton>
-        }
+        role={onSelect ? "button" : undefined}
+        tabIndex={onSelect ? 0 : undefined}
+        onKeyDown={onSelect ? (e) => e.key === "Enter" && onSelect(node) : undefined}
       >
         {hasChildren ? (
-          <IconButton
-            size="small"
+          <button
+            type="button"
+            className="mr-1 inline-flex size-8 shrink-0 items-center justify-center rounded hover:bg-muted"
             onClick={(e) => {
               e.stopPropagation();
               onToggleExpand(node.id);
             }}
-            sx={{ mr: 0.5 }}
+            aria-label={expanded ? "Collapse" : "Expand"}
           >
-            {expanded ? <ExpandLess /> : <ExpandMore />}
-          </IconButton>
+            {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+          </button>
         ) : (
-          <Box component="span" sx={{ width: 32, display: "inline-block" }} />
+          <span className="inline-block w-8" />
         )}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1, minWidth: 0 }}>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {node.artifact_key && (
-            <Typography variant="body2" color="text.secondary" fontFamily="monospace" sx={{ minWidth: 56 }}>
+            <span className="min-w-[56px] font-mono text-sm text-muted-foreground">
               {node.artifact_key}
-            </Typography>
+            </span>
           )}
           {getArtifactIcon(node.artifact_type)}
-          <Typography variant="body2" textTransform="capitalize" color="text.secondary">
-            {node.artifact_type}
-          </Typography>
-          <Typography fontWeight={500} noWrap>
-            {node.title}
-          </Typography>
-          <Chip label={node.state} size="small" variant="outlined" sx={{ ml: 1 }} />
+          <span className="text-sm capitalize text-muted-foreground">{node.artifact_type}</span>
+          <span className="truncate font-medium">{node.title}</span>
+          <Badge variant="outline" className="ml-1 text-xs">{node.state}</Badge>
           {node.state_reason && (
-            <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-              {node.state_reason}
-            </Typography>
+            <span className="ml-1 text-xs text-muted-foreground">{node.state_reason}</span>
           )}
           {node.resolution && (
-            <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-              · {node.resolution}
-            </Typography>
+            <span className="ml-1 text-xs text-muted-foreground">· {node.resolution}</span>
           )}
           {customFieldColumns.slice(0, 2).map(
             (c) =>
               node.custom_fields?.[c.key] != null && (
-                <Chip
-                  key={c.key}
-                  label={`${c.label}: ${node.custom_fields![c.key]}`}
-                  size="small"
-                  variant="filled"
-                  sx={{ ml: 0.5, fontSize: "0.7rem", height: 20 }}
-                />
+                <Badge key={c.key} className="ml-1 h-5 text-[0.7rem]">
+                  {c.label}: {String(node.custom_fields![c.key])}
+                </Badge>
               ),
           )}
-        </Box>
-      </ListItem>
-      <Collapse in={expanded} timeout="auto" unmountOnExit>
-        <List disablePadding>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded hover:bg-muted"
+              onClick={(e) => e.stopPropagation()}
+              aria-label="Actions"
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            {renderMenuContent(node)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      {hasChildren && expanded && (
+        <div>
           {node.children.map((child) => (
             <ArtifactTreeNode
               key={child.id}
               node={child}
               manifest={manifest}
               customFieldColumns={customFieldColumns}
-              onMenuOpen={onMenuOpen}
+              renderMenuContent={renderMenuContent}
               onSelect={onSelect}
               expandedIds={expandedIds}
               onToggleExpand={onToggleExpand}
@@ -2588,8 +2545,8 @@ function ArtifactTreeNode({
               projectId={projectId}
             />
           ))}
-        </List>
-      </Collapse>
+        </div>
+      )}
     </>
   );
 }
@@ -2603,8 +2560,8 @@ function TransitionMenuItem({
   onSelect: () => void;
 }) {
   return (
-    <MenuItem onClick={onSelect}>
+    <DropdownMenuItem onClick={onSelect}>
       Move to {targetState}
-    </MenuItem>
+    </DropdownMenuItem>
   );
 }

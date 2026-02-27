@@ -142,6 +142,9 @@ class GetListSchemaHandler(QueryHandler[ListSchema | None]):
 
         project = await self._project_repo.find_by_id(query.project_id)
         if project is None or project.tenant_id != query.tenant_id:
+            # Return default artifact schema so Table view does not break with 404 (e.g. RLS/tenant timing)
+            if query.entity_type == "artifact":
+                return _build_artifact_list_schema({"workflows": [], "artifact_types": []})
             return None
 
         if query.entity_type == "task":
@@ -151,11 +154,11 @@ class GetListSchemaHandler(QueryHandler[ListSchema | None]):
             return None
 
         if project.process_template_version_id is None:
-            return None
+            return _build_artifact_list_schema({"workflows": [], "artifact_types": []})
 
         version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
         if version is None:
-            return None
+            return _build_artifact_list_schema({"workflows": [], "artifact_types": []})
 
         manifest_bundle = version.manifest_bundle or {}
         flat = _get_flat_manifest(manifest_bundle, self._manifest_flattener)

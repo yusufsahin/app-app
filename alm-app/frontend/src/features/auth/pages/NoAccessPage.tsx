@@ -1,5 +1,5 @@
-import { Container, Typography, Button, Stack } from "@mui/material";
-import { Block } from "@mui/icons-material";
+import { Ban } from "lucide-react";
+import { Button } from "../../../shared/components/ui";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { hasPermission } from "../../../shared/utils/permissions";
@@ -16,24 +16,24 @@ export default function NoAccessPage() {
   };
 
   return (
-    <Container maxWidth="sm" sx={{ py: 8, textAlign: "center" }}>
-      <Block color="error" sx={{ fontSize: 64, mb: 2 }} />
-      <Typography variant="h5" fontWeight={600} gutterBottom>
+    <div className="mx-auto max-w-sm py-8 text-center">
+      <Ban className="mx-auto mb-4 size-16 text-destructive" />
+      <h1 className="mb-2 text-xl font-semibold">
         Access Denied
-      </Typography>
-      <Typography color="text.secondary" sx={{ mb: 3 }}>
+      </h1>
+      <p className="mb-6 text-muted-foreground">
         You don&apos;t have permission to view this page.
-      </Typography>
-      <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap">
+      </p>
+      <div className="flex flex-wrap justify-center gap-2">
         {canViewProjects && (
-          <Button variant="contained" onClick={() => navigate("/")}>
+          <Button onClick={() => navigate("/")}>
             Go to Projects
           </Button>
         )}
-        <Button variant="outlined" onClick={handleSignOut}>
+        <Button variant="outline" onClick={handleSignOut}>
           Sign out
         </Button>
-      </Stack>
-    </Container>
+      </div>
+    </div>
   );
 }

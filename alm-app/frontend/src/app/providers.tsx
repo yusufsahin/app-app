@@ -1,11 +1,10 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { SnackbarProvider, useSnackbar } from "notistack";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import AppTheme from "./theme/AppTheme";
+import { ThemeProvider } from "next-themes";
+import { toast } from "sonner";
 import { LayoutUIProvider } from "../shared/contexts/LayoutUIContext";
 import { useNotificationStore } from "../shared/stores/notificationStore";
+import { Toaster } from "../shared/components/ui/sonner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,22 +23,26 @@ interface ProvidersProps {
   children: ReactNode;
 }
 
-/** Bridges Zustand notification store to notistack (top-right, max 3, 3s). */
-function NotistackBridge() {
+/** Bridges Zustand notification store to Sonner (top-right, 3s). */
+function ToastBridge() {
   const notification = useNotificationStore((s) => s.notification);
   const clearNotification = useNotificationStore((s) => s.clearNotification);
-  const { enqueueSnackbar } = useSnackbar();
   const prevRef = useRef<typeof notification>(null);
 
   useEffect(() => {
     if (!notification || notification === prevRef.current) return;
     prevRef.current = notification;
-    enqueueSnackbar(notification.message, {
-      variant: notification.severity,
-      autoHideDuration: 3000,
-    });
+    const fn =
+      notification.severity === "error"
+        ? toast.error
+        : notification.severity === "warning"
+          ? toast.warning
+          : notification.severity === "info"
+            ? toast.info
+            : toast.success;
+    fn(notification.message, { duration: 3000 });
     clearNotification();
-  }, [notification, enqueueSnackbar, clearNotification]);
+  }, [notification, clearNotification]);
 
   return null;
 }
@@ -47,20 +50,13 @@ function NotistackBridge() {
 export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppTheme>
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <LayoutUIProvider>
-            <SnackbarProvider
-              maxSnack={3}
-              anchorOrigin={{ vertical: "top", horizontal: "right" }}
-              autoHideDuration={3000}
-            >
-              {children}
-              <NotistackBridge />
-            </SnackbarProvider>
-          </LayoutUIProvider>
-        </LocalizationProvider>
-      </AppTheme>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <LayoutUIProvider>
+          {children}
+          <ToastBridge />
+          <Toaster />
+        </LayoutUIProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

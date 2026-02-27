@@ -1,16 +1,14 @@
 import { Link } from "react-router-dom";
-import { Box, Button, Container, Typography } from "@mui/material";
-import { ArrowBack } from "@mui/icons-material";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "../ui";
 
 export interface ProjectNotFoundViewProps {
   orgSlug: string;
-  /** When provided, shown in the message (e.g. "Project \"acme\" not found.") */
   projectSlug?: string | null;
 }
 
 /**
  * Shared "project not found" / "no access" view with "Back to projects" link.
- * Use when URL has projectSlug but the project doesn't exist or user has no access.
  */
 export function ProjectNotFoundView({ orgSlug, projectSlug }: ProjectNotFoundViewProps) {
   const projectsPath = `/${orgSlug}`;
@@ -19,20 +17,14 @@ export function ProjectNotFoundView({ orgSlug, projectSlug }: ProjectNotFoundVie
     : "Project not found.";
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ py: 4, textAlign: "center" }}>
-        <Typography color="text.secondary" sx={{ mb: 2 }}>
-          {message}
-        </Typography>
-        <Button
-          component={Link}
-          to={projectsPath}
-          variant="contained"
-          startIcon={<ArrowBack />}
-        >
+    <div className="mx-auto max-w-sm py-8 text-center">
+      <p className="mb-4 text-muted-foreground">{message}</p>
+      <Button asChild>
+        <Link to={projectsPath}>
+          <ArrowLeft className="mr-2 size-4" />
           Back to projects
-        </Button>
-      </Box>
-    </Container>
+        </Link>
+      </Button>
+    </div>
   );
 }

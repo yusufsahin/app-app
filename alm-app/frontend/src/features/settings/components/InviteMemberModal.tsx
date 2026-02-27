@@ -1,17 +1,9 @@
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  CircularProgress,
-  Alert,
-  Chip,
-  Box,
-} from "@mui/material";
+import { Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../../shared/components/ui/dialog";
+import { Button } from "../../../shared/components/ui";
 import { RhfAutocomplete, RhfTextField } from "../../../shared/components/forms";
 import { useInviteOrgMember, useOrgRoles } from "../../../shared/api/orgApi";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
@@ -61,65 +53,44 @@ export default function InviteMemberModal({ open, onClose, orgSlug }: InviteMemb
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <FormProvider {...form}>
-        <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-          <DialogTitle fontWeight={600}>Invite Member</DialogTitle>
-          <DialogContent>
-            {inviteMutation.isError && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                Failed to send invitation. Please try again.
-              </Alert>
-            )}
-            <RhfTextField<InviteFormData>
-              name="email"
-              label="Email Address"
-              type="email"
-              fullWidth
-              sx={{ mt: 1, mb: 2.5 }}
-            />
-            <RhfAutocomplete<InviteFormData, string>
-              name="role_ids"
-              control={control}
-              label="Roles"
-              options={roleOptions}
-              multiple
-              autocompleteProps={{
-                renderTags: (tagValue, getTagProps) =>
-                  tagValue.map((option, index) => {
-                    const { key, ...tagProps } = getTagProps({ index });
-                    return (
-                      <Chip
-                        key={key}
-                        label={option.label}
-                        size="small"
-                        color="primary"
-                        variant="outlined"
-                        {...tagProps}
-                      />
-                    );
-                  }),
-              }}
-            />
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button onClick={handleClose} disabled={inviteMutation.isPending}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={inviteMutation.isPending}
-            >
-              {inviteMutation.isPending ? (
-                <CircularProgress size={22} color="inherit" />
-              ) : (
-                "Send Invitation"
+    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
+      <DialogContent className="max-w-sm">
+        <FormProvider {...form}>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <DialogHeader>
+              <DialogTitle>Invite Member</DialogTitle>
+            </DialogHeader>
+            <div className="mt-2 space-y-4">
+              {inviteMutation.isError && (
+                <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  Failed to send invitation. Please try again.
+                </p>
               )}
-            </Button>
-          </DialogActions>
-        </Box>
-      </FormProvider>
+              <RhfTextField<InviteFormData>
+                name="email"
+                label="Email Address"
+                type="email"
+                fullWidth
+              />
+              <RhfAutocomplete<InviteFormData, string>
+                name="role_ids"
+                control={control}
+                label="Roles"
+                options={roleOptions}
+                multiple
+              />
+            </div>
+            <DialogFooter className="mt-6 gap-2 px-0 pb-0">
+              <Button type="button" variant="outline" onClick={handleClose} disabled={inviteMutation.isPending}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={inviteMutation.isPending}>
+                {inviteMutation.isPending ? <Loader2 className="size-5 animate-spin" /> : "Send Invitation"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </FormProvider>
+      </DialogContent>
     </Dialog>
   );
 }

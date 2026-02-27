@@ -93,10 +93,15 @@ export function useAccessAudit(params: AccessAuditParams) {
   return useQuery({
     queryKey: ["admin", "audit", "access", params],
     queryFn: async (): Promise<AccessAuditEntry[]> => {
-      const { data } = await apiClient.get<AccessAuditEntry[]>(
+      const { data } = await apiClient.get<
+        AccessAuditEntry[] | { items?: AccessAuditEntry[]; data?: AccessAuditEntry[] }
+      >(
         `/admin/audit/access${queryString ? `?${queryString}` : ""}`,
       );
-      return data;
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.items)) return data.items;
+      if (Array.isArray(data?.data)) return data.data;
+      return [];
     },
   });
 }

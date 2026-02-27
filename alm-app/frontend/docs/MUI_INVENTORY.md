@@ -1,0 +1,93 @@
+# MUI kullanım envanteri (Radix refactor öncesi)
+
+Oluşturulma: Faz 0. Komut: `rg "from ['\"]@mui|@mui/" src --files-with-matches`
+
+## Dosya listesi (81 dosya)
+
+| # | Dosya |
+|---|-------|
+| 1 | src/features/artifacts/utils.tsx |
+| 2 | src/features/auth/pages/TenantSelectorPage.tsx |
+| 3 | src/features/projects/pages/ProjectDetailPage.tsx |
+| 4 | src/shared/components/Layout/AppLayout.tsx |
+| 5 | src/app/theme/AppTheme.tsx |
+| 6 | src/features/planning/pages/PlanningPage.tsx |
+| 7 | src/features/settings/pages/MemberManagementPage.tsx |
+| 8 | src/features/automation/pages/AutomationPage.tsx |
+| 9 | src/features/dashboard/pages/DashboardPage.tsx |
+| 10 | src/shared/components/forms/MetadataDrivenForm.tsx |
+| 11 | src/features/auth/pages/RegisterPage.tsx |
+| 12 | src/features/artifacts/pages/ArtifactsPage.tsx |
+| 13 | src/shared/components/forms/RhfRichTextField.tsx |
+| 14 | src/shared/modal/modals/ProjectMembersModal.tsx |
+| 15 | src/app/App.tsx |
+| 16 | src/app/theme/themePrimitives.ts |
+| 17 | src/app/theme/ColorModeIconDropdown.tsx |
+| 18 | src/features/auth/pages/LoginPage.tsx |
+| 19 | src/features/manifest/pages/ManifestPage.tsx |
+| 20 | src/shared/components/lists/MetadataDrivenList.tsx |
+| 21 | src/features/artifacts/components/ArtifactsList.tsx |
+| 22 | src/features/artifacts/components/ArtifactsToolbar.tsx |
+| 23 | src/shared/modal/modals/CreateArtifactModal.tsx |
+| 24 | src/app/providers.tsx |
+| 25 | src/features/projects/pages/ProjectsPage.tsx |
+| 26 | src/features/board/pages/BoardPage.tsx |
+| 27 | src/shared/components/Layout/StandardPageLayout.tsx |
+| 28 | src/app/theme.ts |
+| 29 | src/features/settings/pages/SettingsPage.tsx |
+| 30 | src/features/settings/pages/ProcessManifestListPage.tsx |
+| 31 | src/features/settings/pages/RoleManagementPage.tsx |
+| 32 | src/features/settings/pages/PrivilegesPage.tsx |
+| 33 | src/features/settings/pages/AccessAuditPage.tsx |
+| 34 | src/shared/components/EmptyState.tsx |
+| 35 | src/shared/components/LoadingState.tsx |
+| 36 | src/shared/modal/ModalWrapper.tsx |
+| 37 | src/shared/modal/modals/DeleteArtifactModal.tsx |
+| 38 | src/shared/modal/modals/BulkDeleteModal.tsx |
+| 39 | src/shared/modal/modals/ConflictModal.tsx |
+| 40 | src/shared/modal/modals/ConfirmModal.tsx |
+| 41 | src/app/router.tsx |
+| 42 | src/features/settings/components/SettingsSubNav.tsx |
+| 43 | src/shared/modal/modals/TransitionArtifactModal.tsx |
+| 44 | src/shared/modal/modals/BulkTransitionModal.tsx |
+| 45 | src/shared/modal/modals/EditTaskModal.tsx |
+| 46 | src/shared/modal/modals/AddTaskModal.tsx |
+| 47 | src/shared/modal/modals/AddLinkModal.tsx |
+| 48 | src/shared/modal/modals/SaveQueryModal.tsx |
+| 49 | src/shared/modal/ModalManager.tsx |
+| 50 | src/shared/components/Layout/OrgSettingsBreadcrumbs.tsx |
+| 51 | src/features/settings/components/SettingsPageWrapper.tsx |
+| 52 | src/shared/components/Layout/ProjectSwitcher.tsx |
+| 53 | src/shared/components/Layout/CommandPalette.tsx |
+| 54 | src/shared/components/Layout/ProjectNotFoundView.tsx |
+| 55 | src/shared/components/Layout/ProjectBreadcrumbs.tsx |
+| 56 | src/features/manifest/components/WorkflowDesignerView.tsx |
+| 57 | src/features/auth/components/CreateOrgModal.tsx |
+| 58 | src/features/settings/components/InviteMemberModal.tsx |
+| 59 | src/features/settings/components/CreateUserModal.tsx |
+| 60 | src/features/projects/components/CreateProjectModal.tsx |
+| 61 | src/shared/components/forms/DescriptionField.tsx |
+| 62 | src/shared/components/forms/RhfMarkdownField.tsx |
+| 63 | src/shared/components/forms/RhfDateTimePicker.tsx |
+| 64 | src/shared/components/forms/RhfColorInput.tsx |
+| 65 | src/shared/components/forms/RhfFileInput.tsx |
+| 66 | src/shared/components/forms/RhfToggleButtonGroup.tsx |
+| 67 | src/shared/components/forms/RhfCheckboxGroup.tsx |
+| 68 | src/shared/components/forms/RhfRating.tsx |
+| 69 | src/shared/components/forms/RhfRangeSlider.tsx |
+| 70 | src/shared/components/forms/RhfTimePicker.tsx |
+| 71 | src/shared/components/forms/RhfDatePicker.tsx |
+| 72 | src/shared/components/forms/RhfMultiSelect.tsx |
+| 73 | src/shared/components/forms/RhfAutocomplete.tsx |
+| 74 | src/shared/components/forms/RhfCheckbox.tsx |
+| 75 | src/shared/components/forms/RhfRadioGroup.tsx |
+| 76 | src/shared/components/forms/RhfSelect.tsx |
+| 77 | src/shared/components/forms/RhfSlider.tsx |
+| 78 | src/shared/components/forms/RhfNumberInput.tsx |
+| 79 | src/shared/components/forms/RhfSwitch.tsx |
+| 80 | src/shared/components/forms/RhfTextField.tsx |
+| 81 | src/shared/components/Layout/ProtectedRoute.tsx |
+| 82 | src/shared/components/ManifestEditor.tsx |
+| 83 | src/features/auth/pages/NoAccessPage.tsx |
+
+*Not: Bazı dosyalar sadece @mui/x-data-grid veya @mui/x-date-pickers kullanıyor; tam MUI kaldırıldığında bu paketler isteğe bağlı kalabilir.*

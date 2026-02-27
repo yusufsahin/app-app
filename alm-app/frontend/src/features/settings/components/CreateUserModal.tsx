@@ -1,15 +1,9 @@
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  CircularProgress,
-  Alert,
-} from "@mui/material";
+import { Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../../shared/components/ui/dialog";
+import { Button } from "../../../shared/components/ui";
 import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useCreateAdminUser } from "../../../shared/api/adminApi";
 import { useOrgRoles } from "../../../shared/api/orgApi";
@@ -67,58 +61,54 @@ export default function CreateUserModal({ open, onClose, orgSlug }: CreateUserMo
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <FormProvider {...form}>
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <DialogTitle fontWeight={600}>Create User</DialogTitle>
-          <DialogContent>
-            {createMutation.isError && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                Failed to create user. Please try again.
-              </Alert>
-            )}
-            <RhfTextField<FormData>
-              name="email"
-              label="Email"
-              type="email"
-              fullWidth
-              margin="normal"
-              autoComplete="email"
-            />
-            <RhfTextField<FormData>
-              name="password"
-              label="Password"
-              type="password"
-              fullWidth
-              margin="normal"
-              autoComplete="new-password"
-            />
-            <RhfTextField<FormData>
-              name="display_name"
-              label="Display name (optional)"
-              fullWidth
-              margin="normal"
-            />
-            <RhfSelect<FormData>
-              name="role_slug"
-              control={control}
-              label="Role"
-              options={roleOptions}
-            />
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button onClick={handleClose}>Cancel</Button>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={createMutation.isPending}
-              startIcon={createMutation.isPending ? <CircularProgress size={16} /> : null}
-            >
-              Create
-            </Button>
-          </DialogActions>
-        </form>
-      </FormProvider>
+    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
+      <DialogContent className="max-w-sm">
+        <FormProvider {...form}>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <DialogHeader>
+              <DialogTitle>Create User</DialogTitle>
+            </DialogHeader>
+            <div className="mt-2 space-y-4">
+              {createMutation.isError && (
+                <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  Failed to create user. Please try again.
+                </p>
+              )}
+              <RhfTextField<FormData>
+                name="email"
+                label="Email"
+                type="email"
+                fullWidth
+                inputProps={{ autoComplete: "email" }}
+              />
+              <RhfTextField<FormData>
+                name="password"
+                label="Password"
+                type="password"
+                fullWidth
+                inputProps={{ autoComplete: "new-password" }}
+              />
+              <RhfTextField<FormData>
+                name="display_name"
+                label="Display name (optional)"
+                fullWidth
+              />
+              <RhfSelect<FormData>
+                name="role_slug"
+                control={control}
+                label="Role"
+                options={roleOptions}
+              />
+            </div>
+            <DialogFooter className="mt-6 gap-2 px-0 pb-0">
+              <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? <Loader2 className="size-5 animate-spin" /> : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </FormProvider>
+      </DialogContent>
     </Dialog>
   );
 }

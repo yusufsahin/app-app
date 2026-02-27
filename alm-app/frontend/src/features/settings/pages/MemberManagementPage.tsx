@@ -1,25 +1,7 @@
 import { useState, useEffect } from "react";
 import { useForm, FormProvider } from "react-hook-form";
-import {
-  Box,
-  Button,
-  Chip,
-  Skeleton,
-  Typography,
-  Alert,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  Card,
-  CardContent,
-  Stack,
-} from "@mui/material";
-import Grid from "@mui/material/Grid";
-import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
-import { PersonAdd, PersonAddAlt1, Delete, People, PersonOff, ManageAccounts } from "@mui/icons-material";
+import { Button, Card, CardContent, Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter, Skeleton, Badge } from "../../../shared/components/ui";
+import { UserPlus, CircleUser, Trash2, Users, UserX, Settings2 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { useOrgMembers, type TenantMember } from "../../../shared/api/orgApi";
 import {
@@ -37,59 +19,62 @@ import { OrgSettingsBreadcrumbs } from "../../../shared/components/Layout";
 
 type MemberRow = TenantMember & { deleted_at?: string | null; role_slugs?: string[] };
 
-const baseColumns: GridColDef<MemberRow>[] = [
+const baseColumns: Array<{
+  field: keyof MemberRow | "actions";
+  headerName: string;
+  minWidth?: number;
+  render?: (row: MemberRow) => React.ReactNode;
+  valueFormatter?: (value: unknown, row: MemberRow) => string;
+}> = [
   {
     field: "display_name",
     headerName: "Name",
-    flex: 1,
     minWidth: 150,
   },
   {
     field: "email",
     headerName: "Email",
-    flex: 1.2,
     minWidth: 200,
   },
   {
     field: "roles",
     headerName: "Roles",
-    flex: 1.5,
     minWidth: 200,
-    sortable: false,
-    renderCell: (params: GridRenderCellParams<MemberRow>) => {
-      const roles = params.row.roles;
-      const slugs = (params.row as MemberRow).role_slugs;
+    render: (row) => {
+      const roles = row.roles;
+      const slugs = row.role_slugs;
       if (slugs?.length) {
         return (
-          <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", py: 0.5 }}>
+          <div className="flex flex-wrap gap-1 py-0.5">
             {slugs.map((s) => (
-              <Chip key={s} label={s} size="small" variant="outlined" />
+              <Badge key={s} variant="outline" className="text-xs">
+                {s}
+              </Badge>
             ))}
-          </Box>
+          </div>
         );
       }
       return (
-        <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", py: 0.5 }}>
+        <div className="flex flex-wrap gap-1 py-0.5">
           {roles?.map((role) => (
-            <Chip
+            <Badge
               key={role.id}
-              label={role.name}
-              size="small"
-              color={role.is_system ? "primary" : "default"}
-              variant={role.is_system ? "filled" : "outlined"}
-            />
+              variant={role.is_system ? "default" : "outline"}
+              className="text-xs"
+            >
+              {role.name}
+            </Badge>
           ))}
-        </Box>
+        </div>
       );
     },
   },
   {
     field: "joined_at",
     headerName: "Joined",
-    width: 160,
-    valueFormatter: (value: string) => {
+    valueFormatter: (value: unknown) => {
       if (!value) return "";
-      return new Date(value).toLocaleDateString(undefined, {
+      return new Date(String(value)).toLocaleDateString(undefined, {
         year: "numeric",
         month: "short",
         day: "numeric",
@@ -138,38 +123,37 @@ export default function MemberManagementPage() {
       }))
     : (orgMembers ?? []).map((m) => ({ ...m, deleted_at: null }));
 
-  const columns: GridColDef<MemberRow>[] = [
+  const allColumns = [
     ...baseColumns,
     ...(includeDeleted
       ? [
           {
-            field: "deleted_at",
+            field: "deleted_at" as const,
             headerName: "Deleted",
-            width: 120,
-            renderCell: (params: GridRenderCellParams<MemberRow>) =>
-              params.row.deleted_at ? (
-                <Chip label="Deleted" size="small" color="error" variant="outlined" />
+            minWidth: 120,
+            render: (row: MemberRow) =>
+              row.deleted_at ? (
+                <Badge variant="destructive" className="text-xs">Deleted</Badge>
               ) : (
                 "—"
               ),
-          } as GridColDef<MemberRow>,
+          },
           {
-            field: "actions",
+            field: "actions" as const,
             headerName: " ",
-            width: 56,
-            sortable: false,
-            renderCell: (params: GridRenderCellParams<MemberRow>) =>
-              !params.row.deleted_at ? (
-                <IconButton
-                  size="small"
-                  color="error"
+            minWidth: 56,
+            render: (row: MemberRow) =>
+              !row.deleted_at ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-md p-1.5 text-destructive hover:bg-destructive/10"
                   aria-label="Delete user"
-                  onClick={() => setRemoveDialogUser({ user_id: params.row.user_id, email: params.row.email })}
+                  onClick={() => setRemoveDialogUser({ user_id: row.user_id, email: row.email })}
                 >
-                  <Delete />
-                </IconButton>
+                  <Trash2 className="size-4" />
+                </button>
               ) : null,
-          } as GridColDef<MemberRow>,
+          },
         ]
       : []),
   ];
@@ -189,8 +173,8 @@ export default function MemberManagementPage() {
   if (isLoading) {
     return (
       <SettingsPageWrapper>
-        <Skeleton variant="text" width={200} height={40} sx={{ mb: 2 }} />
-        <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 1 }} />
+        <Skeleton className="mb-4 h-10 w-48" />
+        <Skeleton className="h-[400px] rounded-md" />
       </SettingsPageWrapper>
     );
   }
@@ -198,20 +182,9 @@ export default function MemberManagementPage() {
   return (
     <SettingsPageWrapper>
       <OrgSettingsBreadcrumbs currentPageLabel="Members" />
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 2,
-          mb: 3,
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-          <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
-            Members
-          </Typography>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <h1 className="text-2xl font-semibold">Members</h1>
           {isAdmin && (
             <FormProvider {...includeDeletedForm}>
               <RhfCheckbox<IncludeDeletedValues>
@@ -221,135 +194,114 @@ export default function MemberManagementPage() {
               />
             </FormProvider>
           )}
-        </Box>
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            variant="contained"
-            startIcon={<PersonAdd />}
-            onClick={() => setInviteOpen(true)}
-          >
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => setInviteOpen(true)}>
+            <UserPlus className="size-4" />
             Invite Member
           </Button>
           {isAdmin && (
-            <Button
-              variant="outlined"
-              startIcon={<PersonAddAlt1 />}
-              onClick={() => setCreateUserOpen(true)}
-            >
+            <Button variant="outline" onClick={() => setCreateUserOpen(true)}>
+              <CircleUser className="size-4" />
               Create User
             </Button>
           )}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* Stat Cards */}
       {rows.length > 0 && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <Card>
-              <CardContent>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Box
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 2,
-                      bgcolor: "primary.light",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <People sx={{ color: "primary.main" }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" fontWeight={700}>{rows.length}</Typography>
-                    <Typography variant="body2" color="text.secondary">Total Members</Typography>
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <Card>
-              <CardContent>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Box
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 2,
-                      bgcolor: "success.light",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <ManageAccounts sx={{ color: "success.main" }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" fontWeight={700}>
-                      {rows.filter((r) => !r.deleted_at).length}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">Active Members</Typography>
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <Card>
-              <CardContent>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Box
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 2,
-                      bgcolor: "error.light",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <PersonOff sx={{ color: "error.main" }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" fontWeight={700}>
-                      {rows.filter((r) => r.deleted_at).length}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">Removed Members</Typography>
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+        <div className="mb-6 grid gap-4 sm:grid-cols-3">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-row items-center gap-4">
+                <div className="flex size-12 items-center justify-center rounded-lg bg-primary/15">
+                  <Users className="size-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{rows.length}</p>
+                  <p className="text-sm text-muted-foreground">Total Members</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-row items-center gap-4">
+                <div className="flex size-12 items-center justify-center rounded-lg bg-green-500/15">
+                  <Settings2 className="size-6 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{rows.filter((r) => !r.deleted_at).length}</p>
+                  <p className="text-sm text-muted-foreground">Active Members</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-row items-center gap-4">
+                <div className="flex size-12 items-center justify-center rounded-lg bg-destructive/15">
+                  <UserX className="size-6 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{rows.filter((r) => r.deleted_at).length}</p>
+                  <p className="text-sm text-muted-foreground">Removed Members</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {isError && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-destructive">
           Failed to load members. Please try again.
-        </Alert>
+        </div>
       )}
 
-      <DataGrid
-        rows={rows}
-        columns={columns}
-        getRowId={(row) => row.user_id}
-        autoHeight
-        pageSizeOptions={[10, 25, 50]}
-        initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-        disableRowSelectionOnClick
-        sx={{
-          bgcolor: "background.paper",
-          borderRadius: 2,
-          "& .MuiDataGrid-columnHeaders": {
-            bgcolor: "grey.50",
-            fontWeight: 600,
-          },
-        }}
-      />
+      <div className="overflow-hidden rounded-lg border bg-card">
+        <table className="w-full table-auto border-collapse text-left text-sm">
+          <thead className="bg-muted/50 font-semibold">
+            <tr>
+              {allColumns.map((col) => (
+                <th key={col.field} className="border-b px-4 py-3" style={{ minWidth: col.minWidth }}>
+                  {col.headerName}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.user_id} className="border-b last:border-0 hover:bg-muted/30">
+                {allColumns.map((col) => {
+                  if (col.field === "actions" && col.render) {
+                    return (
+                      <td key={col.field} className="px-4 py-2">
+                        {col.render(row)}
+                      </td>
+                    );
+                  }
+                  if (col.render) {
+                    return (
+                      <td key={col.field} className="px-4 py-2" style={{ minWidth: col.minWidth }}>
+                        {col.render(row)}
+                      </td>
+                    );
+                  }
+                  const raw = row[col.field as keyof MemberRow];
+                  const value = "valueFormatter" in col && col.valueFormatter ? col.valueFormatter(raw, row) : raw != null ? String(raw) : "—";
+                  return (
+                    <td key={col.field} className="px-4 py-2" style={{ minWidth: col.minWidth }}>
+                      {value}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <InviteMemberModal
         open={inviteOpen}
@@ -362,30 +314,22 @@ export default function MemberManagementPage() {
         orgSlug={orgSlug}
       />
 
-      <Dialog
-        open={!!removeDialogUser}
-        onClose={() => !deleteUser.isPending && setRemoveDialogUser(null)}
-      >
-        <DialogTitle>Remove user?</DialogTitle>
+      <Dialog open={!!removeDialogUser} onOpenChange={(open) => !open && !deleteUser.isPending && setRemoveDialogUser(null)}>
         <DialogContent>
-          <DialogContentText>
+          <DialogTitle>Remove user?</DialogTitle>
+          <DialogDescription>
             Remove {removeDialogUser?.email}? They will no longer be able to sign in. This can be
             reversed by an administrator.
-          </DialogContentText>
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveDialogUser(null)} disabled={deleteUser.isPending}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmRemove} disabled={deleteUser.isPending}>
+              {deleteUser.isPending ? "Removing…" : "Remove"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRemoveDialogUser(null)} disabled={deleteUser.isPending}>
-            Cancel
-          </Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={handleConfirmRemove}
-            disabled={deleteUser.isPending}
-          >
-            {deleteUser.isPending ? "Removing…" : "Remove"}
-          </Button>
-        </DialogActions>
       </Dialog>
     </SettingsPageWrapper>
   );

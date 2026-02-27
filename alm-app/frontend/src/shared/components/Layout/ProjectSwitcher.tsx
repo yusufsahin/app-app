@@ -1,18 +1,15 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
+import { Folder, FolderOpen, ChevronDown, Plus, Star } from "lucide-react";
 import {
-  Box,
   Button,
-  IconButton,
-  ListItemIcon,
-  ListItemText,
-  Typography,
-  CircularProgress,
-  ListItemButton,
-  Menu,
-  Divider,
-} from "@mui/material";
-import { Folder, ExpandMore, FolderOpen, Add, Star, StarBorder } from "@mui/icons-material";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui";
 import { useOrgProjects } from "../../api/orgApi";
 import { useProjectStore } from "../../stores/projectStore";
 import {
@@ -24,59 +21,62 @@ import {
 import type { Project } from "../../api/types";
 
 interface ProjectSwitcherProps {
-  /** When true, show only icon (for collapsed sidebar). */
   collapsed?: boolean;
   onNavigate?: () => void;
 }
 
-function projectRow(
-  p: Project,
-  projectSlug: string | undefined,
-  handleSelect: (project: Project) => void,
-  togglePin: (e: React.MouseEvent, slug: string) => void,
-  pinnedSlugs: string[],
-) {
+function ProjectRow({
+  p,
+  projectSlug,
+  pinnedSlugs,
+  onSelect,
+  onTogglePin,
+}: {
+  p: Project;
+  projectSlug: string | undefined;
+  pinnedSlugs: string[];
+  onSelect: (project: Project) => void;
+  onTogglePin: (e: React.MouseEvent, slug: string) => void;
+}) {
   const isCurrent = p.slug === projectSlug;
   const isPinned = pinnedSlugs.includes(p.slug);
+
   return (
-    <ListItemButton
-      key={p.id}
-      selected={isCurrent}
-      onClick={() => handleSelect(p)}
-      sx={{
-        borderRadius: 1,
-        mx: 0.5,
-        mb: 0.25,
-        "&.Mui-selected": {
-          bgcolor: "primary.main",
-          color: "primary.contrastText",
-          "&:hover": { bgcolor: "primary.dark" },
-          "& .MuiIconButton-root": { color: "inherit" },
-        },
-      }}
+    <DropdownMenuItem
+      onSelect={() => onSelect(p)}
+      className="flex cursor-pointer items-center gap-2 rounded-md py-2"
+      data-active={isCurrent}
     >
-      <ListItemIcon sx={{ minWidth: 36 }}>
+      <span className="flex size-5 shrink-0 items-center justify-center">
         {isCurrent ? (
-          <FolderOpen fontSize="small" />
+          <FolderOpen className="size-4" />
         ) : (
-          <Folder fontSize="small" color="action" />
+          <Folder className="size-4 text-muted-foreground" />
         )}
-      </ListItemIcon>
-      <ListItemText
-        primary={p.name}
-        primaryTypographyProps={{ noWrap: true, variant: "body2" }}
-        secondary={p.slug !== p.name ? p.slug : undefined}
-        secondaryTypographyProps={{ noWrap: true, variant: "caption" }}
-      />
-      <IconButton
-        size="small"
-        onClick={(e) => togglePin(e, p.slug)}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{p.name}</span>
+        {p.slug !== p.name && (
+          <span className="block truncate text-xs text-muted-foreground">{p.slug}</span>
+        )}
+      </span>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onTogglePin(e, p.slug);
+        }}
+        className="shrink-0 rounded p-1 hover:bg-sidebar-accent"
         aria-label={isPinned ? "Unpin project" : "Pin project"}
-        sx={{ ml: 0.5 }}
       >
-        {isPinned ? <Star fontSize="small" /> : <StarBorder fontSize="small" />}
-      </IconButton>
-    </ListItemButton>
+        {isPinned ? (
+          <Star className="size-4 fill-current" />
+        ) : (
+          <Star className="size-4 fill-none" />
+        )}
+      </button>
+    </DropdownMenuItem>
   );
 }
 
@@ -84,7 +84,7 @@ export function ProjectSwitcher({ collapsed = false, onNavigate }: ProjectSwitch
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug?: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [pinnedSlugs, setPinnedSlugsState] = useState<string[]>(() => getPinnedSlugs(orgSlug));
   const { data: projects = [], isLoading } = useOrgProjects(orgSlug);
@@ -101,7 +101,9 @@ export function ProjectSwitcher({ collapsed = false, onNavigate }: ProjectSwitch
       e.stopPropagation();
       if (!orgSlug) return;
       setPinnedSlugsState((prev) => {
-        const next = prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug].slice(0, MAX_PINNED);
+        const next = prev.includes(slug)
+          ? prev.filter((s) => s !== slug)
+          : [...prev, slug].slice(0, MAX_PINNED);
         setPinnedSlugs(orgSlug, next);
         return next;
       });
@@ -119,8 +121,7 @@ export function ProjectSwitcher({ collapsed = false, onNavigate }: ProjectSwitch
   }, [projects, pinnedSlugs]);
 
   const handleClose = useCallback(() => {
-    setAnchorEl(null);
-    // Return focus to trigger so keyboard users land back on "current project" button
+    setOpen(false);
     requestAnimationFrame(() => triggerRef.current?.focus());
   }, []);
 
@@ -142,99 +143,92 @@ export function ProjectSwitcher({ collapsed = false, onNavigate }: ProjectSwitch
 
   if (!orgSlug || !projectSlug) return null;
 
-  const open = Boolean(anchorEl);
-
   const triggerButton = (
     <Button
       ref={triggerRef}
-      fullWidth
-      onClick={(e) => setAnchorEl(e.currentTarget)}
+      variant="ghost"
+      className="h-8 w-full justify-between gap-1 px-2 font-normal"
+      onClick={() => setOpen(true)}
       aria-label="Switch project"
       aria-expanded={open}
       aria-haspopup="listbox"
-      startIcon={collapsed ? null : <FolderOpen fontSize="small" />}
-      endIcon={collapsed ? null : <ExpandMore fontSize="small" />}
-      title={collapsed ? (currentProject?.name ?? projectSlug) : undefined}
-      sx={{
-        justifyContent: collapsed ? "center" : "flex-start",
-        minWidth: 0,
-        px: collapsed ? 1 : 1.5,
-        color: "text.primary",
-        textTransform: "none",
-        bgcolor: "action.selected",
-        "&:hover": { bgcolor: "action.hover" },
-      }}
+      title={collapsed ? currentProject?.name ?? projectSlug : undefined}
     >
       {collapsed ? (
-        <FolderOpen fontSize="small" />
+        <FolderOpen className="size-4 shrink-0" />
       ) : (
-        <Typography variant="body2" fontWeight={500} noWrap sx={{ flex: 1, textAlign: "left" }}>
-          {currentProject?.name ?? projectSlug}
-        </Typography>
+        <>
+          <FolderOpen className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate text-left text-sm">
+            {currentProject?.name ?? projectSlug}
+          </span>
+          <ChevronDown className="size-4 shrink-0 opacity-50" />
+        </>
       )}
     </Button>
   );
 
-  const listContent = (
-    <>
-      {isLoading ? (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 2 }}>
-          <CircularProgress size={20} />
-          <Typography variant="body2" color="text.secondary">
-            Loading…
-          </Typography>
-        </Box>
-      ) : projects.length === 0 ? (
-        <Box sx={{ px: 2, py: 2, minWidth: 220 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            No projects
-          </Typography>
-          <Button
-            component={Link}
-            to={orgSlug ? `/${orgSlug}` : "#"}
-            variant="outlined"
-            size="small"
-            startIcon={<Add />}
-            fullWidth
-            onClick={() => { handleClose(); onNavigate?.(); }}
-          >
-            Go to projects
-          </Button>
-        </Box>
-      ) : (
-        <Box sx={{ maxHeight: 320, overflowY: "auto", minWidth: 260 }}>
-          {pinnedSlugs.length > 0 && (
-            <>
-              <Typography variant="caption" color="text.secondary" sx={{ px: 2, pt: 1, pb: 0.5, display: "block" }}>
-                Pinned
-              </Typography>
-              {sortedProjects
-                .filter((p) => pinnedSlugs.includes(p.slug))
-                .map((p) => projectRow(p, projectSlug, handleSelect, togglePin, pinnedSlugs))}
-              <Divider sx={{ my: 1 }} />
-            </>
-          )}
-          {sortedProjects
-            .filter((p) => !pinnedSlugs.includes(p.slug))
-            .map((p) => projectRow(p, projectSlug, handleSelect, togglePin, pinnedSlugs))}
-        </Box>
-      )}
-    </>
-  );
-
   return (
-    <Box sx={{ py: 0.5 }}>
-      {triggerButton}
-      <Menu
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleClose}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { sx: { mt: 1.5 } } }}
-      >
-        {listContent}
-      </Menu>
-    </Box>
+    <div className="py-0.5">
+      <DropdownMenu
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) requestAnimationFrame(() => triggerRef.current?.focus());
+          }}
+        >
+        <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[260px]">
+          {isLoading ? (
+            <div className="flex items-center gap-2 px-3 py-4 text-sm text-muted-foreground">
+              Loading…
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="space-y-2 px-3 py-4">
+              <p className="text-sm text-muted-foreground">No projects</p>
+              <Button variant="outline" size="sm" className="w-full" asChild>
+                <Link to={orgSlug ? `/${orgSlug}` : "#"} onClick={() => { handleClose(); onNavigate?.(); }}>
+                  <Plus className="mr-2 size-4" />
+                  Go to projects
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="max-h-[320px] overflow-y-auto">
+              {pinnedSlugs.length > 0 && (
+                <>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">Pinned</DropdownMenuLabel>
+                  {sortedProjects
+                    .filter((p) => pinnedSlugs.includes(p.slug))
+                    .map((p) => (
+                      <ProjectRow
+                        key={p.id}
+                        p={p}
+                        projectSlug={projectSlug}
+                        pinnedSlugs={pinnedSlugs}
+                        onSelect={handleSelect}
+                        onTogglePin={togglePin}
+                      />
+                    ))}
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              {sortedProjects
+                .filter((p) => !pinnedSlugs.includes(p.slug))
+                .map((p) => (
+                  <ProjectRow
+                    key={p.id}
+                    p={p}
+                    projectSlug={projectSlug}
+                    pinnedSlugs={pinnedSlugs}
+                    onSelect={handleSelect}
+                    onTogglePin={togglePin}
+                  />
+                ))}
+            </div>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

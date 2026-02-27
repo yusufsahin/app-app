@@ -66,7 +66,11 @@ export const useAuthStore = create<AuthState>()(
 
         setUser: (user) => set({ user }),
 
-        setRolesAndPermissions: (roles, permissions) => set({ roles, permissions }),
+        setRolesAndPermissions: (roles, permissions) =>
+          set({
+            roles: Array.isArray(roles) ? roles : [],
+            permissions: Array.isArray(permissions) ? permissions : [],
+          }),
 
         logout: () => {
           useTenantStore.getState().clearTenant();

@@ -1,29 +1,19 @@
 import type { ReactNode } from "react";
-import { Box, Typography } from "@mui/material";
+import { cn } from "../ui/utils";
 
 /**
- * Standard page structure (adapted from pamera-ui StandardPageLayout).
- * Use for consistent: breadcrumbs strip, title + description + actions row, optional filter bar, content, optional pagination.
+ * Standard page structure. Use for consistent: breadcrumbs strip, title + description + actions row, optional filter bar, content, optional pagination.
  */
 export interface StandardPageLayoutProps {
-  /** Breadcrumb element at the top (e.g. ProjectBreadcrumbs or custom) */
   breadcrumbs?: ReactNode;
-  /** Page title (string or custom element). Rendered as semantic h1 when string. */
   title?: ReactNode;
-  /** Description below the title (string or element). Muted text when string. */
   description?: ReactNode;
-  /** Action buttons/controls to the right of the title */
   actions?: ReactNode;
-  /** Optional filter bar between header and content */
   filterBar?: ReactNode;
-  /** Main content */
   children: ReactNode;
-  /** Optional pagination below content */
   pagination?: ReactNode;
-  /** When true, content has no horizontal padding (full-bleed) */
   fullWidth?: boolean;
-  /** Extra class/sx for root */
-  sx?: object;
+  className?: string;
 }
 
 export function StandardPageLayout({
@@ -35,77 +25,55 @@ export function StandardPageLayout({
   children,
   pagination,
   fullWidth = false,
-  sx,
+  className,
 }: StandardPageLayoutProps) {
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", ...sx }}>
+    <div className={cn("flex flex-col", className)}>
       {breadcrumbs && (
-        <Box
-          sx={{
-            borderBottom: 1,
-            borderColor: "divider",
-            bgcolor: "background.paper",
-            px: { xs: 2, sm: 3 },
-            py: 1.5,
-          }}
-        >
+        <div className="border-b border-border bg-card px-4 py-3 sm:px-6">
           {breadcrumbs}
-        </Box>
+        </div>
       )}
 
       {(title != null || actions) && (
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            alignItems: { sm: "flex-start" },
-            justifyContent: { sm: "space-between" },
-            gap: 2,
-            px: { xs: 2, sm: 3 },
-            py: 3,
-          }}
-        >
-          <Box sx={{ minWidth: 0 }}>
+        <div className="flex flex-col gap-4 px-4 py-6 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+          <div className="min-w-0">
             {title != null &&
               (typeof title === "string" ? (
-                <Typography component="h1" variant="h4" fontWeight="bold">
-                  {title}
-                </Typography>
+                <h1 className="text-2xl font-bold">{title}</h1>
               ) : (
                 title
               ))}
             {description != null &&
               (typeof description === "string" ? (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  {description}
-                </Typography>
+                <p className="mt-1 text-sm text-muted-foreground">{description}</p>
               ) : (
-                <Box sx={{ mt: 0.5 }}>{description}</Box>
+                <div className="mt-1">{description}</div>
               ))}
-          </Box>
+          </div>
           {actions && (
-            <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, flexShrink: 0 }}>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               {actions}
-            </Box>
+            </div>
           )}
-        </Box>
+        </div>
       )}
 
       {filterBar && (
-        <Box sx={{ borderBottom: 1, borderColor: "divider", px: { xs: 2, sm: 3 }, pb: 2 }}>
+        <div className="border-b border-border px-4 pb-4 sm:px-6">
           {filterBar}
-        </Box>
+        </div>
       )}
 
-      <Box sx={{ flex: 1, px: fullWidth ? 0 : { xs: 2, sm: 3 }, py: 2 }}>
+      <div className={cn("flex-1 py-4", fullWidth ? "px-0" : "px-4 sm:px-6")}>
         {children}
-      </Box>
+      </div>
 
       {pagination && (
-        <Box sx={{ borderTop: 1, borderColor: "divider", px: { xs: 2, sm: 3 }, py: 1.5 }}>
+        <div className="border-t border-border px-4 py-3 sm:px-6">
           {pagination}
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 }

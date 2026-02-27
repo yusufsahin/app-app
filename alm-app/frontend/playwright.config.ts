@@ -43,6 +43,15 @@ export default defineConfig({
       },
       dependencies: ["setup"],
     },
+    {
+      name: "manifest-and-demo",
+      testMatch: /manifest-and-demo\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/user.json",
+      },
+      dependencies: ["setup"],
+    },
   ],
   outputDir: "e2e/test-results",
 });

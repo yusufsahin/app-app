@@ -1,9 +1,15 @@
 import { Link, useParams } from "react-router-dom";
-import { Box, Breadcrumbs, Link as MuiLink, Typography } from "@mui/material";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "../ui";
 import { useTenantStore } from "../../stores/tenantStore";
 
 export interface OrgSettingsBreadcrumbsProps {
-  /** Current page label (e.g. "Members", "Access audit", "Overview") */
   currentPageLabel: string;
 }
 
@@ -18,16 +24,26 @@ export function OrgSettingsBreadcrumbs({ currentPageLabel }: OrgSettingsBreadcru
   const settingsPath = orgSlug ? `/${orgSlug}/settings` : "#";
 
   return (
-    <Box sx={{ mb: 2 }}>
-      <Breadcrumbs>
-        <MuiLink component={Link} to={orgPath} underline="hover" color="inherit">
-          {orgDisplayName}
-        </MuiLink>
-        <MuiLink component={Link} to={settingsPath} underline="hover" color="inherit">
-          Organization settings
-        </MuiLink>
-        <Typography color="text.primary">{currentPageLabel}</Typography>
-      </Breadcrumbs>
-    </Box>
+    <div className="mb-4">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to={orgPath}>{orgDisplayName}</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to={settingsPath}>Organization settings</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{currentPageLabel}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+    </div>
   );
 }

@@ -6,26 +6,11 @@
 import { useRef, useState } from "react";
 import { Controller } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
-import {
-  Box,
-  FormControl,
-  FormHelperText,
-  FormLabel,
-  IconButton,
-  Tab,
-  Tabs,
-  TextField,
-  ToggleButtonGroup,
-  Typography,
-} from "@mui/material";
-import FormatBold from "@mui/icons-material/FormatBold";
-import FormatItalic from "@mui/icons-material/FormatItalic";
-import Code from "@mui/icons-material/Code";
-import FormatListBulleted from "@mui/icons-material/FormatListBulleted";
-import FormatListNumbered from "@mui/icons-material/FormatListNumbered";
-import Link from "@mui/icons-material/Link";
-import Visibility from "@mui/icons-material/Visibility";
-import Edit from "@mui/icons-material/Edit";
+import { Bold, Italic, Code, List, ListOrdered, Link2, Eye, Pencil } from "lucide-react";
+import { Label } from "../ui";
+import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
+import { FormItem, FormControl, FormMessage } from "../ui/form";
+import { cn } from "../ui/utils";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
 
@@ -75,37 +60,41 @@ function MarkdownToolbar({
   };
 
   return (
-    <ToggleButtonGroup size="small" sx={{ flexWrap: "wrap", gap: 0, p: 0.5, borderBottom: 1, borderColor: "divider" }}>
-      <IconButton
-        size="small"
+    <div className="flex flex-wrap gap-0 border-b border-border p-1">
+      <button
+        type="button"
         onClick={() => handleWrap("**", "**", "bold text")}
         aria-label="Bold"
+        className="rounded p-1.5 hover:bg-muted"
       >
-        <FormatBold fontSize="small" />
-      </IconButton>
-      <IconButton
-        size="small"
+        <Bold className="size-4" />
+      </button>
+      <button
+        type="button"
         onClick={() => handleWrap("*", "*", "italic text")}
         aria-label="Italic"
+        className="rounded p-1.5 hover:bg-muted"
       >
-        <FormatItalic fontSize="small" />
-      </IconButton>
-      <IconButton
-        size="small"
+        <Italic className="size-4" />
+      </button>
+      <button
+        type="button"
         onClick={() => handleWrap("[", "](url)", "link text")}
         aria-label="Link"
+        className="rounded p-1.5 hover:bg-muted"
       >
-        <Link fontSize="small" />
-      </IconButton>
-      <IconButton
-        size="small"
+        <Link2 className="size-4" />
+      </button>
+      <button
+        type="button"
         onClick={() => handleWrap("`", "`", "code")}
         aria-label="Inline code"
+        className="rounded p-1.5 hover:bg-muted"
       >
-        <Code fontSize="small" />
-      </IconButton>
-      <IconButton
-        size="small"
+        <Code className="size-4" />
+      </button>
+      <button
+        type="button"
         onClick={() => {
           const ta = textareaRef.current;
           if (!ta) return;
@@ -121,11 +110,12 @@ function MarkdownToolbar({
           onInsert(next);
         }}
         aria-label="Bullet list"
+        className="rounded p-1.5 hover:bg-muted"
       >
-        <FormatListBulleted fontSize="small" />
-      </IconButton>
-      <IconButton
-        size="small"
+        <List className="size-4" />
+      </button>
+      <button
+        type="button"
         onClick={() => {
           const ta = textareaRef.current;
           if (!ta) return;
@@ -141,10 +131,11 @@ function MarkdownToolbar({
           onInsert(next);
         }}
         aria-label="Numbered list"
+        className="rounded p-1.5 hover:bg-muted"
       >
-        <FormatListNumbered fontSize="small" />
-      </IconButton>
-    </ToggleButtonGroup>
+        <ListOrdered className="size-4" />
+      </button>
+    </div>
   );
 }
 
@@ -234,99 +225,72 @@ export const MarkdownFieldInner = ({
   const [view, setView] = useState<ViewMode>(defaultView);
 
   return (
-    <FormControl fullWidth error={error} disabled={disabled} variant="standard">
-      {label && (
-        <FormLabel sx={{ mb: 0.5, display: "block" }}>{label}</FormLabel>
-      )}
-      <Box
-        sx={{
-          border: 1,
-          borderColor: error ? "error.main" : "divider",
-          borderRadius: 1,
-          overflow: "hidden",
-          bgcolor: disabled ? "action.hover" : "background.paper",
-        }}
-      >
-        {showPreview && (
-          <Tabs
-            value={view}
-            onChange={(_, v) => setView(v as ViewMode)}
-            variant="fullWidth"
-            sx={{ minHeight: 36, borderBottom: 1, borderColor: "divider" }}
-          >
-            <Tab value="edit" icon={<Edit />} iconPosition="start" label="Edit" />
-            <Tab value="preview" icon={<Visibility />} iconPosition="start" label="Preview" />
-            <Tab value="split" icon={<Visibility />} iconPosition="start" label="Split" />
-          </Tabs>
-        )}
-        {showToolbar && (!showPreview || view === "edit" || view === "split") && (
-          <MarkdownToolbar textareaRef={textareaRef} onInsert={onChange} />
-        )}
-        <Box sx={{ display: "flex", flexDirection: view === "split" ? "row" : "column", minHeight }}>
-          {(!showPreview || view === "edit" || view === "split") && (
-                  <Box sx={{ flex: view === "split" ? 1 : undefined, display: "flex", flexDirection: "column" }}>
-                    <TextField
-                      inputRef={(el) => {
-                        (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
-                        if (typeof ref === "function") ref(el);
-                        else if (ref) (ref as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
-                      }}
-                      value={raw}
-                      onChange={(e) => onChange(e.target.value)}
-                      onBlur={onBlur}
-                      placeholder={placeholder}
-                      disabled={disabled}
-                      multiline
-                      minRows={rows}
-                      maxRows={view === "split" ? rows : undefined}
-                      variant="standard"
-                      InputProps={{
-                        disableUnderline: true,
-                        sx: {
-                          minHeight: view === "split" ? minHeight / 2 : minHeight,
-                          px: 1.5,
-                          py: 1,
-                          fontSize: "0.875rem",
-                          fontFamily: "monospace",
-                        },
-                      }}
-                      sx={{ flex: 1, "& .MuiInputBase-root": { alignItems: "flex-start" } }}
-                    />
-                  </Box>
+    <FormItem>
+      {label && <Label className="mb-1 block">{label}</Label>}
+      <FormControl>
+        <div
+          className={cn(
+            "overflow-hidden rounded-md border bg-background",
+            error && "border-destructive",
+            disabled && "bg-muted/50",
           )}
-          {showPreview && (view === "preview" || view === "split") && (
-            <Box
-              sx={{
-                flex: 1,
-                minHeight: view === "split" ? minHeight / 2 : minHeight,
-                px: 1.5,
-                py: 1,
-                overflow: "auto",
-                borderLeft: view === "split" ? 1 : 0,
-                borderColor: "divider",
-                "& h1": { fontSize: "1.5rem", mt: 1, mb: 0.5 },
-                "& h2": { fontSize: "1.25rem", mt: 1, mb: 0.5 },
-                "& h3": { fontSize: "1.1rem", mt: 0.5 },
-                "& pre": { bgcolor: "action.hover", p: 1, borderRadius: 1, overflow: "auto" },
-                "& code": { fontFamily: "monospace", fontSize: "0.85em" },
-                "& ul, & ol": { pl: 2 },
-                "& table": { borderCollapse: "collapse", "& td, & th": { border: "1px solid", borderColor: "divider", px: 1, py: 0.5 } },
-              }}
-            >
-              {raw.trim() ? (
-                <ReactMarkdown>{raw}</ReactMarkdown>
-              ) : (
-                <Typography variant="body2" color="text.disabled">
-                  Nothing to preview
-                </Typography>
-              )}
-            </Box>
+        >
+          {showPreview && (
+            <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)}>
+              <TabsList className="h-9 w-full justify-start rounded-none border-b border-border bg-transparent">
+                <TabsTrigger value="edit" className="gap-1.5">
+                  <Pencil className="size-4" /> Edit
+                </TabsTrigger>
+                <TabsTrigger value="preview" className="gap-1.5">
+                  <Eye className="size-4" /> Preview
+                </TabsTrigger>
+                <TabsTrigger value="split" className="gap-1.5">
+                  <Eye className="size-4" /> Split
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           )}
-        </Box>
-      </Box>
-      {helperText && (
-        <FormHelperText sx={{ mt: 0.5 }}>{helperText}</FormHelperText>
-      )}
-    </FormControl>
+          {showToolbar && (!showPreview || view === "edit" || view === "split") && (
+            <MarkdownToolbar textareaRef={textareaRef} onInsert={onChange} />
+          )}
+          <div className={cn("flex", view === "split" ? "flex-row" : "flex-col")} style={{ minHeight }}>
+            {(!showPreview || view === "edit" || view === "split") && (
+              <div className={cn("flex flex-col", view === "split" && "flex-1")}>
+                <textarea
+                  ref={(el) => {
+                    (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
+                    if (typeof ref === "function") ref(el);
+                    else if (ref && typeof ref === "object") (ref as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
+                  }}
+                  value={raw}
+                  onChange={(e) => onChange(e.target.value)}
+                  onBlur={onBlur}
+                  placeholder={placeholder}
+                  disabled={disabled}
+                  rows={view === "split" ? Math.max(4, rows / 2) : rows}
+                  className="min-h-[200px] flex-1 resize-y rounded-none border-0 bg-transparent px-3 py-2 font-mono text-sm outline-none disabled:opacity-50"
+                />
+              </div>
+            )}
+            {showPreview && (view === "preview" || view === "split") && (
+              <div
+                className={cn(
+                  "overflow-auto px-3 py-2 text-sm prose prose-sm dark:prose-invert max-w-none",
+                  view === "split" && "min-h-[200px] flex-1 border-l border-border",
+                )}
+                style={{ minHeight: view === "split" ? minHeight / 2 : minHeight }}
+              >
+                {raw.trim() ? (
+                  <ReactMarkdown>{raw}</ReactMarkdown>
+                ) : (
+                  <p className="text-muted-foreground">Nothing to preview</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </FormControl>
+      {helperText && <FormMessage>{helperText}</FormMessage>}
+    </FormItem>
   );
 };

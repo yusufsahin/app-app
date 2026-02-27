@@ -1,10 +1,9 @@
 """Admin-only API (G5: access audit, G1: create user, G2: list/delete users). Requires admin role in current tenant."""
-
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, EmailStr
@@ -104,7 +103,9 @@ async def delete_user(
     mediator: Mediator = Depends(get_mediator),
 ) -> None:
     """G2: Soft-delete a user in the current tenant. Cannot delete self or last admin."""
-    await mediator.send(SoftDeleteUser(tenant_id=user.tenant_id, user_id=user_id, deleted_by=user.id))
+    await mediator.send(
+        SoftDeleteUser(tenant_id=user.tenant_id, user_id=user_id, deleted_by=user.id)
+    )
 
 
 @router.get("/audit/access")
@@ -115,7 +116,7 @@ async def get_access_audit(
     type_filter: str | None = Query(None, description="LOGIN_SUCCESS, LOGIN_FAILURE"),
     limit: int = Query(100, ge=1, le=500),
     store: AccessAuditStore = Depends(_get_access_audit_store),
-) -> list[dict[str, Any]]:
+) -> list[dict]:
     """List access audit entries (login success/failure). Admin only."""
     from_ts: datetime | None = None
     to_ts: datetime | None = None

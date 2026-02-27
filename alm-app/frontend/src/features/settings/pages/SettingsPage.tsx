@@ -1,24 +1,12 @@
 import { useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  Card,
-  CardContent,
-  Chip,
-} from "@mui/material";
-import { Archive, Business } from "@mui/icons-material";
+import { Archive, Building2 } from "lucide-react";
 import { apiClient } from "../../../shared/api/client";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { useTenantStore } from "../../../shared/stores/tenantStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
 import { OrgSettingsBreadcrumbs } from "../../../shared/components/Layout";
+import { Badge, Button, Card, CardContent, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../../../shared/components/ui";
 import { useNavigate } from "react-router-dom";
 
 export default function SettingsPage() {
@@ -52,97 +40,72 @@ export default function SettingsPage() {
   return (
     <SettingsPageWrapper>
       <OrgSettingsBreadcrumbs currentPageLabel="Overview" />
-      <Typography component="h1" variant="h4" gutterBottom>
-        Organization settings
-      </Typography>
+      <h1 className="mb-4 text-2xl font-semibold">Organization settings</h1>
 
-      {/* Organization info */}
-      <Card variant="outlined" sx={{ mb: 3, maxWidth: 560 }}>
+      <Card className="mb-6 max-w-[560px] border border-border">
         <CardContent>
-          <Typography
-            variant="subtitle1"
-            fontWeight={600}
-            gutterBottom
-            sx={{ display: "flex", alignItems: "center", gap: 1 }}
-          >
-            <Business fontSize="small" />
+          <p className="mb-4 flex items-center gap-2 font-semibold">
+            <Building2 className="size-4" />
             General
-          </Typography>
-
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Name
-              </Typography>
-              <Typography variant="body1" fontWeight={500}>
-                {currentTenant?.name ?? "—"}
-              </Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Slug
-              </Typography>
-              <Typography variant="body2" fontFamily="monospace">
-                {currentTenant?.slug ?? "—"}
-              </Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Tier
-              </Typography>
-              <Box sx={{ mt: 0.25 }}>
-                <Chip
-                  label={currentTenant?.tier ?? "—"}
-                  size="small"
-                  variant="outlined"
-                />
-              </Box>
-            </Box>
-          </Box>
+          </p>
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Name</p>
+              <p className="font-medium">{currentTenant?.name ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Slug</p>
+              <p className="font-mono text-sm">{currentTenant?.slug ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Tier</p>
+              <Badge variant="outline" className="mt-1">
+                {currentTenant?.tier ?? "—"}
+              </Badge>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Danger zone (admin only) */}
       {isAdmin && (
-        <Box sx={{ maxWidth: 560 }}>
-          <Typography variant="h6" color="error" gutterBottom>
-            Danger zone
-          </Typography>
-          <Card variant="outlined" sx={{ borderColor: "error.light" }}>
+        <div className="max-w-[560px]">
+          <h2 className="mb-2 text-lg font-semibold text-destructive">Danger zone</h2>
+          <Card className="border border-destructive/50">
             <CardContent>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              <p className="mb-4 text-sm text-muted-foreground">
                 Archiving this organization will soft-delete it. Only admins can archive. You will
                 be redirected to tenant selection.
-              </Typography>
+              </p>
               <Button
-                variant="outlined"
-                color="error"
-                startIcon={<Archive />}
+                variant="destructive"
                 onClick={() => setArchiveDialogOpen(true)}
               >
+                <Archive className="mr-2 size-4" />
                 Archive organization
               </Button>
             </CardContent>
           </Card>
-        </Box>
+        </div>
       )}
 
-      <Dialog open={archiveDialogOpen} onClose={() => !archiving && setArchiveDialogOpen(false)}>
-        <DialogTitle>Archive organization?</DialogTitle>
+      <Dialog open={archiveDialogOpen} onOpenChange={(open) => !archiving && setArchiveDialogOpen(open)}>
         <DialogContent>
-          <DialogContentText>
+          <DialogHeader>
+            <DialogTitle>Archive organization?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
             This will archive the current organization. You will need to select another organization
             or log out. This action can be reversed by a system administrator. Continue?
-          </DialogContentText>
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setArchiveDialogOpen(false)} disabled={archiving}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleArchiveOrg} disabled={archiving}>
+              {archiving ? "Archiving…" : "Archive"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setArchiveDialogOpen(false)} disabled={archiving}>
-            Cancel
-          </Button>
-          <Button color="error" onClick={handleArchiveOrg} disabled={archiving} variant="contained">
-            {archiving ? "Archiving…" : "Archive"}
-          </Button>
-        </DialogActions>
       </Dialog>
     </SettingsPageWrapper>
   );

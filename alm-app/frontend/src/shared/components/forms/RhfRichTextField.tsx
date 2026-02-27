@@ -9,20 +9,10 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Table, TableRow, TableHeader, TableCell } from "@tiptap/extension-table";
-import {
-  Box,
-  FormControl,
-  FormHelperText,
-  FormLabel,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography,
-} from "@mui/material";
-import FormatBold from "@mui/icons-material/FormatBold";
-import FormatItalic from "@mui/icons-material/FormatItalic";
-import FormatListBulleted from "@mui/icons-material/FormatListBulleted";
-import FormatListNumbered from "@mui/icons-material/FormatListNumbered";
-import TableChart from "@mui/icons-material/TableChart";
+import { Bold, Italic, List, ListOrdered, Table2 } from "lucide-react";
+import { Label } from "../ui";
+import { FormItem, FormControl, FormMessage } from "../ui/form";
+import { cn } from "../ui/utils";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
 
@@ -49,52 +39,53 @@ type RhfRichTextFieldProps<TFieldValues extends import("react-hook-form").FieldV
 function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   if (!editor) return null;
   return (
-    <ToggleButtonGroup size="small" sx={{ flexWrap: "wrap", gap: 0, p: 0.5, borderBottom: 1, borderColor: "divider" }}>
-      <ToggleButton
-        value="bold"
-        selected={editor.isActive("bold")}
+    <div className="flex flex-wrap gap-0 border-b border-border p-1">
+      <button
+        type="button"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => editor.chain().focus().toggleBold().run()}
         aria-label="Bold"
+        className={cn("rounded p-1.5", editor.isActive("bold") && "bg-muted")}
       >
-        <FormatBold />
-      </ToggleButton>
-      <ToggleButton
-        value="italic"
-        selected={editor.isActive("italic")}
+        <Bold className="size-4" />
+      </button>
+      <button
+        type="button"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => editor.chain().focus().toggleItalic().run()}
         aria-label="Italic"
+        className={cn("rounded p-1.5", editor.isActive("italic") && "bg-muted")}
       >
-        <FormatItalic />
-      </ToggleButton>
-      <ToggleButton
-        value="bulletList"
-        selected={editor.isActive("bulletList")}
+        <Italic className="size-4" />
+      </button>
+      <button
+        type="button"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
         aria-label="Bullet list"
+        className={cn("rounded p-1.5", editor.isActive("bulletList") && "bg-muted")}
       >
-        <FormatListBulleted />
-      </ToggleButton>
-      <ToggleButton
-        value="orderedList"
-        selected={editor.isActive("orderedList")}
+        <List className="size-4" />
+      </button>
+      <button
+        type="button"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
         aria-label="Numbered list"
+        className={cn("rounded p-1.5", editor.isActive("orderedList") && "bg-muted")}
       >
-        <FormatListNumbered />
-      </ToggleButton>
-      <ToggleButton
-        value="table"
+        <ListOrdered className="size-4" />
+      </button>
+      <button
+        type="button"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
         aria-label="Insert table"
+        className="rounded p-1.5 hover:bg-muted"
       >
-        <TableChart />
-      </ToggleButton>
-    </ToggleButtonGroup>
+        <Table2 className="size-4" />
+      </button>
+    </div>
   );
 }
 
@@ -211,56 +202,29 @@ export function RichTextEditorInner({
     return () => el.removeEventListener("blur", onBlur);
   }, [editor, onBlur]);
 
-  if (!editor) return <Typography color="text.secondary">Loading editor…</Typography>;
+  if (!editor) return <p className="text-muted-foreground">Loading editor…</p>;
 
   return (
-    <FormControl fullWidth error={error} disabled={disabled} variant="standard">
-      {label && (
-        <FormLabel sx={{ mb: 0.5, display: "block" }}>{label}</FormLabel>
-      )}
-      <Box
-        ref={inputRef as React.RefObject<HTMLDivElement>}
-        sx={{
-          border: 1,
-          borderColor: error ? "error.main" : "divider",
-          borderRadius: 1,
-          overflow: "hidden",
-          bgcolor: disabled ? "action.hover" : "background.paper",
-          "& .ProseMirror": {
-            outline: "none",
-            minHeight,
-            px: 1.5,
-            py: 1,
-            "& p.is-editor-empty:first-child::before": {
-              content: "attr(data-placeholder)",
-              color: "text.disabled",
-              float: "left",
-              height: 0,
-              pointerEvents: "none",
-            },
-            "& table": {
-              borderCollapse: "collapse",
-              width: "100%",
-              "& td, & th": {
-                border: "1px solid",
-                borderColor: "divider",
-                px: 1,
-                py: 0.5,
-              },
-              "& th": {
-                bgcolor: "action.hover",
-                fontWeight: 600,
-              },
-            },
-          },
-        }}
-      >
-        {showToolbar && <Toolbar editor={editor} />}
-        <EditorContent editor={editor} />
-      </Box>
-      {helperText && (
-        <FormHelperText sx={{ mt: 0.5 }}>{helperText}</FormHelperText>
-      )}
-    </FormControl>
+    <FormItem>
+      {label && <Label className="mb-1 block">{label}</Label>}
+      <FormControl>
+        <div
+          ref={inputRef as React.RefObject<HTMLDivElement>}
+          className={cn(
+            "overflow-hidden rounded-md border bg-background",
+            error && "border-destructive",
+            disabled && "bg-muted/50",
+            "[&_.ProseMirror]:min-h-[var(--editor-min-height,200px)] [&_.ProseMirror]:px-3 [&_.ProseMirror]:py-2 [&_.ProseMirror]:outline-none",
+            "[&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted-foreground [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
+            "[&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-border [&_.ProseMirror_th]:bg-muted [&_.ProseMirror_th]:px-2 [&_.ProseMirror_th]:py-1 [&_.ProseMirror_th]:font-semibold [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-border [&_.ProseMirror_td]:px-2 [&_.ProseMirror_td]:py-1",
+          )}
+          style={{ ["--editor-min-height" as string]: `${minHeight}px` }}
+        >
+          {showToolbar && <Toolbar editor={editor} />}
+          <EditorContent editor={editor} />
+        </div>
+      </FormControl>
+      {helperText && <FormMessage>{helperText}</FormMessage>}
+    </FormItem>
   );
 }

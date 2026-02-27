@@ -1,4 +1,3 @@
-import { Box, Container } from "@mui/material";
 import { SettingsSubNav } from "./SettingsSubNav";
 
 interface SettingsPageWrapperProps {
@@ -11,11 +10,11 @@ interface SettingsPageWrapperProps {
  */
 export function SettingsPageWrapper({ children }: SettingsPageWrapperProps) {
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ display: "flex", alignItems: "flex-start" }}>
+    <div className="mx-auto max-w-6xl py-6">
+      <div className="flex items-start">
         <SettingsSubNav />
-        <Box sx={{ flex: 1, minWidth: 0 }}>{children}</Box>
-      </Box>
-    </Container>
+        <div className="min-w-0 flex-1">{children}</div>
+      </div>
+    </div>
   );
 }

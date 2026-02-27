@@ -3,18 +3,8 @@
  */
 import { useState, useMemo, useEffect } from "react";
 import { useForm, FormProvider } from "react-hook-form";
-import {
-  Box,
-  Paper,
-  Typography,
-  Chip,
-  List,
-  ListItem,
-  ListItemText,
-  Button,
-  IconButton,
-} from "@mui/material";
-import { AccountTree, ArrowForward, Add, Save, Close } from "@mui/icons-material";
+import { Button, Badge } from "../../../shared/components/ui";
+import { GitBranch, ArrowRight, Plus, Save, X } from "lucide-react";
 import { RhfSelect } from "../../../shared/components/forms";
 
 export interface WorkflowState {
@@ -105,11 +95,11 @@ export function WorkflowDesignerView({
 
   if (workflows.length === 0) {
     return (
-      <Paper variant="outlined" sx={{ p: 3 }}>
-        <Typography variant="body2" color="text.secondary">
+      <div className="rounded-lg border p-6">
+        <p className="text-sm text-muted-foreground">
           No workflows defined. Add workflows in the Source tab and save.
-        </Typography>
-      </Paper>
+        </p>
+      </div>
     );
   }
 
@@ -146,30 +136,29 @@ export function WorkflowDesignerView({
   const nodeTop = (y: number) => y - NODE_HEIGHT / 2;
 
   return (
-    <Paper variant="outlined" sx={{ p: 3 }}>
-      <Typography variant="overline" color="primary" fontWeight={600} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-        <AccountTree fontSize="small" />
+    <div className="rounded-lg border p-6">
+      <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
+        <GitBranch className="size-4" />
         {editable ? "Workflow" : "Workflow (read-only)"}
-      </Typography>
+      </p>
 
       {workflows.length > 1 && (
         <FormProvider {...form}>
-          <Box sx={{ minWidth: 200, mb: 2 }}>
+          <div className="mb-4 min-w-[200px]">
             <RhfSelect<WorkflowFormValues>
               name="workflowId"
               control={control}
               label="Workflow"
               options={workflows.map((w) => ({ value: w.id, label: w.name || w.id }))}
-              selectProps={{ size: "small" }}
             />
-          </Box>
+          </div>
         </FormProvider>
       )}
 
       {selected && (
         <>
           {states.length > 0 && (
-            <Box sx={{ overflow: "auto", mb: 2 }}>
+            <div className="mb-4 overflow-auto">
               <svg
                 width="100%"
                 viewBox={`0 0 ${totalWidth} ${svgHeight}`}
@@ -232,10 +221,10 @@ export function WorkflowDesignerView({
                   const category = state?.category;
                   const fill =
                     category === "completed"
-                      ? "var(--mui-palette-success-light)"
+                      ? "hsl(var(--success) / 0.2)"
                       : category === "in_progress"
-                        ? "var(--mui-palette-primary-light)"
-                        : "var(--mui-palette-action-hover)";
+                        ? "hsl(var(--primary) / 0.2)"
+                        : "hsl(var(--muted))";
                   return (
                     <g key={pos.id}>
                       <rect
@@ -261,113 +250,95 @@ export function WorkflowDesignerView({
                   );
                 })}
               </svg>
-            </Box>
+            </div>
           )}
 
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-            States
-          </Typography>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
+          <p className="mb-2 text-sm font-medium text-muted-foreground">States</p>
+          <div className="mb-4 flex flex-wrap gap-1">
             {states.map((s) => (
-              <Chip
+              <Badge
                 key={s.id}
-                label={s.name || s.id}
-                size="small"
-                variant="outlined"
-                color={s.category === "completed" ? "success" : s.category === "in_progress" ? "primary" : "default"}
-              />
+                variant="outline"
+                className={`text-xs ${s.category === "completed" ? "border-green-500/50 text-green-700 dark:text-green-400" : s.category === "in_progress" ? "border-primary/50" : ""}`}
+              >
+                {s.name || s.id}
+              </Badge>
             ))}
-          </Box>
+          </div>
 
           {editable && states.length >= 2 && (
             <FormProvider {...form}>
-              <Box sx={{ mb: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }}>
-                <Box sx={{ minWidth: 140 }}>
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <div className="min-w-[140px]">
                   <RhfSelect<WorkflowFormValues>
                     name="addFrom"
                     control={control}
                     label="From"
                     options={states.map((s) => ({ value: s.id, label: s.name || s.id }))}
-                    selectProps={{ size: "small" }}
                   />
-                </Box>
-                <ArrowForward sx={{ color: "action.active" }} />
-                <Box sx={{ minWidth: 140 }}>
+                </div>
+                <ArrowRight className="size-4 text-muted-foreground" />
+                <div className="min-w-[140px]">
                   <RhfSelect<WorkflowFormValues>
                     name="addTo"
                     control={control}
                     label="To"
                     options={states.map((s) => ({ value: s.id, label: s.name || s.id }))}
-                    selectProps={{ size: "small" }}
                   />
-                </Box>
-                <Button size="small" startIcon={<Add />} onClick={handleAddTransition} disabled={!addFrom || !addTo}>
+                </div>
+                <Button size="sm" onClick={handleAddTransition} disabled={!addFrom || !addTo}>
+                  <Plus className="size-4" />
                   Add transition
                 </Button>
                 {hasDraft && onSaveWorkflow && (
-                  <Button
-                    size="small"
-                    variant="contained"
-                    startIcon={<Save />}
-                    onClick={handleSaveToManifest}
-                    disabled={isSaving}
-                  >
+                  <Button size="sm" onClick={handleSaveToManifest} disabled={isSaving}>
+                    <Save className="size-4" />
                     {isSaving ? "Saving…" : "Save to manifest"}
                   </Button>
                 )}
-              </Box>
+              </div>
             </FormProvider>
           )}
 
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-            Transitions
-          </Typography>
+          <p className="mb-2 text-sm font-medium text-muted-foreground">Transitions</p>
           {transitions.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              No transitions defined.
-            </Typography>
+            <p className="text-sm text-muted-foreground">No transitions defined.</p>
           ) : (
-            <List dense disablePadding>
+            <ul className="space-y-0.5">
               {transitions.map((t, i) => {
                 const fromName = stateMap.get(t.from)?.name ?? t.from;
                 const toName = stateMap.get(t.to)?.name ?? t.to;
                 const isDraft = i >= baseTransitions.length;
                 return (
-                  <ListItem
+                  <li
                     key={`${t.from}-${t.to}-${i}`}
-                    disablePadding
-                    sx={{ py: 0.25 }}
-                    secondaryAction={
-                      isDraft && editable ? (
-                        <IconButton
-                          size="small"
-                          aria-label="Remove transition"
-                          onClick={() => removeDraftTransition(i)}
-                        >
-                          <Close fontSize="small" />
-                        </IconButton>
-                      ) : null
-                    }
+                    className="flex items-center justify-between py-0.5"
                   >
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                          <Chip label={fromName} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
-                          <ArrowForward fontSize="small" color="action" />
-                          <Chip label={toName} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
-                          {isDraft && (
-                            <Chip label="new" size="small" color="primary" sx={{ ml: 0.5 }} />
-                          )}
-                        </Box>
-                      }
-                    />
-                  </ListItem>
+                    <div className="flex items-center gap-1">
+                      <Badge variant="outline" className="text-xs font-medium">{fromName}</Badge>
+                      <ArrowRight className="size-4 text-muted-foreground" />
+                      <Badge variant="outline" className="text-xs font-medium">{toName}</Badge>
+                      {isDraft && (
+                        <Badge className="ml-1 text-xs">new</Badge>
+                      )}
+                    </div>
+                    {isDraft && editable ? (
+                      <button
+                        type="button"
+                        className="rounded p-1 hover:bg-muted"
+                        aria-label="Remove transition"
+                        onClick={() => removeDraftTransition(i)}
+                      >
+                        <X className="size-4" />
+                      </button>
+                    ) : null}
+                  </li>
                 );
               })}
-            </List>
+            </ul>
           )}
         </>
       )}
-    </Paper>
+    </div>
   );
 }

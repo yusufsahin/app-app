@@ -3,28 +3,31 @@ import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  Box,
-  Container,
-  Typography,
+  Plus,
+  Trash2,
+  Scale,
+  Sparkles,
+  CheckCircle,
+  Circle,
+  Play,
+  Pause,
+  Search,
+} from "lucide-react";
+import { useState, useMemo } from "react";
+import {
   Button,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Chip,
   Card,
   CardContent,
-  Stack,
-  Paper,
-  InputAdornment,
-  TextField,
-} from "@mui/material";
-import Grid from "@mui/material/Grid";
-import { Add, Delete, Rule, AutoAwesome, CheckCircle, Circle, PlayArrow, Pause, Search } from "@mui/icons-material";
-import { useState, useMemo } from "react";
+  Input,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "../../../shared/components/ui";
 import { RhfSelect, RhfSwitch, RhfTextField } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
+import { useProjectStore } from "../../../shared/stores/projectStore";
 import {
   useWorkflowRules,
   useCreateWorkflowRule,
@@ -64,8 +67,11 @@ type AddRuleFormValues = z.infer<typeof addRuleSchema>;
 
 export default function AutomationPage() {
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
-  const { data: projects } = useOrgProjects(orgSlug);
-  const project = projects?.find((p) => p.slug === projectSlug);
+  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
+  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
+  const project =
+    projects?.find((p) => p.slug === projectSlug) ??
+    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
   const { data: rules = [], isLoading } = useWorkflowRules(orgSlug, project?.id);
   const createRule = useCreateWorkflowRule(orgSlug, project?.id);
   const deleteRule = useDeleteWorkflowRule(orgSlug, project?.id);
@@ -141,137 +147,92 @@ export default function AutomationPage() {
     });
   };
 
-  if (!project && projectSlug && orgSlug) {
+  if (projectSlug && orgSlug && !projectsLoading && !project) {
     return <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />;
+  }
+  if (projectSlug && orgSlug && projectsLoading) {
+    return (
+      <div className="mx-auto max-w-2xl py-6">
+        <div className="text-muted-foreground">Loading project…</div>
+      </div>
+    );
   }
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
+    <div className="mx-auto max-w-2xl py-6">
       <ProjectBreadcrumbs currentPageLabel="Automation" projectName={project?.name} />
 
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={3}>
-        <Box>
-          <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
-            <AutoAwesome color="primary" />
-            <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>
-              Automation
-            </Typography>
-          </Stack>
-          <Typography variant="body2" color="text.secondary">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="mb-1 flex items-center gap-2">
+            <Sparkles className="size-6 text-primary" />
+            <h1 className="text-2xl font-bold">Automation</h1>
+          </div>
+          <p className="text-sm text-muted-foreground">
             Run actions when events happen (e.g. artifact created, state changed). Actions: log, notification.
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<Add />} onClick={handleOpenDialog}>
+          </p>
+        </div>
+        <Button onClick={handleOpenDialog}>
+          <Plus className="mr-2 size-4" />
           Add rule
         </Button>
-      </Stack>
+      </div>
 
-      {/* Stat Cards */}
       {!isLoading && totalRules > 0 && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <Card>
-              <CardContent>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Box
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 2,
-                      bgcolor: "primary.light",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Rule sx={{ color: "primary.main" }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" fontWeight={700}>{totalRules}</Typography>
-                    <Typography variant="body2" color="text.secondary">Total Rules</Typography>
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <Card>
-              <CardContent>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Box
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 2,
-                      bgcolor: "success.light",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <PlayArrow sx={{ color: "success.main" }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" fontWeight={700}>{activeRules}</Typography>
-                    <Typography variant="body2" color="text.secondary">Active Rules</Typography>
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <Card>
-              <CardContent>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Box
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 2,
-                      bgcolor: "warning.light",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Pause sx={{ color: "warning.main" }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" fontWeight={700}>{inactiveRules}</Typography>
-                    <Typography variant="body2" color="text.secondary">Inactive Rules</Typography>
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Card className="border border-border">
+            <CardContent className="flex items-center gap-4 p-4">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                <Scale className="size-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalRules}</p>
+                <p className="text-sm text-muted-foreground">Total Rules</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border border-border">
+            <CardContent className="flex items-center gap-4 p-4">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10">
+                <Play className="size-6 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{activeRules}</p>
+                <p className="text-sm text-muted-foreground">Active Rules</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border border-border">
+            <CardContent className="flex items-center gap-4 p-4">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/10">
+                <Pause className="size-6 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{inactiveRules}</p>
+                <p className="text-sm text-muted-foreground">Inactive Rules</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
-      {/* Search */}
       {!isLoading && totalRules > 0 && (
-        <Paper sx={{ p: 1.5, mb: 2 }}>
-          <TextField
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
             placeholder="Search rules by name or trigger…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            size="small"
-            fullWidth
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
+            className="pl-9"
           />
-        </Paper>
+        </div>
       )}
 
       {isLoading ? (
         <LoadingState label="Loading rules…" />
       ) : rules.length === 0 ? (
         <EmptyState
-          icon={<Rule />}
+          icon={<Scale className="size-12" />}
           title="No workflow rules"
           description="Add a rule to run actions when events happen (e.g. artifact created, state changed)."
           actionLabel="Add rule"
@@ -280,78 +241,74 @@ export default function AutomationPage() {
         />
       ) : filteredRules.length === 0 ? (
         <EmptyState
-          icon={<Search />}
+          icon={<Search className="size-12" />}
           title="No matching rules"
           description={`No rules match "${searchTerm}".`}
           bordered
         />
       ) : (
-        <Stack spacing={2}>
+        <div className="space-y-2">
           {filteredRules.map((r) => (
-            <Card key={r.id} variant="outlined" sx={{ transition: "box-shadow 0.2s", "&:hover": { boxShadow: 3 } }}>
-              <CardContent sx={{ py: 2, px: 3, "&:last-child": { pb: 2 } }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Stack direction="row" spacing={1.5} alignItems="center">
-                    <Box
-                      sx={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 1.5,
-                        bgcolor: r.is_active ? "primary.light" : "grey.100",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Rule sx={{ color: r.is_active ? "primary.main" : "text.disabled", fontSize: 20 }} />
-                    </Box>
-                    <Box>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography variant="subtitle2" fontWeight={600}>
-                          {r.name}
-                        </Typography>
-                        <Chip
-                          size="small"
-                          label={r.is_active ? "Active" : "Inactive"}
-                          color={r.is_active ? "success" : "default"}
-                          variant="filled"
-                          icon={r.is_active ? <CheckCircle sx={{ fontSize: "12px !important" }} /> : <Circle sx={{ fontSize: "12px !important" }} />}
-                          sx={{ height: 20, fontSize: "0.7rem" }}
-                        />
-                      </Stack>
-                      <Typography variant="caption" color="text.secondary">
-                        Trigger: {TRIGGER_EVENT_TYPES.find((t) => t.value === r.trigger_event_type)?.label ?? r.trigger_event_type}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                  <IconButton
-                    size="small"
-                    color="error"
-                    aria-label="Delete rule"
-                    onClick={() => handleDelete(r.id)}
-                    disabled={deleteRule.isPending}
+            <Card
+              key={r.id}
+              className="border border-border transition shadow hover:shadow-md"
+            >
+              <CardContent className="flex items-center justify-between gap-4 px-4 py-3">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div
+                    className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${r.is_active ? "bg-primary/10" : "bg-muted"}`}
                   >
-                    <Delete fontSize="small" />
-                  </IconButton>
-                </Stack>
+                    <Scale
+                      className={`size-5 ${r.is_active ? "text-primary" : "text-muted-foreground"}`}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{r.name}</span>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${r.is_active ? "bg-emerald-500/10 text-emerald-700" : "bg-muted text-muted-foreground"}`}
+                      >
+                        {r.is_active ? (
+                          <CheckCircle className="size-3" />
+                        ) : (
+                          <Circle className="size-3" />
+                        )}
+                        {r.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Trigger: {TRIGGER_EVENT_TYPES.find((t) => t.value === r.trigger_event_type)?.label ?? r.trigger_event_type}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  aria-label="Delete rule"
+                  onClick={() => handleDelete(r.id)}
+                  disabled={deleteRule.isPending}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
               </CardContent>
             </Card>
           ))}
-        </Stack>
+        </div>
       )}
 
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add workflow rule</DialogTitle>
-        <FormProvider {...form}>
-          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-            <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add workflow rule</DialogTitle>
+          </DialogHeader>
+          <FormProvider {...form}>
+            <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
               <RhfTextField<AddRuleFormValues>
                 name="name"
                 label="Rule name"
                 fullWidth
                 placeholder="e.g. Log new artifacts"
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- add-rule dialog first field
                 autoFocus
               />
               <RhfSelect<AddRuleFormValues>
@@ -364,23 +321,21 @@ export default function AutomationPage() {
                 name="actions_json"
                 label="Actions (JSON array)"
                 fullWidth
-                multiline
-                minRows={4}
                 helperText='e.g. [{"type": "log", "message": "Done"}]'
               />
               <RhfSwitch<AddRuleFormValues> name="is_active" control={control} label="Active" />
-            </DialogContent>
-            <DialogActions>
-              <Button type="button" onClick={() => setDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="contained" disabled={createRule.isPending}>
-                Create
-              </Button>
-            </DialogActions>
-          </Box>
-        </FormProvider>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createRule.isPending}>
+                  Create
+                </Button>
+              </DialogFooter>
+            </form>
+          </FormProvider>
+        </DialogContent>
       </Dialog>
-    </Container>
+    </div>
   );
 }

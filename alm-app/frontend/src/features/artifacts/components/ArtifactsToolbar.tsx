@@ -4,22 +4,33 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Box,
-  Typography,
-  Button,
-  IconButton,
-  Menu,
-  MenuItem,
-  ListItemText,
-  Select,
-  Collapse,
-  CircularProgress,
-  ToggleButtonGroup,
-  ToggleButton,
-} from "@mui/material";
-import { Add, Download, ExpandLess, ExpandMore, People, Refresh, Save, TableChart, ViewColumn, AccountTree, FilterListOff } from "@mui/icons-material";
+  Plus,
+  Download,
+  ChevronDown,
+  ChevronUp,
+  Users,
+  RefreshCw,
+  Save,
+  Table2,
+  LayoutGrid,
+  Network,
+  FilterX,
+  Loader2,
+} from "lucide-react";
 import { FormProvider } from "react-hook-form";
 import type { UseFormReturn } from "react-hook-form";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../../shared/components/ui";
 import { RhfTextField, RhfSelect, RhfCheckbox } from "../../../shared/components/forms";
 import { modalApi } from "../../../shared/modal";
 import { downloadArtifactsCsv } from "../utils";
@@ -80,7 +91,6 @@ export interface ArtifactsToolbarProps {
   artifacts: Artifact[];
   members: Member[] | undefined;
   listResult: ListResult | undefined;
-  /** Called with the selected artifact type id from manifest (user does not choose type in form). */
   onCreateArtifact: (artifactTypeId: string) => void;
   listStateToFilterParams: (state: {
     stateFilter: string;
@@ -103,7 +113,7 @@ export function ArtifactsToolbar({
   toolbarForm,
   filtersPanelOpen,
   setFiltersPanelOpen,
-  myTasksMenuAnchor,
+  myTasksMenuAnchor: _myTasksMenuAnchor,
   setMyTasksMenuAnchor,
   filterStates,
   bundle,
@@ -123,9 +133,13 @@ export function ArtifactsToolbar({
   listStateToFilterParams,
   showNotification,
 }: ArtifactsToolbarProps) {
-  const [newWorkItemMenuAnchor, setNewWorkItemMenuAnchor] = useState<null | HTMLElement>(null);
+  const [newWorkItemOpen, setNewWorkItemOpen] = useState(false);
+  const [myTasksOpen, setMyTasksOpen] = useState(false);
   const artifactTypes = bundle?.artifact_types ?? [];
-  const canCreate = listResult?.allowed_actions?.includes("create") ?? artifacts[0]?.allowed_actions?.includes("create") ?? true;
+  const canCreate =
+    listResult?.allowed_actions?.includes("create") ??
+    artifacts[0]?.allowed_actions?.includes("create") ??
+    true;
 
   const {
     viewMode,
@@ -134,120 +148,125 @@ export function ArtifactsToolbar({
     cycleNodeFilter,
     areaNodeFilter,
     searchInput,
-    searchQuery,
     sortBy,
     sortOrder,
   } = listState;
 
   return (
     <>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2, mb: 2 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
-            Artifacts
-          </Typography>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">Artifacts</h1>
           {orgSlug && projectSlug && (
-            <>
-              <Button size="small" variant="outlined" onClick={(e) => setMyTasksMenuAnchor(e.currentTarget)} aria-haspopup="true" aria-expanded={!!myTasksMenuAnchor}>
-                My tasks {myTasks.length > 0 ? `(${myTasks.length})` : ""}
-              </Button>
-              <Menu
-                anchorEl={myTasksMenuAnchor}
-                open={!!myTasksMenuAnchor}
-                onClose={() => setMyTasksMenuAnchor(null)}
-                anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-                slotProps={{ paper: { sx: { maxHeight: 320, minWidth: 220 } } }}
-              >
+            <DropdownMenu
+              open={myTasksOpen}
+              onOpenChange={(open) => {
+                setMyTasksOpen(open);
+                setMyTasksMenuAnchor(open ? document.body : null);
+              }}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" aria-haspopup="true" aria-expanded={myTasksOpen}>
+                  My tasks {myTasks.length > 0 ? `(${myTasks.length})` : ""}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-80 min-w-[220px]">
                 {myTasksLoading ? (
-                  <MenuItem disabled>Loading…</MenuItem>
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                  </div>
                 ) : myTasks.length === 0 ? (
-                  <MenuItem disabled>None assigned</MenuItem>
+                  <div className="px-2 py-3 text-sm text-muted-foreground">None assigned</div>
                 ) : (
                   myTasks.map((task) => (
-                    <MenuItem
-                      key={task.id}
-                      component={Link}
-                      to={`/${orgSlug}/${projectSlug}/artifacts?artifact=${task.artifact_id}`}
-                      onClick={() => setMyTasksMenuAnchor(null)}
-                      sx={{ textDecoration: "none", color: "inherit" }}
-                    >
-                      <ListItemText primary={task.title} secondary={task.artifact_id} primaryTypographyProps={{ noWrap: true }} />
-                    </MenuItem>
+                    <DropdownMenuItem key={task.id} asChild>
+                      <Link
+                        to={`/${orgSlug}/${projectSlug}/artifacts?artifact=${task.artifact_id}`}
+                        className="block w-full min-w-0 no-underline"
+                        onClick={() => setMyTasksOpen(false)}
+                      >
+                        <span className="block truncate font-medium">{task.title}</span>
+                        <span className="text-xs text-muted-foreground">{task.artifact_id}</span>
+                      </Link>
+                    </DropdownMenuItem>
                   ))
                 )}
-              </Menu>
-            </>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
-        </Box>
-        <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-          <IconButton onClick={() => refetchArtifacts()} disabled={isLoading} aria-label="Refresh list" title="Refresh list">
-            {isRefetching ? <CircularProgress size={24} aria-hidden /> : <Refresh />}
-          </IconButton>
+        </div>
+        <div className="flex items-center gap-2">
           <Button
-            variant="outlined"
-            size="medium"
-            startIcon={<Download />}
+            size="icon"
+            variant="outline"
+            onClick={() => refetchArtifacts()}
+            disabled={isLoading}
+            aria-label="Refresh list"
+            title="Refresh list"
+          >
+            {isRefetching ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCw className="size-4" />
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="default"
             onClick={() => downloadArtifactsCsv(artifacts, members ?? [])}
             disabled={artifacts.length === 0}
             aria-label="Export CSV"
             title="Export current page to CSV"
           >
+            <Download className="mr-2 size-4" />
             Export CSV
           </Button>
           <Button
-            variant="outlined"
-            startIcon={<People />}
-            onClick={() => project && orgSlug && modalApi.openProjectMembers({ orgSlug, projectId: project.id, projectName: project.name })}
+            variant="outline"
+            onClick={() =>
+              project &&
+              orgSlug &&
+              modalApi.openProjectMembers({ orgSlug, projectId: project.id, projectName: project.name })
+            }
             aria-label="Manage project members"
           >
+            <Users className="mr-2 size-4" />
             Members
           </Button>
-          {canCreate && artifactTypes.length > 0 && (
-            artifactTypes.length === 1 ? (
-              <Button
-                variant="contained"
-                startIcon={<Add />}
-                onClick={() => onCreateArtifact(artifactTypes[0]!.id)}
-              >
+          {canCreate && artifactTypes.length > 0 &&
+            (artifactTypes.length === 1 ? (
+              <Button onClick={() => onCreateArtifact(artifactTypes[0]!.id)}>
+                <Plus className="mr-2 size-4" />
                 New {artifactTypes[0]!.name ?? artifactTypes[0]!.id}
               </Button>
             ) : (
-              <>
-                <Button
-                  variant="contained"
-                  startIcon={<Add />}
-                  onClick={(e) => setNewWorkItemMenuAnchor(e.currentTarget)}
-                  aria-haspopup="true"
-                  aria-expanded={!!newWorkItemMenuAnchor}
-                >
-                  New work item
-                </Button>
-                <Menu
-                  anchorEl={newWorkItemMenuAnchor}
-                  open={!!newWorkItemMenuAnchor}
-                  onClose={() => setNewWorkItemMenuAnchor(null)}
-                  anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-                  transformOrigin={{ vertical: "top", horizontal: "right" }}
-                >
+              <DropdownMenu open={newWorkItemOpen} onOpenChange={setNewWorkItemOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button aria-haspopup="true" aria-expanded={newWorkItemOpen}>
+                    <Plus className="mr-2 size-4" />
+                    New work item
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
                   {artifactTypes.map((at) => (
-                    <MenuItem
+                    <DropdownMenuItem
                       key={at.id}
                       onClick={() => {
                         onCreateArtifact(at.id);
-                        setNewWorkItemMenuAnchor(null);
+                        setNewWorkItemOpen(false);
                       }}
                     >
-                      <ListItemText primary={at.name ?? at.id} />
-                    </MenuItem>
+                      {at.name ?? at.id}
+                    </DropdownMenuItem>
                   ))}
-                </Menu>
-              </>
-            )
-          )}
-        </Box>
-      </Box>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ))}
+        </div>
+      </div>
+
       <FormProvider {...toolbarForm}>
-        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, mb: 2 }}>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <RhfTextField<ToolbarFilterValues>
             name="searchInput"
             label=""
@@ -256,79 +275,127 @@ export function ArtifactsToolbar({
             sx={{ minWidth: 220, flex: "1 1 200px" }}
             inputProps={{ "aria-label": "Search artifacts" }}
           />
-          <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && setListState({ viewMode: v })} size="small">
-            <ToggleButton value="table" aria-label="Table view">
-              <TableChart sx={{ mr: 0.5 }} />
+          <div
+            className="flex rounded-md border border-border [&>button]:rounded-none [&>button:first-child]:rounded-l-md [&>button:last-child]:rounded-r-md [&>button:not(:first-child)]:border-l-0"
+            role="group"
+            aria-label="View mode"
+          >
+            <Button
+              variant={viewMode === "table" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setListState({ viewMode: "table" })}
+              className="rounded-none first:rounded-l-md last:rounded-r-md"
+              aria-label="Table view"
+            >
+              <Table2 className="mr-1.5 size-4" />
               Table
-            </ToggleButton>
-            <ToggleButton value="board" aria-label="Board view">
-              <ViewColumn sx={{ mr: 0.5 }} />
+            </Button>
+            <Button
+              variant={viewMode === "board" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setListState({ viewMode: "board" })}
+              className="rounded-none"
+              aria-label="Board view"
+            >
+              <LayoutGrid className="mr-1.5 size-4" />
               Board
-            </ToggleButton>
-            <ToggleButton value="tree" aria-label="Tree view">
-              <AccountTree sx={{ mr: 0.5 }} />
+            </Button>
+            <Button
+              variant={viewMode === "tree" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setListState({ viewMode: "tree" })}
+              className="rounded-none last:rounded-r-md"
+              aria-label="Tree view"
+            >
+              <Network className="mr-1.5 size-4" />
               Tree
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-        <Box sx={{ mb: 3 }}>
-          <Button size="small" startIcon={filtersPanelOpen ? <ExpandLess /> : <ExpandMore />} onClick={() => setFiltersPanelOpen((o) => !o)} aria-expanded={filtersPanelOpen} aria-controls="artifacts-filters-panel">
+            </Button>
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setFiltersPanelOpen((o) => !o)}
+            aria-expanded={filtersPanelOpen}
+            aria-controls="artifacts-filters-panel"
+          >
+            {filtersPanelOpen ? <ChevronUp className="mr-1 size-4" /> : <ChevronDown className="mr-1 size-4" />}
             Filters
           </Button>
-          <Collapse in={filtersPanelOpen} id="artifacts-filters-panel">
-            <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, mt: 1.5, pl: 1 }}>
+          {filtersPanelOpen && (
+            <div
+              id="artifacts-filters-panel"
+              className="mt-3 flex flex-wrap items-center gap-2 pl-1"
+            >
               <RhfSelect<ToolbarFilterValues>
                 name="savedQueryId"
                 control={toolbarForm.control}
                 label="Saved query"
-                options={[{ value: "", label: "Apply saved query…" }, ...savedQueries.map((q) => ({ value: q.id, label: `${q.name}${q.visibility === "private" ? " (private)" : ""}` }))]}
-                selectProps={{ size: "small", sx: { minWidth: 160 }, displayEmpty: true }}
+                options={[
+                  { value: "", label: "Apply saved query…" },
+                  ...savedQueries.map((q) => ({
+                    value: q.id,
+                    label: `${q.name}${q.visibility === "private" ? " (private)" : ""}`,
+                  })),
+                ]}
+                selectProps={{ size: "sm", className: "min-w-[160px]", displayEmpty: true }}
               />
               <RhfSelect<ToolbarFilterValues>
                 name="cycleNodeFilter"
                 control={toolbarForm.control}
                 label="Cycle"
-                options={[{ value: "", label: "All" }, ...cycleNodesFlat.map((c) => ({ value: c.id, label: c.path || c.name }))]}
-                selectProps={{ size: "small", sx: { minWidth: 140 } }}
+                options={[
+                  { value: "", label: "All" },
+                  ...cycleNodesFlat.map((c) => ({ value: c.id, label: c.path || c.name })),
+                ]}
+                selectProps={{ size: "sm", className: "min-w-[140px]" }}
               />
               <RhfSelect<ToolbarFilterValues>
                 name="areaNodeFilter"
                 control={toolbarForm.control}
                 label="Area"
-                options={[{ value: "", label: "All" }, ...areaNodesFlat.map((a) => ({ value: a.id, label: areaNodeDisplayLabel({ name: a.name ?? a.id ?? "", path: a.path }) }))]}
-                selectProps={{ size: "small", sx: { minWidth: 140 } }}
+                options={[
+                  { value: "", label: "All" },
+                  ...areaNodesFlat.map((a) => ({
+                    value: a.id,
+                    label: areaNodeDisplayLabel({ name: a.name ?? a.id ?? "", path: a.path }),
+                  })),
+                ]}
+                selectProps={{ size: "sm", className: "min-w-[140px]" }}
               />
               <Select
-                size="small"
-                value={stateFilter}
-                onChange={(e) => setListState({ stateFilter: e.target.value })}
-                displayEmpty
-                sx={{ minWidth: 130 }}
-                renderValue={(v) => v || "All states"}
-                inputProps={{ "aria-label": "Filter by state" }}
+                value={stateFilter || "__all__"}
+                onValueChange={(v) => setListState({ stateFilter: v === "__all__" ? "" : v })}
               >
-                <MenuItem value="">All states</MenuItem>
-                {filterStates.map((s) => (
-                  <MenuItem key={s} value={s}>
-                    {s}
-                  </MenuItem>
-                ))}
+                <SelectTrigger size="sm" className="min-w-[130px]" aria-label="Filter by state">
+                  <SelectValue placeholder="All states" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All states</SelectItem>
+                  {filterStates.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
               <Select
-                size="small"
-                value={typeFilter}
-                onChange={(e) => setListState({ typeFilter: e.target.value })}
-                displayEmpty
-                sx={{ minWidth: 130 }}
-                renderValue={(v) => v || "All types"}
-                inputProps={{ "aria-label": "Filter by type" }}
+                value={typeFilter || "__all__"}
+                onValueChange={(v) => setListState({ typeFilter: v === "__all__" ? "" : v })}
               >
-                <MenuItem value="">All types</MenuItem>
-                {(bundle?.artifact_types ?? []).map((at) => (
-                  <MenuItem key={at.id} value={at.id}>
-                    {at.name ?? at.id}
-                  </MenuItem>
-                ))}
+                <SelectTrigger size="sm" className="min-w-[130px]" aria-label="Filter by type">
+                  <SelectValue placeholder="All types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All types</SelectItem>
+                  {(bundle?.artifact_types ?? []).map((at) => (
+                    <SelectItem key={at.id} value={at.id}>
+                      {at.name ?? at.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
               <RhfSelect<ToolbarFilterValues>
                 name="sortBy"
@@ -342,7 +409,7 @@ export function ArtifactsToolbar({
                   { value: "created_at", label: "Created" },
                   { value: "updated_at", label: "Updated" },
                 ]}
-                selectProps={{ size: "small", sx: { minWidth: 130 } }}
+                selectProps={{ size: "sm", sx: { minWidth: 130 } }}
               />
               <RhfSelect<ToolbarFilterValues>
                 name="sortOrder"
@@ -352,7 +419,7 @@ export function ArtifactsToolbar({
                   { value: "asc", label: "Asc" },
                   { value: "desc", label: "Desc" },
                 ]}
-                selectProps={{ size: "small", sx: { minWidth: 95 } }}
+                selectProps={{ size: "sm", className: "min-w-[95px]" }}
               />
               <RhfCheckbox<ToolbarFilterValues>
                 name="showDeleted"
@@ -361,8 +428,8 @@ export function ArtifactsToolbar({
                 checkboxProps={{ size: "small", "aria-label": "Show deleted artifacts" }}
               />
               <Button
-                size="small"
-                startIcon={<Save />}
+                size="sm"
+                variant="outline"
                 onClick={() => {
                   modalApi.openSaveQuery({
                     initialName: "",
@@ -372,21 +439,25 @@ export function ArtifactsToolbar({
                       const filterParams = listStateToFilterParams({
                         stateFilter,
                         typeFilter,
-                        searchQuery,
+                        searchQuery: listState.searchQuery,
                         cycleNodeFilter,
                         areaNodeFilter,
                         sortBy,
                         sortOrder,
                       });
                       createSavedQueryMutation.mutate(
-                        { name, filter_params: filterParams, visibility: visibility as "private" | "project" },
+                        {
+                          name,
+                          filter_params: filterParams,
+                          visibility: visibility as "private" | "project",
+                        },
                         {
                           onSuccess: () => {
                             modalApi.closeModal();
                             showNotification("Saved query created", "success");
                           },
-onError: (err: unknown) => {
-                                            const body = (err as { body?: ProblemDetail })?.body;
+                          onError: (err: unknown) => {
+                            const body = (err as { body?: ProblemDetail })?.body;
                             showNotification(body?.detail ?? "Failed to save query", "error");
                           },
                         },
@@ -396,12 +467,13 @@ onError: (err: unknown) => {
                 }}
                 aria-label="Save current filters"
               >
+                <Save className="mr-1.5 size-4" />
                 Save filters
               </Button>
               {(stateFilter || typeFilter || cycleNodeFilter || areaNodeFilter || searchInput) && (
                 <Button
-                  size="small"
-                  startIcon={<FilterListOff />}
+                  size="sm"
+                  variant="outline"
                   onClick={() => {
                     setListState({
                       stateFilter: "",
@@ -419,12 +491,13 @@ onError: (err: unknown) => {
                   }}
                   aria-label="Clear filters"
                 >
+                  <FilterX className="mr-1.5 size-4" />
                   Clear filters
                 </Button>
               )}
-            </Box>
-          </Collapse>
-        </Box>
+            </div>
+          )}
+        </div>
       </FormProvider>
     </>
   );

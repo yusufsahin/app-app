@@ -1,21 +1,19 @@
 import { useMemo, useEffect, useRef } from "react";
-import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useForm, FormProvider } from "react-hook-form";
+import { Plus, FolderX, Search } from "lucide-react";
 import {
-  Typography,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
   Button,
-  InputAdornment,
   Card,
   CardContent,
-  CardActionArea,
-  Box,
-  Breadcrumbs,
-  Link as MuiLink,
-  Stack,
-  Chip,
-} from "@mui/material";
-import Grid from "@mui/material/Grid";
-import { Add, FolderOff, Search } from "@mui/icons-material";
+  Badge,
+} from "../../../shared/components/ui";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { LoadingState } from "../../../shared/components/LoadingState";
 import { StandardPageLayout } from "../../../shared/components/Layout";
@@ -40,12 +38,10 @@ const sortOptions = [
 
 export default function ProjectsPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentTenantName = useTenantStore((s) => s.currentTenant?.name ?? "Organization");
   const permissions = useAuthStore((s) => s.permissions);
   const canCreateProject = hasPermission(permissions, "project:create");
-
   const setCreateModalOpen = useProjectStore((s) => s.setCreateModalOpen);
 
   const filter = searchParams.get("q") ?? "";
@@ -76,7 +72,6 @@ export default function ProjectsPage() {
     next.set("sort_by", by ?? "name");
     next.set("sort_order", order ?? "asc");
     setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync values→URL only; searchParams/setSearchParams omitted to avoid loops
   }, [values.q, values.sort_value]);
 
   const { data: projects = [], isLoading } = useOrgProjects(orgSlug);
@@ -104,161 +99,119 @@ export default function ProjectsPage() {
   }, [projects, filter, sortBy, sortOrder]);
 
   const breadcrumbs = (
-    <Breadcrumbs>
-      <MuiLink
-        component={Link}
-        to={orgSlug ? `/${orgSlug}` : "#"}
-        underline="hover"
-        color="inherit"
-      >
-        {orgSlug ?? "Org"}
-      </MuiLink>
-      <Typography color="text.primary">Projects</Typography>
-    </Breadcrumbs>
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link to={orgSlug ? `/${orgSlug}` : "#"}>{orgSlug ?? "Org"}</Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbPage>Projects</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
   );
 
   const filterBar = (
     <FormProvider {...form}>
-      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, pt: 2 }}>
+      <div className="flex flex-wrap items-center gap-4 pt-4">
         <RhfTextField<ProjectsFilterValues>
           name="q"
           placeholder="Filter projects"
           size="small"
           InputProps={{
             startAdornment: (
-              <InputAdornment position="start">
-                <Search color="action" />
-              </InputAdornment>
+              <span className="pointer-events-none flex items-center pr-2 text-muted-foreground">
+                <Search className="size-4" />
+              </span>
             ),
           }}
           sx={{ maxWidth: 280 }}
         />
-        <Box sx={{ minWidth: 160 }}>
+        <div className="min-w-[160px]">
           <RhfSelect<ProjectsFilterValues>
             name="sort_value"
             control={control}
             label="Sort by"
             options={sortOptions}
-            selectProps={{ size: "small" }}
+            selectProps={{ size: "sm" }}
           />
-        </Box>
-      </Box>
+        </div>
+      </div>
     </FormProvider>
   );
 
   return (
-    <>
-      <StandardPageLayout
-        breadcrumbs={breadcrumbs}
-        title="Projects"
-        description={currentTenantName}
-        actions={
-          canCreateProject ? (
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => setCreateModalOpen(true)}
+    <StandardPageLayout
+      breadcrumbs={breadcrumbs}
+      title="Projects"
+      description={currentTenantName}
+      actions={
+        canCreateProject ? (
+          <Button onClick={() => setCreateModalOpen(true)}>
+            <Plus className="mr-2 size-4" />
+            New project
+          </Button>
+        ) : undefined
+      }
+      filterBar={filterBar}
+    >
+      {isLoading ? (
+        <LoadingState label="Loading projects…" />
+      ) : filteredAndSortedProjects.length === 0 ? (
+        <EmptyState
+          icon={<FolderX className="size-12" />}
+          title={filter ? "No matches" : "No projects yet"}
+          description={
+            filter
+              ? "No projects match your filter. Try a different search."
+              : "Create a project to get started."
+          }
+          actionLabel={!filter && canCreateProject ? "Create project" : undefined}
+          onAction={!filter && canCreateProject ? () => setCreateModalOpen(true) : undefined}
+          bordered
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+          {filteredAndSortedProjects.map((project) => (
+            <Link
+              key={project.id}
+              to={`/${orgSlug}/${project.slug}`}
+              className="block transition-shadow hover:shadow-md"
             >
-              New project
-            </Button>
-          ) : undefined
-        }
-        filterBar={filterBar}
-      >
-        {isLoading ? (
-          <LoadingState label="Loading projects…" />
-        ) : filteredAndSortedProjects.length === 0 ? (
-          <EmptyState
-            icon={<FolderOff />}
-            title={filter ? "No matches" : "No projects yet"}
-            description={
-              filter
-                ? "No projects match your filter. Try a different search."
-                : "Create a project to get started."
-            }
-            actionLabel={!filter && canCreateProject ? "Create project" : undefined}
-            onAction={!filter && canCreateProject ? () => setCreateModalOpen(true) : undefined}
-            bordered
-          />
-        ) : (
-          <Grid container spacing={2}>
-            {filteredAndSortedProjects.map((project) => (
-              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={project.id}>
-                <Card
-                  variant="outlined"
-                  sx={{
-                    borderRadius: 1,
-                    overflow: "hidden",
-                    borderColor: "divider",
-                    bgcolor: "background.paper",
-                    transition: "box-shadow 0.2s, border-color 0.2s",
-                    "&:hover": { boxShadow: 1, borderColor: "grey.400" },
-                  }}
-                >
-                  <CardActionArea
-                    onClick={() => navigate(project.slug)}
-                    sx={{ height: "100%", display: "block", textAlign: "left" }}
-                  >
-                    <CardContent sx={{ p: 3 }}>
-                      <Stack direction="row" spacing={2} mb={2} alignItems="flex-start">
-                        <Box
-                          sx={{
-                            width: 48,
-                            height: 48,
-                            borderRadius: 1,
-                            bgcolor: "primary.main",
-                            color: "primary.contrastText",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 22,
-                            fontWeight: 700,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {(project.name ?? project.code).charAt(0).toUpperCase()}
-                        </Box>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography variant="h6" fontWeight={600} noWrap sx={{ mb: 0.5 }}>
-                            {project.name}
-                          </Typography>
-                          <Chip label={project.code} size="small" color="primary" variant="outlined" />
-                        </Box>
-                      </Stack>
-                      {project.description && (
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                            mb: 1.5,
-                          }}
-                        >
-                          {project.description}
-                        </Typography>
-                      )}
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mt={1.5}>
-                        <Chip
-                          label="Active"
-                          size="small"
-                          color="success"
-                          variant="filled"
-                        />
-                        <Typography variant="caption" color="text.secondary">
-                          {project.slug}
-                        </Typography>
-                      </Stack>
-                    </CardContent>
-                  </CardActionArea>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        )}
-      </StandardPageLayout>
-    </>
+              <Card
+                data-testid="project-card"
+                className="h-full overflow-hidden border border-border bg-card transition-colors hover:border-muted-foreground/30"
+              >
+                <CardContent className="p-4 text-left">
+                  <div className="mb-3 flex items-start gap-3">
+                    <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
+                      {(project.name ?? project.code).charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate font-semibold">{project.name}</h3>
+                      <Badge variant="outline" className="mt-1">
+                        {project.code}
+                      </Badge>
+                    </div>
+                  </div>
+                  {project.description && (
+                    <p className="line-clamp-2 mb-3 text-sm text-muted-foreground">
+                      {project.description}
+                    </p>
+                  )}
+                  <div className="mt-3 flex items-center justify-between">
+                    <Badge variant="default">Active</Badge>
+                    <span className="text-xs text-muted-foreground">{project.slug}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+    </StandardPageLayout>
   );
 }

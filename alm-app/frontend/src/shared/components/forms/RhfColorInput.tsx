@@ -3,7 +3,8 @@
  * Form value: string (e.g. hex #ffffff). Use z.string().regex(/^#[0-9A-Fa-f]{6}$/) in Zod.
  */
 import { Controller } from "react-hook-form";
-import { Box, FormControl, FormLabel, TextField } from "@mui/material";
+import { Input, Label } from "../ui";
+import { FormItem, FormControl, FormMessage } from "../ui/form";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
 
@@ -34,41 +35,35 @@ export function RhfColorInput<TFieldValues extends import("react-hook-form").Fie
       render={({ field: { value, onChange, onBlur, ref } }) => {
         const str = value == null ? "#000000" : String(value);
         return (
-          <FormControl fullWidth error={!!errorMessage} component="fieldset" variant="standard">
-            {label != null && label !== "" && <FormLabel component="legend" sx={{ mb: 0.5 }}>{label}</FormLabel>}
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-              {showSwatch && (
-                <Box
-                  component="input"
-                  type="color"
-                  value={str.startsWith("#") ? str : `#${str}`}
+          <FormItem>
+            {label != null && label !== "" && <Label>{label}</Label>}
+            <FormControl>
+              <div className="flex flex-wrap items-center gap-2">
+                {showSwatch && (
+                  <input
+                    type="color"
+                    value={str.startsWith("#") ? str : `#${str}`}
+                    onChange={(e) => onChange(e.target.value)}
+                    onBlur={onBlur}
+                    className="h-10 w-10 cursor-pointer rounded-md border border-input p-0"
+                    aria-label={typeof label === "string" ? label : "Color"}
+                  />
+                )}
+                <Input
+                  value={str}
                   onChange={(e) => onChange(e.target.value)}
                   onBlur={onBlur}
-                  sx={{
-                    width: 40,
-                    height: 40,
-                    padding: 0,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    borderRadius: 1,
-                    cursor: "pointer",
-                  }}
+                  ref={ref}
+                  placeholder="#000000"
+                  className="min-w-[120px]"
+                  aria-invalid={!!errorMessage}
                 />
-              )}
-              <TextField
-                size="small"
-                value={str}
-                onChange={(e) => onChange(e.target.value)}
-                onBlur={onBlur}
-                inputRef={ref}
-                placeholder="#000000"
-                error={!!errorMessage}
-                helperText={displayText}
-                inputProps={{ "aria-label": typeof label === "string" ? label : "Color" }}
-                sx={{ minWidth: 120 }}
-              />
-            </Box>
-          </FormControl>
+              </div>
+            </FormControl>
+            {(displayText != null && displayText !== "") || errorMessage ? (
+              <FormMessage>{errorMessage ?? displayText}</FormMessage>
+            ) : null}
+          </FormItem>
         );
       }}
     />

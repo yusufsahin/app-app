@@ -32,7 +32,7 @@ test.describe("Login and projects", () => {
     const orgSlug = segments[0];
     expect(orgSlug).toBeTruthy();
 
-    const firstProjectCard = page.locator('[class*="CardActionArea"]').first();
+    const firstProjectCard = page.getByTestId("project-card").first();
     await firstProjectCard.click({ timeout: 10000 });
     await page.waitForURL(new RegExp(`/${orgSlug}/[a-z0-9-]+`), { timeout: 10000 });
 

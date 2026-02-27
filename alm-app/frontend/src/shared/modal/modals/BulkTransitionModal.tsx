@@ -1,18 +1,14 @@
 import {
-  Box,
   Button,
-  Chip,
-  List,
-  ListItem,
-  ListItemText,
-  Typography,
-  Collapse,
-  FormControl,
-  InputLabel,
+  Badge,
+  Label,
+  Input,
   Select,
-  MenuItem,
-  TextField,
-} from "@mui/material";
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "../../components/ui";
 import { MetadataDrivenForm } from "../../components/forms";
 import type { BulkTransitionModalProps } from "../modalTypes";
 
@@ -55,77 +51,79 @@ export function BulkTransitionModal({
     <>
       {lastResult ? (
         <>
-          <Typography color={lastResult.error_count > 0 ? "warning.main" : "success.main"} sx={{ mb: 1 }}>
+          <p
+            className={
+              lastResult.error_count > 0
+                ? "mb-2 text-sm text-amber-600 dark:text-amber-500"
+                : "mb-2 text-sm text-green-600 dark:text-green-500"
+            }
+          >
             {lastResult.success_count} succeeded, {lastResult.error_count} failed.
-          </Typography>
+          </p>
           {lastResult.errors.length > 0 && (
-            <Box sx={{ mb: 1 }}>
-              <Button size="small" onClick={onToggleErrors}>
+            <div className="mb-2">
+              <Button size="sm" variant="outline" onClick={onToggleErrors}>
                 {errorsExpanded ? "Hide" : "Show"} failed items
               </Button>
-              <Collapse in={errorsExpanded}>
-                <List dense sx={{ bgcolor: "action.hover" }}>
+              {errorsExpanded && (
+                <ul className="mt-2 max-h-40 list-inside list-disc space-y-0.5 overflow-y-auto rounded-md bg-muted/50 p-2 text-sm">
                   {lastResult.errors.slice(0, 20).map((err, i) => {
                     const colonIdx = err.indexOf(": ");
                     const message = colonIdx > 0 ? err.slice(colonIdx + 2) : err;
-                    return (
-                      <ListItem key={i}>
-                        <ListItemText primary={message} primaryTypographyProps={{ variant: "body2" }} />
-                      </ListItem>
-                    );
+                    return <li key={i}>{message}</li>;
                   })}
                   {lastResult.errors.length > 20 && (
-                    <ListItem>
-                      <ListItemText
-                        primary={`... and ${lastResult.errors.length - 20} more`}
-                        primaryTypographyProps={{ variant: "body2" }}
-                      />
-                    </ListItem>
+                    <li>... and {lastResult.errors.length - 20} more</li>
                   )}
-                </List>
-              </Collapse>
-            </Box>
+                </ul>
+              )}
+            </div>
           )}
         </>
       ) : (
         <>
           {commonTriggers.length > 0 && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+            <div className="mb-4">
+              <span className="mb-1 block text-xs text-muted-foreground">
                 Common actions (apply to all selected)
-              </Typography>
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+              </span>
+              <div className="flex flex-wrap gap-1">
                 {commonTriggers.map((item) => (
-                  <Chip
+                  <Badge
                     key={item.trigger}
-                    label={item.label ?? item.to_state}
+                    variant={currentTrigger === item.trigger ? "default" : "outline"}
+                    className="cursor-pointer"
                     onClick={() => onSelectTrigger(item.trigger)}
-                    variant={currentTrigger === item.trigger ? "filled" : "outlined"}
-                    size="small"
-                  />
+                  >
+                    {item.label ?? item.to_state}
+                  </Badge>
                 ))}
-              </Box>
-            </Box>
+              </div>
+            </div>
           )}
-          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>New state</InputLabel>
+          <div className="mb-4 space-y-2">
+            <Label>New state</Label>
             <Select
               value={currentState}
-              label="New state"
-              onChange={(e) => onTransitionFormChange({ ...transitionValues, state: e.target.value })}
+              onValueChange={(v) => onTransitionFormChange({ ...transitionValues, state: v })}
             >
-              {stateOptions.map((opt) => (
-                <MenuItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </MenuItem>
-              ))}
+              <SelectTrigger size="sm">
+                <SelectValue placeholder="New state" />
+              </SelectTrigger>
+              <SelectContent>
+                {stateOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
             {invalidCount > 0 && currentState && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+              <p className="mt-1 text-xs text-muted-foreground">
                 {invalidCount} item(s) cannot transition to this state
-              </Typography>
+              </p>
             )}
-          </FormControl>
+          </div>
           {transitionSchema ? (
             <MetadataDrivenForm
               schema={transitionSchema}
@@ -137,42 +135,48 @@ export function BulkTransitionModal({
               submitExternally
             />
           ) : (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <TextField
-                size="small"
-                fullWidth
-                label="State reason (optional)"
-                value={(transitionValues.state_reason as string) ?? ""}
-                onChange={(e) =>
-                  onTransitionFormChange({ ...transitionValues, state_reason: e.target.value })
-                }
-              />
-              <TextField
-                size="small"
-                fullWidth
-                label="Resolution (optional)"
-                value={(transitionValues.resolution as string) ?? ""}
-                onChange={(e) =>
-                  onTransitionFormChange({ ...transitionValues, resolution: e.target.value })
-                }
-              />
-            </Box>
+            <div className="flex flex-col gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="bulk-state-reason">State reason (optional)</Label>
+                <Input
+                  id="bulk-state-reason"
+                  value={(transitionValues.state_reason as string) ?? ""}
+                  onChange={(e) =>
+                    onTransitionFormChange({
+                      ...transitionValues,
+                      state_reason: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bulk-resolution">Resolution (optional)</Label>
+                <Input
+                  id="bulk-resolution"
+                  value={(transitionValues.resolution as string) ?? ""}
+                  onChange={(e) =>
+                    onTransitionFormChange({
+                      ...transitionValues,
+                      resolution: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
           )}
         </>
       )}
-      <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end", mt: 2 }}>
-        <Button onClick={handleClose}>Cancel</Button>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="outline" onClick={handleClose}>
+          Cancel
+        </Button>
         {!lastResult && (
-          <Button variant="contained" onClick={handleConfirm} disabled={confirmDisabled || isPending}>
+          <Button onClick={handleConfirm} disabled={confirmDisabled || isPending}>
             Transition
           </Button>
         )}
-        {lastResult && (
-          <Button variant="contained" onClick={handleClose}>
-            Close
-          </Button>
-        )}
-      </Box>
+        {lastResult && <Button onClick={handleClose}>Close</Button>}
+      </div>
     </>
   );
 }

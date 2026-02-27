@@ -1,14 +1,9 @@
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  CircularProgress,
-} from "@mui/material";
+import { Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../../shared/components/ui/dialog";
+import { Button } from "../../../shared/components/ui";
 import { RhfTextField } from "../../../shared/components/forms";
 import { useCreateTenant } from "../../../shared/api/tenantApi";
 
@@ -55,38 +50,32 @@ export default function CreateOrgModal({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <FormProvider {...form}>
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <DialogTitle fontWeight={600}>New Organization</DialogTitle>
-          <DialogContent>
-            <RhfTextField<CreateOrgFormData>
-              name="name"
-              label="Organization name"
-              placeholder="e.g. Acme Corp"
-              fullWidth
-              sx={{ mt: 1 }}
-            />
-          </DialogContent>
-
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleClose} disabled={createMutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={createMutation.isPending}
-          >
-            {createMutation.isPending ? (
-              <CircularProgress size={22} color="inherit" />
-            ) : (
-              "Create"
-            )}
-          </Button>
-        </DialogActions>
-        </form>
-      </FormProvider>
+    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
+      <DialogContent className="max-w-sm">
+        <FormProvider {...form}>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <DialogHeader>
+              <DialogTitle>New Organization</DialogTitle>
+            </DialogHeader>
+            <div className="mt-2">
+              <RhfTextField<CreateOrgFormData>
+                name="name"
+                label="Organization name"
+                placeholder="e.g. Acme Corp"
+                fullWidth
+              />
+            </div>
+            <DialogFooter className="mt-6 gap-2 px-0 pb-0">
+              <Button type="button" variant="outline" onClick={handleClose} disabled={createMutation.isPending}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? <Loader2 className="size-5 animate-spin" /> : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </FormProvider>
+      </DialogContent>
     </Dialog>
   );
 }

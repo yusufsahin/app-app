@@ -1,11 +1,5 @@
-import {
-  Box,
-  Typography,
-  Skeleton,
-  Alert,
-} from "@mui/material";
 import { useForm, FormProvider } from "react-hook-form";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { Skeleton } from "../../../shared/components/ui";
 import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useAccessAudit, type AccessAuditEntry } from "../../../shared/api/adminApi";
 import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
@@ -23,6 +17,30 @@ type FilterFormValues = {
   type_filter: string;
   limit: number;
 };
+
+const columns: Array<{
+  field: keyof AccessAuditEntry;
+  headerName: string;
+  minWidth?: number;
+  valueFormatter?: (value: unknown) => string;
+}> = [
+  {
+    field: "timestamp",
+    headerName: "Time",
+    minWidth: 180,
+    valueFormatter: (value: unknown) => {
+      if (!value) return "—";
+      return new Date(String(value)).toLocaleString(undefined, {
+        dateStyle: "short",
+        timeStyle: "medium",
+      });
+    },
+  },
+  { field: "type", headerName: "Type", minWidth: 140 },
+  { field: "email", headerName: "Email", minWidth: 200 },
+  { field: "ip", headerName: "IP", minWidth: 140 },
+  { field: "user_agent", headerName: "User agent", minWidth: 220 },
+];
 
 export default function AccessAuditPage() {
   const form = useForm<FilterFormValues>({
@@ -44,35 +62,11 @@ export default function AccessAuditPage() {
   };
   const { data: entries, isLoading, isError } = useAccessAudit(params);
 
-  const columns: GridColDef<AccessAuditEntry>[] = [
-    {
-      field: "timestamp",
-      headerName: "Time",
-      width: 180,
-      valueFormatter: (value: string) => {
-        if (!value) return "—";
-        return new Date(value).toLocaleString(undefined, {
-          dateStyle: "short",
-          timeStyle: "medium",
-        });
-      },
-    },
-    { field: "type", headerName: "Type", width: 140 },
-    { field: "email", headerName: "Email", flex: 1, minWidth: 200 },
-    { field: "ip", headerName: "IP", width: 140 },
-    {
-      field: "user_agent",
-      headerName: "User agent",
-      flex: 1.5,
-      minWidth: 220,
-    },
-  ];
-
   if (isLoading) {
     return (
       <SettingsPageWrapper>
-        <Skeleton variant="text" width={200} height={40} sx={{ mb: 2 }} />
-        <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 1 }} />
+        <Skeleton className="mb-4 h-10 w-48" />
+        <Skeleton className="h-[400px] rounded-md" />
       </SettingsPageWrapper>
     );
   }
@@ -80,87 +74,80 @@ export default function AccessAuditPage() {
   return (
     <SettingsPageWrapper>
       <OrgSettingsBreadcrumbs currentPageLabel="Access audit" />
-      <Box sx={{ mb: 3 }}>
-        <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
-          Access audit
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold">Access audit</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           View login and access audit log for this organization.
-        </Typography>
-      </Box>
+        </p>
+      </div>
 
       {isError && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-destructive">
           Failed to load audit log.
-        </Alert>
+        </div>
       )}
 
       <FormProvider {...form}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Filters
-        </Typography>
-        <Box
-          sx={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 2,
-            mb: 3,
-            alignItems: "center",
-          }}
-        >
+        <p className="mb-3 text-sm font-medium text-muted-foreground">Filters</p>
+        <div className="mb-6 flex flex-wrap items-center gap-4">
           <RhfTextField<FilterFormValues>
             name="from_date"
             label="From date"
             type="date"
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 160 }}
           />
           <RhfTextField<FilterFormValues>
             name="to_date"
             label="To date"
             type="date"
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 160 }}
           />
-          <Box sx={{ minWidth: 160 }}>
+          <div className="min-w-[160px]">
             <RhfSelect<FilterFormValues>
               name="type_filter"
               control={form.control}
               label="Type"
               options={typeOptions}
-              selectProps={{ size: "small" }}
             />
-          </Box>
+          </div>
           <RhfTextField<FilterFormValues>
             name="limit"
             label="Limit"
             type="number"
-            size="small"
-            inputProps={{ min: 1, max: 1000 }}
-            sx={{ width: 100 }}
           />
-        </Box>
+        </div>
       </FormProvider>
 
-      <DataGrid
-        rows={entries ?? []}
-        columns={columns}
-        getRowId={(row) => row.id}
-        autoHeight
-        pageSizeOptions={[25, 50, 100]}
-        initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-        disableRowSelectionOnClick
-        sx={{
-          bgcolor: "background.paper",
-          borderRadius: 2,
-          "& .MuiDataGrid-columnHeaders": {
-            bgcolor: "grey.50",
-            fontWeight: 600,
-          },
-        }}
-      />
+      <div className="overflow-hidden rounded-lg border bg-card">
+        <table className="w-full table-auto border-collapse text-left text-sm">
+          <thead className="bg-muted/50 font-semibold">
+            <tr>
+              {columns.map((col) => (
+                <th key={col.field} className="border-b px-4 py-3" style={{ minWidth: col.minWidth }}>
+                  {col.headerName}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(entries ?? []).map((row) => (
+              <tr key={row.id} className="border-b last:border-0 hover:bg-muted/30">
+                {columns.map((col) => {
+                  const raw = row[col.field];
+                  const value = col.valueFormatter
+                    ? col.valueFormatter(raw)
+                    : raw != null
+                      ? String(raw)
+                      : "—";
+                  return (
+                    <td key={col.field} className="px-4 py-2" style={{ minWidth: col.minWidth }}>
+                      {value}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </SettingsPageWrapper>
   );
 }

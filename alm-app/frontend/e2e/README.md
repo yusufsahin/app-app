@@ -16,6 +16,12 @@ npx playwright install
 
 # Run E2E tests
 npm run test:e2e
+
+# With UI (debug)
+npm run test:e2e:ui
+
+# Headed (see browser)
+npm run test:e2e:headed
 ```
 
 ## Tests
@@ -23,6 +29,7 @@ npm run test:e2e
 - **auth.setup.ts** – Logs in as demo user and saves storage state for reuse.
 - **login-and-projects.spec.ts** – Login, org home, navigate to Artifacts.
 - **artifact-flow.spec.ts** – New Epic/Issue → create artifact → transition → delete.
+- **manifest-and-demo.spec.ts** – Demo manifest page (`/demo/sample-project/manifest`), project not-found after load, unknown project shows "Back to projects".
 
 ## Config
 

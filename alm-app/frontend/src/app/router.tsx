@@ -1,22 +1,16 @@
 import { createBrowserRouter, useRouteError, isRouteErrorResponse, Link } from "react-router-dom";
 import { lazy, Suspense, type ComponentType } from "react";
-import { Box, Button, CircularProgress, Container, Typography } from "@mui/material";
+import { Loader2 } from "lucide-react";
+import { Button } from "../shared/components/ui";
 import RequirePermission, {
   RequireAnyPermission,
   RequireRole,
 } from "../shared/components/Layout/RequirePermission";
 
 const Loading = () => (
-  <Box
-    sx={{
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      height: "100vh",
-    }}
-  >
-    <CircularProgress />
-  </Box>
+  <div className="flex h-screen items-center justify-center">
+    <Loader2 className="size-8 animate-spin text-muted-foreground" />
+  </div>
 );
 
 const LoginPage = lazy(() => import("../features/auth/pages/LoginPage"));
@@ -82,17 +76,17 @@ function ErrorFallback() {
   const error = useRouteError();
   const is404 = isRouteErrorResponse(error) && error.status === 404;
   return (
-    <Container maxWidth="sm" sx={{ py: 8, textAlign: "center" }}>
-      <Typography variant="h4" gutterBottom>
+    <div className="mx-auto max-w-sm py-8 text-center">
+      <h1 className="mb-2 text-2xl font-semibold">
         {is404 ? "Page Not Found" : "Something went wrong"}
-      </Typography>
-      <Typography color="text.secondary" sx={{ mb: 3 }}>
+      </h1>
+      <p className="mb-6 text-muted-foreground">
         {is404 ? "The page you're looking for doesn't exist." : "An unexpected error occurred."}
-      </Typography>
-      <Button component={Link} to="/" variant="contained">
-        Go to Dashboard
+      </p>
+      <Button asChild>
+        <Link to="/">Go to Dashboard</Link>
       </Button>
-    </Container>
+    </div>
   );
 }
 
@@ -210,11 +204,13 @@ export const router = createBrowserRouter([
   {
     path: "*",
     element: (
-      <Container maxWidth="sm" sx={{ py: 8, textAlign: "center" }}>
-        <Typography variant="h4" gutterBottom>Page Not Found</Typography>
-        <Typography color="text.secondary" sx={{ mb: 3 }}>The page you&apos;re looking for doesn&apos;t exist.</Typography>
-        <Button component={Link} to="/" variant="contained">Go to Dashboard</Button>
-      </Container>
+      <div className="mx-auto max-w-sm py-8 text-center">
+        <h1 className="mb-2 text-2xl font-semibold">Page Not Found</h1>
+        <p className="mb-6 text-muted-foreground">The page you&apos;re looking for doesn&apos;t exist.</p>
+        <Button asChild>
+          <Link to="/">Go to Dashboard</Link>
+        </Button>
+      </div>
     ),
   },
 ]);

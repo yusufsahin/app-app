@@ -1,164 +1,28 @@
 """Azure DevOps-style org router: /orgs/{org_slug}/..."""
-
-# mypy: disable-error-code="no-untyped-def"
-
 from __future__ import annotations
 
 import uuid
-from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from alm.area.api.schemas import (
-    AreaNodeCreateRequest,
-    AreaNodeResponse,
-    AreaNodeUpdateRequest,
-    MoveAreaRequest,
-    RenameAreaRequest,
-)
-from alm.area.application.commands.activate_area import ActivateAreaNode
-from alm.area.application.commands.create_area import CreateAreaNode
-from alm.area.application.commands.deactivate_area import DeactivateAreaNode
-from alm.area.application.commands.delete_area import DeleteAreaNode
-from alm.area.application.commands.move_area import MoveAreaNode
-from alm.area.application.commands.rename_area import RenameAreaNode
-from alm.area.application.commands.update_area import UpdateAreaNode
-from alm.area.application.queries.get_area import GetAreaNode
-from alm.area.application.queries.list_areas_by_project import ListAreaNodesByProject
-from alm.artifact.api.schemas import (
-    ArtifactCreateRequest,
-    ArtifactListResponse,
-    ArtifactResponse,
-    ArtifactTransitionRequest,
-    ArtifactUpdateRequest,
-    BatchDeleteRequest,
-    BatchResultResponse,
-    BatchTransitionRequest,
-    PermittedTransitionItem,
-    PermittedTransitionsResponse,
-)
-from alm.artifact.application.commands.create_artifact import CreateArtifact
-from alm.artifact.application.commands.delete_artifact import DeleteArtifact
-from alm.artifact.application.commands.restore_artifact import RestoreArtifact
-from alm.artifact.application.commands.transition_artifact import TransitionArtifact
-from alm.artifact.application.commands.update_artifact import UpdateArtifact
-from alm.artifact.application.queries.get_artifact import GetArtifact
-from alm.artifact.application.queries.get_permitted_transitions import GetPermittedTransitions
-from alm.artifact.application.queries.list_artifacts import ListArtifacts
-from alm.artifact_link.api.schemas import ArtifactLinkCreateRequest, ArtifactLinkResponse
-from alm.artifact_link.application.commands.create_artifact_link import CreateArtifactLink
-from alm.artifact_link.application.commands.delete_artifact_link import DeleteArtifactLink
-from alm.artifact_link.application.queries.list_artifact_links import ListArtifactLinks
-from alm.attachment.api.schemas import AttachmentResponse
-from alm.attachment.application.commands.create_attachment import CreateAttachment
-from alm.attachment.application.commands.delete_attachment import DeleteAttachment
-from alm.attachment.application.queries.get_attachment import GetAttachment
-from alm.attachment.application.queries.list_attachments_by_artifact import ListAttachmentsByArtifact
-from alm.attachment.domain.ports import FileStoragePort
-from alm.comment.api.schemas import CommentCreateRequest, CommentResponse
-from alm.comment.application.commands.create_comment import CreateComment
-from alm.comment.application.queries.list_comments_by_artifact import ListCommentsByArtifact
-from alm.config.dependencies import get_file_storage, get_manifest_flattener, get_mediator
-from alm.cycle.api.schemas import (
-    CycleNodeCreateRequest,
-    CycleNodeResponse,
-    CycleNodeUpdateRequest,
-)
-from alm.cycle.application.commands.create_cycle import CreateCycleNode
-from alm.cycle.application.commands.delete_cycle import DeleteCycleNode
-from alm.cycle.application.commands.update_cycle import UpdateCycleNode
-from alm.cycle.application.queries.get_cycle import GetCycleNode
-from alm.cycle.application.queries.list_cycles_by_project import ListCycleNodesByProject
-from alm.form_schema.api.schemas import (
-    FormFieldSchemaResponse,
-    FormSchemaResponse,
-    ListColumnSchemaResponse,
-    ListFilterSchemaResponse,
-    ListSchemaResponse,
-)
-from alm.form_schema.application.queries.get_form_schema import GetFormSchema
-from alm.form_schema.application.queries.get_list_schema import GetListSchema
-from alm.project.api.schemas import (
-    AddProjectMemberRequest,
-    ProjectCreateRequest,
-    ProjectMemberResponse,
-    ProjectResponse,
-    UpdateProjectManifestRequest,
-    UpdateProjectMemberRequest,
-    UpdateProjectRequest,
-)
-from alm.project.application.commands.add_project_member import AddProjectMember
-from alm.project.application.commands.create_project import CreateProject
-from alm.project.application.commands.remove_project_member import RemoveProjectMember
-from alm.project.application.commands.update_project import UpdateProject
-from alm.project.application.commands.update_project_manifest import UpdateProjectManifest
-from alm.project.application.commands.update_project_member import UpdateProjectMember
-from alm.project.application.queries.get_burndown import GetBurndown
-from alm.project.application.queries.get_org_dashboard_activity import (
-    GetOrgDashboardActivity,
-)
-from alm.project.application.queries.get_org_dashboard_stats import (
-    GetOrgDashboardStats,
-)
-from alm.project.application.queries.get_project import GetProject
-from alm.project.application.queries.get_project_manifest import GetProjectManifest
-from alm.project.application.queries.get_velocity import GetVelocity
-from alm.project.application.queries.list_project_members import ListProjectMembers
-from alm.project.application.queries.list_projects import ListProjects
-from alm.saved_query.api.schemas import (
-    SavedQueryCreateRequest,
-    SavedQueryResponse,
-    SavedQueryUpdateRequest,
-)
-from alm.saved_query.application.commands.create_saved_query import CreateSavedQuery
-from alm.saved_query.application.commands.delete_saved_query import DeleteSavedQuery
-from alm.saved_query.application.commands.update_saved_query import UpdateSavedQuery
-from alm.saved_query.application.queries.get_saved_query import GetSavedQuery
-from alm.saved_query.application.queries.list_saved_queries import ListSavedQueries
 from alm.shared.api.schemas import MessageResponse
+from alm.config.dependencies import get_mediator, get_file_storage
 from alm.shared.application.mediator import Mediator
-from alm.shared.domain.exceptions import ConflictError, EntityNotFound, PolicyDeniedError, ValidationError
+from alm.shared.domain.exceptions import EntityNotFound
 from alm.shared.infrastructure.org_resolver import ResolvedOrg, resolve_org
 from alm.shared.infrastructure.security.dependencies import (
     CurrentUser,
     get_user_privileges,
     require_permission,
 )
+from alm.shared.infrastructure.security.manifest_acl import require_manifest_acl
 from alm.shared.infrastructure.security.field_masking import (
     allowed_actions_for_artifact,
     mask_artifact_for_user,
     mask_artifact_list_for_user,
 )
-from alm.shared.infrastructure.security.manifest_acl import require_manifest_acl
-from alm.task.api.schemas import (
-    TaskCreateRequest,
-    TaskResponse,
-    TaskUpdateRequest,
-)
-from alm.task.application.commands.create_task import CreateTask
-from alm.task.application.commands.delete_task import DeleteTask
-from alm.task.application.commands.update_task import UpdateTask
-from alm.task.application.queries.get_task import GetTask
-from alm.task.application.queries.list_tasks_by_artifact import ListTasksByArtifact
-from alm.task.application.queries.list_tasks_by_project_and_assignee import (
-    ListTasksByProjectAndAssignee,
-)
-from alm.team.api.schemas import (
-    AddTeamMemberRequest,
-    TeamCreateRequest,
-    TeamMemberResponse,
-    TeamResponse,
-    TeamUpdateRequest,
-)
-from alm.team.application.commands.add_team_member import AddTeamMember
-from alm.team.application.commands.create_team import CreateTeam
-from alm.team.application.commands.delete_team import DeleteTeam
-from alm.team.application.commands.remove_team_member import RemoveTeamMember
-from alm.team.application.commands.update_team import UpdateTeam
-from alm.team.application.queries.get_team import GetTeam
-from alm.team.application.queries.list_teams_by_project import ListTeamsByProject
 from alm.tenant.api.schemas import (
     AddRoleRequest,
     AssignRolesRequest,
@@ -185,6 +49,8 @@ from alm.tenant.application.commands.update_role import UpdateRole
 from alm.tenant.application.commands.update_tenant import UpdateTenant
 from alm.tenant.application.dtos import (
     InvitationDTO,
+    MemberDTO,
+    PrivilegeDTO,
     RoleDetailDTO,
     TenantDTO,
 )
@@ -192,16 +58,146 @@ from alm.tenant.application.queries.get_member_roles import GetMemberRoles
 from alm.tenant.application.queries.get_role import GetRole
 from alm.tenant.application.queries.list_members import ListTenantMembers
 from alm.tenant.application.queries.list_roles import ListTenantRoles
+from alm.project.api.schemas import (
+    ProjectCreateRequest,
+    ProjectResponse,
+    UpdateProjectRequest,
+    UpdateProjectManifestRequest,
+    AddProjectMemberRequest,
+    UpdateProjectMemberRequest,
+    ProjectMemberResponse,
+)
+from alm.project.application.commands.create_project import CreateProject
+from alm.project.application.commands.update_project import UpdateProject
+from alm.project.application.commands.add_project_member import AddProjectMember
+from alm.project.application.commands.remove_project_member import RemoveProjectMember
+from alm.project.application.commands.update_project_member import UpdateProjectMember
+from alm.project.application.queries.get_project import GetProject
+from alm.project.application.queries.get_project_manifest import GetProjectManifest
+from alm.project.application.commands.update_project_manifest import UpdateProjectManifest
+from alm.form_schema.application.queries.get_form_schema import GetFormSchema
+from alm.form_schema.api.schemas import (
+    FormFieldSchemaResponse,
+    FormSchemaResponse,
+    ListColumnSchemaResponse,
+    ListFilterSchemaResponse,
+    ListSchemaResponse,
+)
+from alm.form_schema.application.queries.get_list_schema import GetListSchema
+from alm.project.application.queries.list_projects import ListProjects
+from alm.project.application.queries.get_org_dashboard_stats import (
+    GetOrgDashboardStats,
+)
+from alm.project.application.queries.get_org_dashboard_activity import (
+    GetOrgDashboardActivity,
+)
+from alm.project.application.queries.list_project_members import ListProjectMembers
+from alm.artifact.api.schemas import (
+    ArtifactCreateRequest,
+    ArtifactListResponse,
+    ArtifactResponse,
+    ArtifactTransitionRequest,
+    ArtifactUpdateRequest,
+    BatchDeleteRequest,
+    BatchResultResponse,
+    BatchTransitionRequest,
+)
+from alm.artifact.application.commands.delete_artifact import DeleteArtifact
+from alm.artifact.application.commands.restore_artifact import RestoreArtifact
+from alm.artifact.domain.mpc_resolver import manifest_defs_to_flat
+from alm.artifact.application.commands.create_artifact import CreateArtifact
+from alm.artifact.application.commands.transition_artifact import TransitionArtifact
+from alm.artifact.application.commands.update_artifact import UpdateArtifact
+from alm.artifact.application.queries.get_artifact import GetArtifact
+from alm.artifact.application.queries.list_artifacts import ListArtifacts
+from alm.task.api.schemas import (
+    TaskCreateRequest,
+    TaskUpdateRequest,
+    TaskResponse,
+)
+from alm.task.application.commands.create_task import CreateTask
+from alm.task.application.commands.update_task import UpdateTask
+from alm.task.application.commands.delete_task import DeleteTask
+from alm.task.application.queries.list_tasks_by_artifact import ListTasksByArtifact
+from alm.task.application.queries.list_tasks_by_project_and_assignee import (
+    ListTasksByProjectAndAssignee,
+)
+from alm.task.application.queries.get_task import GetTask
+from alm.comment.api.schemas import CommentCreateRequest, CommentResponse
+from alm.comment.application.commands.create_comment import CreateComment
+from alm.comment.application.queries.list_comments_by_artifact import ListCommentsByArtifact
+from alm.artifact_link.api.schemas import ArtifactLinkCreateRequest, ArtifactLinkResponse
+from alm.artifact_link.application.commands.create_artifact_link import CreateArtifactLink
+from alm.artifact_link.application.commands.delete_artifact_link import DeleteArtifactLink
+from alm.artifact_link.application.queries.list_artifact_links import ListArtifactLinks
+from alm.attachment.api.schemas import AttachmentResponse
+from alm.attachment.application.commands.create_attachment import CreateAttachment
+from alm.saved_query.api.schemas import (
+    SavedQueryCreateRequest,
+    SavedQueryUpdateRequest,
+    SavedQueryResponse,
+)
+from alm.saved_query.application.commands.create_saved_query import CreateSavedQuery
+from alm.saved_query.application.commands.update_saved_query import UpdateSavedQuery
+from alm.saved_query.application.commands.delete_saved_query import DeleteSavedQuery
+from alm.saved_query.application.queries.list_saved_queries import ListSavedQueries
+from alm.saved_query.application.queries.get_saved_query import GetSavedQuery
 from alm.workflow_rule.api.schemas import (
     WorkflowRuleCreateRequest,
-    WorkflowRuleResponse,
     WorkflowRuleUpdateRequest,
+    WorkflowRuleResponse,
 )
 from alm.workflow_rule.application.commands.create_workflow_rule import CreateWorkflowRule
-from alm.workflow_rule.application.commands.delete_workflow_rule import DeleteWorkflowRule
 from alm.workflow_rule.application.commands.update_workflow_rule import UpdateWorkflowRule
-from alm.workflow_rule.application.queries.get_workflow_rule import GetWorkflowRule
+from alm.workflow_rule.application.commands.delete_workflow_rule import DeleteWorkflowRule
 from alm.workflow_rule.application.queries.list_workflow_rules import ListWorkflowRules
+from alm.workflow_rule.application.queries.get_workflow_rule import GetWorkflowRule
+from alm.attachment.application.commands.delete_attachment import DeleteAttachment
+from alm.attachment.application.queries.list_attachments_by_artifact import ListAttachmentsByArtifact
+from alm.attachment.application.queries.get_attachment import GetAttachment
+from alm.attachment.domain.ports import FileStoragePort
+from alm.cycle.api.schemas import (
+    CycleNodeCreateRequest,
+    CycleNodeUpdateRequest,
+    CycleNodeResponse,
+)
+from alm.cycle.application.commands.create_cycle import CreateCycleNode
+from alm.cycle.application.commands.update_cycle import UpdateCycleNode
+from alm.cycle.application.commands.delete_cycle import DeleteCycleNode
+from alm.cycle.application.queries.list_cycles_by_project import ListCycleNodesByProject
+from alm.cycle.application.queries.get_cycle import GetCycleNode
+from alm.area.api.schemas import (
+    AreaNodeCreateRequest,
+    AreaNodeUpdateRequest,
+    AreaNodeResponse,
+    RenameAreaRequest,
+    MoveAreaRequest,
+)
+from alm.area.application.commands.create_area import CreateAreaNode
+from alm.area.application.commands.update_area import UpdateAreaNode
+from alm.area.application.commands.delete_area import DeleteAreaNode
+from alm.area.application.commands.rename_area import RenameAreaNode
+from alm.area.application.commands.move_area import MoveAreaNode
+from alm.area.application.commands.activate_area import ActivateAreaNode
+from alm.area.application.commands.deactivate_area import DeactivateAreaNode
+from alm.area.application.queries.list_areas_by_project import ListAreaNodesByProject
+from alm.area.application.queries.get_area import GetAreaNode
+from alm.team.api.schemas import (
+    TeamCreateRequest,
+    TeamUpdateRequest,
+    TeamResponse,
+    TeamMemberResponse,
+    AddTeamMemberRequest,
+)
+from alm.team.application.commands.create_team import CreateTeam
+from alm.team.application.commands.update_team import UpdateTeam
+from alm.team.application.commands.delete_team import DeleteTeam
+from alm.team.application.commands.add_team_member import AddTeamMember
+from alm.team.application.commands.remove_team_member import RemoveTeamMember
+from alm.team.application.queries.list_teams_by_project import ListTeamsByProject
+from alm.team.application.queries.get_team import GetTeam
+from alm.project.application.queries.get_velocity import GetVelocity
+from alm.project.application.queries.get_burndown import GetBurndown
 
 router = APIRouter(prefix="/orgs/{org_slug}", tags=["orgs"])
 
@@ -213,7 +209,9 @@ router = APIRouter(prefix="/orgs/{org_slug}", tags=["orgs"])
 async def get_org(
     org: ResolvedOrg = Depends(resolve_org),
 ) -> TenantResponse:
-    return TenantResponse(id=org.dto.id, name=org.dto.name, slug=org.dto.slug, tier=org.dto.tier)
+    return TenantResponse(
+        id=org.dto.id, name=org.dto.name, slug=org.dto.slug, tier=org.dto.tier
+    )
 
 
 @router.put("", response_model=TenantResponse)
@@ -223,7 +221,9 @@ async def update_org(
     user: CurrentUser = require_permission("tenant:update"),
     mediator: Mediator = Depends(get_mediator),
 ) -> TenantResponse:
-    dto: TenantDTO = await mediator.send(UpdateTenant(tenant_id=org.tenant_id, name=body.name, settings=body.settings))
+    dto: TenantDTO = await mediator.send(
+        UpdateTenant(tenant_id=org.tenant_id, name=body.name, settings=body.settings)
+    )
     return TenantResponse(id=dto.id, name=dto.name, slug=dto.slug, tier=dto.tier)
 
 
@@ -288,7 +288,9 @@ async def get_project(
     user: CurrentUser = require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
 ) -> ProjectResponse:
-    dto = await mediator.query(GetProject(tenant_id=org.tenant_id, project_id=project_id))
+    dto = await mediator.query(
+        GetProject(tenant_id=org.tenant_id, project_id=project_id)
+    )
     if dto is None:
         raise EntityNotFound("Project", project_id)
     return ProjectResponse(
@@ -340,9 +342,13 @@ async def list_project_members(
     user=require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
 ) -> list[ProjectMemberResponse]:
-    members = await mediator.query(ListProjectMembers(tenant_id=org.tenant_id, project_id=project_id))
+    members = await mediator.query(
+        ListProjectMembers(tenant_id=org.tenant_id, project_id=project_id)
+    )
     return [
-        ProjectMemberResponse(id=m.id, project_id=m.project_id, user_id=m.user_id, role=m.role)
+        ProjectMemberResponse(
+            id=m.id, project_id=m.project_id, user_id=m.user_id, role=m.role
+        )
         for m in members
     ]
 
@@ -480,10 +486,8 @@ async def list_artifacts(
         for d in result.items
     ]
     items = await mask_artifact_list_for_user(items, user)
-    list_actions = (
-        items[0].allowed_actions
-        if items
-        else allowed_actions_for_artifact(await get_user_privileges(user.tenant_id, user.id))
+    list_actions = items[0].allowed_actions if items else allowed_actions_for_artifact(
+        await get_user_privileges(user.tenant_id, user.id)
     )
     return ArtifactListResponse(items=items, total=result.total, allowed_actions=list_actions)
 
@@ -502,10 +506,7 @@ async def batch_transition_artifacts(
 ) -> BatchResultResponse:
     success_count = 0
     errors: list[str] = []
-    results: dict[str, str] = {}
-
     for artifact_id in body.artifact_ids:
-        aid_str = str(artifact_id)
         try:
             await mediator.send(
                 TransitionArtifact(
@@ -513,7 +514,6 @@ async def batch_transition_artifacts(
                     project_id=project_id,
                     artifact_id=artifact_id,
                     new_state=body.new_state,
-                    trigger=body.trigger,
                     state_reason=body.state_reason,
                     resolution=body.resolution,
                     updated_by=user.id,
@@ -521,24 +521,12 @@ async def batch_transition_artifacts(
                 )
             )
             success_count += 1
-            results[aid_str] = "ok"
-        except PolicyDeniedError as e:
-            errors.append(f"{artifact_id}: {e!s}")
-            results[aid_str] = "policy_denied"
-        except ValidationError as e:
-            errors.append(f"{artifact_id}: {e!s}")
-            results[aid_str] = "validation_error"
-        except ConflictError as e:
-            errors.append(f"{artifact_id}: {e!s}")
-            results[aid_str] = "conflict_error"
         except Exception as e:  # noqa: BLE001
             errors.append(f"{artifact_id}: {e!s}")
-            results[aid_str] = "validation_error"
     return BatchResultResponse(
         success_count=success_count,
         error_count=len(errors),
         errors=errors[:20],
-        results=results,
     )
 
 
@@ -585,7 +573,7 @@ async def create_artifact(
     body: ArtifactCreateRequest,
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("artifact:create"),
-    _acl: None = require_manifest_acl("artifact", "create"),
+    _acl: None = require_manifest_acl("artifact", "update"),
     mediator: Mediator = Depends(get_mediator),
 ) -> ArtifactResponse:
     dto = await mediator.send(
@@ -715,30 +703,6 @@ async def update_artifact(
     return await mask_artifact_for_user(resp, user)
 
 
-@router.get(
-    "/projects/{project_id}/artifacts/{artifact_id}/permitted-transitions",
-    response_model=PermittedTransitionsResponse,
-)
-async def get_permitted_transitions(
-    project_id: uuid.UUID,
-    artifact_id: uuid.UUID,
-    org: ResolvedOrg = Depends(resolve_org),
-    user: CurrentUser = require_permission("artifact:read"),
-    _acl: None = require_manifest_acl("artifact", "read"),
-    mediator: Mediator = Depends(get_mediator),
-) -> PermittedTransitionsResponse:
-    items = await mediator.query(
-        GetPermittedTransitions(
-            tenant_id=org.tenant_id,
-            project_id=project_id,
-            artifact_id=artifact_id,
-        )
-    )
-    return PermittedTransitionsResponse(
-        items=[PermittedTransitionItem(trigger=d.trigger, to_state=d.to_state, label=d.label) for d in items],
-    )
-
-
 @router.patch(
     "/projects/{project_id}/artifacts/{artifact_id}/transition",
     response_model=ArtifactResponse,
@@ -758,7 +722,6 @@ async def transition_artifact(
             project_id=project_id,
             artifact_id=artifact_id,
             new_state=body.new_state,
-            trigger=body.trigger,
             state_reason=body.state_reason,
             resolution=body.resolution,
             updated_by=user.id,
@@ -864,20 +827,19 @@ async def restore_artifact(
 )
 async def list_tasks_by_project_and_assignee(
     project_id: uuid.UUID,
-    assignee_id: str = Query(..., description="Use 'me' for current user's tasks"),
+    assignee_id: str,
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("task:read"),
+    _acl: None = require_manifest_acl("artifact", "read"),
     mediator: Mediator = Depends(get_mediator),
 ) -> list[TaskResponse]:
-    """List tasks in a project. Use assignee_id=me to get tasks assigned to the current user."""
-    if assignee_id.lower() != "me":
-        raise HTTPException(400, "Only assignee_id=me is supported")
-    assignee_uuid = user.id
+    """List tasks in the project for an assignee. Use assignee_id=me for current user."""
+    effective_assignee = user.id if assignee_id.strip().lower() == "me" else uuid.UUID(assignee_id)
     dtos = await mediator.query(
         ListTasksByProjectAndAssignee(
             tenant_id=org.tenant_id,
             project_id=project_id,
-            assignee_id=assignee_uuid,
+            assignee_id=effective_assignee,
         )
     )
     return [
@@ -1199,12 +1161,13 @@ async def create_artifact_link(
     user: CurrentUser = require_permission("artifact:update"),
     _acl: None = require_manifest_acl("artifact", "update"),
     mediator: Mediator = Depends(get_mediator),
-    flattener=Depends(get_manifest_flattener),
 ) -> ArtifactLinkResponse:
     # When manifest defines link_types, validate body.link_type against them
-    manifest_result = await mediator.query(GetProjectManifest(tenant_id=org.tenant_id, project_id=project_id))
+    manifest_result = await mediator.query(
+        GetProjectManifest(tenant_id=org.tenant_id, project_id=project_id)
+    )
     if manifest_result and manifest_result.manifest_bundle:
-        flat = flattener.flatten(manifest_result.manifest_bundle)
+        flat = manifest_defs_to_flat(manifest_result.manifest_bundle)
         allowed = flat.get("link_types") or []
         if allowed:
             allowed_ids = [str(lt.get("id", "")).lower() for lt in allowed if lt.get("id")]
@@ -1623,7 +1586,9 @@ async def list_workflow_rules(
     user: CurrentUser = require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
 ) -> list[WorkflowRuleResponse]:
-    dtos = await mediator.query(ListWorkflowRules(tenant_id=org.tenant_id, project_id=project_id))
+    dtos = await mediator.query(
+        ListWorkflowRules(tenant_id=org.tenant_id, project_id=project_id)
+    )
     return [_workflow_rule_dto_to_response(d) for d in dtos]
 
 
@@ -1727,7 +1692,9 @@ async def delete_workflow_rule(
 
 
 def _cycle_node_dto_to_response(dto) -> CycleNodeResponse:
-    children = [_cycle_node_dto_to_response(c) for c in getattr(dto, "children", []) or []]
+    children = [
+        _cycle_node_dto_to_response(c) for c in getattr(dto, "children", []) or []
+    ]
     return CycleNodeResponse(
         id=dto.id,
         project_id=dto.project_id,
@@ -1878,7 +1845,10 @@ def _team_dto_to_response(dto) -> TeamResponse:
         description=dto.description,
         created_at=dto.created_at,
         updated_at=dto.updated_at,
-        members=[TeamMemberResponse(team_id=m.team_id, user_id=m.user_id, role=m.role) for m in (dto.members or [])],
+        members=[
+            TeamMemberResponse(team_id=m.team_id, user_id=m.user_id, role=m.role)
+            for m in (dto.members or [])
+        ],
     )
 
 
@@ -1892,7 +1862,9 @@ async def list_teams(
     user: CurrentUser = require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
 ) -> list[TeamResponse]:
-    dtos = await mediator.query(ListTeamsByProject(tenant_id=org.tenant_id, project_id=project_id))
+    dtos = await mediator.query(
+        ListTeamsByProject(tenant_id=org.tenant_id, project_id=project_id)
+    )
     return [_team_dto_to_response(d) for d in dtos]
 
 
@@ -1930,7 +1902,9 @@ async def get_team(
     user: CurrentUser = require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
 ) -> TeamResponse:
-    dto = await mediator.query(GetTeam(tenant_id=org.tenant_id, project_id=project_id, team_id=team_id))
+    dto = await mediator.query(
+        GetTeam(tenant_id=org.tenant_id, project_id=project_id, team_id=team_id)
+    )
     if dto is None:
         raise EntityNotFound("Team", team_id)
     return _team_dto_to_response(dto)
@@ -1972,7 +1946,9 @@ async def delete_team(
     user: CurrentUser = require_permission("project:update"),
     mediator: Mediator = Depends(get_mediator),
 ) -> None:
-    await mediator.send(DeleteTeam(tenant_id=org.tenant_id, project_id=project_id, team_id=team_id))
+    await mediator.send(
+        DeleteTeam(tenant_id=org.tenant_id, project_id=project_id, team_id=team_id)
+    )
 
 
 @router.post(
@@ -2109,7 +2085,9 @@ async def get_burndown(
 
 
 def _area_node_dto_to_response(dto) -> AreaNodeResponse:
-    children = [_area_node_dto_to_response(c) for c in getattr(dto, "children", []) or []]
+    children = [
+        _area_node_dto_to_response(c) for c in getattr(dto, "children", []) or []
+    ]
     return AreaNodeResponse(
         id=dto.id,
         project_id=dto.project_id,
@@ -2431,15 +2409,16 @@ async def get_project_manifest(
     user: CurrentUser = require_permission("manifest:read"),
     _acl: None = require_manifest_acl("manifest", "read"),
     mediator: Mediator = Depends(get_mediator),
-    flattener=Depends(get_manifest_flattener),
-) -> dict[str, Any]:
+) -> dict:
     """Get manifest bundle for the project's process template version."""
-    manifest = await mediator.query(GetProjectManifest(tenant_id=org.tenant_id, project_id=project_id))
+    manifest = await mediator.query(
+        GetProjectManifest(tenant_id=org.tenant_id, project_id=project_id)
+    )
     if manifest is None:
         raise EntityNotFound("ProjectManifest", project_id)
 
     bundle = dict(manifest.manifest_bundle or {})
-    flat = flattener.flatten(bundle)
+    flat = manifest_defs_to_flat(bundle)
     bundle["workflows"] = flat["workflows"]
     bundle["artifact_types"] = flat["artifact_types"]
     bundle["link_types"] = flat["link_types"]
@@ -2460,8 +2439,7 @@ async def update_project_manifest(
     user: CurrentUser = require_permission("manifest:update"),
     _acl: None = require_manifest_acl("manifest", "update"),
     mediator: Mediator = Depends(get_mediator),
-    flattener=Depends(get_manifest_flattener),
-) -> dict[str, Any]:
+) -> dict:
     """Update project manifest: creates a new process template version and points project to it."""
     await mediator.send(
         UpdateProjectManifest(
@@ -2470,11 +2448,13 @@ async def update_project_manifest(
             manifest_bundle=body.manifest_bundle,
         )
     )
-    manifest = await mediator.query(GetProjectManifest(tenant_id=org.tenant_id, project_id=project_id))
+    manifest = await mediator.query(
+        GetProjectManifest(tenant_id=org.tenant_id, project_id=project_id)
+    )
     if manifest is None:
         raise EntityNotFound("ProjectManifest", project_id)
     bundle = dict(manifest.manifest_bundle or {})
-    flat = flattener.flatten(bundle)
+    flat = manifest_defs_to_flat(bundle)
     bundle["workflows"] = flat["workflows"]
     bundle["artifact_types"] = flat["artifact_types"]
     bundle["link_types"] = flat["link_types"]
@@ -2494,7 +2474,7 @@ async def get_dashboard_stats(
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
-) -> dict[str, Any]:
+) -> dict:
     stats = await mediator.query(GetOrgDashboardStats(tenant_id=org.tenant_id))
     return {
         "projects": stats.projects,
@@ -2510,8 +2490,10 @@ async def get_dashboard_activity(
     user: CurrentUser = require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
     limit: int = 10,
-) -> list[dict[str, Any]]:
-    items = await mediator.query(GetOrgDashboardActivity(tenant_id=org.tenant_id, limit=min(limit, 50)))
+) -> list[dict]:
+    items = await mediator.query(
+        GetOrgDashboardActivity(tenant_id=org.tenant_id, limit=min(limit, 50))
+    )
     return [
         {
             "artifact_id": str(i.artifact_id),
@@ -2543,11 +2525,8 @@ async def list_members(
             display_name=d.display_name,
             roles=[
                 RoleInfoSchema(
-                    id=r.id,
-                    name=r.name,
-                    slug=r.slug,
-                    is_system=r.is_system,
-                    hierarchy_level=r.hierarchy_level,
+                    id=r.id, name=r.name, slug=r.slug,
+                    is_system=r.is_system, hierarchy_level=r.hierarchy_level,
                 )
                 for r in d.roles
             ],
@@ -2577,11 +2556,8 @@ async def invite_member(
         email=dto.email,
         roles=[
             RoleInfoSchema(
-                id=r.id,
-                name=r.name,
-                slug=r.slug,
-                is_system=r.is_system,
-                hierarchy_level=r.hierarchy_level,
+                id=r.id, name=r.name, slug=r.slug,
+                is_system=r.is_system, hierarchy_level=r.hierarchy_level,
             )
             for r in dto.roles
         ],
@@ -2597,7 +2573,9 @@ async def remove_member(
     user: CurrentUser = require_permission("member:remove"),
     mediator: Mediator = Depends(get_mediator),
 ) -> MessageResponse:
-    await mediator.send(RemoveMember(tenant_id=org.tenant_id, user_id=user_id, removed_by=user.id))
+    await mediator.send(
+        RemoveMember(tenant_id=org.tenant_id, user_id=user_id, removed_by=user.id)
+    )
     return MessageResponse(message="Member removed")
 
 
@@ -2608,14 +2586,13 @@ async def get_member_roles(
     user: CurrentUser = require_permission("member:read"),
     mediator: Mediator = Depends(get_mediator),
 ) -> list[RoleInfoSchema]:
-    dtos = await mediator.query(GetMemberRoles(tenant_id=org.tenant_id, user_id=user_id))
+    dtos = await mediator.query(
+        GetMemberRoles(tenant_id=org.tenant_id, user_id=user_id)
+    )
     return [
         RoleInfoSchema(
-            id=d.id,
-            name=d.name,
-            slug=d.slug,
-            is_system=d.is_system,
-            hierarchy_level=d.hierarchy_level,
+            id=d.id, name=d.name, slug=d.slug,
+            is_system=d.is_system, hierarchy_level=d.hierarchy_level,
         )
         for d in dtos
     ]
@@ -2693,11 +2670,8 @@ def _role_detail_to_response(dto: RoleDetailDTO) -> RoleDetailResponse:
         hierarchy_level=dto.hierarchy_level,
         privileges=[
             PrivilegeSchema(
-                id=p.id,
-                code=p.code,
-                resource=p.resource,
-                action=p.action,
-                description=p.description,
+                id=p.id, code=p.code, resource=p.resource,
+                action=p.action, description=p.description,
             )
             for p in dto.privileges
         ],

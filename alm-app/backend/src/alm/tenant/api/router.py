@@ -4,9 +4,10 @@ import uuid
 
 from fastapi import APIRouter, Depends
 
-from alm.config.dependencies import get_mediator
 from alm.shared.api.schemas import MessageResponse
+from alm.config.dependencies import get_mediator
 from alm.shared.application.mediator import Mediator
+from alm.shared.domain.exceptions import EntityNotFound
 from alm.shared.infrastructure.security.dependencies import (
     CurrentUser,
     get_authenticated_user_id,
@@ -50,6 +51,7 @@ from alm.tenant.application.dtos import (
     TenantDTO,
     TenantWithRolesDTO,
 )
+from alm.tenant.application.queries.get_member_permissions import GetMemberEffectivePermissions
 from alm.tenant.application.queries.get_role import GetRole
 from alm.tenant.application.queries.list_members import ListTenantMembers
 from alm.tenant.application.queries.list_privileges import ListPrivileges
@@ -78,7 +80,10 @@ async def list_my_tenants(
     mediator: Mediator = Depends(get_mediator),
 ) -> list[TenantWithRolesResponse]:
     items: list[TenantWithRolesDTO] = await mediator.query(ListMyTenants(user_id=user.id))
-    return [TenantWithRolesResponse(id=d.id, name=d.name, slug=d.slug, tier=d.tier, roles=d.roles) for d in items]
+    return [
+        TenantWithRolesResponse(id=d.id, name=d.name, slug=d.slug, tier=d.tier, roles=d.roles)
+        for d in items
+    ]
 
 
 @router.get("/privileges", response_model=list[PrivilegeSchema])
@@ -88,7 +93,9 @@ async def list_privileges(
 ) -> list[PrivilegeSchema]:
     items: list[PrivilegeDTO] = await mediator.query(ListPrivileges())
     return [
-        PrivilegeSchema(id=p.id, code=p.code, resource=p.resource, action=p.action, description=p.description)
+        PrivilegeSchema(
+            id=p.id, code=p.code, resource=p.resource, action=p.action, description=p.description
+        )
         for p in items
     ]
 
@@ -124,7 +131,9 @@ async def update_tenant(
 ) -> TenantResponse:
     from alm.tenant.application.commands.update_tenant import UpdateTenant
 
-    dto: TenantDTO = await mediator.send(UpdateTenant(tenant_id=tenant_id, name=body.name, settings=body.settings))
+    dto: TenantDTO = await mediator.send(
+        UpdateTenant(tenant_id=tenant_id, name=body.name, settings=body.settings)
+    )
     return TenantResponse(id=dto.id, name=dto.name, slug=dto.slug, tier=dto.tier)
 
 
@@ -139,7 +148,6 @@ async def archive_tenant(
 
     if tenant_id != user.tenant_id:
         from fastapi import HTTPException
-
         raise HTTPException(status_code=403, detail="Can only archive your current tenant.")
     await mediator.send(ArchiveTenant(tenant_id=tenant_id, archived_by=user.id))
 
@@ -194,7 +202,9 @@ async def invite_member(
         id=dto.id,
         email=dto.email,
         roles=[
-            RoleInfoSchema(id=r.id, name=r.name, slug=r.slug, is_system=r.is_system, hierarchy_level=r.hierarchy_level)
+            RoleInfoSchema(
+                id=r.id, name=r.name, slug=r.slug, is_system=r.is_system, hierarchy_level=r.hierarchy_level
+            )
             for r in dto.roles
         ],
         expires_at=dto.expires_at,
@@ -228,11 +238,8 @@ async def get_member_roles(
     dtos = await mediator.query(GetMemberRoles(tenant_id=tenant_id, user_id=user_id))
     return [
         RoleInfoSchema(
-            id=d.id,
-            name=d.name,
-            slug=d.slug,
-            is_system=d.is_system,
-            hierarchy_level=d.hierarchy_level,
+            id=d.id, name=d.name, slug=d.slug,
+            is_system=d.is_system, hierarchy_level=d.hierarchy_level,
         )
         for d in dtos
     ]
@@ -286,7 +293,9 @@ async def revoke_role(
     user: CurrentUser = Depends(get_current_user),
     mediator: Mediator = Depends(get_mediator),
 ) -> MessageResponse:
-    await mediator.send(RevokeRole(tenant_id=tenant_id, user_id=user_id, role_id=role_id, revoked_by=user.id))
+    await mediator.send(
+        RevokeRole(tenant_id=tenant_id, user_id=user_id, role_id=role_id, revoked_by=user.id)
+    )
     return MessageResponse(message="Role revoked")
 
 
@@ -309,7 +318,9 @@ async def list_roles(
             is_system=d.is_system,
             hierarchy_level=d.hierarchy_level,
             privileges=[
-                PrivilegeSchema(id=p.id, code=p.code, resource=p.resource, action=p.action, description=p.description)
+                PrivilegeSchema(
+                    id=p.id, code=p.code, resource=p.resource, action=p.action, description=p.description
+                )
                 for p in d.privileges
             ],
         )
@@ -406,7 +417,9 @@ def _role_detail_to_response(dto: RoleDetailDTO) -> RoleDetailResponse:
         is_system=dto.is_system,
         hierarchy_level=dto.hierarchy_level,
         privileges=[
-            PrivilegeSchema(id=p.id, code=p.code, resource=p.resource, action=p.action, description=p.description)
+            PrivilegeSchema(
+                id=p.id, code=p.code, resource=p.resource, action=p.action, description=p.description
+            )
             for p in dto.privileges
         ],
     )

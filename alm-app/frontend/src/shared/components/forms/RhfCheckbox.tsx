@@ -1,16 +1,21 @@
 /**
- * Reusable Checkbox wired to React Hook Form via Controller.
- * Use inside a form wrapped with FormProvider, or pass control explicitly.
+ * Checkbox wired to React Hook Form via Controller. Radix UI + Tailwind.
  */
 import { Controller } from "react-hook-form";
-import { Checkbox, FormControlLabel, FormHelperText, type CheckboxProps } from "@mui/material";
+import { Checkbox, Label } from "../ui";
+import { cn } from "../ui/utils";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
 
 type RhfCheckboxProps<TFieldValues extends import("react-hook-form").FieldValues> =
   RhfControllerFieldProps<TFieldValues> & {
     label?: React.ReactNode;
-    checkboxProps?: Omit<CheckboxProps, "checked" | "onChange" | "onBlur" | "inputRef">;
+    checkboxProps?: {
+      size?: "small" | "medium";
+      className?: string;
+      "aria-label"?: string;
+      [key: string]: unknown;
+    };
   };
 
 export function RhfCheckbox<TFieldValues extends import("react-hook-form").FieldValues>({
@@ -32,23 +37,39 @@ export function RhfCheckbox<TFieldValues extends import("react-hook-form").Field
       name={name}
       control={control}
       render={({ field: { value, onChange, onBlur, ref } }) => (
-        <>
-          <FormControlLabel
-            control={
-              <Checkbox
-                {...checkboxProps}
-                checked={!!value}
-                onChange={(e) => onChange(e.target.checked)}
-                onBlur={onBlur}
-                inputRef={ref}
-              />
-            }
-            label={label}
-          />
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={String(name)}
+              ref={ref}
+              checked={!!value}
+              onCheckedChange={(checked) => onChange(!!checked)}
+              onBlur={onBlur}
+              aria-invalid={!!errorMessage}
+              aria-describedby={displayText ? `${String(name)}-helper` : undefined}
+              {...checkboxProps}
+            />
+            {label != null && label !== "" && (
+              <Label
+                htmlFor={String(name)}
+                className="cursor-pointer font-normal"
+              >
+                {label}
+              </Label>
+            )}
+          </div>
           {displayText != null && displayText !== "" && (
-            <FormHelperText error={!!errorMessage}>{displayText}</FormHelperText>
+            <p
+              id={`${String(name)}-helper`}
+              className={cn(
+                "text-sm",
+                errorMessage ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {displayText}
+            </p>
           )}
-        </>
+        </div>
       )}
     />
   );

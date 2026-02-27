@@ -1,6 +1,5 @@
-import { Box, List, ListItemButton, ListItemIcon, ListItemText } from "@mui/material";
-import { AccountTree, Edit, FolderOff } from "@mui/icons-material";
 import { Link, useParams } from "react-router-dom";
+import { Network, Edit, FolderX } from "lucide-react";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { LoadingState } from "../../../shared/components/LoadingState";
@@ -10,7 +9,6 @@ import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
 
 /**
  * Organization settings → Process manifest: list projects and link to each project's manifest editor.
- * Layout adapted from pamera-ui StandardPageLayout.
  */
 export default function ProcessManifestListPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
@@ -27,41 +25,31 @@ export default function ProcessManifestListPage() {
           <LoadingState label="Loading projects…" />
         ) : projects.length === 0 ? (
           <EmptyState
-            icon={<FolderOff />}
+            icon={<FolderX className="size-12" />}
             title="No projects"
             description="There are no projects in this organization yet. Create a project to manage process manifests."
             bordered
           />
         ) : (
-          <List disablePadding>
+          <ul className="divide-y divide-border rounded-md border border-border">
             {projects.map((project) => (
-              <ListItemButton
-                key={project.id}
-                component={Link}
-                to={orgSlug ? `/${orgSlug}/${project.slug}/manifest` : "#"}
-                sx={{
-                  borderRadius: 1,
-                  mb: 0.5,
-                  alignItems: "center",
-                  textDecoration: "none",
-                  color: "inherit",
-                  "&:hover": { textDecoration: "none" },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 40 }}>
-                  <AccountTree color="action" />
-                </ListItemIcon>
-                <ListItemText
-                  primary={project.name}
-                  secondary={project.description ?? undefined}
-                  primaryTypographyProps={{ fontWeight: 500 }}
-                />
-                <Box component="span" sx={{ display: "flex", alignItems: "center", ml: 1 }}>
-                  <Edit fontSize="small" color="action" />
-                </Box>
-              </ListItemButton>
+              <li key={project.id}>
+                <Link
+                  to={orgSlug ? `/${orgSlug}/${project.slug}/manifest` : "#"}
+                  className="flex items-center gap-3 px-4 py-3 no-underline text-foreground transition-colors hover:bg-muted/50"
+                >
+                  <Network className="size-5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{project.name}</p>
+                    {project.description && (
+                      <p className="text-sm text-muted-foreground">{project.description}</p>
+                    )}
+                  </div>
+                  <Edit className="size-4 shrink-0 text-muted-foreground" />
+                </Link>
+              </li>
             ))}
-          </List>
+          </ul>
         )}
       </StandardPageLayout>
     </SettingsPageWrapper>

@@ -1,44 +1,37 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
-  Box,
-  Typography,
+  History,
+  ClipboardList,
+  CheckCircle,
+  Bug,
+  FolderOpen,
+  TrendingUp,
+  RefreshCw,
+} from "lucide-react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+  Button,
   Card,
   CardContent,
-  CircularProgress,
-  Breadcrumbs,
-  Link as MuiLink,
-  List,
-  ListItem,
-  ListItemText,
-  Chip,
-  FormControl,
-  InputLabel,
+  Badge,
   Select,
-  MenuItem,
-  FormControlLabel,
-  Checkbox,
-  Stack,
-  Divider,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tooltip,
-  Button,
-  ButtonGroup,
-  IconButton,
-  Paper,
-  LinearProgress,
-} from "@mui/material";
-import Grid from "@mui/material/Grid";
-import {
-  History,
-  Assignment as AssignmentIcon,
-  CheckCircle as CheckCircleIcon,
-  BugReport as BugReportIcon,
-  Folder as FolderIcon,
-  TrendingUp as TrendingUpIcon,
-  ArrowUpward as ArrowUpIcon,
-  ArrowDownward as ArrowDownIcon,
-  Refresh as RefreshIcon,
-} from "@mui/icons-material";
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+  Separator,
+} from "../../../shared/components/ui";
+import { Label } from "../../../shared/components/ui";
 import {
   useOrgDashboardStats,
   useOrgProjects,
@@ -90,7 +83,12 @@ function formatRelativeTime(iso: string | null): string {
   return date.toLocaleDateString();
 }
 
-type StatCardColor = "primary" | "warning" | "success" | "error";
+const statCardBg: Record<string, string> = {
+  primary: "bg-primary",
+  warning: "bg-amber-500",
+  success: "bg-emerald-500",
+  error: "bg-red-500",
+};
 
 function StatCard({
   label,
@@ -107,7 +105,7 @@ function StatCard({
   value: number;
   isLoading: boolean;
   to?: string;
-  color?: StatCardColor;
+  color?: string;
   icon: React.ReactNode;
   trend?: string;
   trendUp?: boolean;
@@ -118,87 +116,58 @@ function StatCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay }}
-      style={{ height: "100%" }}
+      className="h-full"
     >
       <Card
-        sx={{
-          height: "100%",
-          bgcolor: `${color}.main`,
-          color: "white",
-          transition: "box-shadow 0.2s, transform 0.2s",
-          ...(to
-            ? {
-              "&:hover": {
-                boxShadow: 6,
-                transform: "translateY(-2px)",
-              },
-              cursor: "pointer",
-            }
-            : {}),
-        }}
+        className={`h-full text-white transition shadow hover:shadow-lg ${statCardBg[color] ?? "bg-primary"} ${to ? "cursor-pointer hover:-translate-y-0.5" : ""}`}
       >
         <CardContent>
-          <Stack spacing={2}>
-            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-              <Box>
-                <Typography variant="body2" sx={{ opacity: 0.9 }} gutterBottom>
-                  {label}
-                </Typography>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm opacity-90">{label}</p>
                 {isLoading ? (
-                  <CircularProgress size={32} sx={{ color: "white" }} />
+                  <div className="mt-1 size-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 ) : (
-                  <Typography variant="h3" fontWeight="bold">
-                    {value}
-                  </Typography>
+                  <p className="text-3xl font-bold">{value}</p>
                 )}
-              </Box>
-              <Box
-                sx={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 2,
-                  bgcolor: "rgba(255, 255, 255, 0.2)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
+              </div>
+              <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-white/20">
                 {icon}
-              </Box>
-            </Stack>
+              </div>
+            </div>
             {trend && (
-              <Stack direction="row" alignItems="center" spacing={0.5}>
+              <div className="flex items-center gap-1">
                 {trendUp ? (
-                  <ArrowUpIcon fontSize="small" />
+                  <span className="size-4">↑</span>
                 ) : (
-                  <ArrowDownIcon fontSize="small" />
+                  <span className="size-4">↓</span>
                 )}
-                <Typography variant="caption">{trend}</Typography>
-              </Stack>
+                <span className="text-xs">{trend}</span>
+              </div>
             )}
-          </Stack>
+          </div>
         </CardContent>
       </Card>
     </motion.div>
   );
 
   return to ? (
-    <MuiLink component={Link} to={to} underline="none" color="inherit" sx={{ display: "block", height: "100%" }}>
+    <Link to={to} className="block h-full text-inherit no-underline">
       {content}
-    </MuiLink>
+    </Link>
   ) : (
     content
   );
 }
 
-function getStateColor(state: string): "default" | "primary" | "secondary" | "success" | "error" | "warning" | "info" {
+function getStateVariant(
+  state: string,
+): "default" | "secondary" | "destructive" | "outline" {
   const s = state.toLowerCase();
-  if (s.includes("done") || s.includes("closed") || s.includes("completed")) return "success";
-  if (s.includes("progress") || s.includes("active")) return "info";
-  if (s.includes("open") || s.includes("new")) return "primary";
-  if (s.includes("blocked") || s.includes("error")) return "error";
-  return "default";
+  if (s.includes("done") || s.includes("closed") || s.includes("completed")) return "default";
+  if (s.includes("blocked") || s.includes("error")) return "destructive";
+  return "outline";
 }
 
 export default function DashboardPage() {
@@ -237,7 +206,6 @@ export default function DashboardPage() {
       ? `/${orgSlug}/${selectedProject.slug}/artifacts?type=defect&state=Open`
       : undefined;
 
-  // Stats chart data derived from known values
   const statsChartData = stats
     ? [
         { name: "Projects", value: stats.projects, fill: COLORS[0] },
@@ -248,169 +216,152 @@ export default function DashboardPage() {
     : [];
 
   const breadcrumbs = (
-    <Breadcrumbs>
-      <MuiLink
-        component={Link}
-        to={orgSlug ? `/${orgSlug}` : "#"}
-        underline="hover"
-        color="inherit"
-      >
-        {orgSlug ?? "Org"}
-      </MuiLink>
-      <Typography color="text.primary">Dashboard</Typography>
-    </Breadcrumbs>
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link to={orgSlug ? `/${orgSlug}` : "#"}>{orgSlug ?? "Org"}</Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbPage>Dashboard</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
   );
 
   const filterBar = (
-    <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, pt: 2 }}>
-      <FormControl
-        size="small"
-        sx={{ minWidth: 220 }}
-        disabled={projectsLoading || projects.length === 0}
-      >
-        <InputLabel id="dashboard-project-label">Filter by project</InputLabel>
+    <div className="flex flex-wrap items-center gap-4 pt-4">
+      <div className="min-w-[220px]">
+        <Label className="sr-only">Filter by project</Label>
         <Select
-          labelId="dashboard-project-label"
-          label="Filter by project"
-          value={effectiveSlug ?? ""}
-          onChange={(e) => setSelectedSlug(e.target.value ? (e.target.value as string) : null)}
-          displayEmpty
-          renderValue={(v) =>
-            projectsLoading ? "Loading…" : v ? projects.find((p) => p.slug === v)?.name ?? v : ""
-          }
+          value={effectiveSlug ?? "__all__"}
+          onValueChange={(v) => setSelectedSlug(v === "__all__" ? null : v)}
+          disabled={projectsLoading || projects.length === 0}
         >
-          {projects.map((p) => (
-            <MenuItem key={p.id} value={p.slug}>
-              {p.name}
-            </MenuItem>
-          ))}
+          <SelectTrigger size="sm" className="w-full">
+            <SelectValue placeholder={projectsLoading ? "Loading…" : "All projects"} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All projects</SelectItem>
+            {projects.map((p) => (
+              <SelectItem key={p.id} value={p.slug}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
-      </FormControl>
+      </div>
       {effectiveSlug && (
-        <FormControlLabel
-          control={
-            <Checkbox
-              size="small"
-              checked={showOnlySelectedProject}
-              onChange={(_, checked) => setShowOnlySelectedProject(checked)}
-            />
-          }
-          label="Show only selected project in activity"
-        />
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={showOnlySelectedProject}
+            onChange={(e) => setShowOnlySelectedProject(e.target.checked)}
+            className="size-4 rounded border-input"
+          />
+          <span>Show only selected project in activity</span>
+        </label>
       )}
       {!projectsLoading && projects.length === 0 && (
-        <Typography variant="body2" color="text.secondary">
+        <p className="text-sm text-muted-foreground">
           No projects yet.{" "}
-          <MuiLink component={Link} to={projectsPath} underline="hover">
+          <Link to={projectsPath} className="text-primary underline hover:no-underline">
             Go to projects
-          </MuiLink>
-        </Typography>
+          </Link>
+        </p>
       )}
-    </Box>
+    </div>
   );
 
   return (
-    <StandardPageLayout
-      breadcrumbs={breadcrumbs}
-      title="Dashboard"
-      actions={
-        <Stack direction="row" spacing={2} alignItems="center">
-          <ButtonGroup variant="outlined" size="small">
-            <Button
-              variant={timeRange === "week" ? "contained" : "outlined"}
-              onClick={() => setTimeRange("week")}
-            >
-              Week
-            </Button>
-            <Button
-              variant={timeRange === "month" ? "contained" : "outlined"}
-              onClick={() => setTimeRange("month")}
-            >
-              Month
-            </Button>
-            <Button
-              variant={timeRange === "year" ? "contained" : "outlined"}
-              onClick={() => setTimeRange("year")}
-            >
-              Year
-            </Button>
-          </ButtonGroup>
-          <Tooltip title="Refresh Data">
-            <IconButton size="small" onClick={() => refetch()}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-      }
-      filterBar={filterBar}
-    >
-      {/* Stat Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+    <TooltipProvider>
+      <StandardPageLayout
+        breadcrumbs={breadcrumbs}
+        title="Dashboard"
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-md border border-border [&>button]:rounded-none [&>button:first-child]:rounded-l-md [&>button:last-child]:rounded-r-md [&>button:not(:first-child)]:border-l">
+              {(["week", "month", "year"] as const).map((range) => (
+                <Button
+                  key={range}
+                  variant={timeRange === range ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setTimeRange(range)}
+                  className="rounded-none first:rounded-l-md last:rounded-r-md"
+                >
+                  {range.charAt(0).toUpperCase() + range.slice(1)}
+                </Button>
+              ))}
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="outline" onClick={() => refetch()}>
+                  <RefreshCw className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Refresh Data</TooltipContent>
+            </Tooltip>
+          </div>
+        }
+        filterBar={filterBar}
+      >
+        {/* Stat Cards */}
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
           <StatCard
             label="Projects"
             value={stats?.projects ?? 0}
             isLoading={isLoading}
             to={projectsPath}
             color="primary"
-            icon={<FolderIcon sx={{ fontSize: 32 }} />}
+            icon={<FolderOpen className="size-8" />}
             trend="+5% from last month"
             trendUp
             delay={0}
           />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             label="Artifacts"
             value={stats?.artifacts ?? 0}
             isLoading={isLoading}
             to={artifactsPath}
             color="warning"
-            icon={<AssignmentIcon sx={{ fontSize: 32 }} />}
+            icon={<ClipboardList className="size-8" />}
             trend="+12% from last month"
             trendUp
             delay={0.1}
           />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             label="Tasks"
             value={stats?.tasks ?? 0}
             isLoading={isLoading}
             to={tasksPath}
             color="success"
-            icon={<CheckCircleIcon sx={{ fontSize: 32 }} />}
+            icon={<CheckCircle className="size-8" />}
             trend="+8% from last month"
             trendUp
             delay={0.2}
           />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             label="Open Defects"
             value={stats?.openDefects ?? 0}
             isLoading={isLoading}
             to={openDefectsPath}
             color="error"
-            icon={<BugReportIcon sx={{ fontSize: 32 }} />}
+            icon={<Bug className="size-8" />}
             trend="-15% from last month"
             trendUp={false}
             delay={0.3}
           />
-        </Grid>
-      </Grid>
+        </div>
 
-      {/* Charts Section */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        {/* Velocity Chart */}
-        <Grid size={{ xs: 12, lg: 8 }}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" fontWeight={600} gutterBottom>
-              Team Velocity
-            </Typography>
-            <Typography variant="caption" color="text.secondary" gutterBottom display="block" mb={2}>
+        {/* Charts */}
+        <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="rounded-lg border border-border bg-card p-4 lg:col-span-8">
+            <h3 className="text-lg font-semibold">Team Velocity</h3>
+            <p className="mb-4 text-xs text-muted-foreground">
               Completed vs Created artifacts over time
-            </Typography>
+            </p>
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart data={velocityData}>
                 <defs>
@@ -448,22 +399,15 @@ export default function DashboardPage() {
                 />
               </AreaChart>
             </ResponsiveContainer>
-          </Paper>
-        </Grid>
+          </div>
 
-        {/* Stats Distribution Pie */}
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <Paper sx={{ p: 3, height: "100%" }}>
-            <Typography variant="h6" fontWeight={600} gutterBottom>
-              Work Distribution
-            </Typography>
-            <Typography variant="caption" color="text.secondary" gutterBottom display="block" mb={2}>
-              Overview of all work items
-            </Typography>
+          <div className="rounded-lg border border-border bg-card p-4 lg:col-span-4">
+            <h3 className="text-lg font-semibold">Work Distribution</h3>
+            <p className="mb-4 text-xs text-muted-foreground">Overview of all work items</p>
             {isLoading ? (
-              <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 240 }}>
-                <CircularProgress />
-              </Box>
+              <div className="flex h-60 items-center justify-center">
+                <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
@@ -475,7 +419,7 @@ export default function DashboardPage() {
                     outerRadius={85}
                     paddingAngle={5}
                     dataKey="value"
-                    label={({ name, value }) => value > 0 ? `${name}: ${value}` : ""}
+                    label={({ name, value }) => (value > 0 ? `${name}: ${value}` : "")}
                   >
                     {statsChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -485,19 +429,16 @@ export default function DashboardPage() {
                 </PieChart>
               </ResponsiveContainer>
             )}
-          </Paper>
-        </Grid>
+          </div>
+        </div>
 
-        {/* Stats Bar Chart */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" fontWeight={600} gutterBottom>
-              Work Items Overview
-            </Typography>
+        <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="rounded-lg border border-border bg-card p-4">
+            <h3 className="text-lg font-semibold">Work Items Overview</h3>
             {isLoading ? (
-              <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-                <CircularProgress />
-              </Box>
+              <div className="flex justify-center py-8">
+                <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={statsChartData}>
@@ -513,279 +454,151 @@ export default function DashboardPage() {
                 </BarChart>
               </ResponsiveContainer>
             )}
-          </Paper>
-        </Grid>
+          </div>
 
-        {/* Quick Stats */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" fontWeight={600} gutterBottom mb={2}>
-              Quick Stats
-            </Typography>
+          <div className="rounded-lg border border-border bg-card p-4">
+            <h3 className="mb-4 text-lg font-semibold">Quick Stats</h3>
             {!isLoading && stats && (
-              <Stack spacing={2}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <FolderIcon color="primary" />
-                    <Typography variant="body2">Projects</Typography>
-                  </Stack>
-                  <Typography variant="h6" fontWeight="bold">
-                    {stats.projects}
-                  </Typography>
-                </Stack>
-                <Divider />
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <AssignmentIcon color="warning" />
-                    <Typography variant="body2">Total Artifacts</Typography>
-                  </Stack>
-                  <Typography variant="h6" fontWeight="bold">
-                    {stats.artifacts}
-                  </Typography>
-                </Stack>
-                <Divider />
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <CheckCircleIcon color="success" />
-                    <Typography variant="body2">Tasks</Typography>
-                  </Stack>
-                  <Typography variant="h6" fontWeight="bold">
-                    {stats.tasks}
-                  </Typography>
-                </Stack>
-                <Divider />
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <BugReportIcon color="error" />
-                    <Typography variant="body2">Open Defects</Typography>
-                  </Stack>
-                  <Typography variant="h6" fontWeight="bold" color="error.main">
-                    {stats.openDefects}
-                  </Typography>
-                </Stack>
-                <Divider />
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <TrendingUpIcon color="primary" />
-                    <Typography variant="body2">Active Projects</Typography>
-                  </Stack>
-                  <Typography variant="h6" fontWeight="bold">
-                    {projects.length}
-                  </Typography>
-                </Stack>
-              </Stack>
+              <div className="space-y-2">
+                {[
+                  { label: "Projects", value: stats.projects, icon: <FolderOpen className="size-4 text-primary" /> },
+                  { label: "Total Artifacts", value: stats.artifacts, icon: <ClipboardList className="size-4 text-amber-500" /> },
+                  { label: "Tasks", value: stats.tasks, icon: <CheckCircle className="size-4 text-emerald-500" /> },
+                  { label: "Open Defects", value: stats.openDefects, icon: <Bug className="size-4 text-red-500" /> },
+                  { label: "Active Projects", value: projects.length, icon: <TrendingUp className="size-4 text-primary" /> },
+                ].map((row) => (
+                  <div key={row.label}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {row.icon}
+                        <span className="text-sm">{row.label}</span>
+                      </div>
+                      <span className="font-semibold">{row.value}</span>
+                    </div>
+                    <Separator className="mt-2" />
+                  </div>
+                ))}
+              </div>
             )}
             {isLoading && (
-              <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-                <CircularProgress />
-              </Box>
+              <div className="flex justify-center py-8">
+                <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
             )}
-          </Paper>
-        </Grid>
-      </Grid>
+          </div>
+        </div>
 
-      {/* Projects and Activity */}
-      <Grid container spacing={3}>
-        {/* Active Projects */}
-        {projects.length > 0 && (
-          <Grid size={{ xs: 12, lg: 8 }}>
-            <Paper sx={{ p: 3 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6" fontWeight={600}>
-                  Active Projects
-                </Typography>
-                <MuiLink
-                  component={Link}
-                  to={projectsPath}
-                  underline="hover"
-                  variant="body2"
-                  color="primary"
-                >
-                  View all
-                </MuiLink>
-              </Stack>
-              <Grid container spacing={2}>
-                {projects.slice(0, 6).map((project) => (
-                  <Grid size={{ xs: 12, md: 6 }} key={project.id}>
-                    <Card
-                      variant="outlined"
-                      component={Link}
+        {/* Projects and Activity */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          {projects.length > 0 && (
+            <div className="lg:col-span-8">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Active Projects</h3>
+                  <Link to={projectsPath} className="text-sm text-primary underline hover:no-underline">
+                    View all
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {projects.slice(0, 6).map((project) => (
+                    <Link
+                      key={project.id}
                       to={`/${orgSlug}/${project.slug}`}
-                      sx={{
-                        textDecoration: "none",
-                        color: "inherit",
-                        transition: "box-shadow 0.2s",
-                        "&:hover": { boxShadow: 3 },
-                        display: "block",
-                      }}
+                      className="block rounded-lg border border-border bg-card p-4 transition shadow hover:shadow-md no-underline text-foreground"
                     >
-                      <CardContent>
-                        <Stack direction="row" spacing={2} mb={2}>
-                          <Box
-                            sx={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 1,
-                              bgcolor: "primary.light",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              color: "primary.main",
-                              fontWeight: 700,
-                              fontSize: 18,
-                              flexShrink: 0,
-                            }}
-                          >
-                            {project.name.charAt(0).toUpperCase()}
-                          </Box>
-                          <Box flex={1} minWidth={0}>
-                            <Typography variant="subtitle2" fontWeight={600} noWrap>
-                              {project.name}
-                            </Typography>
-                            <Chip label={project.code} size="small" sx={{ mt: 0.5 }} />
-                          </Box>
-                        </Stack>
-                        {project.description && (
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{
-                              display: "-webkit-box",
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: "vertical",
-                              overflow: "hidden",
-                              mb: 1.5,
-                            }}
-                          >
-                            {project.description}
-                          </Typography>
-                        )}
-                        <Box>
-                          <Stack direction="row" justifyContent="space-between" mb={0.5}>
-                            <Typography variant="caption" color="text.secondary">
-                              Activity
-                            </Typography>
-                            <Typography variant="caption" fontWeight={600} color="success.main">
-                              Active
-                            </Typography>
-                          </Stack>
-                          <LinearProgress
-                            variant="determinate"
-                            value={75}
-                            sx={{ height: 6, borderRadius: 1 }}
-                          />
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
-            </Paper>
-          </Grid>
-        )}
-
-        {/* Recent Activity */}
-        <Grid size={{ xs: 12, lg: projects.length > 0 ? 4 : 12 }}>
-          <Card sx={{ height: "100%" }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1} mb={2}>
-                <History fontSize="small" color="primary" />
-                <Typography
-                  variant="overline"
-                  color="primary"
-                  fontWeight={600}
-                >
-                  Recent activity
-                </Typography>
-              </Stack>
-              {activityLoading ? (
-                <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-                  <CircularProgress size={32} />
-                </Box>
-              ) : filteredActivity.length > 0 ? (
-                <List dense disablePadding>
-                  {filteredActivity.map((item, index) => (
-                    <Box key={item.artifact_id}>
-                      <ListItem
-                        component={Link}
-                        to={
-                          orgSlug && item.project_slug
-                            ? `/${orgSlug}/${item.project_slug}/artifacts`
-                            : "#"
-                        }
-                        sx={{
-                          textDecoration: "none",
-                          color: "inherit",
-                          borderRadius: 1,
-                          "&:hover": {
-                            bgcolor: "action.hover",
-                          },
-                          transition: "background-color 0.15s",
-                        }}
-                      >
-                        <ListItemText
-                          primary={
-                            <Typography variant="body2" fontWeight={500}>
-                              {item.title}
-                            </Typography>
-                          }
-                          secondary={
-                            <Box
-                              component="span"
-                              sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 1,
-                                flexWrap: "wrap",
-                                mt: 0.5,
-                              }}
-                            >
-                              <Chip
-                                size="small"
-                                label={item.state}
-                                color={getStateColor(item.state)}
-                                variant="outlined"
-                                sx={{ height: 20, fontSize: "0.7rem" }}
-                              />
-                              <Tooltip title="Artifact type">
-                                <Chip
-                                  size="small"
-                                  label={item.artifact_type}
-                                  variant="filled"
-                                  sx={{ height: 20, fontSize: "0.7rem" }}
-                                />
-                              </Tooltip>
-                              <Typography component="span" variant="caption" color="text.secondary">
-                                {formatRelativeTime(item.updated_at)}
-                              </Typography>
-                            </Box>
-                          }
-                        />
-                      </ListItem>
-                      {index < filteredActivity.length - 1 && <Divider />}
-                    </Box>
+                      <div className="mb-2 flex gap-2">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-lg font-bold text-primary">
+                          {project.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-semibold">{project.name}</p>
+                          <Badge variant="secondary" className="mt-1">
+                            {project.code}
+                          </Badge>
+                        </div>
+                      </div>
+                      {project.description && (
+                        <p className="line-clamp-2 mb-2 text-xs text-muted-foreground">
+                          {project.description}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Activity</span>
+                        <span className="font-semibold text-emerald-600">Active</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div className="h-full w-3/4 rounded-full bg-emerald-500" />
+                      </div>
+                    </Link>
                   ))}
-                </List>
-              ) : (
-                <Box sx={{ py: 4, textAlign: "center" }}>
-                  <History sx={{ fontSize: 40, color: "text.disabled", mb: 1 }} />
-                  <Typography variant="body2" color="text.secondary">
-                    {showOnlySelectedProject && effectiveSlug
-                      ? "No recent activity in the selected project."
-                      : "No recent artifact updates."}
-                  </Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                </div>
+              </div>
+            </div>
+          )}
 
-      {error && (
-        <Typography color="error" sx={{ mt: 2 }}>
-          Failed to load dashboard stats
-        </Typography>
-      )}
-    </StandardPageLayout>
+          <div className={projects.length > 0 ? "lg:col-span-4" : "lg:col-span-12"}>
+            <Card className="h-full border border-border">
+              <CardContent>
+                <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
+                  <History className="size-4" />
+                  Recent activity
+                </p>
+                {activityLoading ? (
+                  <div className="flex justify-center py-6">
+                    <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  </div>
+                ) : filteredActivity.length > 0 ? (
+                  <ul className="divide-y divide-border">
+                    {filteredActivity.map((item) => (
+                      <li key={item.artifact_id}>
+                        <Link
+                          to={
+                            orgSlug && item.project_slug
+                              ? `/${orgSlug}/${item.project_slug}/artifacts`
+                              : "#"
+                          }
+                          className="block rounded-md py-2 no-underline text-foreground transition-colors hover:bg-muted/50"
+                        >
+                          <span className="font-medium">{item.title}</span>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <Badge variant={getStateVariant(item.state)} className="text-xs">
+                              {item.state}
+                            </Badge>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="secondary" className="text-xs">
+                                  {item.artifact_type}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>Artifact type</TooltipContent>
+                            </Tooltip>
+                            <span className="text-xs text-muted-foreground">
+                              {formatRelativeTime(item.updated_at)}
+                            </span>
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="py-8 text-center">
+                    <History className="mx-auto mb-2 size-10 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground">
+                      {showOnlySelectedProject && effectiveSlug
+                        ? "No recent activity in the selected project."
+                        : "No recent artifact updates."}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {error && (
+          <p className="mt-4 text-destructive">Failed to load dashboard stats</p>
+        )}
+      </StandardPageLayout>
+    </TooltipProvider>
   );
 }

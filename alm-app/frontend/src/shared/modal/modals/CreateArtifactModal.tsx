@@ -1,15 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import {
-  Button,
-  Box,
-  Typography,
-  Alert,
-  TextField,
-  Divider,
-  Tabs,
-  Tab,
-} from "@mui/material";
-import { Person as PersonIcon, Save } from "@mui/icons-material";
+import { Save, User } from "lucide-react";
+import { Button, Input } from "../../components/ui";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import { MetadataDrivenForm } from "../../components/forms";
 import type { CreateArtifactModalProps } from "../modalTypes";
 import type { FormSchemaDto } from "../../types/formSchema";
@@ -69,133 +61,91 @@ export function CreateArtifactModal({
 
   if (formSchema403) {
     return (
-      <Alert severity="error">
+      <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
         You don&apos;t have permission to view the process manifest for this project. The create
         form cannot be loaded.
-      </Alert>
+      </div>
     );
   }
   if (formSchemaError) {
     return (
-      <Alert severity="warning">
+      <div role="alert" className="rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
         Could not load the form. Please try again or check your permission to view the process
         manifest.
-      </Alert>
+      </div>
     );
   }
   if (!formSchema) {
-    return <Typography color="text.secondary">Loading form schema…</Typography>;
+    return <p className="text-muted-foreground">Loading form schema…</p>;
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      {/* Toolbar – Azure DevOps style */}
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 1,
-          px: 0,
-          py: 1.5,
-          borderBottom: 1,
-          borderColor: "divider",
-          bgcolor: "grey.50",
-          flexShrink: 0,
-        }}
-      >
-        <Box sx={{ flex: 1 }} />
-        <Button onClick={onClose} color="inherit" size="small">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border bg-muted/30 px-0 py-3">
+        <Button variant="ghost" size="sm" onClick={onClose}>
           Cancel
         </Button>
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={<Save />}
-          onClick={() => onCreate(formValues)}
-          disabled={isPending}
-        >
+        <Button size="sm" onClick={() => onCreate(formValues)} disabled={isPending}>
+          <Save className="mr-1.5 size-4" />
           Save
         </Button>
-      </Box>
+      </div>
 
-      <Box sx={{ flex: 1, overflowY: "auto", minHeight: 0, px: 0 }}>
-        {/* Type + Title block */}
-        <Box sx={{ pt: 2, pb: 1 }}>
-          <Typography
-            variant="overline"
-            sx={{ color: "text.secondary", fontWeight: 600, letterSpacing: 0.5 }}
-          >
+      <div className="min-h-0 flex-1 overflow-y-auto px-0">
+        <div className="pt-4 pb-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             NEW {typeLabel.toUpperCase()} *
-          </Typography>
+          </span>
           {formErrors.artifact_type && (
-            <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>
-              {formErrors.artifact_type}
-            </Typography>
+            <p className="mt-1 text-xs text-destructive">{formErrors.artifact_type}</p>
           )}
-          <TextField
-            fullWidth
-            placeholder="Enter title"
-            value={(formValues.title as string) ?? ""}
-            onChange={(e) => updateField("title", e.target.value)}
-            error={!!formErrors.title}
-            helperText={formErrors.title}
-            sx={{
-              mt: 1,
-              "& .MuiOutlinedInput-root": {
-                bgcolor: "background.paper",
-                fontSize: "1.125rem",
-              },
-            }}
-          />
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1.5 }}>
-            <PersonIcon sx={{ fontSize: 18, color: "text.secondary" }} />
-            <Typography variant="body2" color="text.secondary">
-              {assigneeLabel}
-            </Typography>
-          </Box>
-        </Box>
-
-        <Divider sx={{ my: 2 }} />
-
-        {/* Tabs: Details (and future Links, Attachments) */}
-        <Tabs
-          value={activeTab}
-          onChange={(_, v) => setActiveTab(v)}
-          sx={{
-            minHeight: 40,
-            borderBottom: 1,
-            borderColor: "divider",
-            "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 500 },
-            "& .Mui-selected": { color: "primary.main" },
-          }}
-        >
-          <Tab label="Details" value={DETAILS_TAB} />
-        </Tabs>
-
-        {activeTab === DETAILS_TAB && detailsSchema && (
-          <Box sx={{ py: 2 }}>
-            <MetadataDrivenForm
-              schema={detailsSchema}
-              values={formValues}
-              onChange={(v) => {
-                setFormValues(v);
-                onFormChange(v);
-                onFormErrors({});
-              }}
-              onSubmit={() => onCreate(formValues)}
-              submitLabel="Create"
-              disabled={isPending}
-              submitExternally
-              errors={formErrors}
-              parentArtifacts={parentArtifacts}
-              artifactTypeParentMap={artifactTypeParentMap}
-              userOptions={userOptions}
-              disableNativeRequired
+          <div className="mt-2">
+            <Input
+              className="text-lg"
+              placeholder="Enter title"
+              value={(formValues.title as string) ?? ""}
+              onChange={(e) => updateField("title", e.target.value)}
+              aria-invalid={!!formErrors.title}
             />
-          </Box>
-        )}
-      </Box>
-    </Box>
+            {formErrors.title && <p className="mt-1 text-xs text-destructive">{formErrors.title}</p>}
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <User className="size-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">{assigneeLabel}</span>
+          </div>
+        </div>
+
+        <hr className="my-4 border-border" />
+
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)}>
+          <TabsList className="h-10 border-b border-border bg-transparent">
+            <TabsTrigger value={DETAILS_TAB}>Details</TabsTrigger>
+          </TabsList>
+
+          {activeTab === DETAILS_TAB && detailsSchema && (
+            <TabsContent value={DETAILS_TAB} className="py-4">
+              <MetadataDrivenForm
+                schema={detailsSchema}
+                values={formValues}
+                onChange={(v) => {
+                  setFormValues(v);
+                  onFormChange(v);
+                  onFormErrors({});
+                }}
+                onSubmit={() => onCreate(formValues)}
+                submitLabel="Create"
+                disabled={isPending}
+                submitExternally
+                errors={formErrors}
+                parentArtifacts={parentArtifacts}
+                artifactTypeParentMap={artifactTypeParentMap}
+                userOptions={userOptions}
+                disableNativeRequired
+              />
+            </TabsContent>
+          )}
+        </Tabs>
+      </div>
+    </div>
   );
 }

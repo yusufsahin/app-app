@@ -1,26 +1,25 @@
 import { useParams, Link } from "react-router-dom";
-import {
-  Container,
-  Typography,
-  Button,
-  Box,
-  Paper,
-  Skeleton,
-  Link as MuiLink,
-  Card,
-  CardContent,
-  Chip,
-  Stack,
-  Avatar,
-  Tooltip,
-} from "@mui/material";
-import { ViewColumn } from "@mui/icons-material";
+import { LayoutGrid } from "lucide-react";
 import { useMemo, useCallback } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { useForm, FormProvider } from "react-hook-form";
+import {
+  Button,
+  Card,
+  CardContent,
+  Badge,
+  Skeleton,
+  Avatar,
+  AvatarFallback,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "../../../shared/components/ui";
 import { RhfSelect } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
+import { useProjectStore } from "../../../shared/stores/projectStore";
 import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { useCycleNodes, useAreaNodes, cycleNodeDisplayLabel, areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import { useArtifacts, useTransitionArtifactById } from "../../../shared/api/artifactApi";
@@ -43,23 +42,20 @@ const COLUMN_COLORS = [
   "#84cc16",
 ];
 
-const TYPE_COLORS: Record<string, "default" | "primary" | "secondary" | "success" | "error" | "warning" | "info"> = {
-  epic: "secondary",
-  requirement: "primary",
-  defect: "error",
-  task: "default",
-  story: "info",
-  bug: "error",
-};
-
-function getTypeColor(type: string): "default" | "primary" | "secondary" | "success" | "error" | "warning" | "info" {
-  return TYPE_COLORS[type.toLowerCase()] ?? "default";
+function getTypeVariant(type: string): "default" | "secondary" | "destructive" | "outline" {
+  const t = type.toLowerCase();
+  if (t === "defect" || t === "bug") return "destructive";
+  if (t === "epic") return "secondary";
+  return "outline";
 }
 
 export default function BoardPage() {
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
-  const { data: projects } = useOrgProjects(orgSlug);
-  const project = projects?.find((p) => p.slug === projectSlug);
+  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
+  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
+  const project =
+    projects?.find((p) => p.slug === projectSlug) ??
+    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
   const { data: manifest, isLoading: manifestLoading } = useProjectManifest(orgSlug, project?.id);
   const { data: cycleNodesFlat = [] } = useCycleNodes(orgSlug, project?.id, true);
   const { data: areaNodesFlat = [] } = useAreaNodes(orgSlug, project?.id, true);
@@ -109,7 +105,6 @@ export default function BoardPage() {
       if (list) list.push(a);
       else map.set(a.state, [a]);
     }
-    // Stable order within each column: rank_order then created_at
     const sortArtifacts = (list: Artifact[]) =>
       [...list].sort((x, y) => {
         const rx = x.rank_order ?? 0;
@@ -161,257 +156,190 @@ export default function BoardPage() {
 
   if (!orgSlug || !projectSlug) {
     return (
-      <Container maxWidth="lg" sx={{ py: 2 }}>
-        <Typography color="text.secondary">Missing org or project.</Typography>
-      </Container>
+      <div className="mx-auto max-w-5xl py-4">
+        <p className="text-muted-foreground">Missing org or project.</p>
+      </div>
     );
   }
 
-  if (projects !== undefined && !project) {
+  if (projectsLoading) {
+    return (
+      <div className="mx-auto max-w-[1400px] py-4">
+        <div className="text-muted-foreground">Loading project…</div>
+      </div>
+    );
+  }
+  if (!project) {
     return <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />;
   }
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <Container maxWidth="xl" sx={{ py: 2 }}>
-        <ProjectBreadcrumbs currentPageLabel="Board" projectName={project?.name} />
+    <TooltipProvider>
+      <DndProvider backend={HTML5Backend}>
+        <div className="mx-auto max-w-[1400px] py-4">
+          <ProjectBreadcrumbs currentPageLabel="Board" projectName={project?.name} />
 
-      <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3, flexWrap: "wrap" }}>
-        <ViewColumn fontSize="small" color="primary" aria-hidden />
-        <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>
-          Board
-        </Typography>
-        <Button
-          component={Link}
-          to={artifactsPath(orgSlug, projectSlug, {
-            type: typeFilter || undefined,
-            cycleNodeFilter: cycleFilter || undefined,
-            areaNodeFilter: areaFilter || undefined,
-          })}
-          size="small"
-          variant="outlined"
-          sx={{ ml: 1 }}
-        >
-          View in Artifacts
-        </Button>
-        <FormProvider {...filterForm}>
-          <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }}>
-            {artifactTypes.length > 0 && (
-              <Box sx={{ minWidth: 180 }}>
-                <RhfSelect<BoardFilterValues>
-                  name="typeFilter"
-                  control={control}
-                  label="Artifact type"
-                  placeholder="All"
-                  options={[{ value: "", label: "All" }, ...artifactTypes.map((at) => ({ value: at.id, label: at.name ?? at.id }))]}
-                  selectProps={{ size: "small" }}
-                />
-              </Box>
-            )}
-            {cycleNodesFlat.length > 0 && (
-              <Box sx={{ minWidth: 180 }}>
-                <RhfSelect<BoardFilterValues>
-                  name="cycleFilter"
-                  control={control}
-                  label="Cycle"
-                  placeholder="All"
-                  options={[{ value: "", label: "All" }, ...cycleNodesFlat.map((c) => ({ value: c.id, label: cycleNodeDisplayLabel(c) }))]}
-                  selectProps={{ size: "small" }}
-                />
-              </Box>
-            )}
-            {areaNodesFlat.length > 0 && (
-              <Box sx={{ minWidth: 180 }}>
-                <RhfSelect<BoardFilterValues>
-                  name="areaFilter"
-                  control={control}
-                  label="Area"
-                  placeholder="All"
-                  options={[{ value: "", label: "All" }, ...areaNodesFlat.map((a) => ({ value: a.id, label: areaNodeDisplayLabel(a) }))]}
-                  selectProps={{ size: "small" }}
-                />
-              </Box>
-            )}
-          </Box>
-        </FormProvider>
-      </Stack>
-
-      {manifestLoading || artifactsLoading ? (
-        <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 2 }} />
-      ) : states.length === 0 ? (
-        <Paper variant="outlined" sx={{ p: 3, textAlign: "center" }}>
-          <Typography color="text.secondary">
-            No workflow states in manifest. Define workflows with states in Process manifest to use the board.
-          </Typography>
-          <Button component={Link} to={`/${orgSlug}/${projectSlug}/manifest`} sx={{ mt: 2 }} variant="contained">
-            Open Manifest
-          </Button>
-        </Paper>
-      ) : (
-        <Box
-          sx={{
-            display: "flex",
-            gap: 2,
-            overflowX: "auto",
-            pb: 2,
-            minHeight: 400,
-          }}
-        >
-          {states.map((state, colIndex) => {
-            const colColor = COLUMN_COLORS[colIndex % COLUMN_COLORS.length];
-            const colArtifacts = byState.get(state) ?? [];
-            return (
-              <Paper
-                key={state}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, state)}
-                sx={{
-                  minWidth: 300,
-                  maxWidth: 300,
-                  flexShrink: 0,
-                  p: 2,
-                  bgcolor: "grey.50",
-                  borderRadius: 2,
-                  minHeight: 500,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  transition: "background-color 0.2s",
-                  "&:hover": { bgcolor: "grey.100" },
-                }}
+          <div className="mb-6 flex flex-wrap items-center gap-4">
+            <LayoutGrid className="size-5 text-primary" aria-hidden />
+            <h1 className="text-2xl font-bold">Board</h1>
+            <Button variant="outline" size="sm" asChild>
+              <Link
+                to={artifactsPath(orgSlug, projectSlug, {
+                  type: typeFilter || undefined,
+                  cycleNodeFilter: cycleFilter || undefined,
+                  areaNodeFilter: areaFilter || undefined,
+                })}
               >
-                {/* Column Header */}
-                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Box
-                      sx={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: "50%",
-                        bgcolor: colColor,
-                        flexShrink: 0,
-                      }}
+                View in Artifacts
+              </Link>
+            </Button>
+            <FormProvider {...filterForm}>
+              <div className="flex flex-wrap items-center gap-2">
+                {artifactTypes.length > 0 && (
+                  <div className="min-w-[180px]">
+                    <RhfSelect<BoardFilterValues>
+                      name="typeFilter"
+                      control={control}
+                      label="Artifact type"
+                      placeholder="All"
+                      options={[{ value: "", label: "All" }, ...artifactTypes.map((at) => ({ value: at.id, label: at.name ?? at.id }))]}
+                      selectProps={{ size: "sm" }}
                     />
-                    <Typography variant="subtitle1" fontWeight={700} sx={{ color: "text.primary" }}>
-                      {state}
-                    </Typography>
-                  </Stack>
-                  <Chip
-                    label={colArtifacts.length}
-                    size="small"
-                    sx={{
-                      bgcolor: colColor,
-                      color: "white",
-                      fontWeight: 700,
-                      height: 22,
-                      fontSize: "0.75rem",
-                    }}
-                  />
-                </Stack>
+                  </div>
+                )}
+                {cycleNodesFlat.length > 0 && (
+                  <div className="min-w-[180px]">
+                    <RhfSelect<BoardFilterValues>
+                      name="cycleFilter"
+                      control={control}
+                      label="Cycle"
+                      placeholder="All"
+                      options={[{ value: "", label: "All" }, ...cycleNodesFlat.map((c) => ({ value: c.id, label: cycleNodeDisplayLabel(c) }))]}
+                      selectProps={{ size: "sm" }}
+                    />
+                  </div>
+                )}
+                {areaNodesFlat.length > 0 && (
+                  <div className="min-w-[180px]">
+                    <RhfSelect<BoardFilterValues>
+                      name="areaFilter"
+                      control={control}
+                      label="Area"
+                      placeholder="All"
+                      options={[{ value: "", label: "All" }, ...areaNodesFlat.map((a) => ({ value: a.id, label: areaNodeDisplayLabel(a) }))]}
+                      selectProps={{ size: "sm" }}
+                    />
+                  </div>
+                )}
+              </div>
+            </FormProvider>
+          </div>
 
-                {/* Cards */}
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                  {colArtifacts.map((a) => (
-                    <Card
-                      key={a.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, a.id, a.state)}
-                      sx={{
-                        cursor: "grab",
-                        "&:active": { cursor: "grabbing" },
-                        boxShadow: 1,
-                        transition: "box-shadow 0.2s, transform 0.15s",
-                        "&:hover": {
-                          boxShadow: 4,
-                          transform: "translateY(-1px)",
-                        },
-                      }}
-                    >
-                      <CardContent sx={{ py: 1.5, px: 2, "&:last-child": { pb: 1.5 } }}>
-                        {/* Key + Type Row */}
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                          <Stack direction="row" spacing={0.5} alignItems="center">
-                            <Typography variant="caption" color="primary.main" fontWeight={700}>
-                              {a.artifact_key ?? a.id.slice(0, 8)}
-                            </Typography>
-                            {a.artifact_type && (
-                              <Chip
-                                label={a.artifact_type}
-                                size="small"
-                                color={getTypeColor(a.artifact_type)}
-                                sx={{ height: 18, fontSize: "0.65rem" }}
-                              />
-                            )}
-                          </Stack>
-                        </Stack>
+          {manifestLoading || artifactsLoading ? (
+            <Skeleton className="h-[400px] w-full rounded-lg" />
+          ) : states.length === 0 ? (
+            <div className="rounded-lg border border-border bg-card p-6 text-center">
+              <p className="text-muted-foreground">
+                No workflow states in manifest. Define workflows with states in Process manifest to use the board.
+              </p>
+              <Button asChild className="mt-4">
+                <Link to={`/${orgSlug}/${projectSlug}/manifest`}>Open Manifest</Link>
+              </Button>
+            </div>
+          ) : (
+            <div
+              className="flex min-h-[400px] gap-2 overflow-x-auto pb-4"
+              aria-label="Kanban board"
+            >
+              {states.map((state, colIndex) => {
+                const colColor = COLUMN_COLORS[colIndex % COLUMN_COLORS.length];
+                const colArtifacts = byState.get(state) ?? [];
+                return (
+                  <div
+                    key={state}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, state)}
+                    className="flex min-h-[500px] min-w-[300px] max-w-[300px] shrink-0 flex-col rounded-xl border border-border bg-muted/30 p-4 transition-colors hover:bg-muted/50"
+                  >
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="size-3 shrink-0 rounded-full"
+                          style={{ backgroundColor: colColor }}
+                        />
+                        <span className="font-bold">{state}</span>
+                      </div>
+                      <Badge
+                        className="h-6 text-xs font-bold text-white"
+                        style={{ backgroundColor: colColor }}
+                      >
+                        {colArtifacts.length}
+                      </Badge>
+                    </div>
 
-                        {/* Title */}
-                        <MuiLink
-                          component={Link}
-                          to={artifactDetailPath(orgSlug, projectSlug, a.id)}
-                          underline="hover"
-                          color="text.primary"
-                          sx={{
-                            fontWeight: 600,
-                            fontSize: "0.875rem",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                            mb: 1,
-                          }}
+                    <div className="flex flex-col gap-2">
+                      {colArtifacts.map((a) => (
+                        <Card
+                          key={a.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, a.id, a.state)}
+                          className="cursor-grab transition shadow hover:shadow-md active:cursor-grabbing"
                         >
-                          {a.title || "—"}
-                        </MuiLink>
+                          <CardContent className="px-4 py-3">
+                            <div className="mb-1 flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold text-primary">
+                                {a.artifact_key ?? a.id.slice(0, 8)}
+                              </span>
+                              {a.artifact_type && (
+                                <Badge variant={getTypeVariant(a.artifact_type)} className="text-[10px]">
+                                  {a.artifact_type}
+                                </Badge>
+                              )}
+                            </div>
+                            <Link
+                              to={artifactDetailPath(orgSlug, projectSlug, a.id)}
+                              className="mb-1 block font-semibold text-foreground line-clamp-2 no-underline hover:underline"
+                            >
+                              {a.title || "—"}
+                            </Link>
+                            <div className="mt-2 flex items-center justify-between">
+                              {a.assignee_id ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Avatar className="size-6 text-[10px]">
+                                      <AvatarFallback>
+                                        {a.assignee_id.charAt(0).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Assignee</TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <span />
+                              )}
+                              {a.updated_at && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {new Date(a.updated_at).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
 
-                        {/* Footer */}
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" mt={1}>
-                          {a.assignee_id ? (
-                            <Tooltip title="Assignee">
-                              <Avatar
-                                sx={{
-                                  width: 24,
-                                  height: 24,
-                                  fontSize: "0.7rem",
-                                  bgcolor: "primary.main",
-                                }}
-                              >
-                                {a.assignee_id.charAt(0).toUpperCase()}
-                              </Avatar>
-                            </Tooltip>
-                          ) : (
-                            <Box />
-                          )}
-                          {a.updated_at && (
-                            <Typography variant="caption" color="text.disabled" fontSize="0.65rem">
-                              {new Date(a.updated_at).toLocaleDateString()}
-                            </Typography>
-                          )}
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  ))}
-
-                  {colArtifacts.length === 0 && (
-                    <Box
-                      sx={{
-                        py: 4,
-                        textAlign: "center",
-                        border: "2px dashed",
-                        borderColor: "divider",
-                        borderRadius: 2,
-                        color: "text.disabled",
-                      }}
-                    >
-                      <Typography variant="caption">Drop here</Typography>
-                    </Box>
-                  )}
-                </Box>
-              </Paper>
-            );
-          })}
-        </Box>
-      )}
-      </Container>
-    </DndProvider>
+                      {colArtifacts.length === 0 && (
+                        <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border py-8 text-muted-foreground">
+                          <span className="text-sm">Drop here</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </DndProvider>
+    </TooltipProvider>
   );
 }

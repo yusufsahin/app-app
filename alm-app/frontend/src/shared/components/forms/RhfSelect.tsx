@@ -1,16 +1,16 @@
 /**
- * Reusable Select wired to React Hook Form via Controller.
- * Use inside a form wrapped with FormProvider, or pass control explicitly.
+ * Select wired to React Hook Form via Controller. Radix UI + Tailwind.
  */
 import { Controller } from "react-hook-form";
 import {
-  FormControl,
-  FormHelperText,
-  InputLabel,
-  MenuItem,
   Select,
-  type SelectProps,
-} from "@mui/material";
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui";
+import { Label } from "../ui";
+import { cn } from "../ui/utils";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
 
@@ -25,7 +25,14 @@ type RhfSelectProps<TFieldValues extends import("react-hook-form").FieldValues> 
     label?: React.ReactNode;
     options: RhfSelectOption[];
     placeholder?: string;
-    selectProps?: Omit<SelectProps, "value" | "onChange" | "onBlur" | "label" | "error">;
+    selectProps?: {
+      size?: "sm" | "default";
+      variant?: string;
+      className?: string;
+      sx?: unknown;
+      displayEmpty?: boolean;
+      [key: string]: unknown;
+    };
   };
 
 export function RhfSelect<TFieldValues extends import("react-hook-form").FieldValues>({
@@ -44,45 +51,62 @@ export function RhfSelect<TFieldValues extends import("react-hook-form").FieldVa
     helperText,
   });
 
+  const size = selectProps?.size ?? "default";
+
   return (
     <Controller
       name={name}
       control={control}
       render={({ field: { value, onChange, onBlur, ref } }) => (
-        <FormControl fullWidth error={!!errorMessage} variant={selectProps?.variant ?? "outlined"}>
+        <div className="w-full space-y-1.5">
           {label != null && label !== "" && (
-            <InputLabel id={`${String(name)}-label`}>{label}</InputLabel>
+            <Label id={`${String(name)}-label`}>{label}</Label>
           )}
           <Select
-            {...selectProps}
-            labelId={label != null && label !== "" ? `${String(name)}-label` : undefined}
-            label={label}
-            value={value ?? ""}
-            onChange={(e) => onChange(e.target.value)}
-            onBlur={onBlur}
-            ref={ref}
-            displayEmpty={!!placeholder}
-            renderValue={(v) => {
-              if ((v === "" || v == null) && placeholder) return placeholder;
-              const opt = options.find((o) => o.value === v);
-              return opt ? opt.label : String(v);
+            value={value === undefined || value === null || value === "" ? "__empty__" : String(value)}
+            onValueChange={(v) => onChange(v === "__empty__" ? "" : v)}
+            onOpenChange={(open) => {
+              if (!open) onBlur();
             }}
           >
-            {placeholder != null && placeholder !== "" && (
-              <MenuItem value="" disabled>
-                {placeholder}
-              </MenuItem>
-            )}
-            {options.map((opt) => (
-              <MenuItem key={String(opt.value)} value={opt.value} disabled={opt.disabled}>
-                {opt.label}
-              </MenuItem>
-            ))}
+            <SelectTrigger
+              ref={ref}
+              size={size}
+              className={cn("w-full", selectProps?.className)}
+              aria-labelledby={label != null && label !== "" ? `${String(name)}-label` : undefined}
+              aria-invalid={!!errorMessage}
+            >
+              <SelectValue placeholder={placeholder ?? "Select…"} />
+            </SelectTrigger>
+            <SelectContent>
+              {placeholder != null && placeholder !== "" && (
+                <SelectItem value="__empty__">{placeholder}</SelectItem>
+              )}
+              {options.map((opt) => {
+                const val = opt.value === "" || opt.value === undefined || opt.value === null ? "__empty__" : String(opt.value);
+                return (
+                  <SelectItem
+                    key={val}
+                    value={val}
+                    disabled={opt.disabled}
+                  >
+                    {opt.label}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
           </Select>
           {displayText != null && displayText !== "" && (
-            <FormHelperText>{displayText}</FormHelperText>
+            <p
+              className={cn(
+                "text-sm",
+                errorMessage ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {displayText}
+            </p>
           )}
-        </FormControl>
+        </div>
       )}
     />
   );

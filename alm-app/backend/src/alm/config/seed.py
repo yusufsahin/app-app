@@ -55,39 +55,46 @@ def _find_seed_dir() -> Path:
 async def seed_privileges(session_factory: async_sessionmaker[AsyncSession]) -> None:
     yaml_path = _find_seed_dir() / "default_privileges.yaml"
     if not yaml_path.exists():
-        logger.warning("seed_file_not_found", path=str(yaml_path))
-        return
+        logger.error("seed_file_not_found", path=str(yaml_path))
+        raise RuntimeError(
+            f"Seed file not found: {yaml_path}. "
+            "Ensure alm_meta/seed/default_privileges.yaml exists (e.g. run from backend dir or set cwd)."
+        )
 
-    with yaml_path.open() as f:
-        data = yaml.safe_load(f)
+    try:
+        with yaml_path.open() as f:
+            data = yaml.safe_load(f)
 
-    definitions: list[dict[str, Any]] = data.get("privileges", [])
-    if not definitions:
-        logger.info("seed_no_privileges_defined")
-        return
+        definitions: list[dict[str, Any]] = data.get("privileges", [])
+        if not definitions:
+            logger.info("seed_no_privileges_defined")
+            return
 
-    async with session_factory() as session:
-        repo = SqlAlchemyPrivilegeRepository(session)
-        to_insert: list[Privilege] = []
+        async with session_factory() as session:
+            repo = SqlAlchemyPrivilegeRepository(session)
+            to_insert: list[Privilege] = []
 
-        for entry in definitions:
-            existing = await repo.find_by_code(entry["code"])
-            if existing is None:
-                to_insert.append(
-                    Privilege(
-                        code=entry["code"],
-                        resource=entry["resource"],
-                        action=entry["action"],
-                        description=entry.get("description", ""),
+            for entry in definitions:
+                existing = await repo.find_by_code(entry["code"])
+                if existing is None:
+                    to_insert.append(
+                        Privilege(
+                            code=entry["code"],
+                            resource=entry["resource"],
+                            action=entry["action"],
+                            description=entry.get("description", ""),
+                        )
                     )
-                )
 
-        if to_insert:
-            await repo.add_many(to_insert)
-            await session.commit()
-            logger.info("privileges_seeded", count=len(to_insert))
-        else:
-            logger.info("privileges_already_up_to_date")
+            if to_insert:
+                await repo.add_many(to_insert)
+                await session.commit()
+                logger.info("privileges_seeded", count=len(to_insert))
+            else:
+                logger.info("privileges_already_up_to_date")
+    except Exception as e:
+        logger.exception("seed_privileges_failed", error=str(e))
+        raise
 
 
 async def seed_process_templates(
@@ -101,26 +108,27 @@ async def seed_process_templates(
         ProcessTemplateVersionModel,
     )
 
-    async with session_factory() as session:
-        result = await session.execute(select(ProcessTemplateModel).limit(1))
-        if result.scalar_one_or_none() is not None:
-            logger.info("process_templates_already_seeded")
-            return
+    try:
+        async with session_factory() as session:
+            result = await session.execute(select(ProcessTemplateModel).limit(1))
+            if result.scalar_one_or_none() is not None:
+                logger.info("process_templates_already_seeded")
+                return
 
-        basic = ProcessTemplateModel(
-            slug="basic",
-            name="Basic",
-            is_builtin=True,
-            description="Simple workflow for requirements and defects",
-            type="basic",
-        )
-        session.add(basic)
-        await session.flush()
+            basic = ProcessTemplateModel(
+                slug="basic",
+                name="Basic",
+                is_builtin=True,
+                description="Simple workflow for requirements and defects",
+                type="basic",
+            )
+            session.add(basic)
+            await session.flush()
 
-        version = ProcessTemplateVersionModel(
-            template_id=basic.id,
-            version="1.0.0",
-            manifest_bundle={
+            version = ProcessTemplateVersionModel(
+                template_id=basic.id,
+                version="1.0.0",
+                manifest_bundle={
                 "schemaVersion": 1,
                 "namespace": "alm",
                 "name": "basic",
@@ -214,24 +222,24 @@ async def seed_process_templates(
                     },
                 ],
             },
-        )
-        session.add(version)
+            )
+            session.add(version)
 
-        # Scrum template
-        scrum = ProcessTemplateModel(
-            slug="scrum",
-            name="Scrum",
-            is_builtin=True,
-            description="Agile framework with sprints and user stories",
-            type="scrum",
-        )
-        session.add(scrum)
-        await session.flush()
+            # Scrum template
+            scrum = ProcessTemplateModel(
+                slug="scrum",
+                name="Scrum",
+                is_builtin=True,
+                description="Agile framework with sprints and user stories",
+                type="scrum",
+            )
+            session.add(scrum)
+            await session.flush()
 
-        scrum_version = ProcessTemplateVersionModel(
-            template_id=scrum.id,
-            version="1.0.0",
-            manifest_bundle={
+            scrum_version = ProcessTemplateVersionModel(
+                template_id=scrum.id,
+                version="1.0.0",
+                manifest_bundle={
                 "schemaVersion": 1,
                 "namespace": "alm",
                 "name": "scrum",
@@ -325,24 +333,24 @@ async def seed_process_templates(
                     },
                 ],
             },
-        )
-        session.add(scrum_version)
+            )
+            session.add(scrum_version)
 
-        # Kanban template
-        kanban = ProcessTemplateModel(
-            slug="kanban",
-            name="Kanban",
-            is_builtin=True,
-            description="Flow-based work management",
-            type="kanban",
-        )
-        session.add(kanban)
-        await session.flush()
+            # Kanban template
+            kanban = ProcessTemplateModel(
+                slug="kanban",
+                name="Kanban",
+                is_builtin=True,
+                description="Flow-based work management",
+                type="kanban",
+            )
+            session.add(kanban)
+            await session.flush()
 
-        kanban_version = ProcessTemplateVersionModel(
-            template_id=kanban.id,
-            version="1.0.0",
-            manifest_bundle={
+            kanban_version = ProcessTemplateVersionModel(
+                template_id=kanban.id,
+                version="1.0.0",
+                manifest_bundle={
                 "schemaVersion": 1,
                 "namespace": "alm",
                 "name": "kanban",
@@ -420,24 +428,24 @@ async def seed_process_templates(
                     },
                 ],
             },
-        )
-        session.add(kanban_version)
+            )
+            session.add(kanban_version)
 
-        # Azure DevOps Basic (Epic, Issue only; Task is a separate entity in ALM)
-        ado_basic = ProcessTemplateModel(
-            slug="azure_devops_basic",
-            name="Azure DevOps Basic",
-            is_builtin=True,
-            description="Epic, Issue — aligned with Azure DevOps Basic (Task is separate entity)",
-            type="basic",
-        )
-        session.add(ado_basic)
-        await session.flush()
+            # Azure DevOps Basic (Epic, Issue only; Task is a separate entity in ALM)
+            ado_basic = ProcessTemplateModel(
+                slug="azure_devops_basic",
+                name="Azure DevOps Basic",
+                is_builtin=True,
+                description="Epic, Issue — aligned with Azure DevOps Basic (Task is separate entity)",
+                type="basic",
+            )
+            session.add(ado_basic)
+            await session.flush()
 
-        ado_basic_version = ProcessTemplateVersionModel(
-            template_id=ado_basic.id,
-            version="1.0.0",
-            manifest_bundle={
+            ado_basic_version = ProcessTemplateVersionModel(
+                template_id=ado_basic.id,
+                version="1.0.0",
+                manifest_bundle={
                 "schemaVersion": 1,
                 "namespace": "alm",
                 "name": "azure_devops_basic",
@@ -544,14 +552,17 @@ async def seed_process_templates(
                     },
                 ],
             },
-        )
-        session.add(ado_basic_version)
+            )
+            session.add(ado_basic_version)
 
-        await session.commit()
-        logger.info(
-            "process_templates_seeded",
-            templates=["basic", "scrum", "kanban", "azure_devops_basic"],
-        )
+            await session.commit()
+            logger.info(
+                "process_templates_seeded",
+                templates=["basic", "scrum", "kanban", "azure_devops_basic"],
+            )
+    except Exception as e:
+        logger.exception("seed_process_templates_failed", error=str(e))
+        raise
 
 
 async def seed_demo_data(
@@ -567,75 +578,90 @@ async def seed_demo_data(
             logger.info("demo_data_skipped", reason="tenants_already_exist")
             return
 
-    logger.info("seeding_demo_data")
-
     async with session_factory() as session:
-        user_repo = SqlAlchemyUserRepository(session)
-        tenant_repo = SqlAlchemyTenantRepository(session)
-        role_repo = SqlAlchemyRoleRepository(session)
-        membership_repo = SqlAlchemyMembershipRepository(session)
-        project_repo = SqlAlchemyProjectRepository(session)
-        process_template_repo = SqlAlchemyProcessTemplateRepository(session)
-
-        existing_user = await user_repo.find_by_email(DEMO_EMAIL)
-        if existing_user is not None:
-            logger.info("demo_data_skipped", reason="admin_user_already_exists")
+        privilege_repo = SqlAlchemyPrivilegeRepository(session)
+        all_privileges = await privilege_repo.find_all()
+        if not all_privileges:
+            logger.warning(
+                "demo_data_skipped",
+                reason="no_privileges_seeded",
+                message="Run seed_privileges first (ensure alm_meta/seed/default_privileges.yaml exists).",
+            )
             return
 
-        password_hash = hash_password(DEMO_PASSWORD)
-        user = User.create(
-            email=DEMO_EMAIL,
-            display_name=DEMO_DISPLAY_NAME,
-            password_hash=password_hash,
-        )
-        await user_repo.add(user)
+    logger.info("seeding_demo_data")
 
-        onboarding = TenantOnboardingSaga(
-            tenant_repo=tenant_repo,
-            role_repo=role_repo,
-            privilege_repo=SqlAlchemyPrivilegeRepository(session),
-            membership_repo=membership_repo,
-        )
-        provisioned = await onboarding.provision_tenant(DEMO_ORG_NAME, user.id)
+    try:
+        async with session_factory() as session:
+            user_repo = SqlAlchemyUserRepository(session)
+            tenant_repo = SqlAlchemyTenantRepository(session)
+            role_repo = SqlAlchemyRoleRepository(session)
+            membership_repo = SqlAlchemyMembershipRepository(session)
+            project_repo = SqlAlchemyProjectRepository(session)
+            process_template_repo = SqlAlchemyProcessTemplateRepository(session)
 
-        default_version = await process_template_repo.find_default_version()
-        version_id = default_version.id if default_version else None
+            existing_user = await user_repo.find_by_email(DEMO_EMAIL)
+            if existing_user is not None:
+                logger.info("demo_data_skipped", reason="admin_user_already_exists")
+                return
 
-        for proj in DEMO_PROJECTS:
-            try:
-                code = ProjectCode.from_string(proj["code"])
-                slug = Slug.from_string(proj["name"])
-            except ValueError:
-                continue
-            project = Project.create(
-                tenant_id=provisioned.tenant_id,
-                name=proj["name"],
-                slug=slug.value,
-                code=code.value,
-                description=proj.get("description", ""),
+            password_hash = hash_password(DEMO_PASSWORD)
+            user = User.create(
+                email=DEMO_EMAIL,
+                display_name=DEMO_DISPLAY_NAME,
+                password_hash=password_hash,
             )
-            if version_id:
-                project.process_template_version_id = version_id
-            project.created_by = user.id
-            await project_repo.add(project)
+            await user_repo.add(user)
 
-        artifact_repo = SqlAlchemyArtifactRepository(session)
-        first_project = await project_repo.list_by_tenant(provisioned.tenant_id)
-        if first_project and version_id:
-            sample = ArtifactEntity(
-                project_id=first_project[0].id,
-                artifact_type="requirement",
-                title="Sample requirement",
-                description="Example artifact for demo",
-                state="new",
+            onboarding = TenantOnboardingSaga(
+                tenant_repo=tenant_repo,
+                role_repo=role_repo,
+                privilege_repo=SqlAlchemyPrivilegeRepository(session),
+                membership_repo=membership_repo,
             )
-            sample.created_by = user.id
-            await artifact_repo.add(sample)
+            provisioned = await onboarding.provision_tenant(DEMO_ORG_NAME, user.id)
 
-        await session.commit()
-        logger.info(
-            "demo_data_seeded",
-            email=DEMO_EMAIL,
-            org=DEMO_ORG_NAME,
-            projects=len(DEMO_PROJECTS),
-        )
+            default_version = await process_template_repo.find_default_version()
+            version_id = default_version.id if default_version else None
+
+            for proj in DEMO_PROJECTS:
+                try:
+                    code = ProjectCode.from_string(proj["code"])
+                    slug = Slug.from_string(proj["name"])
+                except ValueError:
+                    continue
+                project = Project.create(
+                    tenant_id=provisioned.tenant_id,
+                    name=proj["name"],
+                    slug=slug.value,
+                    code=code.value,
+                    description=proj.get("description", ""),
+                )
+                if version_id:
+                    project.process_template_version_id = version_id
+                project.created_by = user.id
+                await project_repo.add(project)
+
+            artifact_repo = SqlAlchemyArtifactRepository(session)
+            first_project = await project_repo.list_by_tenant(provisioned.tenant_id)
+            if first_project and version_id:
+                sample = ArtifactEntity(
+                    project_id=first_project[0].id,
+                    artifact_type="requirement",
+                    title="Sample requirement",
+                    description="Example artifact for demo",
+                    state="new",
+                )
+                sample.created_by = user.id
+                await artifact_repo.add(sample)
+
+            await session.commit()
+            logger.info(
+                "demo_data_seeded",
+                email=DEMO_EMAIL,
+                org=DEMO_ORG_NAME,
+                projects=len(DEMO_PROJECTS),
+            )
+    except Exception as e:
+        logger.exception("seed_demo_data_failed", error=str(e))
+        raise

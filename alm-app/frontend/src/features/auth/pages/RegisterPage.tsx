@@ -2,20 +2,9 @@ import { useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useNavigate, Link as RouterLink } from "react-router-dom";
-import {
-  Box,
-  Card,
-  CardContent,
-  Button,
-  Typography,
-  Alert,
-  Link,
-  CircularProgress,
-  InputAdornment,
-  IconButton,
-} from "@mui/material";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { useNavigate, Link } from "react-router-dom";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Card, CardContent, Button } from "../../../shared/components/ui";
 import { RhfTextField } from "../../../shared/components/forms";
 import { useRegister } from "../../../shared/api/authApi";
 import { useAuthStore } from "../../../shared/stores/authStore";
@@ -41,8 +30,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 const ERROR_ALERT_ID = "register-error";
 const FORM_ID = "register-form";
-const PASSWORD_HELPER =
-  "At least 8 characters, one uppercase letter, one number.";
+const PASSWORD_HELPER = "At least 8 characters, one uppercase letter, one number.";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -73,55 +61,46 @@ export default function RegisterPage() {
   const isPending = registerMutation.isPending;
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        bgcolor: "background.default",
-        p: 2,
-      }}
-    >
-      <Card sx={{ maxWidth: 480, width: "100%", p: 2 }} elevation={1}>
-        <CardContent sx={{ "&:last-child": { pb: 3 } }}>
-          <Box sx={{ textAlign: "center", mb: 4 }} id="register-heading">
-            <Typography component="h1" variant="h4" sx={{ fontWeight: 600, color: "primary.main" }}>
-              ALM Manifest
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Create your account
-            </Typography>
-          </Box>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-[480px] p-6">
+        <CardContent className="space-y-6 pb-6">
+          <div className="text-center" id="register-heading">
+            <h1 className="text-2xl font-semibold text-primary">ALM Manifest</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Create your account</p>
+          </div>
 
           {error && (
-            <Alert
+            <div
               id={ERROR_ALERT_ID}
-              severity="error"
               role="alert"
-              sx={{ mb: 3 }}
-              onClose={() => setError(null)}
+              className="flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
-              {error}
-            </Alert>
+              <span>{error}</span>
+              <button
+                type="button"
+                onClick={() => setError(null)}
+                className="shrink-0 rounded p-1 hover:bg-destructive/20"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
           )}
 
           <FormProvider {...form}>
-            <Box
-              component="form"
+            <form
               id={FORM_ID}
               onSubmit={handleSubmit(onSubmit)}
               noValidate
               aria-labelledby="register-heading"
               aria-describedby={error ? ERROR_ALERT_ID : undefined}
+              className="space-y-4"
             >
               <RhfTextField<RegisterFormData>
                 name="display_name"
                 label="Display Name"
                 fullWidth
-                sx={{ mb: 2.5 }}
                 autoComplete="name"
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional for register form UX
                 autoFocus
                 disabled={isPending}
               />
@@ -130,7 +109,6 @@ export default function RegisterPage() {
                 label="Email"
                 type="email"
                 fullWidth
-                sx={{ mb: 2.5 }}
                 autoComplete="email"
                 disabled={isPending}
               />
@@ -138,7 +116,6 @@ export default function RegisterPage() {
                 name="org_name"
                 label="Organization Name"
                 fullWidth
-                sx={{ mb: 2.5 }}
                 autoComplete="organization"
                 disabled={isPending}
               />
@@ -147,24 +124,21 @@ export default function RegisterPage() {
                 label="Password"
                 type={showPassword ? "text" : "password"}
                 fullWidth
-                sx={{ mb: 2.5 }}
                 autoComplete="new-password"
                 helperText={PASSWORD_HELPER}
                 disabled={isPending}
                 slotProps={{
                   input: {
                     endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          onClick={() => setShowPassword((v) => !v)}
-                          edge="end"
-                          size="small"
-                          aria-label={showPassword ? "Hide password" : "Show password"}
-                          disabled={isPending}
-                        >
-                          {showPassword ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="rounded p-1.5 text-muted-foreground hover:bg-muted"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        disabled={isPending}
+                      >
+                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
                     ),
                   },
                 }}
@@ -174,55 +148,49 @@ export default function RegisterPage() {
                 label="Confirm password"
                 type={showConfirmPassword ? "text" : "password"}
                 fullWidth
-                sx={{ mb: 3 }}
                 autoComplete="new-password"
                 disabled={isPending}
                 slotProps={{
                   input: {
                     endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          onClick={() => setShowConfirmPassword((v) => !v)}
-                          edge="end"
-                          size="small"
-                          aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                          disabled={isPending}
-                        >
-                          {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword((v) => !v)}
+                        className="rounded p-1.5 text-muted-foreground hover:bg-muted"
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                        disabled={isPending}
+                      >
+                        {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
                     ),
                   },
                 }}
               />
               <Button
                 type="submit"
-                variant="contained"
-                fullWidth
-                size="large"
+                className="w-full py-6"
                 disabled={isPending}
-                sx={{ mb: 2, py: 1.5 }}
                 aria-busy={isPending}
               >
                 {isPending ? (
-                  <CircularProgress size={24} color="inherit" aria-hidden />
+                  <Loader2 className="size-5 animate-spin" aria-hidden />
                 ) : (
                   "Create Account"
                 )}
               </Button>
-            </Box>
+            </form>
           </FormProvider>
 
-          <Box sx={{ borderTop: 1, borderColor: "divider", pt: 2.5, mt: 1 }}>
-            <Typography variant="body2" align="center" color="text.secondary">
+          <div className="border-t border-border pt-4 text-center">
+            <p className="text-sm text-muted-foreground">
               Already have an account?{" "}
-              <Link component={RouterLink} to="/login" underline="hover">
+              <Link to="/login" className="text-primary underline-offset-4 hover:underline">
                 Sign In
               </Link>
-            </Typography>
-          </Box>
+            </p>
+          </div>
         </CardContent>
       </Card>
-    </Box>
+    </div>
   );
 }
