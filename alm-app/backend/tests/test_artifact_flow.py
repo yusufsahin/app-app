@@ -70,7 +70,10 @@ class TestArtifactFlow:
         data = resp.json()
         assert "items" in data and "total" in data
         assert isinstance(data["items"], list)
-        assert data["total"] == 0
+        # With three-root model, project with template has three root artifacts
+        assert data["total"] >= 3
+        types = {a["artifact_type"] for a in data["items"]}
+        assert "root-requirement" in types and "root-quality" in types and "root-defect" in types
 
     async def test_create_and_list_artifact(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
@@ -113,7 +116,13 @@ class TestArtifactFlow:
         assert isinstance(tenants, list) and len(tenants) >= 1
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
         project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
-
+        list_r = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        list_r.raise_for_status()
+        root_defect = next((a for a in list_r.json()["items"] if a["artifact_type"] == "root-defect"), None)
+        assert root_defect is not None, "project must have root-defect"
         create_resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
@@ -121,6 +130,7 @@ class TestArtifactFlow:
                 "artifact_type": "defect",
                 "title": "Test defect",
                 "description": "",
+                "parent_id": root_defect["id"],
             },
         )
         assert create_resp.status_code == 201
@@ -191,10 +201,17 @@ class TestArtifactFlow:
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
         project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+        list_r = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        list_r.raise_for_status()
+        root_defect = next((a for a in list_r.json()["items"] if a["artifact_type"] == "root-defect"), None)
+        assert root_defect is not None
         await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
-            json={"artifact_type": "defect", "title": "A defect", "description": ""},
+            json={"artifact_type": "defect", "title": "A defect", "description": "", "parent_id": root_defect["id"]},
         )
         resp = await client.get(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
@@ -305,3 +322,46 @@ class TestArtifactFlow:
         )
         list_data = list_resp.json()
         assert not any(a["id"] in ids for a in list_data["items"])
+
+    async def test_project_has_two_roots_after_create(self, client: AsyncClient):
+        """With dual-root, creating a project with template yields two root artifacts."""
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        code = f"R{uuid.uuid4().hex[:6].upper()}"
+        create_resp = await client.post(
+            f"/api/v1/tenants/{tenant_id}/projects/",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"code": code, "name": "Root Test Project", "description": "", "process_template_slug": "basic"},
+        )
+        create_resp.raise_for_status()
+        project_id = create_resp.json()["id"]
+        list_resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        list_resp.raise_for_status()
+        data = list_resp.json()
+        roots = [a for a in data["items"] if a["artifact_type"] in ("root-requirement", "root-quality", "root-defect")]
+        assert len(roots) == 3
+        keys = {a["artifact_key"] for a in roots}
+        assert f"{code}-R0" in keys and f"{code}-Q0" in keys and f"{code}-D0" in keys
+
+    async def test_delete_root_returns_422(self, client: AsyncClient):
+        """Deleting a project root artifact must be rejected with 422 (ValidationError)."""
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+        list_resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        list_resp.raise_for_status()
+        root = next((a for a in list_resp.json()["items"] if a["artifact_type"] == "root-requirement"), None)
+        assert root is not None
+        del_resp = await client.delete(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{root['id']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert del_resp.status_code == 422

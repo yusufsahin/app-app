@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from alm.artifact.domain.constants import ROOT_ARTIFACT_TYPES
 from alm.artifact.domain.entities import Artifact
 from alm.artifact.domain.ports import ArtifactRepository
 
@@ -47,6 +48,16 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         "updated_at": "updated_at",
     }
 
+    def _subtree_cte(self, root_artifact_id: uuid.UUID) -> Any:
+        """Recursive CTE: ids of root and all descendants. Use with .where(ArtifactModel.id.in_(select(cte.c.id)))."""
+        subtree = (
+            select(ArtifactModel.id).where(ArtifactModel.id == root_artifact_id).cte("subtree", recursive=True)
+        )
+        subtree = subtree.union_all(
+            select(ArtifactModel.id).where(ArtifactModel.parent_id == subtree.c.id)
+        )
+        return subtree
+
     def _list_by_project_filters(
         self,
         q: Any,
@@ -54,14 +65,21 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         type_filter: str | None,
         search_query: str | None,
         cycle_node_id: uuid.UUID | None = None,
+        cycle_node_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
+        root_artifact_id: uuid.UUID | None = None,
     ) -> Any:
         """Apply common filters for list and count."""
+        if root_artifact_id is not None:
+            subtree = self._subtree_cte(root_artifact_id)
+            q = q.where(ArtifactModel.id.in_(select(subtree.c.id)))
         if state_filter:
             q = q.where(ArtifactModel.state == state_filter)
         if type_filter:
             q = q.where(ArtifactModel.artifact_type == type_filter)
-        if cycle_node_id is not None:
+        if cycle_node_ids:
+            q = q.where(ArtifactModel.cycle_node_id.in_(cycle_node_ids))
+        elif cycle_node_id is not None:
             q = q.where(ArtifactModel.cycle_node_id == cycle_node_id)
         if area_node_id is not None:
             q = q.where(ArtifactModel.area_node_id == area_node_id)
@@ -80,14 +98,28 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         type_filter: str | None = None,
         search_query: str | None = None,
         cycle_node_id: uuid.UUID | None = None,
+        cycle_node_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
         include_deleted: bool = False,
+        root_artifact_id: uuid.UUID | None = None,
+        exclude_root_artifact_types: bool = False,
     ) -> int:
         q = select(func.count(ArtifactModel.id)).where(
             ArtifactModel.project_id == project_id,
             ArtifactModel.deleted_at.is_(None) if not include_deleted else ArtifactModel.deleted_at.isnot(None),
         )
-        q = self._list_by_project_filters(q, state_filter, type_filter, search_query, cycle_node_id, area_node_id)
+        q = self._list_by_project_filters(
+            q,
+            state_filter,
+            type_filter,
+            search_query,
+            cycle_node_id=cycle_node_id,
+            cycle_node_ids=cycle_node_ids,
+            area_node_id=area_node_id,
+            root_artifact_id=root_artifact_id,
+        )
+        if exclude_root_artifact_types:
+            q = q.where(ArtifactModel.artifact_type.notin_(ROOT_ARTIFACT_TYPES))
         result = await self._session.execute(q)
         return result.scalar_one() or 0
 
@@ -98,18 +130,29 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         type_filter: str | None = None,
         search_query: str | None = None,
         cycle_node_id: uuid.UUID | None = None,
+        cycle_node_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
         sort_by: str | None = None,
         sort_order: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
         include_deleted: bool = False,
+        root_artifact_id: uuid.UUID | None = None,
     ) -> list[Artifact]:
         q = select(ArtifactModel).where(
             ArtifactModel.project_id == project_id,
             ArtifactModel.deleted_at.is_(None) if not include_deleted else ArtifactModel.deleted_at.isnot(None),
         )
-        q = self._list_by_project_filters(q, state_filter, type_filter, search_query, cycle_node_id, area_node_id)
+        q = self._list_by_project_filters(
+            q,
+            state_filter,
+            type_filter,
+            search_query,
+            cycle_node_id=cycle_node_id,
+            cycle_node_ids=cycle_node_ids,
+            area_node_id=area_node_id,
+            root_artifact_id=root_artifact_id,
+        )
         column_name = self._SORT_COLUMNS.get(sort_by) if sort_by else "created_at"
         order_asc = (sort_order or "desc").lower() == "asc"
         column = getattr(ArtifactModel, column_name or "created_at", None)
@@ -131,6 +174,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             select(func.count(ArtifactModel.id)).where(
                 ArtifactModel.project_id.in_(project_ids),
                 ArtifactModel.deleted_at.is_(None),
+                ArtifactModel.artifact_type.notin_(ROOT_ARTIFACT_TYPES),
             )
         )
         return result.scalar_one() or 0

@@ -8,6 +8,13 @@ import type { Artifact } from "../../shared/stores/artifactStore";
 export const CORE_FIELD_KEYS = new Set(["artifact_type", "parent_id", "title", "description", "assignee_id"]);
 export const TITLE_MAX_LENGTH = 500;
 
+/** System root types that cannot be deleted or reparented. */
+export const ROOT_ARTIFACT_TYPES = new Set(["root-requirement", "root-quality", "root-defect"]);
+
+export function isRootArtifact(artifact: { artifact_type: string }): boolean {
+  return ROOT_ARTIFACT_TYPES.has(artifact.artifact_type);
+}
+
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "";
   try {
@@ -78,6 +85,9 @@ export function downloadArtifactsCsv(
 export function getArtifactIcon(type: string): ReactElement {
   switch (type) {
     case "defect":
+    case "bug":
+      return <Bug className="size-4" />;
+    case "root-defect":
       return <Bug className="size-4" />;
     case "requirement":
       return <FileText className="size-4" />;
@@ -109,6 +119,12 @@ export interface ArtifactNode extends Artifact {
   children: ArtifactNode[];
 }
 
+const ROOT_ORDER: Record<string, number> = {
+  "root-requirement": 0,
+  "root-quality": 1,
+  "root-defect": 2,
+};
+
 export function buildArtifactTree(artifacts: Artifact[]): ArtifactNode[] {
   const byId = new Map<string, ArtifactNode>();
   for (const a of artifacts) {
@@ -125,5 +141,9 @@ export function buildArtifactTree(artifacts: Artifact[]): ArtifactNode[] {
       else roots.push(node);
     }
   }
+  roots.sort(
+    (a, b) =>
+      (ROOT_ORDER[a.artifact_type] ?? 2) - (ROOT_ORDER[b.artifact_type] ?? 2)
+  );
   return roots;
 }

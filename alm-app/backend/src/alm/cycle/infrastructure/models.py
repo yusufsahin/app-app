@@ -35,3 +35,4 @@ class CycleNodeModel(Base, TimestampMixin):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     goal: Mapped[str] = mapped_column(Text, nullable=False, default="")
     state: Mapped[str] = mapped_column(String(50), nullable=False, server_default="planned")
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, server_default="iteration")

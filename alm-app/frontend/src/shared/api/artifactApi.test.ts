@@ -52,6 +52,20 @@ describe("buildArtifactListParams", () => {
     ).toEqual({});
   });
 
+  it("prefers release_cycle_node_id when releaseCycleNodeId is set", () => {
+    expect(
+      buildArtifactListParams({ releaseCycleNodeId: "r1", cycleNodeId: "c1", areaNodeId: "a1" }),
+    ).toEqual({ release_cycle_node_id: "r1", area_node_id: "a1" });
+  });
+
+  it("includes tree when requirement, quality, or defect", () => {
+    expect(buildArtifactListParams({ tree: "requirement" })).toEqual({ tree: "requirement" });
+    expect(buildArtifactListParams({ tree: "quality" })).toEqual({ tree: "quality" });
+    expect(buildArtifactListParams({ tree: "defect" })).toEqual({ tree: "defect" });
+    expect(buildArtifactListParams({ tree: "" })).toEqual({});
+    expect(buildArtifactListParams({ tree: "other" })).toEqual({});
+  });
+
   it("combines all params", () => {
     expect(
       buildArtifactListParams({

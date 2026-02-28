@@ -8,6 +8,7 @@ import {
   FolderOpen,
   TrendingUp,
   RefreshCw,
+  Package,
 } from "lucide-react";
 import {
   Breadcrumb,
@@ -38,6 +39,7 @@ import {
   useOrgDashboardActivity,
   type DashboardActivityItem,
 } from "../../../shared/api/orgApi";
+import { useCycleNodes } from "../../../shared/api/planningApi";
 import { StandardPageLayout } from "../../../shared/components/Layout";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import {
@@ -187,6 +189,7 @@ export default function DashboardPage() {
   const [showOnlySelectedProject, setShowOnlySelectedProject] = useState(false);
   const effectiveSlug = selectedSlug ?? defaultSlug;
   const selectedProject = effectiveSlug ? projects.find((p) => p.slug === effectiveSlug) : null;
+  const { data: releases = [] } = useCycleNodes(orgSlug, selectedProject?.id, true, "release");
 
   const activityList: DashboardActivityItem[] = (activity as DashboardActivityItem[] | undefined) ?? [];
   const filteredActivity =
@@ -205,6 +208,8 @@ export default function DashboardPage() {
     orgSlug && selectedProject
       ? `/${orgSlug}/${selectedProject.slug}/artifacts?type=defect&state=Open`
       : undefined;
+  const planningPath =
+    orgSlug && selectedProject ? `/${orgSlug}/${selectedProject.slug}/planning` : undefined;
 
   const statsChartData = stats
     ? [
@@ -455,6 +460,39 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             )}
           </div>
+
+          {effectiveSlug && (
+            <div className="rounded-lg border border-border bg-card p-4">
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                <Package className="size-5 text-primary" />
+                Releases
+              </h3>
+              {releases.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No releases yet.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {releases.slice(0, 5).map((r) => (
+                    <li key={r.id}>
+                      <Link
+                        to={planningPath ?? "#"}
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        {r.name}
+                      </Link>
+                      {r.path ? (
+                        <span className="ml-1 text-xs text-muted-foreground">({r.path})</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {planningPath && (
+                <Button variant="link" className="mt-2 h-auto p-0 text-sm" asChild>
+                  <Link to={planningPath}>View all in Planning →</Link>
+                </Button>
+              )}
+            </div>
+          )}
 
           <div className="rounded-lg border border-border bg-card p-4">
             <h3 className="mb-4 text-lg font-semibold">Quick Stats</h3>

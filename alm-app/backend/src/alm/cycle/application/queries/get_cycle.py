@@ -50,6 +50,7 @@ class GetCycleNodeHandler(QueryHandler[CycleNodeDTO | None]):
             start_date=node.start_date,
             end_date=node.end_date,
             state=node.state,
+            kind=getattr(node, "kind", "iteration") or "iteration",
             created_at=node.created_at.isoformat() if node.created_at else None,
             updated_at=node.updated_at.isoformat() if node.updated_at else None,
         )

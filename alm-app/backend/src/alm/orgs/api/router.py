@@ -435,12 +435,14 @@ async def list_artifacts(
     type: str | None = None,
     q: str | None = None,
     cycle_node_id: uuid.UUID | None = None,
+    release_cycle_node_id: uuid.UUID | None = Query(None, description="Filter by release (all iterations under this node)"),
     area_node_id: uuid.UUID | None = None,
     sort_by: str | None = None,
     sort_order: str | None = None,
     limit: int = 20,
     offset: int = 0,
     include_deleted: bool = False,
+    tree: str | None = None,
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("artifact:read"),
     _acl: None = require_manifest_acl("artifact", "read"),
@@ -454,12 +456,14 @@ async def list_artifacts(
             type_filter=type,
             search_query=q,
             cycle_node_id=cycle_node_id,
+            release_cycle_node_id=release_cycle_node_id,
             area_node_id=area_node_id,
             sort_by=sort_by,
             sort_order=sort_order,
             limit=limit,
             offset=offset,
             include_deleted=include_deleted,
+            tree=tree,
         )
     )
     items = [
@@ -1707,6 +1711,7 @@ def _cycle_node_dto_to_response(dto) -> CycleNodeResponse:
         start_date=dto.start_date,
         end_date=dto.end_date,
         state=dto.state,
+        kind=getattr(dto, "kind", "iteration") or "iteration",
         created_at=dto.created_at,
         updated_at=dto.updated_at,
         children=children,
@@ -1720,6 +1725,7 @@ def _cycle_node_dto_to_response(dto) -> CycleNodeResponse:
 async def list_cycle_nodes(
     project_id: uuid.UUID,
     flat: bool = True,
+    kind: str | None = Query(None, description="Filter by kind: release | iteration"),
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("project:read"),
     mediator: Mediator = Depends(get_mediator),
@@ -1729,6 +1735,7 @@ async def list_cycle_nodes(
             tenant_id=org.tenant_id,
             project_id=project_id,
             flat=flat,
+            kind=kind,
         )
     )
     return [_cycle_node_dto_to_response(d) for d in dtos]
@@ -1757,6 +1764,7 @@ async def create_cycle_node(
             start_date=body.start_date,
             end_date=body.end_date,
             state=body.state,
+            kind=getattr(body, "kind", "iteration") or "iteration",
         )
     )
     return _cycle_node_dto_to_response(dto)
@@ -1809,6 +1817,7 @@ async def update_cycle_node(
             end_date=updates.get("end_date"),
             state=updates.get("state"),
             sort_order=updates.get("sort_order"),
+            kind=updates.get("kind"),
         )
     )
     return _cycle_node_dto_to_response(dto)
@@ -2014,6 +2023,7 @@ class VelocityPointResponse(BaseModel):
 async def get_velocity(
     project_id: uuid.UUID,
     cycle_node_id: list[uuid.UUID] | None = Query(None, alias="cycle_node_id"),
+    release_cycle_node_id: uuid.UUID | None = Query(None, description="Velocity for all iterations under this release"),
     last_n: int | None = Query(None, description="Last N cycles by order (if cycle_node_id not set)"),
     effort_field: str = Query("story_points", description="Custom field key for effort"),
     org: ResolvedOrg = Depends(resolve_org),
@@ -2025,6 +2035,7 @@ async def get_velocity(
             tenant_id=org.tenant_id,
             project_id=project_id,
             cycle_node_ids=cycle_node_id,
+            release_cycle_node_id=release_cycle_node_id,
             last_n=last_n,
             effort_field=effort_field,
         )

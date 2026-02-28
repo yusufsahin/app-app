@@ -32,7 +32,7 @@ import {
   Upload,
   ArrowLeftRight,
   ChevronLeft,
-  FilterX,
+  List,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
@@ -88,7 +88,7 @@ import {
   useDeleteArtifactLink,
   type ArtifactLink,
 } from "../../../shared/api/artifactLinkApi";
-import { useCycleNodes, useAreaNodes, areaNodeDisplayLabel } from "../../../shared/api/planningApi";
+import { useCycleNodes, useAreaNodes, areaNodeDisplayLabel, getReleaseNameForCycle } from "../../../shared/api/planningApi";
 import {
   useAttachments,
   useUploadAttachment,
@@ -105,6 +105,8 @@ import {
 import { useListSchema } from "../../../shared/api/listSchemaApi";
 import { MetadataDrivenList } from "../../../shared/components/lists/MetadataDrivenList";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
+import { EmptyState } from "../../../shared/components/EmptyState";
+import { LoadingState } from "../../../shared/components/LoadingState";
 import { modalApi, useModalStore } from "../../../shared/modal";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { useArtifactStore } from "../../../shared/stores/artifactStore";
@@ -116,6 +118,8 @@ import {
   getArtifactIcon,
   getValidTransitions,
   buildArtifactTree,
+  isRootArtifact,
+  ROOT_ARTIFACT_TYPES,
   type ArtifactNode,
 } from "../utils";
 import { ArtifactsToolbar, ArtifactsList, ArtifactDetailDrawer } from "../components";
@@ -135,6 +139,8 @@ export default function ArtifactsPage() {
   const stateFromUrl = searchParams.get("state") ?? "";
   const cycleNodeIdFromUrl = searchParams.get("cycle_node_id") ?? "";
   const areaNodeIdFromUrl = searchParams.get("area_node_id") ?? "";
+  const treeFromUrl = (searchParams.get("tree") ?? "") as "" | "requirement" | "quality" | "defect";
+  const treeFromUrlValid = treeFromUrl === "" || treeFromUrl === "requirement" || treeFromUrl === "quality" || treeFromUrl === "defect" ? treeFromUrl : "";
   const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
   const currentProjectFromStore = useProjectStore((s) => s.currentProject);
   const project =
@@ -162,7 +168,9 @@ export default function ArtifactsPage() {
     sortOrder,
     stateFilter,
     typeFilter,
+    treeFilter,
     cycleNodeFilter,
+    releaseCycleNodeFilter,
     areaNodeFilter,
     searchInput,
     searchQuery,
@@ -258,10 +266,11 @@ export default function ArtifactsPage() {
     setListState({
       stateFilter: stateFromUrl,
       typeFilter: typeFromUrl,
+      treeFilter: treeFromUrlValid,
       cycleNodeFilter: cycleNodeIdFromUrl,
       areaNodeFilter: areaNodeIdFromUrl,
     });
-  }, [stateFromUrl, typeFromUrl, cycleNodeIdFromUrl, areaNodeIdFromUrl, setListState]);
+  }, [stateFromUrl, typeFromUrl, treeFromUrlValid, cycleNodeIdFromUrl, areaNodeIdFromUrl, setListState]);
   useEffect(() => {
     toolbarForm.setValue("cycleNodeFilter", cycleNodeIdFromUrl);
     toolbarForm.setValue("areaNodeFilter", areaNodeIdFromUrl);
@@ -273,20 +282,22 @@ export default function ArtifactsPage() {
       else p.delete("type");
       if (stateFilter) p.set("state", stateFilter);
       else p.delete("state");
+      if (treeFilter) p.set("tree", treeFilter);
+      else p.delete("tree");
       if (cycleNodeFilter) p.set("cycle_node_id", cycleNodeFilter);
       else p.delete("cycle_node_id");
       if (areaNodeFilter) p.set("area_node_id", areaNodeFilter);
       else p.delete("area_node_id");
       return p;
     });
-  }, [typeFilter, stateFilter, cycleNodeFilter, areaNodeFilter, setSearchParams]);
+  }, [typeFilter, stateFilter, treeFilter, cycleNodeFilter, areaNodeFilter, setSearchParams]);
   useEffect(() => {
     const t = setTimeout(() => setListState({ searchQuery: searchInput }), 350);
     return () => clearTimeout(t);
   }, [searchInput, setListState]);
   useEffect(() => {
     setListState({ page: 0 });
-  }, [stateFilter, typeFilter, cycleNodeFilter, areaNodeFilter, searchQuery, setListState]);
+  }, [stateFilter, typeFilter, treeFilter, cycleNodeFilter, areaNodeFilter, searchQuery, setListState]);
   useEffect(() => {
     if (showDeleted) {
       setListState({ page: 0 });
@@ -294,6 +305,7 @@ export default function ArtifactsPage() {
     }
   }, [showDeleted, setListState, clearSelection]);
   const { data: cycleNodesFlat = [] } = useCycleNodes(orgSlug, project?.id, true);
+  const { data: cycleNodesFlatIterations = [] } = useCycleNodes(orgSlug, project?.id, true, "iteration");
   const { data: areaNodesFlat = [] } = useAreaNodes(orgSlug, project?.id, true);
   const { data: savedQueries = [] } = useSavedQueries(orgSlug, project?.id);
   const createSavedQueryMutation = useCreateSavedQuery(orgSlug, project?.id);
@@ -311,8 +323,10 @@ export default function ArtifactsPage() {
     isBoardView ? 200 : pageSize,
     isBoardView ? 0 : page * pageSize,
     showDeleted,
-    cycleNodeFilter || undefined,
+    releaseCycleNodeFilter ? undefined : (cycleNodeFilter || undefined),
+    releaseCycleNodeFilter || undefined,
     areaNodeFilter || undefined,
+    treeFilter || undefined,
   );
   const artifacts = useMemo(() => listResult?.items ?? [], [listResult?.items]);
   const totalArtifacts = listResult?.total ?? 0;
@@ -321,7 +335,9 @@ export default function ArtifactsPage() {
     [artifacts, selectedIds],
   );
   const canBulkTransition = selectedArtifacts.some((a) => a.allowed_actions?.includes("transition"));
-  const canBulkDelete = selectedArtifacts.some((a) => a.allowed_actions?.includes("delete"));
+  const canBulkDelete =
+    selectedArtifacts.some((a) => a.allowed_actions?.includes("delete")) &&
+    !selectedArtifacts.some((a) => isRootArtifact(a));
   const boardTransitionMutation = useTransitionArtifactById(orgSlug, project?.id);
   const detailOrUrlId = detailArtifactId || artifactIdFromUrl || undefined;
   const {
@@ -886,7 +902,26 @@ export default function ArtifactsPage() {
       openCreateArtifactModal(initialFormValues);
       return;
     }
-    openCreateArtifactModal({ ...initialFormValues, artifact_type: typeId });
+    const parentTypes = artifactTypeParentMap[typeId] as string[] | undefined;
+    let defaultParentId: string | null = null;
+    if (parentTypes?.length && artifacts?.length) {
+      const onlyRoots = parentTypes.every((p) => ROOT_ARTIFACT_TYPES.has(p));
+      if (onlyRoots && parentTypes.includes("root-requirement")) {
+        const reqRoot = artifacts.find((a) => a.artifact_type === "root-requirement");
+        if (reqRoot) defaultParentId = reqRoot.id;
+      } else if (onlyRoots && parentTypes.includes("root-quality")) {
+        const qualRoot = artifacts.find((a) => a.artifact_type === "root-quality");
+        if (qualRoot) defaultParentId = qualRoot.id;
+      } else if (onlyRoots && parentTypes.includes("root-defect")) {
+        const defectRoot = artifacts.find((a) => a.artifact_type === "root-defect");
+        if (defectRoot) defaultParentId = defectRoot.id;
+      }
+    }
+    openCreateArtifactModal({
+      ...initialFormValues,
+      artifact_type: typeId,
+      parent_id: defaultParentId ?? (initialFormValues.parent_id as string | null) ?? null,
+    });
   };
 
   const handleDuplicate = (artifact: Artifact) => {
@@ -1084,7 +1119,7 @@ export default function ArtifactsPage() {
             setMyTasksMenuAnchor={setMyTasksMenuAnchor}
             filterStates={filterStates}
             bundle={bundle}
-            cycleNodesFlat={cycleNodesFlat}
+            cycleNodesFlat={cycleNodesFlatIterations.length ? cycleNodesFlatIterations : cycleNodesFlat}
             areaNodesFlat={areaNodesFlat}
             savedQueries={savedQueries}
             createSavedQueryMutation={createSavedQueryMutation}
@@ -1265,7 +1300,9 @@ export default function ArtifactsPage() {
           )}
 
           {isLoading ? (
-            <Skeleton className="h-[200px] rounded-md" />
+            <div className="rounded-lg border border-border min-h-[320px] flex items-center justify-center">
+              <LoadingState label="Loading artifacts…" minHeight={280} />
+            </div>
           ) : viewMode === "board" ? (
             <div
               className="flex gap-4 overflow-x-auto pb-4 min-h-[400px]"
@@ -1276,6 +1313,17 @@ export default function ArtifactsPage() {
                 <p className="py-8 text-muted-foreground">
                   No workflow states in manifest. Define workflows in Process manifest to use the board.
                 </p>
+              ) : (artifacts?.length === 0 ? (
+                <div className="flex flex-1 items-center justify-center rounded-lg border border-border bg-muted/30 min-h-[400px]">
+                  <EmptyState
+                    icon={<List className="size-12" />}
+                    title={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "No artifacts match your filters" : "No artifacts yet"}
+                    description={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "Try clearing filters or changing the tree." : "Create a requirement, defect, or bug to get started."}
+                    actionLabel={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "Clear filters" : "Create artifact"}
+                    onAction={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? () => setListState({ stateFilter: "", typeFilter: "", treeFilter: "", searchInput: "", searchQuery: "", cycleNodeFilter: "", releaseCycleNodeFilter: "", areaNodeFilter: "", page: 0 }) : () => setListState({ createOpen: true })}
+                    bordered
+                  />
+                </div>
               ) : (
               filterStates.map((state) => (
                 <div
@@ -1354,7 +1402,7 @@ export default function ArtifactsPage() {
                   </div>
                 </div>
               ))
-              )}
+              ))}
             </div>
           ) : viewMode === "table" && listSchema ? (
             <div className="transition-opacity duration-200" style={{ opacity: isRefetching ? 0.7 : 1 }}>
@@ -1425,7 +1473,7 @@ export default function ArtifactsPage() {
                             Duplicate
                           </DropdownMenuItem>
                         )}
-                        {row.allowed_actions?.includes("delete") && (
+                        {row.allowed_actions?.includes("delete") && !isRootArtifact(row) && (
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => {
@@ -1462,7 +1510,7 @@ export default function ArtifactsPage() {
                   </div>
                 )}
                 emptyMessage={
-                  stateFilter || typeFilter || cycleNodeFilter || areaNodeFilter || searchQuery
+                  stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery
                     ? "No artifacts match your filters."
                     : "No artifacts yet. Create one to get started."
                 }
@@ -1477,18 +1525,17 @@ export default function ArtifactsPage() {
               />
             </div>
           ) : viewMode === "table" ? (
-            <div className="rounded-lg border p-8 text-center">
+            <div className="rounded-lg border p-8 text-center min-h-[200px] flex flex-col items-center justify-center">
               {listSchemaLoading ? (
                 <p className="text-muted-foreground">Loading list schema…</p>
               ) : listSchemaError ? (
-                <div className="flex flex-col items-center gap-2">
-                  <p className="text-muted-foreground">
-                    Could not load list schema. Switch to Board or Tree view, or try again.
-                  </p>
-                  <Button variant="outline" size="sm" onClick={() => refetchListSchema()}>
-                    Try again
-                  </Button>
-                </div>
+                <EmptyState
+                  title="Could not load list schema"
+                  description="Switch to Board or Tree view, or try again."
+                  actionLabel="Try again"
+                  onAction={() => refetchListSchema()}
+                  bordered
+                />
               ) : (
                 <p className="text-muted-foreground">
                   List schema is not available. Switch to Board or Tree view, or try again later.
@@ -1501,28 +1548,16 @@ export default function ArtifactsPage() {
               style={{ opacity: isRefetching ? 0.7 : 1 }}
             >
               {artifacts?.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-8 px-4 text-center">
-                  <p className="text-muted-foreground">
-                    {(stateFilter || typeFilter || cycleNodeFilter || areaNodeFilter || searchQuery)
-                      ? "No artifacts match your filters."
-                      : "No artifacts yet. Create one to get started."}
-                  </p>
-                  {(stateFilter || typeFilter || cycleNodeFilter || areaNodeFilter || searchQuery) && (
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        setListState({
-                          stateFilter: "",
-                          typeFilter: "",
-                          searchInput: "",
-                          page: 0,
-                        })
-                      }
-                    >
-                      <FilterX className="size-4" />
-                      Clear filters
-                    </Button>
-                  )}
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <EmptyState
+                    icon={<List className="size-10" />}
+                    title={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "No artifacts match your filters" : "No artifacts yet"}
+                    description={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "Try clearing filters or changing the tree." : "Create a requirement, defect, or bug to get started."}
+                    actionLabel={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "Clear filters" : "Create artifact"}
+                    onAction={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? () => setListState({ stateFilter: "", typeFilter: "", treeFilter: "", searchInput: "", searchQuery: "", cycleNodeFilter: "", releaseCycleNodeFilter: "", areaNodeFilter: "", page: 0 }) : () => setListState({ createOpen: true })}
+                    compact
+                    bordered
+                  />
                 </div>
               ) : (
                 <ul className="list-none p-0">
@@ -1549,7 +1584,7 @@ export default function ArtifactsPage() {
                               Duplicate
                             </DropdownMenuItem>
                           )}
-                          {artifact.allowed_actions?.includes("delete") && (
+                          {artifact.allowed_actions?.includes("delete") && !isRootArtifact(artifact) && (
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
                               onClick={() => {
@@ -1843,7 +1878,7 @@ export default function ArtifactsPage() {
                       submitExternally
                       errors={editFormErrors}
                       userOptions={members?.map((m) => ({ id: m.user_id, label: m.display_name || m.email || m.user_id })) ?? []}
-                      cycleOptions={cycleNodesFlat.map((c) => ({ id: c.id, label: c.path || c.name }))}
+                      cycleOptions={(cycleNodesFlatIterations.length ? cycleNodesFlatIterations : cycleNodesFlat).map((c) => ({ id: c.id, label: (c as { path?: string }).path || c.name }))}
                       areaOptions={areaNodesFlat.map((a) => ({ id: a.id, label: areaNodeDisplayLabel(a) }))}
                     />
                   ) : (
@@ -1976,9 +2011,12 @@ export default function ArtifactsPage() {
                           {detailArtifact.cycle_node_id && (
                             <>
                               <strong>Cycle:</strong>{" "}
-                              {cycleNodesFlat.find((c) => c.id === detailArtifact.cycle_node_id)?.path ||
-                                cycleNodesFlat.find((c) => c.id === detailArtifact.cycle_node_id)?.name ||
-                                detailArtifact.cycle_node_id}
+                              {(() => {
+                                const cycle = cycleNodesFlat.find((c) => c.id === detailArtifact.cycle_node_id);
+                                const cycleLabel = cycle?.path || cycle?.name || detailArtifact.cycle_node_id;
+                                const releaseName = getReleaseNameForCycle(detailArtifact.cycle_node_id, cycleNodesFlat);
+                                return releaseName ? `${cycleLabel} · ${releaseName}` : cycleLabel;
+                              })()}
                             </>
                           )}
                           {detailArtifact.cycle_node_id && detailArtifact.area_node_id && " · "}

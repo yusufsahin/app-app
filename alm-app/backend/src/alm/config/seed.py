@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from alm.artifact.domain.entities import Artifact as ArtifactEntity
+from alm.artifact.domain.mpc_resolver import get_manifest_ast
+from alm.artifact.domain.ports import ArtifactRepository
+from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
 from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepository
 from alm.auth.domain.entities import User
 from alm.auth.infrastructure.repositories import SqlAlchemyUserRepository
@@ -136,6 +140,13 @@ async def seed_process_templates(
                 "defs": [
                     {
                         "kind": "Workflow",
+                        "id": "root",
+                        "initial": "Active",
+                        "states": ["Active"],
+                        "transitions": [],
+                    },
+                    {
+                        "kind": "Workflow",
                         "id": "basic",
                         "initial": "new",
                         "finals": ["closed"],
@@ -168,8 +179,33 @@ async def seed_process_templates(
                     },
                     {
                         "kind": "ArtifactType",
+                        "id": "root-requirement",
+                        "name": "Project root (Requirements)",
+                        "workflow_id": "root",
+                        "child_types": ["epic"],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "root-quality",
+                        "name": "Project root (Quality)",
+                        "workflow_id": "root",
+                        "child_types": [],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "root-defect",
+                        "name": "Project root (Defects)",
+                        "workflow_id": "root",
+                        "child_types": ["defect"],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
                         "id": "epic",
                         "workflow_id": "basic",
+                        "parent_types": ["root-requirement"],
                         "child_types": ["feature"],
                         "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
                     },
@@ -199,6 +235,7 @@ async def seed_process_templates(
                         "kind": "ArtifactType",
                         "id": "defect",
                         "workflow_id": "basic",
+                        "parent_types": ["root-defect"],
                         "fields": [
                             {
                                 "id": "severity",
@@ -220,6 +257,10 @@ async def seed_process_templates(
                         "when": {"state": "active"},
                         "require": "assignee",
                     },
+                    {"kind": "LinkType", "id": "related", "name": "Related"},
+                    {"kind": "LinkType", "id": "verifies", "name": "Verifies"},
+                    {"kind": "LinkType", "id": "tests", "name": "Tests"},
+                    {"kind": "LinkType", "id": "blocks", "name": "Blocks"},
                 ],
             },
             )
@@ -245,6 +286,13 @@ async def seed_process_templates(
                 "name": "scrum",
                 "manifestVersion": "1.0.0",
                 "defs": [
+                    {
+                        "kind": "Workflow",
+                        "id": "root",
+                        "initial": "Active",
+                        "states": ["Active"],
+                        "transitions": [],
+                    },
                     {
                         "kind": "Workflow",
                         "id": "scrum",
@@ -279,8 +327,33 @@ async def seed_process_templates(
                     },
                     {
                         "kind": "ArtifactType",
+                        "id": "root-requirement",
+                        "name": "Project root (Requirements)",
+                        "workflow_id": "root",
+                        "child_types": ["epic"],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "root-quality",
+                        "name": "Project root (Quality)",
+                        "workflow_id": "root",
+                        "child_types": [],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "root-defect",
+                        "name": "Project root (Defects)",
+                        "workflow_id": "root",
+                        "child_types": ["bug"],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
                         "id": "epic",
                         "workflow_id": "scrum",
+                        "parent_types": ["root-requirement"],
                         "child_types": ["feature"],
                         "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
                     },
@@ -311,6 +384,7 @@ async def seed_process_templates(
                         "kind": "ArtifactType",
                         "id": "bug",
                         "workflow_id": "scrum",
+                        "parent_types": ["root-defect"],
                         "fields": [
                             {
                                 "id": "severity",
@@ -331,6 +405,10 @@ async def seed_process_templates(
                         "when": {"state": "in_progress"},
                         "require": "assignee",
                     },
+                    {"kind": "LinkType", "id": "related", "name": "Related"},
+                    {"kind": "LinkType", "id": "verifies", "name": "Verifies"},
+                    {"kind": "LinkType", "id": "tests", "name": "Tests"},
+                    {"kind": "LinkType", "id": "blocks", "name": "Blocks"},
                 ],
             },
             )
@@ -356,6 +434,13 @@ async def seed_process_templates(
                 "name": "kanban",
                 "manifestVersion": "1.0.0",
                 "defs": [
+                    {
+                        "kind": "Workflow",
+                        "id": "root",
+                        "initial": "Active",
+                        "states": ["Active"],
+                        "transitions": [],
+                    },
                     {
                         "kind": "Workflow",
                         "id": "kanban",
@@ -386,8 +471,33 @@ async def seed_process_templates(
                     },
                     {
                         "kind": "ArtifactType",
+                        "id": "root-requirement",
+                        "name": "Project root (Requirements)",
+                        "workflow_id": "root",
+                        "child_types": ["epic"],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "root-quality",
+                        "name": "Project root (Quality)",
+                        "workflow_id": "root",
+                        "child_types": [],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "root-defect",
+                        "name": "Project root (Defects)",
+                        "workflow_id": "root",
+                        "child_types": ["bug"],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
                         "id": "epic",
                         "workflow_id": "kanban",
+                        "parent_types": ["root-requirement"],
                         "child_types": ["feature"],
                         "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
                     },
@@ -410,6 +520,7 @@ async def seed_process_templates(
                         "kind": "ArtifactType",
                         "id": "bug",
                         "workflow_id": "kanban",
+                        "parent_types": ["root-defect"],
                         "fields": [
                             {
                                 "id": "severity",
@@ -426,6 +537,10 @@ async def seed_process_templates(
                         "when": {"state": "in_progress"},
                         "require": "assignee",
                     },
+                    {"kind": "LinkType", "id": "related", "name": "Related"},
+                    {"kind": "LinkType", "id": "verifies", "name": "Verifies"},
+                    {"kind": "LinkType", "id": "tests", "name": "Tests"},
+                    {"kind": "LinkType", "id": "blocks", "name": "Blocks"},
                 ],
             },
             )
@@ -451,6 +566,13 @@ async def seed_process_templates(
                 "name": "azure_devops_basic",
                 "manifestVersion": "1.0.0",
                 "defs": [
+                    {
+                        "kind": "Workflow",
+                        "id": "root",
+                        "initial": "Active",
+                        "states": ["Active"],
+                        "transitions": [],
+                    },
                     {
                         "kind": "Workflow",
                         "id": "ado_basic",
@@ -486,9 +608,34 @@ async def seed_process_templates(
                     },
                     {
                         "kind": "ArtifactType",
+                        "id": "root-requirement",
+                        "name": "Project root (Requirements)",
+                        "workflow_id": "root",
+                        "child_types": ["epic"],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "root-quality",
+                        "name": "Project root (Quality)",
+                        "workflow_id": "root",
+                        "child_types": [],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
+                        "id": "root-defect",
+                        "name": "Project root (Defects)",
+                        "workflow_id": "root",
+                        "child_types": [],
+                        "fields": [],
+                    },
+                    {
+                        "kind": "ArtifactType",
                         "id": "epic",
                         "name": "Epic",
                         "workflow_id": "ado_basic",
+                        "parent_types": ["root-requirement"],
                         "child_types": ["issue"],
                         "fields": [
                             {
@@ -544,6 +691,8 @@ async def seed_process_templates(
                     {"kind": "LinkType", "id": "hierarchy", "name": "Hierarchy"},
                     {"kind": "LinkType", "id": "related", "name": "Related"},
                     {"kind": "LinkType", "id": "blocks", "name": "Blocks"},
+                    {"kind": "LinkType", "id": "verifies", "name": "Verifies"},
+                    {"kind": "LinkType", "id": "tests", "name": "Tests"},
                     {
                         "kind": "TransitionPolicy",
                         "id": "assignee_required_on_active",
@@ -563,6 +712,50 @@ async def seed_process_templates(
     except Exception as e:
         logger.exception("seed_process_templates_failed", error=str(e))
         raise
+
+
+async def _create_project_roots_in_seed(
+    artifact_repo: ArtifactRepository,
+    project: Project,
+    manifest_bundle: dict[str, Any],
+    version_id: uuid.UUID,
+) -> None:
+    """Create root artifacts (R0, Q0, D0) for a project when manifest defines them (used in seed only)."""
+    ast = get_manifest_ast(version_id, manifest_bundle)
+    state_req = workflow_get_initial_state(manifest_bundle, "root-requirement", ast=ast)
+    state_qual = workflow_get_initial_state(manifest_bundle, "root-quality", ast=ast)
+    if state_req is None or state_qual is None:
+        return
+    root_req = ArtifactEntity.create(
+        project_id=project.id,
+        artifact_type="root-requirement",
+        title=project.name,
+        state=state_req,
+        parent_id=None,
+        artifact_key=f"{project.code}-R0",
+    )
+    root_qual = ArtifactEntity.create(
+        project_id=project.id,
+        artifact_type="root-quality",
+        title=project.name,
+        state=state_qual,
+        parent_id=None,
+        artifact_key=f"{project.code}-Q0",
+    )
+    await artifact_repo.add(root_req)
+    await artifact_repo.add(root_qual)
+
+    state_defect = workflow_get_initial_state(manifest_bundle, "root-defect", ast=ast)
+    if state_defect is not None:
+        root_defect = ArtifactEntity.create(
+            project_id=project.id,
+            artifact_type="root-defect",
+            title=project.name,
+            state=state_defect,
+            parent_id=None,
+            artifact_key=f"{project.code}-D0",
+        )
+        await artifact_repo.add(root_defect)
 
 
 async def seed_demo_data(
@@ -623,6 +816,8 @@ async def seed_demo_data(
 
             default_version = await process_template_repo.find_default_version()
             version_id = default_version.id if default_version else None
+            artifact_repo = SqlAlchemyArtifactRepository(session)
+            first_project_id: uuid.UUID | None = None
 
             for proj in DEMO_PROJECTS:
                 try:
@@ -641,16 +836,28 @@ async def seed_demo_data(
                     project.process_template_version_id = version_id
                 project.created_by = user.id
                 await project_repo.add(project)
+                if first_project_id is None:
+                    first_project_id = project.id
+                if version_id and default_version and default_version.manifest_bundle:
+                    await _create_project_roots_in_seed(
+                        artifact_repo, project, default_version.manifest_bundle, default_version.id
+                    )
 
-            artifact_repo = SqlAlchemyArtifactRepository(session)
             first_project = await project_repo.list_by_tenant(provisioned.tenant_id)
             if first_project and version_id:
+                root_req_list = await artifact_repo.list_by_project(
+                    first_project[0].id, type_filter="root-requirement"
+                )
+                parent_id = root_req_list[0].id if root_req_list else None
+                seq = await project_repo.increment_artifact_seq(first_project[0].id)
                 sample = ArtifactEntity(
                     project_id=first_project[0].id,
                     artifact_type="requirement",
                     title="Sample requirement",
                     description="Example artifact for demo",
                     state="new",
+                    parent_id=parent_id,
+                    artifact_key=f"{first_project[0].code}-{seq}",
                 )
                 sample.created_by = user.id
                 await artifact_repo.add(sample)

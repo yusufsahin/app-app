@@ -8,6 +8,7 @@ from typing import Any
 
 from alm.area.domain.ports import AreaRepository
 from alm.artifact.application.dtos import ArtifactDTO
+from alm.artifact.domain.constants import is_root_artifact
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
@@ -49,6 +50,11 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
             raise ValidationError("Cannot update a deleted artifact")
 
         updates = command.updates or {}
+        if "parent_id" in updates and is_root_artifact(artifact.artifact_type):
+            new_parent = updates["parent_id"]
+            if new_parent is not None and str(new_parent).strip():
+                raise ValidationError("Cannot reparent a project root artifact")
+
         if "title" in updates:
             title = updates["title"]
             artifact.title = (title.strip() if isinstance(title, str) else title) or artifact.title

@@ -17,6 +17,7 @@ class CycleNodeCreateRequest(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     state: str = "planned"
+    kind: str = "iteration"  # "release" for root, "iteration" for child
 
 
 class CycleNodeUpdateRequest(BaseModel):
@@ -26,6 +27,7 @@ class CycleNodeUpdateRequest(BaseModel):
     end_date: date | None = None
     state: str | None = None
     sort_order: int | None = None
+    kind: str | None = None  # "release" | "iteration"
 
 
 class CycleNodeResponse(BaseModel):
@@ -40,6 +42,7 @@ class CycleNodeResponse(BaseModel):
     start_date: date | None
     end_date: date | None
     state: str
+    kind: str  # "release" | "iteration"
     created_at: str | None
     updated_at: str | None
     children: list[Any] = []

@@ -31,12 +31,14 @@ class ArtifactRepository(ABC):
         type_filter: str | None = None,
         search_query: str | None = None,
         cycle_node_id: uuid.UUID | None = None,
+        cycle_node_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
         sort_by: str | None = None,
         sort_order: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
         include_deleted: bool = False,
+        root_artifact_id: uuid.UUID | None = None,
     ) -> list[Artifact]: ...
 
     @abstractmethod
@@ -47,10 +49,13 @@ class ArtifactRepository(ABC):
         type_filter: str | None = None,
         search_query: str | None = None,
         cycle_node_id: uuid.UUID | None = None,
+        cycle_node_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
         include_deleted: bool = False,
+        root_artifact_id: uuid.UUID | None = None,
+        exclude_root_artifact_types: bool = False,
     ) -> int:
-        """Count artifacts matching the same filters as list_by_project (no limit/offset)."""
+        """Count artifacts matching the same filters as list_by_project (no limit/offset). If exclude_root_artifact_types, root artifacts are not counted."""
         ...
 
     @abstractmethod
@@ -66,7 +71,7 @@ class ArtifactRepository(ABC):
 
     @abstractmethod
     async def count_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
-        """Total artifact count for the given projects (non-deleted)."""
+        """Total artifact count for the given projects (non-deleted, excluding root artifacts)."""
         ...
 
     @abstractmethod

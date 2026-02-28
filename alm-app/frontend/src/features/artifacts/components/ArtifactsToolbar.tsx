@@ -95,6 +95,7 @@ export interface ArtifactsToolbarProps {
   listStateToFilterParams: (state: {
     stateFilter: string;
     typeFilter: string;
+    treeFilter?: string;
     searchQuery: string;
     cycleNodeFilter: string;
     areaNodeFilter: string;
@@ -145,6 +146,7 @@ export function ArtifactsToolbar({
     viewMode,
     stateFilter,
     typeFilter,
+    treeFilter,
     cycleNodeFilter,
     areaNodeFilter,
     searchInput,
@@ -329,6 +331,20 @@ export function ArtifactsToolbar({
               id="artifacts-filters-panel"
               className="mt-3 flex flex-wrap items-center gap-2 pl-1"
             >
+              <Select
+                value={treeFilter || "all"}
+                onValueChange={(v) => setListState({ treeFilter: v === "all" ? "" : (v as "requirement" | "quality" | "defect") })}
+              >
+                <SelectTrigger size="sm" className="min-w-[140px]" aria-label="Tree filter">
+                  <SelectValue placeholder="Tree" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All trees</SelectItem>
+                  <SelectItem value="requirement">Requirements</SelectItem>
+                  <SelectItem value="quality">Quality</SelectItem>
+                  <SelectItem value="defect">Defects</SelectItem>
+                </SelectContent>
+              </Select>
               <RhfSelect<ToolbarFilterValues>
                 name="savedQueryId"
                 control={toolbarForm.control}
@@ -340,7 +356,7 @@ export function ArtifactsToolbar({
                     label: `${q.name}${q.visibility === "private" ? " (private)" : ""}`,
                   })),
                 ]}
-                selectProps={{ size: "sm", className: "min-w-[160px]", displayEmpty: true }}
+                selectProps={{ size: "sm", className: "min-w-[160px]", displayEmpty: true, "aria-label": "Saved query" }}
               />
               <RhfSelect<ToolbarFilterValues>
                 name="cycleNodeFilter"
@@ -350,7 +366,7 @@ export function ArtifactsToolbar({
                   { value: "", label: "All" },
                   ...cycleNodesFlat.map((c) => ({ value: c.id, label: c.path || c.name })),
                 ]}
-                selectProps={{ size: "sm", className: "min-w-[140px]" }}
+                selectProps={{ size: "sm", className: "min-w-[140px]", "aria-label": "Cycle" }}
               />
               <RhfSelect<ToolbarFilterValues>
                 name="areaNodeFilter"
@@ -363,7 +379,7 @@ export function ArtifactsToolbar({
                     label: areaNodeDisplayLabel({ name: a.name ?? a.id ?? "", path: a.path }),
                   })),
                 ]}
-                selectProps={{ size: "sm", className: "min-w-[140px]" }}
+                selectProps={{ size: "sm", className: "min-w-[140px]", "aria-label": "Area" }}
               />
               <Select
                 value={stateFilter || "__all__"}
@@ -409,7 +425,7 @@ export function ArtifactsToolbar({
                   { value: "created_at", label: "Created" },
                   { value: "updated_at", label: "Updated" },
                 ]}
-                selectProps={{ size: "sm", sx: { minWidth: 130 } }}
+                selectProps={{ size: "sm", sx: { minWidth: 130 }, "aria-label": "Sort by" }}
               />
               <RhfSelect<ToolbarFilterValues>
                 name="sortOrder"
@@ -419,7 +435,7 @@ export function ArtifactsToolbar({
                   { value: "asc", label: "Asc" },
                   { value: "desc", label: "Desc" },
                 ]}
-                selectProps={{ size: "sm", className: "min-w-[95px]" }}
+                selectProps={{ size: "sm", className: "min-w-[95px]", "aria-label": "Sort order" }}
               />
               <RhfCheckbox<ToolbarFilterValues>
                 name="showDeleted"
@@ -439,6 +455,7 @@ export function ArtifactsToolbar({
                       const filterParams = listStateToFilterParams({
                         stateFilter,
                         typeFilter,
+                        treeFilter,
                         searchQuery: listState.searchQuery,
                         cycleNodeFilter,
                         areaNodeFilter,

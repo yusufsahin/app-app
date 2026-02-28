@@ -20,6 +20,7 @@ class CycleNodeDTO:
     start_date: date | None
     end_date: date | None
     state: str
+    kind: str  # "release" | "iteration"
     created_at: str | None
     updated_at: str | None
     children: list[CycleNodeDTO] = field(default_factory=list)

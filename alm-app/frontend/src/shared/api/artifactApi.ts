@@ -43,7 +43,9 @@ export interface ArtifactListParams {
   offset?: number;
   include_deleted?: boolean;
   cycle_node_id?: string;
+  release_cycle_node_id?: string;
   area_node_id?: string;
+  tree?: string;
 }
 
 /**
@@ -59,7 +61,9 @@ export function buildArtifactListParams(options: {
   offset?: number;
   includeDeleted?: boolean;
   cycleNodeId?: string | null;
+  releaseCycleNodeId?: string | null;
   areaNodeId?: string | null;
+  tree?: string | null;
 }): ArtifactListParams {
   const params: ArtifactListParams = {};
   const {
@@ -72,7 +76,9 @@ export function buildArtifactListParams(options: {
     offset,
     includeDeleted,
     cycleNodeId,
+    releaseCycleNodeId,
     areaNodeId,
+    tree,
   } = options;
   if (stateFilter) params.state = stateFilter;
   if (typeFilter) params.type = typeFilter;
@@ -83,8 +89,10 @@ export function buildArtifactListParams(options: {
   if (limit != null) params.limit = limit;
   if (offset != null) params.offset = offset;
   if (includeDeleted) params.include_deleted = true;
-  if (cycleNodeId) params.cycle_node_id = cycleNodeId;
+  if (releaseCycleNodeId) params.release_cycle_node_id = releaseCycleNodeId;
+  else if (cycleNodeId) params.cycle_node_id = cycleNodeId;
   if (areaNodeId) params.area_node_id = areaNodeId;
+  if (tree && (tree === "requirement" || tree === "quality" || tree === "defect")) params.tree = tree;
   return params;
 }
 
@@ -100,7 +108,9 @@ export function useArtifacts(
   offset?: number,
   includeDeleted?: boolean,
   cycleNodeId?: string | null,
+  releaseCycleNodeId?: string | null,
   areaNodeId?: string | null,
+  tree?: string | null,
 ) {
   const params = buildArtifactListParams({
     stateFilter,
@@ -112,11 +122,13 @@ export function useArtifacts(
     offset,
     includeDeleted,
     cycleNodeId,
+    releaseCycleNodeId,
     areaNodeId,
+    tree,
   });
 
   return useQuery({
-    queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", stateFilter, typeFilter, sortBy, sortOrder, searchQuery?.trim() || null, limit, offset, includeDeleted, cycleNodeId || null, areaNodeId || null],
+    queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", stateFilter, typeFilter, sortBy, sortOrder, searchQuery?.trim() || null, limit, offset, includeDeleted, cycleNodeId || null, releaseCycleNodeId || null, areaNodeId || null, tree || null],
     queryFn: async (): Promise<ArtifactsListResult> => {
       const { data } = await apiClient.get<ArtifactsListResult>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts`,

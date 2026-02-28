@@ -38,4 +38,12 @@ class DeleteCycleNodeHandler(CommandHandler[None]):
         if node is None or node.project_id != command.project_id:
             raise ValidationError("Cycle node not found")
 
+        node_kind = getattr(node, "kind", "iteration") or "iteration"
+        if node_kind == "release":
+            all_nodes = await self._cycle_repo.list_by_project(command.project_id)
+            if any(getattr(c, "parent_id", None) == command.cycle_node_id for c in all_nodes):
+                raise ValidationError(
+                    "Release has iterations. Delete or move iterations first, or delete iterations then the release."
+                )
+
         await self._cycle_repo.delete(command.cycle_node_id)

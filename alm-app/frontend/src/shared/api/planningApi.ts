@@ -6,6 +6,8 @@ import { apiClient } from "./client";
 
 // ── Cycle nodes (iterations) ──
 
+export type CycleNodeKind = "release" | "iteration";
+
 export interface CycleNode {
   id: string;
   project_id: string;
@@ -18,6 +20,7 @@ export interface CycleNode {
   start_date: string | null;
   end_date: string | null;
   state: string;
+  kind: CycleNodeKind;
   created_at: string | null;
   updated_at: string | null;
   children: CycleNode[];
@@ -31,6 +34,7 @@ export interface CycleNodeCreateRequest {
   start_date?: string | null;
   end_date?: string | null;
   state?: string;
+  kind?: CycleNodeKind;
 }
 
 export interface CycleNodeUpdateRequest {
@@ -40,11 +44,35 @@ export interface CycleNodeUpdateRequest {
   end_date?: string | null;
   state?: string | null;
   sort_order?: number | null;
+  kind?: CycleNodeKind | null;
 }
 
 /** Display label for cycle in dropdowns (name + optional path). */
 export function cycleNodeDisplayLabel(node: { name: string; path?: string }): string {
   return node.path ? `${node.name} (${node.path})` : node.name;
+}
+
+/** Display label with kind badge for dropdowns: "Sprint 1 (Iteration)" or "2024-R1 (Release)". */
+export function cycleNodeDisplayLabelWithKind(node: { name: string; path?: string; kind?: CycleNodeKind }): string {
+  const base = cycleNodeDisplayLabel(node);
+  const k = node.kind === "release" ? "Release" : "Iteration";
+  return `${base} · ${k}`;
+}
+
+/** Get release name for a cycle (parent release node name). cycleTree = flat list with parent_id/path/kind. */
+export function getReleaseNameForCycle(
+  cycleNodeId: string | null | undefined,
+  cycleTree: Array<{ id: string; parent_id: string | null; path?: string; kind?: CycleNodeKind }>,
+): string | null {
+  if (!cycleNodeId) return null;
+  const node = cycleTree.find((c) => c.id === cycleNodeId);
+  if (!node) return null;
+  if (node.kind === "release") return node.path ?? null;
+  if (!node.parent_id) return null;
+  const parent = cycleTree.find((c) => c.id === node.parent_id);
+  if (!parent) return null;
+  if (parent.kind === "release") return parent.path ?? parent.id;
+  return getReleaseNameForCycle(parent.id, cycleTree);
 }
 
 /** Display label for area in dropdowns (name + optional path). */
@@ -56,13 +84,16 @@ export function useCycleNodes(
   orgSlug: string | undefined,
   projectId: string | undefined,
   flat = false,
+  kind?: CycleNodeKind,
 ) {
   return useQuery({
-    queryKey: ["orgs", orgSlug, "projects", projectId, "cycle-nodes", flat],
+    queryKey: ["orgs", orgSlug, "projects", projectId, "cycle-nodes", flat, kind],
     queryFn: async (): Promise<CycleNode[]> => {
+      const params: { flat: boolean; kind?: string } = { flat };
+      if (kind) params.kind = kind;
       const { data } = await apiClient.get<CycleNode[]>(
         `/orgs/${orgSlug}/projects/${projectId}/cycle-nodes`,
-        { params: { flat } },
+        { params },
       );
       return data;
     },

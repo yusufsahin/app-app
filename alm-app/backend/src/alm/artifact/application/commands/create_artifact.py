@@ -9,7 +9,9 @@ from typing import Any
 from alm.area.domain.ports import AreaRepository
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.entities import Artifact
+from alm.artifact.domain.constants import ROOT_ARTIFACT_TYPES
 from alm.artifact.domain.mpc_resolver import (
+    get_artifact_type_def,
     get_manifest_ast,
     is_valid_parent_child,
 )
@@ -70,6 +72,14 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
         initial_state = workflow_get_initial_state(manifest, command.artifact_type, ast=ast)
         if initial_state is None:
             raise ValidationError(f"Artifact type '{command.artifact_type}' not defined in manifest")
+
+        type_def = get_artifact_type_def(manifest, command.artifact_type, ast=ast)
+        if type_def and command.parent_id is None:
+            parent_types = type_def.get("parent_types") or []
+            if parent_types and all(p in ROOT_ARTIFACT_TYPES for p in parent_types):
+                raise ValidationError(
+                    f"Artifact type '{command.artifact_type}' must be created under a project root (Requirements, Quality, or Defects)"
+                )
 
         if command.parent_id is not None:
             parent = await self._artifact_repo.find_by_id(command.parent_id)

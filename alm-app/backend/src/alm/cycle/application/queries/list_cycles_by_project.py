@@ -28,6 +28,7 @@ def _build_tree(flat: list[CycleNodeDTO], parent_id: uuid.UUID | None) -> list[C
             start_date=d.start_date,
             end_date=d.end_date,
             state=d.state,
+            kind=d.kind,
             created_at=d.created_at,
             updated_at=d.updated_at,
             children=_build_tree(flat, d.id),
@@ -41,6 +42,7 @@ class ListCycleNodesByProject(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     flat: bool = True
+    kind: str | None = None  # "release" | "iteration" to filter
 
 
 class ListCycleNodesByProjectHandler(QueryHandler[list[CycleNodeDTO]]):
@@ -60,6 +62,9 @@ class ListCycleNodesByProjectHandler(QueryHandler[list[CycleNodeDTO]]):
             return []
 
         nodes = await self._cycle_repo.list_by_project(query.project_id)
+        if query.kind and query.kind.strip().lower() in ("release", "iteration"):
+            kind_filter = query.kind.strip().lower()
+            nodes = [n for n in nodes if getattr(n, "kind", "iteration") or "iteration" == kind_filter]
         flat_dtos = [
             CycleNodeDTO(
                 id=n.id,
@@ -73,6 +78,7 @@ class ListCycleNodesByProjectHandler(QueryHandler[list[CycleNodeDTO]]):
                 start_date=n.start_date,
                 end_date=n.end_date,
                 state=n.state,
+                kind=getattr(n, "kind", "iteration") or "iteration",
                 created_at=n.created_at.isoformat() if n.created_at else None,
                 updated_at=n.updated_at.isoformat() if n.updated_at else None,
             )

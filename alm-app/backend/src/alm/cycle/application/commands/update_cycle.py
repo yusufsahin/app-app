@@ -25,6 +25,7 @@ class UpdateCycleNode(Command):
     end_date: date | None = None
     state: str | None = None
     sort_order: int | None = None
+    kind: str | None = None
 
 
 class UpdateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
@@ -57,6 +58,9 @@ class UpdateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
                 parent = await self._cycle_repo.find_by_id(node.parent_id)
                 path = f"{parent.path}/{name}" if parent else name
 
+        kind = getattr(node, "kind", "iteration") or "iteration"
+        if command.kind is not None and command.kind.strip().lower() in ("release", "iteration"):
+            kind = command.kind.strip().lower()
         updated = CycleNode(
             id=node.id,
             project_id=node.project_id,
@@ -69,6 +73,7 @@ class UpdateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
             start_date=command.start_date if command.start_date is not None else node.start_date,
             end_date=command.end_date if command.end_date is not None else node.end_date,
             state=command.state if command.state is not None else node.state,
+            kind=kind,
             created_at=node.created_at,
             updated_at=node.updated_at,
         )
@@ -88,6 +93,7 @@ class UpdateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
             start_date=refreshed.start_date,
             end_date=refreshed.end_date,
             state=refreshed.state,
+            kind=getattr(refreshed, "kind", "iteration") or "iteration",
             created_at=refreshed.created_at.isoformat() if refreshed.created_at else None,
             updated_at=refreshed.updated_at.isoformat() if refreshed.updated_at else None,
         )

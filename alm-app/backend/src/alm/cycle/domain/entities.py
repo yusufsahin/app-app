@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from alm.shared.domain.aggregate import AggregateRoot
 
+CYCLE_NODE_KIND_RELEASE = "release"
+CYCLE_NODE_KIND_ITERATION = "iteration"
+CycleNodeKind = Literal["release", "iteration"]
+
 
 class CycleNode(AggregateRoot):
-    """Node in the cycle/iteration tree. Root has parent_id=None, path=name; child has path=parent.path + '/' + name."""
+    """Node in the cycle/iteration tree. Root has parent_id=None, path=name; child has path=parent.path + '/' + name.
+    kind: 'release' for top-level (e.g. 2024-R1), 'iteration' for sprints/iterations under a release."""
 
     def __init__(
         self,
@@ -26,6 +31,7 @@ class CycleNode(AggregateRoot):
         start_date: date | None = None,
         end_date: date | None = None,
         state: str = "planned",
+        kind: CycleNodeKind = "iteration",
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
     ) -> None:
@@ -40,6 +46,7 @@ class CycleNode(AggregateRoot):
         self.start_date = start_date
         self.end_date = end_date
         self.state = state
+        self.kind = kind
         self.created_at = created_at
         self.updated_at = updated_at
 
@@ -55,6 +62,7 @@ class CycleNode(AggregateRoot):
         start_date: date | None = None,
         end_date: date | None = None,
         state: str = "planned",
+        kind: CycleNodeKind = "release",
     ) -> CycleNode:
         name_trim = (name or "").strip()
         if not name_trim:
@@ -71,6 +79,7 @@ class CycleNode(AggregateRoot):
             start_date=start_date,
             end_date=end_date,
             state=state,
+            kind=kind,
         )
 
     @classmethod
@@ -86,6 +95,7 @@ class CycleNode(AggregateRoot):
         start_date: date | None = None,
         end_date: date | None = None,
         state: str = "planned",
+        kind: CycleNodeKind = "iteration",
     ) -> CycleNode:
         if parent.project_id != project_id:
             raise ValueError("Parent must belong to the same project")
@@ -105,6 +115,7 @@ class CycleNode(AggregateRoot):
             start_date=start_date,
             end_date=end_date,
             state=state,
+            kind=kind,
         )
 
     def to_snapshot_dict(self) -> dict[str, Any]:
@@ -120,6 +131,7 @@ class CycleNode(AggregateRoot):
             "start_date": self.start_date.isoformat() if self.start_date else None,
             "end_date": self.end_date.isoformat() if self.end_date else None,
             "state": self.state,
+            "kind": self.kind,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

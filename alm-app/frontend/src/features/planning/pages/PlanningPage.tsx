@@ -1,6 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent, Dialog, DialogContent, DialogTitle, DialogFooter, Skeleton } from "../../../shared/components/ui";
-import { GitBranch, ChevronDown, ChevronRight, Plus, Folder, Pencil, Trash2, List } from "lucide-react";
+import { GitBranch, ChevronDown, ChevronRight, Plus, Folder, Pencil, Trash2, List, Package, IterationCw } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
@@ -15,7 +15,7 @@ import {
   useUpdateAreaNode,
   useDeleteCycleNode,
   useDeleteAreaNode,
-  cycleNodeDisplayLabel,
+  cycleNodeDisplayLabelWithKind,
   type CycleNode,
   type AreaNode,
 } from "../../../shared/api/planningApi";
@@ -63,7 +63,18 @@ function CycleTreeItem({
           )}
         </button>
         <div className="min-w-0 flex-1">
-          <p className="font-medium">{node.name}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{node.name}</p>
+            <span
+              className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium ${
+                node.kind === "release" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+              }`}
+              title={node.kind === "release" ? "Release" : "Iteration"}
+            >
+              {node.kind === "release" ? <Package className="size-3" /> : <IterationCw className="size-3" />}
+              {node.kind === "release" ? "Release" : "Iteration"}
+            </span>
+          </div>
           {node.path || node.state ? (
             <p className="text-xs text-muted-foreground">
               {node.path ? `${node.path} · ${node.state}` : node.state}
@@ -74,7 +85,7 @@ function CycleTreeItem({
           <button
             type="button"
             className="rounded p-1.5 hover:bg-muted"
-            aria-label="Add child"
+            aria-label="Add iteration"
             onClick={() => onAddChild(node)}
           >
             <Plus className="size-4" />
@@ -293,8 +304,10 @@ export default function PlanningPage() {
     (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
 
   const [activeTab, setActiveTab] = useState<"cycles" | "areas" | "backlog">("cycles");
-  const backlogForm = useForm<{ cycleId: string }>({ defaultValues: { cycleId: "" } });
+  const backlogForm = useForm<{ releaseId: string; cycleId: string }>({ defaultValues: { releaseId: "", cycleId: "" } });
+  const selectedBacklogReleaseId = backlogForm.watch("releaseId");
   const selectedBacklogCycleId = backlogForm.watch("cycleId");
+  const effectiveBacklogFilter = selectedBacklogReleaseId || selectedBacklogCycleId;
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addMode, setAddMode] = useState<"cycles" | "areas">("cycles");
   const [addParentId, setAddParentId] = useState<string | null>(null);
@@ -302,11 +315,17 @@ export default function PlanningPage() {
   const [renameNode, setRenameNode] = useState<CycleNode | AreaNode | null>(null);
 
   const addForm = useForm<{ name: string }>({ defaultValues: { name: "" } });
-  const renameForm = useForm<{ name: string }>({ defaultValues: { name: "" } });
+  const renameForm = useForm<{ name: string; kind?: "release" | "iteration" }>({ defaultValues: { name: "", kind: "iteration" } });
   const { reset: resetAddForm, handleSubmit: handleAddSubmit } = addForm;
   const { reset: resetRenameForm, handleSubmit: handleRenameSubmit } = renameForm;
   useEffect(() => {
-    if (renameNode) resetRenameForm({ name: renameNode.name });
+    if (renameNode) {
+      const isCycle = "goal" in renameNode;
+      resetRenameForm({
+        name: renameNode.name,
+        ...(isCycle && { kind: (renameNode as CycleNode).kind }),
+      });
+    }
   }, [renameNode, resetRenameForm]);
 
   const { data: cycleNodes = [], isLoading: cyclesLoading } = useCycleNodes(
@@ -314,7 +333,8 @@ export default function PlanningPage() {
     project?.id,
     false,
   );
-  const { data: cycleNodesFlat = [] } = useCycleNodes(orgSlug, project?.id, true);
+  const { data: cycleNodesFlatIterations = [] } = useCycleNodes(orgSlug, project?.id, true, "iteration");
+  const { data: cycleNodesFlatReleases = [] } = useCycleNodes(orgSlug, project?.id, true, "release");
   const { data: areaNodes = [], isLoading: areasLoading } = useAreaNodes(
     orgSlug,
     project?.id,
@@ -339,7 +359,8 @@ export default function PlanningPage() {
     25,
     0,
     false,
-    activeTab === "backlog" && selectedBacklogCycleId ? selectedBacklogCycleId : undefined,
+    activeTab === "backlog" && effectiveBacklogFilter && !selectedBacklogReleaseId ? selectedBacklogCycleId : undefined,
+    activeTab === "backlog" && selectedBacklogReleaseId ? selectedBacklogReleaseId : undefined,
     undefined,
   );
   const backlogArtifacts = backlogData?.items ?? [];
@@ -361,14 +382,15 @@ export default function PlanningPage() {
     const name = data.name.trim();
     if (!name) return;
     if (addMode === "cycles") {
+      const kind = addParentId ? "iteration" : "release";
       createCycle.mutate(
-        { name, parent_id: addParentId || undefined },
+        { name, parent_id: addParentId || undefined, kind },
         {
           onSuccess: () => {
             setAddDialogOpen(false);
-            showNotification("Cycle added", "success");
+            showNotification(addParentId ? "Iteration added" : "Release added", "success");
           },
-          onError: (e: Error) => showNotification(e?.message ?? "Failed to add cycle", "error"),
+          onError: (e: Error) => showNotification(e?.message ?? "Failed to add", "error"),
         },
       );
     } else {
@@ -406,12 +428,12 @@ export default function PlanningPage() {
     setRenameNode(node);
     setRenameDialogOpen(true);
   };
-  const onSubmitRename = (data: { name: string }) => {
+  const onSubmitRename = (data: { name: string; kind?: "release" | "iteration" }) => {
     const name = data.name.trim();
     if (!name || !renameNode) return;
     if ("goal" in renameNode) {
       updateCycle.mutate(
-        { cycleNodeId: renameNode.id, body: { name } },
+        { cycleNodeId: renameNode.id, body: { name, ...(data.kind && { kind: data.kind }) } },
         {
           onSuccess: () => {
             setRenameDialogOpen(false);
@@ -437,9 +459,13 @@ export default function PlanningPage() {
   };
 
   const handleDeleteCycle = (node: CycleNode) => {
-    if (!window.confirm(`Delete cycle "${node.name}"?`)) return;
+    const isRelease = node.kind === "release";
+    const message = isRelease
+      ? `Delete release "${node.name}"? If it has iterations, delete those first.`
+      : `Delete iteration "${node.name}"?`;
+    if (!window.confirm(message)) return;
     deleteCycle.mutate(node.id, {
-      onSuccess: () => showNotification("Cycle deleted", "success"),
+      onSuccess: () => showNotification(isRelease ? "Release deleted" : "Iteration deleted", "success"),
       onError: (e: Error) => showNotification(e?.message ?? "Failed to delete", "error"),
     });
   };
@@ -466,14 +492,14 @@ export default function PlanningPage() {
             <h1 className="text-2xl font-bold">Planning</h1>
           </div>
           <p className="mb-4 text-sm text-muted-foreground">
-            Cycles (iterations) and Areas for backlog and assignment.
+            Releases and iterations (cycles) and Areas for backlog and assignment.
           </p>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "cycles" | "areas" | "backlog")} className="mb-4 border-b">
             <TabsList className="w-full justify-start rounded-none border-b-0 bg-transparent p-0">
               <TabsTrigger value="cycles" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
                 <GitBranch className="size-4" />
-                Cycles{!cyclesLoading ? ` (${cycleNodes.length})` : ""}
+                Releases & iterations{!cyclesLoading ? ` (${cycleNodes.length})` : ""}
               </TabsTrigger>
               <TabsTrigger value="areas" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
                 <Folder className="size-4" />
@@ -489,18 +515,18 @@ export default function PlanningPage() {
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="size-2 rounded-full bg-primary" />
-                  <h2 className="text-lg font-semibold">Cycle tree</h2>
+                  <h2 className="text-lg font-semibold">Release & iteration tree</h2>
                 </div>
                 <Button size="sm" onClick={handleAddCycle} disabled={cyclesLoading}>
                   <Plus className="size-4" />
-                  Add cycle
+                  Add release
                 </Button>
               </div>
               {cyclesLoading ? (
                 <Skeleton className="h-28 rounded-md" />
               ) : cycleNodes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No cycles. Add a cycle to represent iterations or sprints.
+                  No releases. Add a release, then add iterations (sprints) under it.
                 </p>
               ) : (
                 <div>
@@ -557,26 +583,37 @@ export default function PlanningPage() {
                 <h2 className="text-lg font-semibold">Cycle backlog</h2>
               </div>
               <FormProvider {...backlogForm}>
-                <div className="mb-4 min-w-[220px]">
-                  <RhfSelect<{ cycleId: string }>
-                    name="cycleId"
-                    control={backlogForm.control}
-                    label="Cycle"
-                    placeholder="Select a cycle"
-                    options={cycleNodesFlat.map((c) => ({ value: c.id, label: cycleNodeDisplayLabel(c) }))}
-                  />
+                <div className="mb-4 flex flex-wrap gap-4">
+                  <div className="min-w-[220px]">
+                    <RhfSelect<{ releaseId: string; cycleId: string }>
+                      name="releaseId"
+                      control={backlogForm.control}
+                      label="Release"
+                      placeholder="All releases"
+                      options={[{ value: "", label: "All releases" }, ...cycleNodesFlatReleases.map((c) => ({ value: c.id, label: cycleNodeDisplayLabelWithKind(c) }))]}
+                    />
+                  </div>
+                  <div className="min-w-[220px]">
+                    <RhfSelect<{ releaseId: string; cycleId: string }>
+                      name="cycleId"
+                      control={backlogForm.control}
+                      label="Iteration"
+                      placeholder="Select iteration"
+                      options={[{ value: "", label: "All iterations" }, ...cycleNodesFlatIterations.map((c) => ({ value: c.id, label: cycleNodeDisplayLabelWithKind(c) }))]}
+                    />
+                  </div>
                 </div>
               </FormProvider>
-              {selectedBacklogCycleId ? (
+              {effectiveBacklogFilter ? (
                 <>
                   <div className="mb-2 flex items-center gap-2">
                     <p className="text-sm text-muted-foreground">
-                      {backlogTotal} artifact(s) in this cycle
+                      {backlogTotal} artifact(s){selectedBacklogReleaseId ? " in this release" : " in this iteration"}
                     </p>
                     <Button size="sm" variant="ghost" asChild>
                       <Link
                         to={orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}/artifacts` : "#"}
-                        onClick={() => setListState({ cycleNodeFilter: selectedBacklogCycleId })}
+                        onClick={() => setListState({ cycleNodeFilter: selectedBacklogCycleId || "", releaseCycleNodeFilter: selectedBacklogReleaseId || "" })}
                       >
                         View all in Artifacts
                       </Link>
@@ -584,7 +621,7 @@ export default function PlanningPage() {
                   </div>
                   {backlogArtifacts.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No artifacts assigned to this cycle.
+                      No artifacts in this {selectedBacklogReleaseId ? "release" : "iteration"}.
                     </p>
                   ) : (
                     <div className="space-y-0">
@@ -595,7 +632,7 @@ export default function PlanningPage() {
                           orgSlug={orgSlug}
                           projectId={project?.id}
                           projectSlug={projectSlug}
-                          cycleNodesFlat={cycleNodesFlat}
+                          cycleNodesFlat={cycleNodesFlatIterations}
                           showNotification={showNotification}
                         />
                       ))}
@@ -604,7 +641,7 @@ export default function PlanningPage() {
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Select a cycle to view its backlog (artifacts assigned to that cycle).
+                  Select a release or iteration to view its backlog.
                 </p>
               )}
             </TabsContent>
@@ -614,7 +651,13 @@ export default function PlanningPage() {
 
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="sm:max-w-xs">
-          <DialogTitle>{addMode === "cycles" ? "Add cycle" : "Add area"}</DialogTitle>
+          <DialogTitle>
+            {addMode === "cycles"
+              ? addParentId
+                ? "Add iteration"
+                : "Add release"
+              : "Add area"}
+          </DialogTitle>
           <FormProvider {...addForm}>
             <form onSubmit={handleAddSubmit(onSubmitAdd)} noValidate>
               <div className="grid gap-4 py-4">
@@ -660,12 +703,23 @@ export default function PlanningPage() {
         <FormProvider {...renameForm}>
           <form onSubmit={handleRenameSubmit(onSubmitRename)} noValidate>
             <div className="grid gap-4 py-4">
-              <RhfTextField<{ name: string }>
+              <RhfTextField<{ name: string; kind?: "release" | "iteration" }>
                 name="name"
                 label="Name"
                 // eslint-disable-next-line jsx-a11y/no-autofocus -- dialog first field
                 autoFocus
               />
+              {renameNode && "goal" in renameNode && (
+                <RhfSelect<{ name: string; kind?: "release" | "iteration" }>
+                  name="kind"
+                  control={renameForm.control}
+                  label="Type"
+                  options={[
+                    { value: "release", label: "Release" },
+                    { value: "iteration", label: "Iteration" },
+                  ]}
+                />
+              )}
             </div>
             <DialogFooter>
               <Button

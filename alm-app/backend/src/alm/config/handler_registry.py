@@ -707,6 +707,7 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
             project_member_repo=SqlAlchemyProjectMemberRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
         ),
     )
     register_command_handler(
@@ -876,6 +877,7 @@ def register_all_handlers() -> None:
         lambda s: ListArtifactsHandler(
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
+            cycle_repo=SqlAlchemyCycleRepository(s),
         ),
     )
     register_query_handler(

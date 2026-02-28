@@ -57,7 +57,7 @@ export default function BoardPage() {
     projects?.find((p) => p.slug === projectSlug) ??
     (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
   const { data: manifest, isLoading: manifestLoading } = useProjectManifest(orgSlug, project?.id);
-  const { data: cycleNodesFlat = [] } = useCycleNodes(orgSlug, project?.id, true);
+  const { data: cycleNodesFlat = [] } = useCycleNodes(orgSlug, project?.id, true, "iteration");
   const { data: areaNodesFlat = [] } = useAreaNodes(orgSlug, project?.id, true);
 
   type BoardFilterValues = { typeFilter: string; cycleFilter: string; areaFilter: string };

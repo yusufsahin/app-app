@@ -40,6 +40,7 @@ class SqlAlchemyCycleRepository(CycleRepository):
             sort_order=node.sort_order,
             goal=node.goal or "",
             state=node.state or "planned",
+            kind=getattr(node, "kind", "iteration") or "iteration",
         )
         self._session.add(model)
         await self._session.flush()
@@ -57,6 +58,7 @@ class SqlAlchemyCycleRepository(CycleRepository):
                 end_date=node.end_date,
                 state=node.state or "planned",
                 sort_order=node.sort_order,
+                kind=getattr(node, "kind", "iteration") or "iteration",
             )
         )
         await self._session.flush()
@@ -81,6 +83,7 @@ class SqlAlchemyCycleRepository(CycleRepository):
             start_date=m.start_date,
             end_date=m.end_date,
             state=m.state or "planned",
+            kind=getattr(m, "kind", None) or "iteration",
             created_at=m.created_at,
             updated_at=m.updated_at,
         )

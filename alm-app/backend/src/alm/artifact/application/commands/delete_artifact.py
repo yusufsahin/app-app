@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from alm.artifact.domain.constants import is_root_artifact
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
@@ -41,6 +42,9 @@ class DeleteArtifactHandler(CommandHandler[None]):
 
         if artifact.is_deleted:
             raise ValidationError("Artifact is already deleted")
+
+        if is_root_artifact(artifact.artifact_type):
+            raise ValidationError("Cannot delete a project root artifact")
 
         artifact.soft_delete(by=command.deleted_by or command.tenant_id)
         await self._artifact_repo.update(artifact)

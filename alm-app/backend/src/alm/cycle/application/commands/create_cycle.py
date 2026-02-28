@@ -25,6 +25,7 @@ class CreateCycleNode(Command):
     start_date: date | None = None
     end_date: date | None = None
     state: str = "planned"
+    kind: str = "iteration"  # "release" for root, "iteration" for child
 
 
 class CreateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
@@ -43,7 +44,11 @@ class CreateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
         if project is None or project.tenant_id != command.tenant_id:
             raise ValidationError("Project not found")
 
+        kind = (command.kind or "iteration").strip().lower()
+        if kind not in ("release", "iteration"):
+            kind = "iteration"
         if command.parent_id is None:
+            root_kind = kind if kind in ("release", "iteration") else "release"
             node = CycleNode.create_root(
                 project_id=command.project_id,
                 name=command.name,
@@ -52,6 +57,7 @@ class CreateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
                 start_date=command.start_date,
                 end_date=command.end_date,
                 state=command.state,
+                kind=root_kind,
             )
         else:
             parent = await self._cycle_repo.find_by_id(command.parent_id)
@@ -66,6 +72,7 @@ class CreateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
                 start_date=command.start_date,
                 end_date=command.end_date,
                 state=command.state,
+                kind="iteration",
             )
 
         await self._cycle_repo.add(node)
@@ -82,6 +89,7 @@ class CreateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
             start_date=node.start_date,
             end_date=node.end_date,
             state=node.state,
+            kind=node.kind,
             created_at=node.created_at.isoformat() if node.created_at else None,
             updated_at=node.updated_at.isoformat() if node.updated_at else None,
         )

@@ -36,7 +36,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useOrgProjects } from "../../api/orgApi";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { CommandPalette } from "./CommandPalette";
-import type { CommandPaletteItem } from "./CommandPalette";
+import type { CommandPaletteItem, CommandPaletteGroup } from "./CommandPalette";
 import { useTenantStore } from "../../stores/tenantStore";
 import { useProjectStore } from "../../stores/projectStore";
 import { useArtifactStore } from "../../stores/artifactStore";
@@ -64,9 +64,9 @@ const NAV_ITEMS: NavItem[] = [
 
 const PROJECT_NAV_ITEMS: NavItem[] = [
   { label: "Overview", path: "", icon: <FolderOpen className="size-4" />, permission: "project:read" },
-  { label: "Planning", path: "planning", icon: <Calendar className="size-4" />, permission: "project:read" },
   { label: "Artifacts", path: "artifacts", icon: <List className="size-4" />, permission: "artifact:read" },
   { label: "Board", path: "board", icon: <Columns className="size-4" />, permission: "artifact:read" },
+  { label: "Planning", path: "planning", icon: <Calendar className="size-4" />, permission: "project:read" },
   { label: "Automation", path: "automation", icon: <Sparkles className="size-4" />, permission: "project:read" },
 ];
 
@@ -133,12 +133,52 @@ export default function AppLayout() {
     return true;
   });
 
-  const commandPaletteItems: CommandPaletteItem[] = useMemo(() => {
+  const lastVisitedProjectSlug = useProjectStore((s) => s.lastVisitedProjectSlug);
+
+  const commandPaletteGroups: CommandPaletteGroup[] = useMemo(() => {
     if (!orgSlug) return [];
-    const list: CommandPaletteItem[] = [];
+    const groups: CommandPaletteGroup[] = [];
+
+    const recentProjects: CommandPaletteItem[] = [];
+    if (projects.length > 0) {
+      const sorted = [...projects].sort((a, b) => {
+        if (lastVisitedProjectSlug === a.slug) return -1;
+        if (lastVisitedProjectSlug === b.slug) return 1;
+        return 0;
+      });
+      for (const p of sorted.slice(0, 5)) {
+        recentProjects.push({
+          id: `recent-${p.slug}`,
+          label: p.name ?? p.slug,
+          path: `/${orgSlug}/${p.slug}`,
+          icon: <FolderOpen className="size-4" />,
+        });
+      }
+      if (recentProjects.length > 0) {
+        groups.push({ group: "Recent projects", items: recentProjects });
+      }
+    }
+
+    if (projectSlug) {
+      const quickLinks: CommandPaletteItem[] = [];
+      const artifactRead = hasPermission(permissions, "artifact:read");
+      const projectRead = hasPermission(permissions, "project:read");
+      if (artifactRead) {
+        quickLinks.push({ id: "goto-artifacts", label: "Go to Artifacts", path: `/${orgSlug}/${projectSlug}/artifacts`, icon: <List className="size-4" /> });
+        quickLinks.push({ id: "goto-board", label: "Go to Board", path: `/${orgSlug}/${projectSlug}/board`, icon: <Columns className="size-4" /> });
+      }
+      if (projectRead) {
+        quickLinks.push({ id: "goto-planning", label: "Go to Planning", path: `/${orgSlug}/${projectSlug}/planning`, icon: <Calendar className="size-4" /> });
+      }
+      if (quickLinks.length > 0) {
+        groups.push({ group: "Quick links", items: quickLinks });
+      }
+    }
+
+    const pages: CommandPaletteItem[] = [];
     for (const item of visibleNavItems) {
       const path = item.path ? `/${orgSlug}/${item.path}` : `/${orgSlug}`;
-      list.push({ id: item.path || "projects", label: item.label, path, icon: item.icon });
+      pages.push({ id: item.path || "projects", label: item.label, path, icon: item.icon });
     }
     if (projectSlug) {
       const projectItems = PROJECT_NAV_ITEMS.filter((item) => {
@@ -148,17 +188,24 @@ export default function AppLayout() {
       });
       for (const item of projectItems) {
         const path = item.path ? `/${orgSlug}/${projectSlug}/${item.path}` : `/${orgSlug}/${projectSlug}`;
-        list.push({ id: `proj-${item.path || "overview"}`, label: item.label, path, icon: item.icon });
+        pages.push({ id: `proj-${item.path || "overview"}`, label: item.label, path, icon: item.icon });
       }
     }
     if (hasPermission(permissions, "tenant:read") || hasPermission(permissions, "member:read") || hasPermission(permissions, "role:read")) {
-      list.push({ id: "settings", label: "Organization settings", path: `/${orgSlug}/settings`, icon: <Settings className="size-4" /> });
+      pages.push({ id: "settings", label: "Organization settings", path: `/${orgSlug}/settings`, icon: <Settings className="size-4" /> });
     }
     if (isAdmin) {
-      list.push({ id: "audit", label: "Access audit", path: `/${orgSlug}/audit`, icon: <History className="size-4" /> });
+      pages.push({ id: "audit", label: "Access audit", path: `/${orgSlug}/audit`, icon: <History className="size-4" /> });
     }
-    return list;
-  }, [orgSlug, projectSlug, visibleNavItems, permissions, isAdmin]);
+    if (pages.length > 0) {
+      groups.push({ group: "Pages", items: pages });
+    }
+    return groups;
+  }, [orgSlug, projectSlug, visibleNavItems, permissions, isAdmin, projects, lastVisitedProjectSlug]);
+
+  const commandPaletteItems: CommandPaletteItem[] = useMemo(() => {
+    return commandPaletteGroups.flatMap((g) => g.items);
+  }, [commandPaletteGroups]);
 
   if (orgSlug && currentTenant?.slug && orgSlug !== currentTenant.slug) {
     return <Navigate to={`/${currentTenant.slug}`} replace />;
@@ -423,7 +470,10 @@ export default function AppLayout() {
         open={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
         items={commandPaletteItems}
+        groups={commandPaletteGroups}
         onSelect={(path) => navigate(path)}
+        placeholder="Search or jump to…"
+        description="Search pages, projects, or go to Artifacts…"
       />
       {orgSlug && (
         <CreateProjectModal

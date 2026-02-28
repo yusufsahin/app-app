@@ -73,7 +73,8 @@ export function RhfSelect<TFieldValues extends import("react-hook-form").FieldVa
               ref={ref}
               size={size}
               className={cn("w-full", selectProps?.className)}
-              aria-labelledby={label != null && label !== "" ? `${String(name)}-label` : undefined}
+              aria-label={selectProps?.["aria-label"] as string | undefined}
+              aria-labelledby={label != null && label !== "" && !selectProps?.["aria-label"] ? `${String(name)}-label` : undefined}
               aria-invalid={!!errorMessage}
             >
               <SelectValue placeholder={placeholder ?? "Select…"} />
