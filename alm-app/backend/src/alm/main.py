@@ -25,6 +25,7 @@ from alm.shared.infrastructure.db.tenant_context import setup_tenant_rls
 from alm.shared.infrastructure.error_handler import register_exception_handlers
 from alm.shared.infrastructure.health import health_router
 from alm.shared.infrastructure.rate_limit_middleware import RateLimitMiddleware
+from alm.shared.infrastructure.security_headers import SecureHeadersMiddleware
 from alm.shared.infrastructure.tenant_middleware import TenantContextMiddleware
 from alm.tenant.api.router import router as tenant_router
 
@@ -38,11 +39,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         raise RuntimeError("jwt_secret_key must be changed in production")
     setup_tenant_rls(async_session_factory)
 
-    from alm.config.seed import seed_demo_data, seed_privileges, seed_process_templates
+    if settings.seed_demo_data:
+        from alm.config.seed import seed_demo_data, seed_privileges, seed_process_templates
 
-    await seed_privileges(async_session_factory)
-    await seed_process_templates(async_session_factory)
-    await seed_demo_data(async_session_factory)
+        await seed_privileges(async_session_factory)
+        await seed_process_templates(async_session_factory)
+        if settings.is_dev:
+            await seed_demo_data(async_session_factory)
 
     subscriber_task = asyncio.create_task(run_subscriber())
 
@@ -71,6 +74,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(TenantContextMiddleware)
     app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(SecureHeadersMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -95,5 +99,10 @@ def create_app() -> FastAPI:
     app.include_router(dashboard_router, prefix="/api/v1/tenants")
     app.include_router(process_template_router, prefix="/api/v1")
     app.include_router(audit_router, prefix="/api/v1")
+
+    # OpenTelemetry Instrumentation (Faz D4)
+    if not settings.debug:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        FastAPIInstrumentor.instrument_app(app)
 
     return app

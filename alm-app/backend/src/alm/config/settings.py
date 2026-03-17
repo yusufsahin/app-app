@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     app_name: str = "ALM"
     app_version: str = ""  # G4: optional, set via ALM_APP_VERSION
-    environment: str = ""  # G4: optional, e.g. development, staging, production
+    environment: str = "development"  # development, staging, production (ALM_ENVIRONMENT)
     debug: bool = False
 
     database_url: str = "postgresql+asyncpg://alm:alm_dev_password@localhost:5432/alm"
@@ -35,7 +35,15 @@ class Settings(BaseSettings):
 
     upload_dir: str = "uploads"  # Local directory for artifact attachments (ALM_UPLOAD_DIR)
 
-    seed_demo_data: bool = True  # Create demo tenant, admin user, sample projects when DB is empty
+    seed_demo_data: bool = True  # Create demo tenant/admin when DB is empty (ALM_SEED_DEMO_DATA)
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.lower() == "production"
+
+    @property
+    def is_dev(self) -> bool:
+        return self.environment.lower() == "development"
 
 
 settings = Settings()
