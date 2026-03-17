@@ -209,6 +209,7 @@ class TestTransitionArtifactHandlerWithTrigger:
             new_state=None,
             trigger="start",
             updated_by=tenant_id,
+            actor_roles=("viewer",),
         )
         dto = await handler.handle(command)
 

@@ -6,16 +6,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 FROM base AS builder
 RUN pip install --no-cache-dir hatchling
-# Install statelesspy from local repo (core library)
-COPY statelesspy /tmp/statelesspy-suite
-RUN pip install --no-cache-dir /tmp/statelesspy-suite
 # Install mpc from local manifest-platform-core-suite (no PyPI torch)
 COPY alm-manifest-app/manifest-platform-core-suite /tmp/mpc-suite
 RUN pip install --no-cache-dir /tmp/mpc-suite
-# Install alm (statelesspy and mpc already satisfied). Drop path source for statelesspy so pip uses installed pkg.
+# Install alm (mpc already satisfied).
 COPY alm-manifest-app/alm-app/backend/pyproject.toml .
 COPY alm-manifest-app/alm-app/backend/src/ src/
-RUN sed -i '/statelesspy = { path/d' pyproject.toml && pip install --no-cache-dir .
+RUN pip install --no-cache-dir .
 
 FROM base AS runtime
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages

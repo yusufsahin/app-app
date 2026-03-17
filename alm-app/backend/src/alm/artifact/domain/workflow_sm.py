@@ -15,6 +15,74 @@ from alm.artifact.domain.mpc_resolver import (
     _to_ast_fallback,
 )
 
+try:
+    from mpc.features.workflow import WorkflowEngine, WorkflowSpec
+    from mpc.features.expr import ExprEngine
+    from mpc.kernel.ast import ManifestAST
+    from mpc.kernel.meta import DomainMeta
+    _HAS_MPC = True
+except ImportError:
+    _HAS_MPC = False
+    WorkflowEngine = Any  # type: ignore[misc, assignment]
+    ExprEngine = Any  # type: ignore[misc, assignment]
+
+
+def _normalize_guard(guard: Any) -> str | None:
+    """Convert legacy ALM guards (strings/dicts) to MPC expression strings."""
+    if guard is None:
+        return None
+    if isinstance(guard, str):
+        g = guard.strip()
+        if g == "assignee_required":
+            return "bool(assignee_id)"
+        return g  # Assume it's already an expression
+    if isinstance(guard, dict):
+        g_type = str(guard.get("type", "")).strip()
+        if g_type == "assignee_required":
+            return "bool(assignee_id)"
+        if g_type == "field_present":
+            f = guard.get("field")
+            return f"{f} != None" if f else None
+        if g_type == "field_equals":
+            f = guard.get("field")
+            v = guard.get("value")
+            if not f:
+                return None
+            val_str = f"'{v}'" if isinstance(v, str) else str(v)
+            return f"{f} == {val_str}"
+    return str(guard)
+
+
+def get_workflow_engine(
+    manifest_bundle: dict[str, Any],
+    type_id: str,
+    *,
+    type_kind: str = TYPE_KIND_ARTIFACT,
+    ast: Any | None = None,
+) -> WorkflowEngine | None:
+    """Build a native MPC WorkflowEngine for the given artifact type."""
+    if not _HAS_MPC:
+        return None
+    
+    # Normalize guards for compatibility
+    wf_def_copy = dict(wf_def)
+    transitions = wf_def_copy.get("transitions") or []
+    norm_transitions = []
+    for t in transitions:
+        if isinstance(t, dict):
+            t_copy = dict(t)
+            if "guard" in t_copy:
+                t_copy["guard"] = _normalize_guard(t_copy["guard"])
+            norm_transitions.append(t_copy)
+        else:
+            norm_transitions.append(t)
+    wf_def_copy["transitions"] = norm_transitions
+
+    return WorkflowEngine.from_fixture_input(
+        wf_def_copy,
+        expr_engine=expr_engine
+    )
+
 
 def _workflow_def_from_defs(manifest_bundle: dict[str, Any], type_id: str, ast: Any) -> dict[str, Any] | None:
     """Resolve workflow definition from manifest defs format using AST."""
@@ -70,65 +138,6 @@ def get_workflow_def(
     return _workflow_def_from_flat(manifest_bundle, type_id)
 
 
-def _state_ids(states: list[Any]) -> list[str]:
-    """Normalize states to list of state id strings."""
-    result: list[str] = []
-    for s in states or []:
-        if isinstance(s, dict):
-            sid = s.get("id") if isinstance(s.get("id"), str) else str(s.get("id", ""))
-            if sid:
-                result.append(sid)
-        elif isinstance(s, str) and s:
-            result.append(s)
-    return result
-
-
-def _transitions_list(transitions: list[Any]) -> list[tuple[str, str, dict[str, Any], str, str, Any]]:
-    """Normalize transitions to (from, to, action_dict, trigger, label, guard). guard is raw manifest value or None."""
-    result: list[tuple[str, str, dict[str, Any], str, str, Any]] = []
-    for t in transitions or []:
-        if not isinstance(t, dict) or "from" not in t or "to" not in t:
-            continue
-        fr, to = str(t.get("from", "")), str(t.get("to", ""))
-        if not fr or not to:
-            continue
-        action_dict = {
-            "on_leave": list(t.get("on_leave") or []),
-            "on_enter": list(t.get("on_enter") or []),
-        }
-        trigger = str(t.get("trigger") or to)
-        label = str(t.get("trigger_label") or t.get("trigger") or to)
-        guard = t.get("guard")
-        result.append((fr, to, action_dict, trigger, label, guard))
-    return result
-
-
-def build_state_machine(workflow_def: dict[str, Any]) -> Any | None:
-    """Build a Statelesspy StateMachine from a workflow def (states + transitions).
-
-    Uses target state id as trigger so that permitted_triggers() yields state ids we can transition to.
-    Reserved for future use (e.g. when adding guard evaluation via statelesspy).
-    """
-    try:
-        from statelesspy import StateMachine
-    except ImportError:
-        return None
-    state_ids = _state_ids(workflow_def.get("states") or [])
-    if not state_ids:
-        return None
-    initial = workflow_def.get("initial")
-    if initial is None or initial not in state_ids:
-        initial = state_ids[0]
-    sm: StateMachine[str, str] = StateMachine(initial)
-    transitions = _transitions_list(workflow_def.get("transitions") or [])
-    for fr, to, *__ in transitions:
-        if fr not in state_ids or to not in state_ids:
-            continue
-        trigger = to
-        sm.configure(fr).permit(trigger, to)
-    return sm
-
-
 def get_initial_state(
     manifest_bundle: dict[str, Any],
     type_id: str,
@@ -137,16 +146,10 @@ def get_initial_state(
     ast: Any | None = None,
 ) -> str | None:
     """Return initial state for the artifact type's workflow."""
-    wf_def = get_workflow_def(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
-    if not wf_def:
+    engine = get_workflow_engine(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
+    if not engine:
         return None
-    state_ids = _state_ids(wf_def.get("states") or [])
-    if not state_ids:
-        return None
-    initial = wf_def.get("initial")
-    if initial is not None and initial in state_ids:
-        return str(initial)
-    return state_ids[0]
+    return engine.initial_state
 
 
 def is_valid_transition(
@@ -159,12 +162,10 @@ def is_valid_transition(
     ast: Any | None = None,
 ) -> bool:
     """Return True if (from_state, to_state) is allowed by the workflow."""
-    wf_def = get_workflow_def(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
-    if not wf_def:
+    engine = get_workflow_engine(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
+    if not engine:
         return False
-    transitions = _transitions_list(wf_def.get("transitions") or [])
-    allowed = {(fr, to) for fr, to, *__ in transitions}
-    return (from_state, to_state) in allowed
+    return engine.is_valid_transition(from_state, to_state)
 
 
 def get_transition_actions(
@@ -177,13 +178,10 @@ def get_transition_actions(
     ast: Any | None = None,
 ) -> dict[str, list[str]]:
     """Return on_leave and on_enter action names for the transition (from manifest)."""
-    wf_def = get_workflow_def(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
-    if not wf_def:
+    engine = get_workflow_engine(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
+    if not engine:
         return {"on_leave": [], "on_enter": []}
-    for fr, to, actions, *__ in _transitions_list(wf_def.get("transitions") or []):
-        if fr == from_state and to == to_state:
-            return actions
-    return {"on_leave": [], "on_enter": []}
+    return engine.get_transition_actions(from_state, to_state)
 
 
 def get_transition_guard(
@@ -199,9 +197,14 @@ def get_transition_guard(
     wf_def = get_workflow_def(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
     if not wf_def:
         return None
-    for fr, to, _act, _tr, _lbl, guard in _transitions_list(wf_def.get("transitions") or []):
+    # This helper was removed, so we need to re-implement the logic here
+    transitions = wf_def.get("transitions") or []
+    for t in transitions:
+        if not isinstance(t, dict) or "from" not in t or "to" not in t:
+            continue
+        fr, to = str(t.get("from", "")), str(t.get("to", ""))
         if fr == from_state and to == to_state:
-            return guard
+            return t.get("guard")
     return None
 
 
@@ -214,20 +217,16 @@ def get_permitted_triggers(
     ast: Any | None = None,
     entity_snapshot: dict[str, Any] | None = None,
 ) -> list[tuple[str, str, str]]:
-    """Return list of (trigger, to_state, label) permitted from current_state.
-    When entity_snapshot is provided, transitions with a guard are filtered by evaluate_guard."""
-    from alm.artifact.domain.guard_evaluator import evaluate_guard
-
-    wf_def = get_workflow_def(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
-    if not wf_def:
+    """Return list of (trigger, to_state, label) permitted from current_state."""
+    engine = get_workflow_engine(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
+    if not engine:
         return []
-    transitions = _transitions_list(wf_def.get("transitions") or [])
+    
+    engine.active_states = {current_state}
+    available = engine.available_transitions(context=entity_snapshot)
+    
     result: list[tuple[str, str, str]] = []
-    for fr, to_state, _act, trigger, label, guard in transitions:
-        if fr != current_state:
-            continue
-        if guard is not None and entity_snapshot is not None:
-            if not evaluate_guard(guard, entity_snapshot):
-                continue
-        result.append((trigger, to_state, label))
+    for tr in available:
+        # MPC Transition object has 'on', 'to_state', and we use to_state as label by default
+        result.append((tr.on, tr.to_state, tr.to_state))
     return result

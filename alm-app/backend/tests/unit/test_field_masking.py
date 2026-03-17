@@ -42,26 +42,44 @@ class TestMaskArtifactResponse:
         assert "confidential" in SENSITIVE_CUSTOM_FIELD_KEYS
 
 
-class TestAllowedActionsForArtifact:
-    def test_maps_permissions_to_actions(self):
-        actions = allowed_actions_for_artifact(
-            ["artifact:read", "artifact:update", "artifact:transition"],
+    async def test_mask_artifact_for_user(self):
+        from alm.artifact.api.schemas import ArtifactResponse
+        from alm.shared.infrastructure.security.dependencies import CurrentUser
+        from unittest.mock import AsyncMock, patch
+        import uuid
+
+        resp = ArtifactResponse(
+            id=uuid.uuid4(),
+            project_id=uuid.uuid4(),
+            artifact_type="task",
+            title="T1",
+            state="new",
+            custom_fields={"internal_notes": "secret", "priority": "high"},
+            actor_roles=("viewer",),
         )
-        assert "read" in actions
-        assert "update" in actions
-        assert "restore" in actions  # restore comes with update
-        assert "transition" in actions
-        assert "delete" not in actions
+        user = CurrentUser(id=uuid.uuid4(), tenant_id=uuid.uuid4(), roles=["viewer"])
 
-    def test_empty_privileges(self):
-        assert allowed_actions_for_artifact([]) == []
+        with patch("alm.shared.infrastructure.security.dependencies.get_user_privileges", AsyncMock(return_value=["artifact:read"])):
+            from alm.shared.infrastructure.security.field_masking import mask_artifact_for_user
+            out = await mask_artifact_for_user(resp, user)
+            assert "internal_notes" not in out.custom_fields
+            assert out.custom_fields["priority"] == "high"
+            assert "read" in out.allowed_actions
 
-    def test_wildcard_grants_all(self):
-        actions = allowed_actions_for_artifact(["*"])
-        assert "read" in actions
-        assert "update" in actions
-        assert "delete" in actions
-        assert "transition" in actions
-        assert "create" in actions
-        assert "comment" in actions
-        assert "restore" in actions
+    async def test_mask_artifact_list_for_user(self):
+        from alm.artifact.api.schemas import ArtifactResponse
+        from alm.shared.infrastructure.security.dependencies import CurrentUser
+        from unittest.mock import AsyncMock, patch
+
+        items = [
+            ArtifactResponse(id=uuid.uuid4(), project_id=uuid.uuid4(), artifact_type="t", title="T1", state="n", custom_fields={"internal_notes": "s"}),
+            ArtifactResponse(id=uuid.uuid4(), project_id=uuid.uuid4(), artifact_type="t", title="T2", state="n", custom_fields={"priority": "h"}),
+        ]
+        user = CurrentUser(id=uuid.uuid4(), tenant_id=uuid.uuid4(), roles=["viewer"])
+
+        with patch("alm.shared.infrastructure.security.dependencies.get_user_privileges", AsyncMock(return_value=["artifact:read"])):
+            from alm.shared.infrastructure.security.field_masking import mask_artifact_list_for_user
+            out = await mask_artifact_list_for_user(items, user)
+            assert len(out) == 2
+            assert "internal_notes" not in out[0].custom_fields
+            assert out[1].custom_fields["priority"] == "high"

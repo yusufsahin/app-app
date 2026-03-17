@@ -10,9 +10,11 @@ from typing import Any
 TYPE_KIND_ARTIFACT = "ArtifactType"
 
 try:
-    from mpc.ast import ASTNode, ManifestAST, normalize
-    from mpc.meta.models import DomainMeta
-    from mpc.policy.engine import PolicyEngine
+    from mpc.kernel.ast import ASTNode, ManifestAST, normalize
+    from mpc.kernel.meta import DomainMeta
+    from mpc.features.policy import PolicyEngine, PolicyResult
+    from mpc.features.acl import ACLEngine
+    from mpc.features.redact import Redactor
 
     _HAS_MPC = True
 except ModuleNotFoundError:
@@ -21,14 +23,8 @@ except ModuleNotFoundError:
     ASTNode = Any  # type: ignore[misc, assignment]
     PolicyEngine = None  # type: ignore[misc, assignment]
     DomainMeta = None  # type: ignore[misc, assignment]
-
-try:
-    from mpc.acl.engine import ACLEngine as _ACLEngine  # noqa: F401
-
-    _HAS_ACL = True
-except ModuleNotFoundError:
-    _HAS_ACL = False
-    _ACLEngine = None  # type: ignore[misc, assignment]
+    ACLEngine = None  # type: ignore[misc, assignment]
+    Redactor = None  # type: ignore[misc, assignment]
 
 _log = logging.getLogger(__name__)
 
@@ -142,29 +138,6 @@ def is_valid_parent_child(
     if allowed_parents is None and allowed_children is None:
         return False
     return True
-
-
-def check_transition_policies(
-    manifest_bundle: dict[str, Any],
-    to_state: str,
-    entity_snapshot: dict[str, Any],
-    *,
-    type_id: str | None = None,
-    type_kind: str = TYPE_KIND_ARTIFACT,
-    ast: Any | None = None,
-) -> list[str]:
-    """Check TransitionPolicy defs for entering to_state. Returns list of violation messages."""
-    if ast is None:
-        ast = _to_ast(manifest_bundle)
-    violations: list[str] = []
-    for d in _get_defs_by_kind(ast, "TransitionPolicy"):
-        when = d.properties.get("when") or {}
-        if when.get("state") != to_state:
-            continue
-        require = d.properties.get("require")
-        if require == "assignee" and not entity_snapshot.get("assignee_id"):
-            violations.append(f"Assignee required when entering state '{to_state}'")
-    return violations
 
 
 def get_transition_actions(
@@ -349,9 +322,13 @@ def evaluate_transition_policy(
     try:
         meta = DomainMeta()
         engine = PolicyEngine(ast=ast, meta=meta)
-        result = engine.evaluate(event, actor_roles=actor_roles or [])
+        result: PolicyResult = engine.evaluate(event, actor_roles=actor_roles or [])
         if result.allow:
             return (True, [])
+        
+        # Merge manual 'require: assignee' logic if still present in old manifests
+        # but ideally we convert manifests to proper allow/deny/require expressions.
+        # For now, we support the 'summary' from PolicyResult.
         return (False, [str(getattr(r, "summary", "") or "") for r in result.reasons])
     except Exception as e:  # noqa: BLE001
         _log.warning("PolicyEngine.evaluate failed: %s", e, exc_info=True)
@@ -365,11 +342,11 @@ def acl_check(
     actor_roles: list[str],
 ) -> tuple[bool, list[str]]:
     """P2: Run MPC ACLEngine.check (allow/deny). No maskField. Returns (allowed, denial_reasons)."""
-    if not _HAS_ACL or _ACLEngine is None:
+    if not _HAS_MPC or ACLEngine is None:
         return (True, [])
 
     try:
-        engine = _ACLEngine(ast)
+        engine = ACLEngine(ast)
         result = engine.check(
             action=action,
             resource=resource,
@@ -385,3 +362,20 @@ def acl_check(
     except Exception as e:  # noqa: BLE001
         _log.warning("ACLEngine.check failed: %s", e, exc_info=True)
         return (False, ["ACL check temporarily unavailable"])
+
+
+def redact_data(
+    ast: Any,
+    data: dict[str, Any],
+    actor_roles: list[str],
+) -> dict[str, Any]:
+    """M1: Run MPC Redactor to mask sensitive fields in data dict."""
+    if not _HAS_MPC or Redactor is None:
+        return data
+
+    try:
+        redactor = Redactor(ast)
+        return redactor.redact(data, actor_roles=actor_roles or [])
+    except Exception as e:  # noqa: BLE001
+        _log.warning("Redactor.redact failed: %s", e, exc_info=True)
+        return data

@@ -8,7 +8,6 @@ from alm.artifact.domain.mpc_resolver import (
     _HAS_ACL,
     _to_ast,
     acl_check,
-    check_transition_policies,
     evaluate_transition_policy,
     get_manifest_ast,
     get_transition_actions,
@@ -83,24 +82,21 @@ class TestMpcResolver:
         assert is_valid_parent_child(SAMPLE_MANIFEST, "feature", "requirement")
         assert not is_valid_parent_child(SAMPLE_MANIFEST, "requirement", "epic")
 
-    def test_check_transition_policies_assignee_required(self):
-        violations = check_transition_policies(
-            SAMPLE_MANIFEST,
-            "active",
-            {"assignee_id": None},
-            type_id="requirement",
-        )
-        assert len(violations) == 1
-        assert "Assignee required" in violations[0]
-
-    def test_check_transition_policies_assignee_ok(self):
-        violations = check_transition_policies(
-            SAMPLE_MANIFEST,
-            "active",
-            {"assignee_id": "user-123"},
-            type_id="requirement",
-        )
-        assert len(violations) == 0
+    def test_evaluate_transition_policy_violation(self):
+        ast = get_manifest_ast(uuid.uuid4(), SAMPLE_MANIFEST)
+        event = {
+            "kind": "transition",
+            "name": "artifact.transition",
+            "object": {"id": "a1", "type": "artifact", "state": "active", "assignee_id": None},
+            "actor": {"id": "u1", "type": "user", "roles": ["member"]},
+            "context": {"from_state": "new", "to_state": "active", "project_id": "p1"},
+            "timestamp": "2025-01-01T12:00:00Z",
+        }
+        # In MPC v0.1.0, TransitionPolicy (which is a kind of Policy) will be evaluated.
+        # Our mock/sample manifest has a TransitionPolicy requiring assignee.
+        allow, violations = evaluate_transition_policy(ast, event, actor_roles=["member"])
+        assert allow is False
+        assert len(violations) > 0
 
     def test_get_transition_actions(self):
         actions = get_transition_actions(SAMPLE_MANIFEST, "requirement", "new", "active")

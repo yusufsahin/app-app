@@ -12,9 +12,7 @@ import structlog
 
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.action_runner import run_actions
-from alm.artifact.domain.guard_evaluator import evaluate_guard
 from alm.artifact.domain.mpc_resolver import (
-    check_transition_policies,
     evaluate_transition_policy,
     get_artifact_type_def,
     get_manifest_ast,
@@ -175,35 +173,13 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         ):
             raise ValidationError(f"Transition from '{artifact.state}' to '{new_state}' not allowed")
 
-        guard = get_transition_guard(
-            manifest,
-            artifact.artifact_type,
-            artifact.state,
-            new_state,
-            ast=ast,
-        )
-        if guard is not None and not evaluate_guard(guard, artifact.to_snapshot_dict()):
-            raise ValidationError("Transition guard not satisfied")
-
-        # Manifest-based transition policies (e.g. assignee required when entering state)
-        policy_violations = list(
-            check_transition_policies(
-                manifest,
-                new_state,
-                artifact.to_snapshot_dict(),
-                type_id=artifact.artifact_type,
-                ast=ast,
-            )
-        )
-        # D1: MPC PolicyEngine — event-based policy evaluation; merge violations
+        # MPC PolicyEngine — event-based policy evaluation (D1)
         event = _build_transition_event(artifact, command, resolved_new_state=new_state)
-        allow, mpc_violations = evaluate_transition_policy(
+        allow, policy_violations = evaluate_transition_policy(
             ast, event, list(command.actor_roles) if command.actor_roles else None
         )
-        if not allow and mpc_violations:
-            policy_violations.extend(mpc_violations)
-        if policy_violations:
-            raise PolicyDeniedError("; ".join(policy_violations))
+        if not allow:
+            raise PolicyDeniedError("; ".join(policy_violations) or "Policy check failed")
 
         at_def = get_artifact_type_def(manifest, artifact.artifact_type, ast=ast)
         workflow_id = (at_def or {}).get("workflow_id") or ""

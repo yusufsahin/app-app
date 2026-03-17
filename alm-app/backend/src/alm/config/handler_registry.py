@@ -878,6 +878,7 @@ def register_all_handlers() -> None:
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
             cycle_repo=SqlAlchemyCycleRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
     register_query_handler(
@@ -885,6 +886,7 @@ def register_all_handlers() -> None:
         lambda s: GetArtifactHandler(
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
     register_query_handler(

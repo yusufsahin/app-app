@@ -33,7 +33,7 @@ dependencies = [
     "pyyaml>=6.0.0",
     "python-multipart>=0.0.9",
     "email-validator>=2.2.0",
-    "mpc>=0.0.6",
+    "mpc>=0.1.0",
 ]
 
 [project.optional-dependencies]

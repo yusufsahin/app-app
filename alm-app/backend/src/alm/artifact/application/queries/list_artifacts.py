@@ -5,10 +5,11 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from alm.artifact.application.dtos import ArtifactDTO
+from alm.artifact.domain.mpc_resolver import get_manifest_ast, redact_data
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.cycle.domain.ports import CycleRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.shared.application.query import Query, QueryHandler
 
 
@@ -35,6 +36,7 @@ class ListArtifacts(Query):
     offset: int | None = None
     include_deleted: bool = False
     tree: str | None = None  # "requirement" | "quality" | "defect" -> filter to that root's subtree
+    actor_roles: list[str] | None = None
 
 
 @dataclass
@@ -49,10 +51,12 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
         artifact_repo: ArtifactRepository,
         project_repo: ProjectRepository,
         cycle_repo: CycleRepository,
+        process_template_repo: ProcessTemplateRepository,
     ) -> None:
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
         self._cycle_repo = cycle_repo
+        self._process_template_repo = process_template_repo
 
     async def handle(self, query: Query) -> ListArtifactsResult:
         assert isinstance(query, ListArtifacts)
@@ -142,4 +146,16 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             )
             for a in artifacts
         ]
+
+        if project.process_template_version_id and items:
+            version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+            if version and version.manifest_bundle:
+                ast = get_manifest_ast(version.id, version.manifest_bundle)
+                roles = query.actor_roles or []
+                for dto in items:
+                    redacted_snapshot = redact_data(ast, dto.__dict__, roles)
+                    for k, v in redacted_snapshot.items():
+                        if hasattr(dto, k):
+                            setattr(dto, k, v)
+
         return ListArtifactsResult(items=items, total=total)

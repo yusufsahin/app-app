@@ -464,6 +464,7 @@ async def list_artifacts(
             offset=offset,
             include_deleted=include_deleted,
             tree=tree,
+            actor_roles=list(user.roles or []),
         )
     )
     items = [
@@ -634,6 +635,7 @@ async def get_artifact(
             tenant_id=org.tenant_id,
             project_id=project_id,
             artifact_id=artifact_id,
+            actor_roles=list(user.roles or []),
         )
     )
     if dto is None:
