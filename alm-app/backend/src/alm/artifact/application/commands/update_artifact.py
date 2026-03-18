@@ -76,6 +76,11 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
                     path_snapshot = area_node.path
             artifact.assign_area(area_node_id, path_snapshot)
 
+        if "custom_fields" in updates and updates["custom_fields"] is not None:
+            merged = dict(artifact.custom_fields or {})
+            merged.update(updates["custom_fields"])
+            artifact.custom_fields = merged
+
         artifact.touch(by=command.updated_by)
         await self._artifact_repo.update(artifact)
 

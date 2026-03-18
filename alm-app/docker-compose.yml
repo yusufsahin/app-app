@@ -8,8 +8,8 @@ services:
       POSTGRES_USER: alm
       POSTGRES_PASSWORD: alm_dev_password
       POSTGRES_DB: alm
-    ports:
-      - "5432:5432"
+    # ports:
+    #   - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,8 +20,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -30,9 +30,9 @@ services:
 
   mailhog:
     image: mailhog/mailhog
-    ports:
-      - "1025:1025"
-      - "8025:8025"
+    # ports:
+    #   - "1025:1025"
+    #   - "8025:8025"
 
   backend:
     build:
@@ -41,7 +41,7 @@ services:
       context: ${ALM_DOCKER_CONTEXT:-../..}
       dockerfile: alm-manifest-app/alm-app/backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "9000:8000"
     environment:
       ALM_DEBUG: "true"
       ALM_DATABASE_URL: "postgresql+asyncpg://alm:alm_dev_password@db:5432/alm"
@@ -67,10 +67,10 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: alm-manifest-app/alm-app/frontend/Dockerfile
     ports:
-      - "3000:80"
+      - "9001:80"
     depends_on:
       backend:
         condition: service_healthy

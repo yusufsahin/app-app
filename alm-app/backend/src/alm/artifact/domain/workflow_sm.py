@@ -27,30 +27,6 @@ except ImportError:
     ExprEngine = Any  # type: ignore[misc, assignment]
 
 
-def _normalize_guard(guard: Any) -> str | None:
-    """Convert legacy ALM guards (strings/dicts) to MPC expression strings."""
-    if guard is None:
-        return None
-    if isinstance(guard, str):
-        g = guard.strip()
-        if g == "assignee_required":
-            return "bool(assignee_id)"
-        return g  # Assume it's already an expression
-    if isinstance(guard, dict):
-        g_type = str(guard.get("type", "")).strip()
-        if g_type == "assignee_required":
-            return "bool(assignee_id)"
-        if g_type == "field_present":
-            f = guard.get("field")
-            return f"{f} != None" if f else None
-        if g_type == "field_equals":
-            f = guard.get("field")
-            v = guard.get("value")
-            if not f:
-                return None
-            val_str = f"'{v}'" if isinstance(v, str) else str(v)
-            return f"{f} == {val_str}"
-    return str(guard)
 
 
 def get_workflow_engine(
@@ -63,25 +39,20 @@ def get_workflow_engine(
     """Build a native MPC WorkflowEngine for the given artifact type."""
     if not _HAS_MPC:
         return None
-    
-    # Normalize guards for compatibility
-    wf_def_copy = dict(wf_def)
-    transitions = wf_def_copy.get("transitions") or []
-    norm_transitions = []
-    for t in transitions:
-        if isinstance(t, dict):
-            t_copy = dict(t)
-            if "guard" in t_copy:
-                t_copy["guard"] = _normalize_guard(t_copy["guard"])
-            norm_transitions.append(t_copy)
-        else:
-            norm_transitions.append(t)
-    wf_def_copy["transitions"] = norm_transitions
 
-    return WorkflowEngine.from_fixture_input(
-        wf_def_copy,
-        expr_engine=expr_engine
+    wf_def = get_workflow_def(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
+    if not wf_def:
+        return None
+
+    try:
+        expr_engine = ExprEngine(meta=DomainMeta())
+    except TypeError:
+        expr_engine = ExprEngine()
+    engine = WorkflowEngine.from_fixture_input(
+        wf_def,
+        expr_engine=expr_engine,
     )
+    return engine
 
 
 def _workflow_def_from_defs(manifest_bundle: dict[str, Any], type_id: str, ast: Any) -> dict[str, Any] | None:
@@ -102,26 +73,6 @@ def _workflow_def_from_defs(manifest_bundle: dict[str, Any], type_id: str, ast: 
     }
 
 
-def _workflow_def_from_flat(manifest_bundle: dict[str, Any], type_id: str) -> dict[str, Any] | None:
-    """Resolve workflow definition from flat workflows/artifact_types format."""
-    artifact_types = (manifest_bundle or {}).get("artifact_types") or []
-    at = next((a for a in artifact_types if isinstance(a, dict) and a.get("id") == type_id), None)
-    if not at:
-        return None
-    workflow_id = at.get("workflow_id")
-    if not workflow_id:
-        return None
-    workflows = (manifest_bundle or {}).get("workflows") or []
-    wf = next((w for w in workflows if isinstance(w, dict) and w.get("id") == workflow_id), None)
-    if wf is None:
-        return None
-    return {
-        "states": wf.get("states") or [],
-        "transitions": wf.get("transitions") or [],
-        "initial": wf.get("initial"),
-    }
-
-
 def get_workflow_def(
     manifest_bundle: dict[str, Any],
     type_id: str,
@@ -130,12 +81,11 @@ def get_workflow_def(
     ast: Any | None = None,
 ) -> dict[str, Any] | None:
     """Get workflow definition (states, transitions, initial) for the given artifact type."""
-    if ast is not None:
-        return _workflow_def_from_defs(manifest_bundle, type_id, ast)
-    if (manifest_bundle or {}).get("defs"):
+    if ast is None:
+        if not (manifest_bundle or {}).get("defs"):
+            return None
         ast = _to_ast_fallback(manifest_bundle)
-        return _workflow_def_from_defs(manifest_bundle, type_id, ast)
-    return _workflow_def_from_flat(manifest_bundle, type_id)
+    return _workflow_def_from_defs(manifest_bundle, type_id, ast)
 
 
 def get_initial_state(
@@ -165,7 +115,13 @@ def is_valid_transition(
     engine = get_workflow_engine(manifest_bundle, type_id, type_kind=type_kind, ast=ast)
     if not engine:
         return False
-    return engine.is_valid_transition(from_state, to_state)
+    if hasattr(engine, "is_valid_transition"):
+        return engine.is_valid_transition(from_state, to_state)
+    # Direct fallback for engine variations
+    return any(
+        t.from_state == from_state and t.to_state == to_state
+        for t in getattr(engine, "transitions", [])
+    )
 
 
 def get_transition_actions(
@@ -223,7 +179,7 @@ def get_permitted_triggers(
         return []
     
     engine.active_states = {current_state}
-    available = engine.available_transitions(context=entity_snapshot)
+    available = engine.available_transitions()
     
     result: list[tuple[str, str, str]] = []
     for tr in available:

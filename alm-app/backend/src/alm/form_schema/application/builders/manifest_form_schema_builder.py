@@ -149,51 +149,60 @@ def build_artifact_create_form_schema(
 
 
 def build_artifact_edit_form_schema(
-    _manifest_bundle: dict[str, Any],
+    manifest_bundle: dict[str, Any],
     flattener: IManifestDefsFlattener,
+    artifact_type: str | None = None,
 ) -> FormSchema:
-    """Build form schema for artifact edit context (title, description, assignee, cycle, area)."""
-    del _manifest_bundle, flattener
+    """Build form schema for artifact edit context.
+
+    Returns core fields (title, description, assignee, cycle, area) plus any
+    custom fields defined in the manifest for the given artifact_type.
+    """
+    _CORE_KEYS = {"title", "description", "assignee_id", "cycle_node_id", "area_node_id"}
+
     fields: list[FormFieldSchema] = [
-        FormFieldSchema(
-            key="title",
-            type="string",
-            label_key="Title",
-            required=True,
-            order=10,
-        ),
-        FormFieldSchema(
-            key="description",
-            type="string",
-            label_key="Description",
-            required=False,
-            order=20,
-        ),
-        FormFieldSchema(
-            key="assignee_id",
-            type="entity_ref",
-            label_key="Assignee (optional)",
-            required=False,
-            entity_ref="user",
-            order=30,
-        ),
-        FormFieldSchema(
-            key="cycle_node_id",
-            type="entity_ref",
-            label_key="Cycle",
-            required=False,
-            entity_ref="cycle",
-            order=40,
-        ),
-        FormFieldSchema(
-            key="area_node_id",
-            type="entity_ref",
-            label_key="Area",
-            required=False,
-            entity_ref="area",
-            order=50,
-        ),
+        FormFieldSchema(key="title",         type="string",     label_key="Title",             required=True,  order=10),
+        FormFieldSchema(key="description",   type="string",     label_key="Description",       required=False, order=20),
+        FormFieldSchema(key="assignee_id",   type="entity_ref", label_key="Assignee (optional)", required=False, entity_ref="user",  order=30),
+        FormFieldSchema(key="cycle_node_id", type="entity_ref", label_key="Cycle",             required=False, entity_ref="cycle", order=40),
+        FormFieldSchema(key="area_node_id",  type="entity_ref", label_key="Area",              required=False, entity_ref="area",  order=50),
     ]
+
+    if artifact_type and manifest_bundle:
+        flat = flattener.flatten(manifest_bundle)
+        artifact_types = flat.get("artifact_types") or []
+        at_def = next((a for a in artifact_types if isinstance(a, dict) and a.get("id") == artifact_type), None)
+        if at_def:
+            order = 100
+            for f in (at_def.get("fields") or []):
+                fid = f.get("id")
+                if not fid or fid in _CORE_KEYS:
+                    continue
+                field_type = f.get("type", "string")
+                options = None
+                if field_type == "choice" and f.get("options"):
+                    options = [
+                        {
+                            "id": str(o.get("id", o.get("value", ""))),
+                            "label": str(o.get("label", o.get("name", o.get("id", "")))),
+                        }
+                        for o in (f["options"] if isinstance(f["options"], list) else [])
+                        if isinstance(o, dict)
+                    ]
+                fields.append(
+                    FormFieldSchema(
+                        key=fid,
+                        type=field_type,
+                        label_key=f.get("name") or _humanize_id(str(fid)),
+                        required=bool(f.get("required", False)),
+                        order=order,
+                        visible_when=f.get("visibleWhen") or f.get("visible_when"),
+                        required_when=f.get("requiredWhen") or f.get("required_when"),
+                        options=options,
+                    )
+                )
+                order += 1
+
     return FormSchema(
         entity_type="artifact",
         context="edit",
@@ -265,12 +274,13 @@ def build_form_schema(
     entity_type: str,
     context: str,
     flattener: IManifestDefsFlattener,
+    artifact_type: str | None = None,
 ) -> FormSchema | None:
     """Build form schema for given entity type and context."""
     if entity_type == "artifact" and context == "create":
         return build_artifact_create_form_schema(manifest_bundle, flattener)
     if entity_type == "artifact" and context == "edit":
-        return build_artifact_edit_form_schema(manifest_bundle, flattener)
+        return build_artifact_edit_form_schema(manifest_bundle, flattener, artifact_type=artifact_type)
     if entity_type == "task" and context in ("create", "edit"):
         return build_task_create_form_schema()
     return None

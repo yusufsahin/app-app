@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
+from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.mpc_resolver import get_manifest_ast, redact_data
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.cycle.domain.ports import CycleRepository
@@ -152,10 +153,12 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             if version and version.manifest_bundle:
                 ast = get_manifest_ast(version.id, version.manifest_bundle)
                 roles = query.actor_roles or []
+                redacted_items: list[ArtifactDTO] = []
                 for dto in items:
                     redacted_snapshot = redact_data(ast, dto.__dict__, roles)
-                    for k, v in redacted_snapshot.items():
-                        if hasattr(dto, k):
-                            setattr(dto, k, v)
+                    dto_fields = dto.__dataclass_fields__
+                    updates = {k: v for k, v in redacted_snapshot.items() if k in dto_fields}
+                    redacted_items.append(replace(dto, **updates) if updates else dto)
+                items = redacted_items
 
         return ListArtifactsResult(items=items, total=total)

@@ -8,6 +8,8 @@ import {
   TabsContent,
   Sheet,
   SheetContent,
+  SheetDescription,
+  SheetTitle,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
@@ -151,7 +153,6 @@ export default function ArtifactsPage() {
   const { data: formSchema, isError: formSchemaError, error: formSchemaErr } = useFormSchema(orgSlug, project?.id);
   const formSchema403 = formSchemaError && (formSchemaErr as unknown as ProblemDetail)?.status === 403;
   const { data: taskFormSchema } = useFormSchema(orgSlug, project?.id, "task", "create");
-  const { data: editFormSchema } = useFormSchema(orgSlug, project?.id, "artifact", "edit");
   const { data: members } = useOrgMembers(orgSlug);
   useProjectMembers(orgSlug, project?.id);
   useAddProjectMember(orgSlug, project?.id);
@@ -350,6 +351,13 @@ export default function ArtifactsPage() {
     if (artifactFromApi) return artifactFromApi;
     return detailArtifactId ? (artifacts?.find((a) => a.id === detailArtifactId) ?? null) : null;
   }, [artifactFromApi, detailArtifactId, artifacts]);
+  const { data: editFormSchema } = useFormSchema(
+    orgSlug,
+    project?.id,
+    "artifact",
+    "edit",
+    detailArtifact?.artifact_type,
+  );
   const createMutation = useCreateArtifact(orgSlug, project?.id);
   const deleteMutation = useDeleteArtifact(orgSlug, project?.id);
   const updateArtifactMutation = useUpdateArtifact(
@@ -1692,6 +1700,10 @@ export default function ArtifactsPage() {
         }}
       >
         <SheetContent side="right" className="w-full sm:max-w-[420px] p-4" aria-label="Artifact details">
+        <SheetTitle className="sr-only">Artifact details</SheetTitle>
+        <SheetDescription className="sr-only">
+          View artifact details, tasks, links, attachments, and comments.
+        </SheetDescription>
         <ArtifactDetailDrawer>
         <div className="w-full sm:w-[420px] p-4" role="document" aria-label="Artifact details">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -1784,6 +1796,7 @@ export default function ArtifactsPage() {
                               assignee_id: detailArtifact.assignee_id ?? "",
                               cycle_node_id: detailArtifact.cycle_node_id ?? "",
                               area_node_id: detailArtifact.area_node_id ?? "",
+                              ...(detailArtifact.custom_fields ?? {}),
                             });
                             setEditFormErrors({});
                             setListState({ detailDrawerEditing: true });
@@ -1852,12 +1865,18 @@ export default function ArtifactsPage() {
                           return;
                         }
                         setEditFormErrors({});
+                        const _coreKeys = new Set(["title", "description", "assignee_id", "cycle_node_id", "area_node_id"]);
+                        const _customFields: Record<string, unknown> = {};
+                        for (const f of editFormSchema?.fields ?? []) {
+                          if (!_coreKeys.has(f.key)) _customFields[f.key] = editFormValues[f.key] ?? null;
+                        }
                         const payload: UpdateArtifactRequest = {
                           title: titleTrim,
                           description: (editFormValues.description as string) || null,
                           assignee_id: (editFormValues.assignee_id as string) || null,
                           cycle_node_id: (editFormValues.cycle_node_id as string) || null,
                           area_node_id: (editFormValues.area_node_id as string) || null,
+                          ...(Object.keys(_customFields).length ? { custom_fields: _customFields } : {}),
                         };
                         updateArtifactMutation.mutate(payload, {
                           onSuccess: (data) => {
@@ -1906,12 +1925,18 @@ export default function ArtifactsPage() {
                             return;
                           }
                           setEditFormErrors({});
+                          const _coreKeys2 = new Set(["title", "description", "assignee_id", "cycle_node_id", "area_node_id"]);
+                          const _customFields2: Record<string, unknown> = {};
+                          for (const f of editFormSchema?.fields ?? []) {
+                            if (!_coreKeys2.has(f.key)) _customFields2[f.key] = editFormValues[f.key] ?? null;
+                          }
                           const payload: UpdateArtifactRequest = {
                             title: titleTrim,
                             description: (editFormValues.description as string) || null,
                             assignee_id: (editFormValues.assignee_id as string) || null,
                             cycle_node_id: (editFormValues.cycle_node_id as string) || null,
                             area_node_id: (editFormValues.area_node_id as string) || null,
+                            ...(Object.keys(_customFields2).length ? { custom_fields: _customFields2 } : {}),
                           };
                           updateArtifactMutation.mutate(payload, {
                             onSuccess: (data) => {

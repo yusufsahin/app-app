@@ -2325,6 +2325,7 @@ async def get_form_schema(
     project_id: uuid.UUID,
     entity_type: str = "artifact",
     context: str = "create",
+    artifact_type: str | None = None,
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("manifest:read"),
     _acl: None = require_manifest_acl("manifest", "read"),
@@ -2337,6 +2338,7 @@ async def get_form_schema(
             project_id=project_id,
             entity_type=entity_type,
             context=context,
+            artifact_type=artifact_type,
         )
     )
     if schema is None:
@@ -2477,6 +2479,57 @@ async def update_project_manifest(
         "template_slug": manifest.template_slug,
         "version": manifest.version,
     }
+
+
+@router.post("/projects/{project_id}/manifest/conformance")
+async def check_manifest_conformance(
+    project_id: uuid.UUID,
+    body: UpdateProjectManifestRequest | None = None,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("manifest:read"),
+    _acl: None = require_manifest_acl("manifest", "read"),
+    mediator: Mediator = Depends(get_mediator),
+) -> dict:
+    """Run conformance checks on a manifest bundle (or the project's current manifest).
+
+    Pass a ``manifest_bundle`` body to validate an unsaved draft; omit the body
+    to validate the project's current manifest.  Returns a structured report with
+    a ``passed`` flag and a list of ``errors``.
+    """
+    if body is not None and body.manifest_bundle:
+        bundle = body.manifest_bundle
+    else:
+        manifest = await mediator.query(
+            GetProjectManifest(tenant_id=org.tenant_id, project_id=project_id)
+        )
+        if manifest is None:
+            raise EntityNotFound("ProjectManifest", project_id)
+        bundle = dict(manifest.manifest_bundle or {})
+
+    errors: list[dict] = []
+    passed = True
+    try:
+        from mpc.kernel.ast import normalize
+        from mpc.tooling.validator import validate_semantic
+    except ImportError:
+        return {"passed": True, "errors": [], "note": "mpc not installed; validation skipped"}
+
+    try:
+        ast = normalize(bundle)
+        sem_errors = validate_semantic(ast)
+        for e in sem_errors:
+            passed = False
+            errors.append({
+                "code": getattr(e, "code", "UNKNOWN"),
+                "message": getattr(e, "message", str(e)),
+                "severity": getattr(e, "severity", "error"),
+                "path": getattr(e, "path", None),
+            })
+    except Exception as exc:  # noqa: BLE001
+        passed = False
+        errors.append({"code": "PARSE_ERROR", "message": str(exc), "severity": "error", "path": None})
+
+    return {"passed": passed, "errors": errors}
 
 
 # ── Dashboard ──

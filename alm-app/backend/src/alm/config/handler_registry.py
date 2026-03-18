@@ -183,6 +183,7 @@ from alm.project.application.commands.remove_project_member import (
     RemoveProjectMemberHandler,
 )
 from alm.project.application.commands.update_project import UpdateProject, UpdateProjectHandler
+from alm.artifact.domain.governance_adapter import ALMGovernanceAdapter
 from alm.project.application.commands.update_project_manifest import (
     UpdateProjectManifest,
     UpdateProjectManifestHandler,
@@ -721,6 +722,7 @@ def register_all_handlers() -> None:
         lambda s: UpdateProjectManifestHandler(
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+            governance=ALMGovernanceAdapter(),
         ),
     )
 

@@ -1,10 +1,10 @@
 /**
- * C3: Workflow (FSM) visualisation and minimal edit (add transition, save to manifest).
+ * C3: Workflow (FSM) visualisation and edit (add/remove states, add transitions, save to manifest).
  */
 import { useState, useMemo, useEffect } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { Button, Badge } from "../../../shared/components/ui";
-import { GitBranch, ArrowRight, Plus, Save, X } from "lucide-react";
+import { GitBranch, ArrowRight, Plus, Save, X, Layers } from "lucide-react";
 import { RhfSelect } from "../../../shared/components/forms";
 
 export interface WorkflowState {
@@ -34,6 +34,12 @@ export interface WorkflowDesignerViewProps {
   isSaving?: boolean;
 }
 
+const STATE_CATEGORIES = [
+  { value: "", label: "Default" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "completed", label: "Completed" },
+];
+
 type WorkflowFormValues = { workflowId: string; addFrom: string; addTo: string };
 
 export function WorkflowDesignerView({
@@ -49,7 +55,15 @@ export function WorkflowDesignerView({
   const workflowId = watch("workflowId");
   const addFrom = watch("addFrom");
   const addTo = watch("addTo");
+
   const [draftTransitions, setDraftTransitions] = useState<WorkflowTransition[]>([]);
+  const [draftStates, setDraftStates] = useState<WorkflowState[]>([]);
+  const [deletedStateIds, setDeletedStateIds] = useState<Set<string>>(new Set());
+  const [newStateId, setNewStateId] = useState("");
+  const [newStateName, setNewStateName] = useState("");
+  const [newStateCategory, setNewStateCategory] = useState("");
+  const [stateIdError, setStateIdError] = useState("");
+
   const selected = useMemo(
     () => workflows.find((w) => w.id === workflowId) ?? workflows[0] ?? null,
     [workflows, workflowId],
@@ -60,21 +74,38 @@ export function WorkflowDesignerView({
     if (firstId && !workflows.some((w) => w.id === workflowId)) reset({ workflowId: firstId, addFrom: "", addTo: "" });
   }, [workflows, workflowId, reset]);
 
-  const states: WorkflowState[] = useMemo(() => {
+  const baseStates: WorkflowState[] = useMemo(() => {
     const raw = selected?.states ?? [];
     return raw.map((s) =>
       typeof s === "string" ? { id: s, name: s } : { id: (s as WorkflowState).id, name: (s as WorkflowState).name, category: (s as WorkflowState).category },
     );
   }, [selected?.states]);
+
+  // Effective states: base (minus deleted) + draft additions
+  const states: WorkflowState[] = useMemo(
+    () => [...baseStates.filter((s) => !deletedStateIds.has(s.id)), ...draftStates],
+    [baseStates, draftStates, deletedStateIds],
+  );
+
   const baseTransitions = useMemo(() => selected?.transitions ?? [], [selected?.transitions]);
+
+  // Effective transitions: base + draft, auto-filtered for deleted states
   const transitions = useMemo(
-    () => [...baseTransitions, ...draftTransitions],
-    [baseTransitions, draftTransitions],
+    () => [...baseTransitions, ...draftTransitions].filter(
+      (t) => !deletedStateIds.has(t.from) && !deletedStateIds.has(t.to),
+    ),
+    [baseTransitions, draftTransitions, deletedStateIds],
   );
   const stateMap = useMemo(() => new Map(states.map((s) => [s.id, s])), [states]);
 
   useEffect(() => {
     setDraftTransitions([]);
+    setDraftStates([]);
+    setDeletedStateIds(new Set());
+    setNewStateId("");
+    setNewStateName("");
+    setNewStateCategory("");
+    setStateIdError("");
   }, [selected?.id]);
 
   const NODE_WIDTH = 88;
@@ -103,7 +134,33 @@ export function WorkflowDesignerView({
     );
   }
 
-  const hasDraft = draftTransitions.length > 0;
+  const hasDraft =
+    draftTransitions.length > 0 || draftStates.length > 0 || deletedStateIds.size > 0;
+
+  const handleAddState = () => {
+    const id = newStateId.trim().replace(/\s+/g, "_");
+    if (!id) { setStateIdError("ID required"); return; }
+    if (states.some((s) => s.id === id)) { setStateIdError("ID already exists"); return; }
+    setStateIdError("");
+    setDraftStates((prev) => [
+      ...prev,
+      { id, name: newStateName.trim() || id, category: newStateCategory || undefined },
+    ]);
+    setNewStateId("");
+    setNewStateName("");
+    setNewStateCategory("");
+  };
+
+  const handleRemoveState = (stateId: string, isDraft: boolean) => {
+    if (isDraft) {
+      setDraftStates((prev) => prev.filter((s) => s.id !== stateId));
+      setDraftTransitions((prev) => prev.filter((t) => t.from !== stateId && t.to !== stateId));
+    } else {
+      setDeletedStateIds((prev) => new Set([...prev, stateId]));
+      if (addFrom === stateId) setValue("addFrom", "");
+      if (addTo === stateId) setValue("addTo", "");
+    }
+  };
 
   const handleAddTransition = () => {
     if (addFrom && addTo) {
@@ -117,15 +174,21 @@ export function WorkflowDesignerView({
     if (!selected || !onSaveWorkflow) return;
     const updated: WorkflowDef = {
       ...selected,
-      states: selected.states ?? states,
+      states,
       transitions,
     };
     onSaveWorkflow(updated);
     setDraftTransitions([]);
+    setDraftStates([]);
+    setDeletedStateIds(new Set());
   };
 
   const removeDraftTransition = (index: number) => {
-    setDraftTransitions((prev) => prev.filter((_, i) => i !== index - baseTransitions.length));
+    // index is within the full transitions array; draft transitions start after base (minus deleted)
+    const baseCount = baseTransitions.filter(
+      (t) => !deletedStateIds.has(t.from) && !deletedStateIds.has(t.to),
+    ).length;
+    setDraftTransitions((prev) => prev.filter((_, i) => i !== index - baseCount));
   };
 
   const totalWidth = states.length > 0 ? SVG_PAD * 2 + states.length * NODE_WIDTH + (states.length - 1) * GAP : 400;
@@ -255,16 +318,73 @@ export function WorkflowDesignerView({
 
           <p className="mb-2 text-sm font-medium text-muted-foreground">States</p>
           <div className="mb-4 flex flex-wrap gap-1">
-            {states.map((s) => (
-              <Badge
-                key={s.id}
-                variant="outline"
-                className={`text-xs ${s.category === "completed" ? "border-green-500/50 text-green-700 dark:text-green-400" : s.category === "in_progress" ? "border-primary/50" : ""}`}
-              >
-                {s.name || s.id}
-              </Badge>
-            ))}
+            {states.map((s) => {
+              const isDraftState = draftStates.some((d) => d.id === s.id);
+              return (
+                <Badge
+                  key={s.id}
+                  variant="outline"
+                  className={`flex items-center gap-1 text-xs ${s.category === "completed" ? "border-green-500/50 text-green-700 dark:text-green-400" : s.category === "in_progress" ? "border-primary/50" : ""} ${isDraftState ? "border-dashed" : ""}`}
+                >
+                  {s.name || s.id}
+                  {isDraftState && <span className="text-[10px] opacity-60">(new)</span>}
+                  {editable && (
+                    <button
+                      type="button"
+                      className="ml-0.5 rounded-full p-0.5 hover:bg-destructive/20 hover:text-destructive"
+                      aria-label={`Remove state ${s.name || s.id}`}
+                      onClick={() => handleRemoveState(s.id, isDraftState)}
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </Badge>
+              );
+            })}
           </div>
+
+          {editable && (
+            <div className="mb-4 rounded-md border border-dashed p-3">
+              <p className="mb-2 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                <Layers className="size-3" /> Add state
+              </p>
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="flex flex-col gap-1">
+                  <input
+                    type="text"
+                    placeholder="State ID (e.g. review)"
+                    value={newStateId}
+                    onChange={(e) => { setNewStateId(e.target.value); setStateIdError(""); }}
+                    className="h-8 min-w-[140px] rounded-md border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    onKeyDown={(e) => { if (e.key === "Enter") handleAddState(); }}
+                  />
+                  {stateIdError && <p className="text-xs text-destructive">{stateIdError}</p>}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Label (optional)"
+                  value={newStateName}
+                  onChange={(e) => setNewStateName(e.target.value)}
+                  className="h-8 min-w-[120px] rounded-md border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddState(); }}
+                />
+                <select
+                  aria-label="State category"
+                  title="State category"
+                  value={newStateCategory}
+                  onChange={(e) => setNewStateCategory(e.target.value)}
+                  className="h-8 rounded-md border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  {STATE_CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+                <Button size="sm" variant="outline" onClick={handleAddState} disabled={!newStateId.trim()}>
+                  <Plus className="size-4" /> Add
+                </Button>
+              </div>
+            </div>
+          )}
 
           {editable && states.length >= 2 && (
             <FormProvider {...form}>

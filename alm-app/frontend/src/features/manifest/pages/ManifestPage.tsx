@@ -1,7 +1,7 @@
 import { useParams } from "react-router-dom";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent, Badge, Skeleton } from "../../../shared/components/ui";
-import { LayoutGrid, GitBranch, Eye, Code, Save, Braces, Shield } from "lucide-react";
+import { LayoutGrid, GitBranch, Code, Save, Braces, Shield } from "lucide-react";
 import yaml from "js-yaml";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import { useProjectStore } from "../../../shared/stores/projectStore";
@@ -11,12 +11,9 @@ import {
   type ManifestResponse,
 } from "../../../shared/api/manifestApi";
 import type { ProblemDetail } from "../../../shared/api/types";
-import { buildPreviewSchemaFromManifest } from "../../../shared/lib/manifestPreviewSchema";
-import { MetadataDrivenForm } from "../../../shared/components/forms/MetadataDrivenForm";
 import { ManifestEditor } from "../../../shared/components/ManifestEditor";
 import { useManifestStore } from "../../../shared/stores/manifestStore";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
-import { WorkflowDesignerView } from "../components/WorkflowDesignerView";
 
 /** Get 1-based line number from JSON.parse position (e.g. "Unexpected token at position 42"). */
 function jsonErrorLine(source: string, error: unknown): number | undefined {
@@ -85,12 +82,12 @@ export default function ManifestPage() {
   const is404 = isError && apiError?.status === 404;
   const is403 = isError && apiError?.status === 403;
 
-  const activeTab = useManifestStore((s) => s.activeTab);
+  const activeTab = useManifestStore((s) => s.activeTab) as "overview" | "source" | "studio";
   const sourceValue = useManifestStore((s) => s.sourceValue);
   const sourceLanguage = useManifestStore((s) => s.sourceLanguage);
   const snackMessage = useManifestStore((s) => s.snackMessage);
   const snackOpen = useManifestStore((s) => s.snackOpen);
-  const setActiveTab = useManifestStore((s) => s.setActiveTab);
+  const setActiveTab = useManifestStore((s) => s.setActiveTab) as (tab: "overview" | "source" | "studio") => void;
   const setSourceValue = useManifestStore((s) => s.setSourceValue);
   const setSourceLanguage = useManifestStore((s) => s.setSourceLanguage);
   const showSnack = useManifestStore((s) => s.showSnack);
@@ -127,11 +124,6 @@ export default function ManifestPage() {
     }
   };
 
-  const previewSchema = useMemo(
-    () => (manifest?.manifest_bundle ? buildPreviewSchemaFromManifest(manifest.manifest_bundle) : null),
-    [manifest?.manifest_bundle],
-  );
-  const [previewValues, setPreviewValues] = useState<Record<string, unknown>>({});
 
   const handleSourceChange = (value: string) => {
     setEditorErrorLine(undefined);
@@ -179,6 +171,24 @@ export default function ManifestPage() {
     const t = setTimeout(clearSnack, 6000);
     return () => clearTimeout(t);
   }, [snackOpen, clearSnack]);
+
+  // Sync with embedded Studio
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'UPDATE_DSL') {
+        setSourceValue(event.data.dsl);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [setSourceValue]);
+
+  const studioRef = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    if (activeTab === 'studio' && studioRef.current?.contentWindow) {
+      studioRef.current.contentWindow.postMessage({ type: 'SET_DSL', dsl: sourceValue }, '*');
+    }
+  }, [activeTab, sourceValue]);
 
   if (projectSlug && orgSlug && !projectsLoading && !project) {
     return <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />;
@@ -241,19 +251,15 @@ export default function ManifestPage() {
             <span className="text-sm text-muted-foreground">v{manifest.version}</span>
           </div>
 
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "overview" | "workflow" | "preview" | "source")} className="border-b">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="border-b">
             <TabsList className="w-full justify-start rounded-none border-b-0 bg-transparent p-0">
               <TabsTrigger value="overview" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
                 <LayoutGrid className="size-4" />
                 Overview
               </TabsTrigger>
-              <TabsTrigger value="workflow" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
-                <GitBranch className="size-4" />
-                Workflow
-              </TabsTrigger>
-              <TabsTrigger value="preview" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
-                <Eye className="size-4" />
-                Form preview
+              <TabsTrigger value="studio" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none text-blue-500">
+                <Shield className="size-4" />
+                MPC Studio
               </TabsTrigger>
               <TabsTrigger value="source" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
                 <Code className="size-4" />
@@ -302,50 +308,14 @@ export default function ManifestPage() {
                 />
             </TabsContent>
 
-            <TabsContent value="workflow">
-                <WorkflowDesignerView
-                  workflows={(manifest.manifest_bundle?.workflows ?? []) as Array<{ id: string; name?: string; states?: Array<{ id: string; name?: string; category?: string }>; transitions?: Array<{ from: string; to: string }> }>}
-                  editable
-                  isSaving={updateManifest.isPending}
-                  onSaveWorkflow={(updatedWorkflow) => {
-                    const bundle = { ...manifest.manifest_bundle } as Record<string, unknown>;
-                    const workflows = Array.isArray(bundle.workflows) ? [...bundle.workflows] : [];
-                    const idx = workflows.findIndex((w: { id?: string }) => (w as { id?: string }).id === updatedWorkflow.id);
-                    if (idx >= 0) workflows[idx] = updatedWorkflow;
-                    else workflows.push(updatedWorkflow);
-                    updateManifest.mutate(
-                      { ...bundle, workflows } as ManifestResponse["manifest_bundle"],
-                      {
-                        onSuccess: () => showSnack("Workflow saved."),
-                        onError: (err: unknown) => showSnack(getApiErrorMessage(err, "Failed to save workflow.")),
-                      },
-                    );
-                  }}
-                />
+            <TabsContent value="studio" className="h-[700px] rounded-lg border overflow-hidden bg-[#0a0b10]">
+               <iframe
+                 ref={studioRef}
+                 src="/studio/?embedded=true"
+                 className="w-full h-full border-none"
+                 title="MPC Studio"
+               />
             </TabsContent>
-
-            {previewSchema && (
-              <TabsContent value="preview">
-                <div className="rounded-lg border p-6">
-                  <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
-                    <Eye className="size-4" />
-                    Artifact form preview (from manifest)
-                  </p>
-                  <MetadataDrivenForm
-                    schema={previewSchema}
-                    values={previewValues}
-                    onChange={setPreviewValues}
-                    onSubmit={() => {}}
-                    submitLabel="Create (preview only)"
-                    disabled
-                    submitExternally
-                  />
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    This is a live preview of the create-artifact form derived from the manifest. Submit is disabled.
-                  </p>
-                </div>
-              </TabsContent>
-            )}
 
             <TabsContent value="overview">
                   <div className="rounded-lg border p-6">

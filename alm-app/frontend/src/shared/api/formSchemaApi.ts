@@ -10,15 +10,16 @@ export function useFormSchema(
   projectId: string | undefined,
   entityType = "artifact",
   context = "create",
+  artifactType?: string,
 ) {
   return useQuery({
-    queryKey: ["orgs", orgSlug, "projects", projectId, "form-schema", entityType, context],
+    queryKey: ["orgs", orgSlug, "projects", projectId, "form-schema", entityType, context, artifactType],
     queryFn: async (): Promise<FormSchemaDto> => {
+      const params: Record<string, string> = { entity_type: entityType, context };
+      if (artifactType) params.artifact_type = artifactType;
       const { data } = await apiClient.get<FormSchemaDto>(
         `/orgs/${orgSlug}/projects/${projectId}/form-schema`,
-        {
-          params: { entity_type: entityType, context },
-        },
+        { params },
       );
       return data;
     },

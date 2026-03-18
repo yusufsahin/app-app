@@ -21,6 +21,7 @@ class GetFormSchema(Query):
     project_id: uuid.UUID
     entity_type: str = "artifact"
     context: str = "create"
+    artifact_type: str | None = None
 
 
 class GetFormSchemaHandler(QueryHandler[FormSchema | None]):
@@ -46,13 +47,11 @@ class GetFormSchemaHandler(QueryHandler[FormSchema | None]):
             return build_form_schema(
                 {}, entity_type="task", context=query.context, flattener=self._manifest_flattener
             )
-        # Artifact edit schema does not need full manifest (title, description, assignee only)
-        if query.entity_type == "artifact" and query.context == "edit":
-            return build_form_schema(
-                {}, entity_type="artifact", context="edit", flattener=self._manifest_flattener
-            )
-
         if project.process_template_version_id is None:
+            if query.entity_type == "artifact" and query.context == "edit":
+                return build_form_schema(
+                    {}, entity_type="artifact", context="edit", flattener=self._manifest_flattener
+                )
             return None
 
         version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
@@ -65,4 +64,5 @@ class GetFormSchemaHandler(QueryHandler[FormSchema | None]):
             entity_type=query.entity_type,
             context=query.context,
             flattener=self._manifest_flattener,
+            artifact_type=query.artifact_type,
         )

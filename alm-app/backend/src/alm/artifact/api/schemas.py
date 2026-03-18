@@ -70,6 +70,7 @@ class ArtifactUpdateRequest(BaseModel):
     assignee_id: uuid.UUID | None = None
     cycle_node_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
+    custom_fields: dict[str, Any] | None = None
 
     @field_validator("assignee_id", "cycle_node_id", "area_node_id", mode="before")
     @classmethod

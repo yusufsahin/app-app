@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.mpc_resolver import get_manifest_ast, redact_data
@@ -73,9 +73,9 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
                     dto.__dict__,  # Redactor can handle dicts
                     query.actor_roles or [],
                 )
-                # Re-apply redacted fields to DTO
-                for k, v in redacted_snapshot.items():
-                    if hasattr(dto, k):
-                        setattr(dto, k, v)
+                dto_fields = dto.__dataclass_fields__
+                updates = {k: v for k, v in redacted_snapshot.items() if k in dto_fields}
+                if updates:
+                    dto = replace(dto, **updates)
         
         return dto

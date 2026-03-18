@@ -14,7 +14,10 @@ try:
     from mpc.kernel.meta import DomainMeta
     from mpc.features.policy import PolicyEngine, PolicyResult
     from mpc.features.acl import ACLEngine
-    from mpc.features.redact import Redactor
+    from mpc.features.redaction import RedactionEngine, RedactionConfig
+    
+    # Alias for alm-app legacy
+    Redactor = RedactionEngine
 
     _HAS_MPC = True
 except ModuleNotFoundError:
@@ -191,61 +194,14 @@ def get_workflow_transition_options(
     return (allowed_reasons, allowed_resolutions)
 
 
-# Canonical state order for board columns when defs are missing (flat-only manifest).
-_CANONICAL_STATE_ORDER = (
-    "new",
-    "active",
-    "resolved",
-    "closed",
-    "backlog",
-    "ready",
-    "in_progress",
-    "in_review",
-    "approved",
-    "done",
-)
-
-
-def _order_workflow_states(state_ids: list[Any]) -> list[str]:
-    """Return state ids in canonical lifecycle order so board columns are consistent."""
-    if not state_ids:
-        return []
-    order_map = {s.lower(): i for i, s in enumerate(_CANONICAL_STATE_ORDER)}
-    fallback = {str(s): i for i, s in enumerate(state_ids) if isinstance(s, (str, int))}
-    return sorted(
-        [str(s) for s in state_ids if isinstance(s, (str, int))],
-        key=lambda x: (order_map.get(x.lower(), len(_CANONICAL_STATE_ORDER)), fallback.get(x, 0)),
-    )
 
 
 def manifest_defs_to_flat(manifest_bundle: dict[str, Any]) -> dict[str, Any]:
-    """Convert defs format to flat workflows + artifact_types + link_types for frontend consumption.
-    State order: from def when defs exist; when flat-only, states are sorted for consistent board columns.
-    """
+    """Convert defs format to flat workflows + artifact_types + link_types for frontend consumption."""
     if not manifest_bundle:
         return {"workflows": [], "artifact_types": [], "link_types": []}
 
     defs_list = manifest_bundle.get("defs", [])
-    if not defs_list:
-        # Flat format: normalize state order so board columns are new -> active -> resolved -> closed
-        wf_list = manifest_bundle.get("workflows")
-        at = manifest_bundle.get("artifact_types")
-        lt = manifest_bundle.get("link_types")
-        raw_workflows = wf_list if isinstance(wf_list, list) else []
-        workflows = []
-        for w in raw_workflows:
-            if not isinstance(w, dict):
-                continue
-            w_copy = dict(w)
-            if "states" in w_copy and isinstance(w_copy["states"], list):
-                w_copy["states"] = _order_workflow_states(w_copy["states"])
-            workflows.append(w_copy)
-        return {
-            "workflows": workflows,
-            "artifact_types": at if isinstance(at, list) else [],
-            "link_types": lt if isinstance(lt, list) else [],
-        }
-
     workflows: list[dict[str, Any]] = []
     artifact_types: list[dict[str, Any]] = []
     link_types: list[dict[str, Any]] = []
@@ -257,23 +213,18 @@ def manifest_defs_to_flat(manifest_bundle: dict[str, Any]) -> dict[str, Any]:
         obj_id = d.get("id", "")
 
         if kind == "Workflow":
-            transitions_raw = d.get("transitions", [])
-            transitions = []
-            for t in transitions_raw:
-                if isinstance(t, dict) and "from" in t and "to" in t:
-                    tr: dict[str, Any] = {"from": str(t["from"]), "to": str(t["to"])}
-                    if t.get("trigger") is not None:
-                        tr["trigger"] = str(t["trigger"])
-                    if t.get("trigger_label") is not None:
-                        tr["trigger_label"] = str(t["trigger_label"])
-                    if t.get("guard") is not None:
-                        tr["guard"] = t["guard"]
-                    transitions.append(tr)
             wf = {
                 "id": obj_id,
                 "states": d.get("states", []),
-                "transitions": transitions,
+                "transitions": [],
             }
+            for t in d.get("transitions", []):
+                if isinstance(t, dict) and "from" in t and "to" in t:
+                    tr = {"from": str(t["from"]), "to": str(t["to"])}
+                    for field in ("trigger", "trigger_label", "guard"):
+                        if t.get(field) is not None:
+                            tr[field] = t[field] # type: ignore[literal-required]
+                    wf["transitions"].append(tr) # type: ignore[attr-defined]
             if d.get("state_reason_options"):
                 wf["state_reason_options"] = d["state_reason_options"]
             if d.get("resolution_options"):
@@ -285,12 +236,9 @@ def manifest_defs_to_flat(manifest_bundle: dict[str, Any]) -> dict[str, Any]:
                 "name": d.get("name") or _humanize_id(obj_id),
                 "workflow_id": d.get("workflow_id", ""),
             }
-            if d.get("parent_types"):
-                at["parent_types"] = d["parent_types"]
-            if d.get("child_types"):
-                at["child_types"] = d["child_types"]
-            if d.get("fields"):
-                at["fields"] = d["fields"]
+            for field in ("parent_types", "child_types", "fields"):
+                if d.get(field):
+                    at[field] = d[field] # type: ignore[literal-required]
             artifact_types.append(at)
         elif kind == "LinkType":
             link_types.append(
@@ -370,12 +318,29 @@ def redact_data(
     actor_roles: list[str],
 ) -> dict[str, Any]:
     """M1: Run MPC Redactor to mask sensitive fields in data dict."""
-    if not _HAS_MPC or Redactor is None:
+    if not _HAS_MPC:
         return data
 
     try:
-        redactor = Redactor(ast)
-        return redactor.redact(data, actor_roles=actor_roles or [])
+        # v0.1.0 RedactionEngine is simple. Extract deny_keys from Redact defs.
+        deny_keys = set()
+        redact_defs = _get_defs_by_kind(ast, "Redact")
+        for rd in redact_defs:
+            rules = rd.properties.get("rules", [])
+            for rule in rules:
+                field_name = rule.get("field")
+                if not field_name:
+                    continue
+                # Check roles
+                rule_roles = rule.get("roles", [rule.get("role")]) if "roles" in rule or "role" in rule else []
+                if not rule_roles or any(r in actor_roles for r in rule_roles):
+                    effect = rule.get("effect", "mask")
+                    if effect == "mask":
+                        deny_keys.add(field_name)
+
+        config = RedactionConfig(deny_keys=frozenset(deny_keys))
+        engine = RedactionEngine(config=config)
+        return engine.redact(data)
     except Exception as e:  # noqa: BLE001
         _log.warning("Redactor.redact failed: %s", e, exc_info=True)
         return data
