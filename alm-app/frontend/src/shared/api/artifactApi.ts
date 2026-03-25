@@ -226,6 +226,7 @@ export interface UpdateArtifactRequest {
   assignee_id?: string | null;
   cycle_node_id?: string | null;
   area_node_id?: string | null;
+  parent_id?: string | null;
   custom_fields?: Record<string, unknown>;
 }
 
@@ -300,6 +301,7 @@ export function useUpdateArtifact(
       if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id ?? null;
       if (payload.cycle_node_id !== undefined) body.cycle_node_id = payload.cycle_node_id ?? null;
       if (payload.area_node_id !== undefined) body.area_node_id = payload.area_node_id ?? null;
+      if (payload.parent_id !== undefined) body.parent_id = payload.parent_id ?? null;
       if (payload.custom_fields !== undefined) body.custom_fields = payload.custom_fields;
       const { data } = await apiClient.patch<Artifact>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}`,

@@ -13,6 +13,7 @@ export default function QualitySuitesPage() {
         targetType: "test-case",
         title: "Suite includes test",
       }}
+      allowFolderCreate
     />
   );
 }

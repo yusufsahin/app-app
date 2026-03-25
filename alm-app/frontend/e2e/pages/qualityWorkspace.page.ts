@@ -3,6 +3,14 @@ import { expect, type Page } from "@playwright/test";
 export class QualityWorkspacePage {
   constructor(private readonly page: Page) {}
 
+  private getRouteContext() {
+    const current = new URL(this.page.url());
+    const seg = current.pathname.split("/").filter(Boolean);
+    const orgSlug = seg[0];
+    const projectSlug = seg[1];
+    return { current, orgSlug, projectSlug };
+  }
+
   async openTests() {
     await this.page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Tests" }).click();
     await this.page.waitForURL(/\/quality\/tests/, { timeout: 10000 });
@@ -92,6 +100,58 @@ export class QualityWorkspacePage {
       await this.page.getByRole("button", { name: /Clear folder filter/i }).click({ timeout: 10000 });
     }
     await expect(this.page).not.toHaveURL(/under=/i, { timeout: 10000 });
+  }
+
+  async selectedFolderIdFromUrl() {
+    const { current } = this.getRouteContext();
+    const under = current.searchParams.get("under");
+    expect(under).toMatch(/^[0-9a-f-]{36}$/i);
+    return under as string;
+  }
+
+  async createSubfolderUnder(parentFolderId: string, title: string) {
+    await this.page.getByTestId(`quality-tree-folder-menu-${parentFolderId}`).click();
+    const createSubfolder = this.page.getByTestId(`quality-tree-create-subfolder-${parentFolderId}`);
+    await expect(createSubfolder).toBeVisible({ timeout: 10000 });
+    await createSubfolder.click();
+    const dialog = this.page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 10000 });
+    await this.page.getByTestId("artifact-modal-title-input").fill(title);
+    await this.page.getByTestId("artifact-modal-create").click();
+    await expect(this.page.getByText(title).first()).toBeVisible({ timeout: 20000 });
+  }
+
+  async findFolderIdByTitle(title: string) {
+    const { orgSlug, projectSlug } = this.getRouteContext();
+    expect(orgSlug).toBeTruthy();
+    expect(projectSlug).toBeTruthy();
+    const res = await this.page.request.get(
+      `/api/v1/orgs/${orgSlug}/projects/${projectSlug}/artifacts?tree=quality&include_system_roots=true&limit=500`,
+    );
+    expect(res.ok()).toBeTruthy();
+    const data = (await res.json()) as {
+      items?: Array<{ id: string; artifact_type: string; title: string }>;
+    };
+    const item = (data.items ?? []).find((i) => i.artifact_type === "quality-folder" && i.title === title);
+    expect(item?.id).toBeTruthy();
+    return item!.id;
+  }
+
+  async renameFolderById(folderId: string, newTitle: string) {
+    await this.page.getByTestId(`quality-tree-folder-menu-${folderId}`).click();
+    await this.page.getByTestId(`quality-tree-folder-rename-${folderId}`).click();
+    const dialog = this.page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 10000 });
+    await this.page.getByTestId("artifact-modal-title-input").fill(newTitle);
+    await this.page.getByTestId("artifact-modal-save").click();
+    await expect(this.page.getByText(newTitle).first()).toBeVisible({ timeout: 20000 });
+  }
+
+  async deleteFolderById(folderId: string, titleToDisappear: string) {
+    await this.page.getByTestId(`quality-tree-folder-menu-${folderId}`).click();
+    await this.page.getByTestId(`quality-tree-folder-delete-${folderId}`).click();
+    await this.page.getByTestId("artifact-modal-delete-confirm").click();
+    await expect(this.page.getByText(titleToDisappear).first()).toHaveCount(0, { timeout: 20000 });
   }
 }
 

@@ -14,6 +14,7 @@ export default function QualityRunsPage() {
         title: "Run for suite",
       }}
       runExecute
+      allowFolderCreate
     />
   );
 }

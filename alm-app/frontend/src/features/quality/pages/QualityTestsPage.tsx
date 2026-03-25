@@ -9,6 +9,7 @@ export default function QualityTestsPage() {
       createCta="Create test case"
       emptyLabel="No test cases in this folder."
       enableStepsEditor
+      allowFolderCreate
     />
   );
 }

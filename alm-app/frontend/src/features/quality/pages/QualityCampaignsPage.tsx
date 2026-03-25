@@ -13,6 +13,7 @@ export default function QualityCampaignsPage() {
         targetType: "test-suite",
         title: "Campaign includes suite",
       }}
+      allowFolderCreate
     />
   );
 }

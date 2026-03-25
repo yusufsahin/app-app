@@ -44,6 +44,26 @@ test.describe("Quality suite", () => {
     await quality.clearFolderFilter();
   });
 
+  test("renames and deletes a subfolder from tree menu", async ({ page }) => {
+    test.setTimeout(90000);
+    const nav = new ProjectNavigationPage(page);
+    const quality = new QualityWorkspacePage(page);
+    await nav.openProjectQuality();
+    await quality.openTests();
+    await quality.selectFirstQualityFolder();
+
+    const parentFolderId = await quality.selectedFolderIdFromUrl();
+    const base = Date.now();
+    const folderTitle = `E2E Tree Folder ${base}`;
+    const renamedTitle = `E2E Tree Folder Renamed ${base}`;
+
+    await quality.createSubfolderUnder(parentFolderId, folderTitle);
+    const createdFolderId = await quality.findFolderIdByTitle(folderTitle);
+
+    await quality.renameFolderById(createdFolderId, renamedTitle);
+    await quality.deleteFolderById(createdFolderId, renamedTitle);
+  });
+
   test("executes a run via run→suite→tests links and saves progress", async ({ page }) => {
     test.setTimeout(120000);
     const nav = new ProjectNavigationPage(page);
