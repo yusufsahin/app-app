@@ -1,0 +1,97 @@
+import { expect, type Page } from "@playwright/test";
+
+export class QualityWorkspacePage {
+  constructor(private readonly page: Page) {}
+
+  async openTests() {
+    await this.page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Tests" }).click();
+    await this.page.waitForURL(/\/quality\/tests/, { timeout: 10000 });
+  }
+
+  async openSuites() {
+    await this.page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Suites" }).click();
+    await this.page.waitForURL(/\/quality\/suites/, { timeout: 10000 });
+  }
+
+  async openRuns() {
+    await this.page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Runs" }).click();
+    await this.page.waitForURL(/\/quality\/runs/, { timeout: 10000 });
+  }
+
+  async selectFirstQualityFolder() {
+    const folderByType = this.page.locator('[data-artifact-type="quality-folder"]').first();
+    if (await folderByType.isVisible().catch(() => false)) {
+      await folderByType.click({ timeout: 10000 });
+    } else {
+      // Legacy fallback when node metadata is unavailable
+      await this.page.locator("aside").getByRole("button").nth(1).click({ timeout: 10000 });
+    }
+    await expect(this.page).toHaveURL(/under=[0-9a-f-]{36}/i, { timeout: 10000 });
+  }
+
+  private async ensureUnderParam() {
+    const current = new URL(this.page.url());
+    if (current.searchParams.get("under")) return;
+    await this.selectFirstQualityFolder().catch(() => undefined);
+    const afterClick = new URL(this.page.url());
+    if (afterClick.searchParams.get("under")) return;
+
+    // Fallback: use root-quality id when no concrete folder is visible.
+    const seg = afterClick.pathname.split("/").filter(Boolean);
+    const orgSlug = seg[0];
+    const projectSlug = seg[1];
+    if (!orgSlug || !projectSlug) return;
+    const rootRes = await this.page.request.get(`/api/v1/orgs/${orgSlug}/projects/${projectSlug}/artifacts?tree=quality&include_system_roots=true&limit=200`);
+    if (!rootRes.ok()) return;
+    const data = (await rootRes.json()) as { items?: Array<{ id: string; artifact_type: string }> };
+    const root = (data.items ?? []).find((i) => i.artifact_type === "root-quality");
+    if (!root) return;
+    afterClick.searchParams.set("under", root.id);
+    await this.page.goto(afterClick.toString());
+    await expect(this.page).toHaveURL(/under=[0-9a-f-]{36}/i, { timeout: 10000 });
+  }
+
+  async createItemFromModal(title: string) {
+    await this.ensureUnderParam();
+    const createButtonByTestId = this.page.getByTestId("quality-create-button");
+    const createButtonByRole = this.page.getByRole("button", { name: /Create (test case|suite|run|campaign)/i });
+    if (await createButtonByTestId.isVisible().catch(() => false)) await createButtonByTestId.click();
+    else await createButtonByRole.click();
+
+    const dialog = this.page.getByRole("dialog");
+    const modalTitleInputByTestId = this.page.getByTestId("artifact-modal-title-input");
+    const modalTitleInputByRole = dialog.getByRole("textbox", { name: /enter title|title/i }).first();
+    const hasModal = await dialog.isVisible().catch(() => false);
+    if (hasModal || (await modalTitleInputByTestId.isVisible().catch(() => false))) {
+      if (await modalTitleInputByTestId.isVisible().catch(() => false)) await modalTitleInputByTestId.fill(title);
+      else await modalTitleInputByRole.fill(title);
+      const createModalButton = this.page.getByTestId("artifact-modal-create").or(dialog.getByRole("button", { name: /Create/i }).first());
+      if (await createModalButton.isDisabled().catch(() => false)) {
+        // Test-case modal requires at least one valid step.
+        const addStepButton = this.page.getByTestId("step-add-button");
+        if (await addStepButton.isVisible().catch(() => false)) {
+          await addStepButton.click();
+          await dialog.getByLabel(/Name/i).first().fill("Open the target page");
+          await dialog.getByLabel(/Expected Result/i).first().fill("Page loads successfully");
+        }
+      }
+      await createModalButton.click();
+    } else {
+      // Legacy inline create fallback
+      await this.page.getByPlaceholder(/Create .* title/i).fill(title);
+      await createButtonByRole.click();
+    }
+    await expect(this.page.getByText(title).first()).toBeVisible({ timeout: 20000 });
+  }
+
+  async clearFolderFilter() {
+    const clearByTestId = this.page.getByTestId("quality-tree-clear-filter");
+    if (await clearByTestId.isVisible().catch(() => false)) {
+      await clearByTestId.click({ timeout: 10000 });
+    } else {
+      await this.page.getByRole("button", { name: /Clear folder filter/i }).click({ timeout: 10000 });
+    }
+    await expect(this.page).not.toHaveURL(/under=/i, { timeout: 10000 });
+  }
+}
+

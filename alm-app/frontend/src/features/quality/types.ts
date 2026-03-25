@@ -1,7 +1,8 @@
 export interface TestStep {
   id: string;
   stepNumber: number;
-  action: string;
+  name: string;
+  description: string;
   expectedResult: string;
   status: 'passed' | 'failed' | 'blocked' | 'not-executed';
   actualResult?: string;

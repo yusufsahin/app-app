@@ -136,6 +136,40 @@ export type ConflictModalProps = {
   onCancel: () => void;
 };
 
+/** Quality create/edit artifact modal */
+export type QualityArtifactModalProps = {
+  mode: "create" | "edit";
+  artifactType: string;
+  initialTitle?: string;
+  initialDescription?: string;
+  initialSteps?: Array<{
+    id: string;
+    stepNumber: number;
+    name: string;
+    description: string;
+    expectedResult: string;
+    status: "passed" | "failed" | "blocked" | "not-executed";
+    actualResult?: string;
+    notes?: string;
+  }>;
+  enableStepsEditor?: boolean;
+  isPending: boolean;
+  onSubmit: (payload: {
+    title: string;
+    description: string;
+    steps: Array<{
+      id: string;
+      stepNumber: number;
+      name: string;
+      description: string;
+      expectedResult: string;
+      status: "passed" | "failed" | "blocked" | "not-executed";
+      actualResult?: string;
+      notes?: string;
+    }>;
+  }) => Promise<void> | void;
+};
+
 export interface ModalPropsMap {
   ConfirmModal: ConfirmModalProps;
   DeleteArtifactModal: DeleteArtifactModalProps;
@@ -149,6 +183,7 @@ export interface ModalPropsMap {
   BulkDeleteModal: BulkDeleteModalProps;
   TransitionArtifactModal: TransitionArtifactModalProps;
   ConflictModal: ConflictModalProps;
+  QualityArtifactModal: QualityArtifactModalProps;
 }
 
 export type OpenModalOptions = {

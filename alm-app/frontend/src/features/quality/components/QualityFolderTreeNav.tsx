@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronRight, Folder, FolderOpen, Layers } from "lucide-react";
 import { useArtifacts } from "../../../shared/api/artifactApi";
@@ -7,6 +7,7 @@ import { getTreeRootsFromManifestBundle } from "../../../shared/lib/manifestTree
 import { buildArtifactTree, type ArtifactNode } from "../../artifacts/utils";
 import { Button } from "../../../shared/components/ui";
 import { cn } from "../../../shared/components/ui/utils";
+import { useTranslation } from "react-i18next";
 
 interface QualityFolderTreeNavProps {
   orgSlug: string | undefined;
@@ -46,6 +47,8 @@ function FolderTreeRows({
           <div key={node.id} className="select-none">
             <button
               type="button"
+              data-testid={`quality-tree-node-${node.id}`}
+              data-artifact-type={node.artifact_type}
               className={cn(
                 "flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted/80",
                 selected && "bg-muted font-medium",
@@ -102,6 +105,7 @@ function FolderTreeRows({
  * Uses URL `?under=<folder-uuid>`; list queries pass `parent_id` for direct children.
  */
 export function QualityFolderTreeNav({ orgSlug, projectId, manifestBundle }: QualityFolderTreeNavProps) {
+  const { t } = useTranslation("quality");
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedUnder = searchParams.get("under")?.trim() || null;
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
@@ -132,16 +136,6 @@ export function QualityFolderTreeNav({ orgSlug, projectId, manifestBundle }: Qua
     );
     return buildArtifactTree(items, roots);
   }, [treeData?.items, roots]);
-
-  useEffect(() => {
-    const rid = folderOnlyTree[0]?.id;
-    if (!rid) return;
-    setExpandedIds((prev) => {
-      const n = new Set(prev);
-      n.add(rid);
-      return n;
-    });
-  }, [folderOnlyTree]);
 
   const toggle = (id: string) => {
     setExpandedIds((prev) => {
@@ -181,13 +175,13 @@ export function QualityFolderTreeNav({ orgSlug, projectId, manifestBundle }: Qua
   return (
     <div className="flex h-full min-h-[280px] max-h-[calc(100vh-220px)] flex-col rounded-lg border border-border bg-card">
       <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Folders
+        {t("tree.folders")}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {isLoading ? (
-          <p className="px-2 text-xs text-muted-foreground">Loading…</p>
+          <p className="px-2 text-xs text-muted-foreground">{t("tree.loading")}</p>
         ) : folderOnlyTree.length === 0 ? (
-          <p className="px-2 text-xs text-muted-foreground">No quality folders.</p>
+          <p className="px-2 text-xs text-muted-foreground">{t("tree.empty")}</p>
         ) : (
           <FolderTreeRows
             nodes={folderOnlyTree}
@@ -201,8 +195,8 @@ export function QualityFolderTreeNav({ orgSlug, projectId, manifestBundle }: Qua
       </div>
       {selectedUnder ? (
         <div className="border-t border-border p-2">
-          <Button type="button" variant="ghost" size="sm" className="h-8 w-full text-xs" onClick={onSelectRoot}>
-            Clear folder filter
+          <Button type="button" variant="ghost" size="sm" className="h-8 w-full text-xs" onClick={onSelectRoot} data-testid="quality-tree-clear-filter">
+            {t("tree.clearFilter")}
           </Button>
         </div>
       ) : null}

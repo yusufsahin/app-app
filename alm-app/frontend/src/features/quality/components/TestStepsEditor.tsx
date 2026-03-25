@@ -3,6 +3,7 @@ import { Plus, Trash2, GripVertical, ChevronDown, ChevronRight, ArrowUp, ArrowDo
 import { Button } from "../../../shared/components/ui";
 import { cn } from "../../../shared/components/ui/utils";
 import type { TestStep } from "../types";
+import { useTranslation } from "react-i18next";
 
 interface TestStepsEditorProps {
   steps: TestStep[];
@@ -15,9 +16,11 @@ const textareaClassName = cn(
 );
 
 export function TestStepsEditor({ steps = [], onChange, readOnly = false }: TestStepsEditorProps) {
+  const { t } = useTranslation("quality");
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(
     new Set(steps.map((s) => s.id))
   );
+  const [draggedStepId, setDraggedStepId] = useState<string | null>(null);
 
   const toggleStep = (stepId: string) => {
     const newExpanded = new Set(expandedSteps);
@@ -33,7 +36,8 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
     const newStep: TestStep = {
       id: `step-${Date.now()}`,
       stepNumber: steps.length + 1,
-      action: "",
+      name: "",
+      description: "",
       expectedResult: "",
       status: "not-executed",
     };
@@ -41,7 +45,7 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
     setExpandedSteps(new Set([...expandedSteps, newStep.id]));
   };
 
-  const updateStep = (stepId: string, field: keyof TestStep, value: string) => {
+  const updateStep = (stepId: string, field: "name" | "description" | "expectedResult", value: string) => {
     onChange(
       steps.map((step) =>
         step.id === stepId ? { ...step, [field]: value } : step
@@ -84,16 +88,31 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
     onChange(renumbered);
   };
 
+  const moveStepToIndex = (stepId: string, toIndex: number) => {
+    const fromIndex = steps.findIndex((s) => s.id === stepId);
+    if (fromIndex < 0 || fromIndex === toIndex || toIndex < 0 || toIndex >= steps.length) return;
+    const next = [...steps];
+    const [moved] = next.splice(fromIndex, 1);
+    if (!moved) return;
+    next.splice(toIndex, 0, moved);
+    onChange(
+      next.map((step, idx) => ({
+        ...step,
+        stepNumber: idx + 1,
+      })),
+    );
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-slate-700">
-          Steps {steps.length > 0 && <span className="text-slate-400 ml-1">({steps.length})</span>}
+          {t("steps.title")} {steps.length > 0 && <span className="text-slate-400 ml-1">({steps.length})</span>}
         </label>
         {!readOnly && (
-          <Button type="button" onClick={addStep} size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
+          <Button type="button" onClick={addStep} size="sm" variant="outline" className="h-8 gap-1.5 text-xs" data-testid="step-add-button">
             <Plus className="h-3.5 w-3.5" />
-            Add Step
+            {t("steps.add")}
           </Button>
         )}
       </div>
@@ -101,20 +120,33 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
       {steps.length === 0 ? (
         <div className="text-center py-8 border-2 border-dashed rounded-xl bg-slate-50/50">
           <p className="text-sm text-slate-500">
-            No steps defined. Add one to begin.
+            {t("steps.empty")}
           </p>
         </div>
       ) : (
         <div className="space-y-2">
           {steps.map((step, index) => {
             const isExpanded = expandedSteps.has(step.id);
-            const isEmpty = !step.action && !step.expectedResult;
+            const isEmpty = !step.name && !step.expectedResult;
 
             return (
               <div
                 key={step.id}
+                draggable={!readOnly}
+                onDragStart={() => setDraggedStepId(step.id)}
+                onDragOver={(e) => {
+                  if (readOnly) return;
+                  e.preventDefault();
+                }}
+                onDrop={() => {
+                  if (readOnly || !draggedStepId) return;
+                  moveStepToIndex(draggedStepId, index);
+                  setDraggedStepId(null);
+                }}
+                onDragEnd={() => setDraggedStepId(null)}
                 className={cn(
                   "group relative overflow-hidden rounded-xl border transition-all duration-200",
+                  draggedStepId === step.id && "opacity-70",
                   isExpanded ? "border-slate-200 bg-white shadow-sm" : "border-slate-100 bg-slate-50/30 hover:bg-slate-50",
                   isEmpty && !readOnly && "border-amber-100 bg-amber-50/30"
                 )}
@@ -141,10 +173,13 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                           isExpanded ? "text-slate-800" : "text-slate-600",
                         )}
                       >
-                        {step.action || (
-                          <span className="font-normal italic text-slate-400">No action defined</span>
+                        {step.name || (
+                          <span className="font-normal italic text-slate-400">{t("steps.noName")}</span>
                         )}
                       </div>
+                      {!readOnly ? (
+                        <div className="text-[10px] text-slate-400">{t("steps.dragHint")}</div>
+                      ) : null}
                     </div>
                   </button>
 
@@ -197,14 +232,36 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                           htmlFor={`ts-step-${step.id}-action`}
                           className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-400"
                         >
-                          Instruction
+                          {t("steps.fields.name")}
                         </label>
                         <textarea
                           id={`ts-step-${step.id}-action`}
-                          placeholder="What should the tester do?"
-                          value={step.action}
+                          placeholder={t("steps.placeholders.name")}
+                          value={step.name}
                           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                            updateStep(step.id, "action", e.target.value)
+                            updateStep(step.id, "name", e.target.value)
+                          }
+                          className={cn(
+                            textareaClassName,
+                            "resize-none border-slate-200 bg-white focus:ring-1 focus:ring-primary/20",
+                          )}
+                          readOnly={readOnly}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label
+                          htmlFor={`ts-step-${step.id}-description`}
+                          className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-400"
+                        >
+                          {t("steps.fields.description")}
+                        </label>
+                        <textarea
+                          id={`ts-step-${step.id}-description`}
+                          placeholder={t("steps.placeholders.description")}
+                          value={step.description}
+                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                            updateStep(step.id, "description", e.target.value)
                           }
                           className={cn(
                             textareaClassName,
@@ -219,11 +276,11 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                           htmlFor={`ts-step-${step.id}-expected`}
                           className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-400"
                         >
-                          Expected Result
+                          {t("steps.fields.expectedResult")}
                         </label>
                         <textarea
                           id={`ts-step-${step.id}-expected`}
-                          placeholder="What should happen?"
+                          placeholder={t("steps.placeholders.expectedResult")}
                           value={step.expectedResult}
                           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                             updateStep(step.id, "expectedResult", e.target.value)

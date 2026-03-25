@@ -25,6 +25,7 @@ import { useArtifactLinks } from "../../../shared/api/artifactLinkApi";
 import { ExecutionStepList } from "./ExecutionStepList";
 import type { TestStep, StepResult } from "../types";
 import { parseRunMetricsPayload, stringifyRunMetricsPayload } from "../lib/runMetrics";
+import { parseTestSteps } from "../lib/testSteps";
 import { toast } from "sonner";
 
 interface TestExecutionState {
@@ -126,13 +127,7 @@ export function ManualExecutionPlayerCore({
     } else if (activeTests.length > 0) {
       initialResults = activeTests.map((test) => {
         let steps: TestStep[] = [];
-        if (test.custom_fields?.test_steps_json) {
-          try {
-            steps = JSON.parse(String(test.custom_fields.test_steps_json)) as TestStep[];
-          } catch (e) {
-            console.error(`Failed to parse test_steps_json for test ${test.id}`, e);
-          }
-        }
+        steps = parseTestSteps(test.custom_fields?.test_steps_json);
 
         return {
           testId: test.id,
@@ -222,7 +217,8 @@ export function ManualExecutionPlayerCore({
 **Run ID:** ${run?.artifact_key || run?.id}
 
 ## Step Details
-- **Description:** ${step.action}
+- **Name:** ${step.name}
+- **Description:** ${step.description || "N/A"}
 - **Expected Result:** ${step.expectedResult}
 - **Actual Result:** ${stepResult.actualResult || "No actual result provided"}
 
@@ -242,13 +238,7 @@ export function ManualExecutionPlayerCore({
       return;
     }
 
-    let steps: TestStep[] = [];
-    try {
-      steps = JSON.parse(String(currentTest.custom_fields?.test_steps_json || "[]"));
-    } catch {
-      toast.error("Failed to parse test steps");
-      return;
-    }
+    const steps = parseTestSteps(currentTest.custom_fields?.test_steps_json);
 
     const updatedStepResults = steps.map((step) => {
       const existing = currentResult.stepResults.find((r) => r.stepId === String(step.id));
@@ -380,7 +370,7 @@ export function ManualExecutionPlayerCore({
 
   let currentTestSteps: TestStep[] = [];
   try {
-    currentTestSteps = JSON.parse(String(currentTest?.custom_fields?.test_steps_json || "[]"));
+    currentTestSteps = parseTestSteps(currentTest?.custom_fields?.test_steps_json);
   } catch (e) {
     console.error("Failed to parse test steps", e);
   }

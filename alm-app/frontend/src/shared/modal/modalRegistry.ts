@@ -61,6 +61,13 @@ export const MODALS = {
     options: { maxWidth: "sm", destroyOnClose: true },
     title: "Conflict",
   },
+  QualityArtifactModal: {
+    component: lazy(() =>
+      import("./modals/QualityArtifactModal").then((m) => ({ default: m.QualityArtifactModal })),
+    ),
+    options: { maxWidth: "lg", destroyOnClose: true },
+    title: "Quality item",
+  },
 } as const;
 
 export type ModalType = keyof typeof MODALS;

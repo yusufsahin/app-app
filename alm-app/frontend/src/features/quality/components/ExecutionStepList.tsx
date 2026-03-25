@@ -17,6 +17,7 @@ import {
 } from "../../../shared/components/ui";
 import { cn } from "../../../shared/components/ui/utils";
 import type { TestStep, StepResult } from "../types";
+import { useTranslation } from "react-i18next";
 
 const textareaClassName = cn(
   "placeholder:text-muted-foreground border-input flex min-h-[60px] w-full rounded-md border bg-background px-3 py-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -44,6 +45,7 @@ export function ExecutionStepList({
   onPassAllSteps,
   readOnly = false,
 }: ExecutionStepListProps) {
+  const { t } = useTranslation("quality");
   const getStepResult = (stepId: string) =>
     results.find((r) => r.stepId === stepId);
 
@@ -57,7 +59,7 @@ export function ExecutionStepList({
                 onClick={onPassAllSteps}
                 className="text-[10px] font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700 hover:bg-blue-50"
               >
-                  Mark All Passed
+                  {t("execution.markAllPassed")}
               </Button>
           </div>
       )}
@@ -92,7 +94,7 @@ export function ExecutionStepList({
                     {step.stepNumber}
                   </div>
                   <CardTitle className="text-sm font-semibold text-slate-800">
-                    {step.action}
+                    {step.name}
                   </CardTitle>
                 </div>
                 {!readOnly && (
@@ -158,8 +160,11 @@ export function ExecutionStepList({
 
             <CardContent className="p-4 pt-2">
               <div className="mb-3 space-y-1">
+                {step.description ? (
+                  <p className="text-xs leading-relaxed text-slate-500">{step.description}</p>
+                ) : null}
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Expected Result
+                  {t("steps.fields.expectedResult")}
                 </span>
                 <p className="text-xs leading-relaxed text-slate-600 font-medium">
                   {step.expectedResult}
@@ -172,7 +177,7 @@ export function ExecutionStepList({
                     <div className="flex items-center justify-between">
                       <Label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                         <Edit3 className="size-3" />
-                        Actual Result
+                        {t("execution.actualResult")}
                       </Label>
                       <Button
                         variant="ghost"
@@ -182,11 +187,11 @@ export function ExecutionStepList({
                           onUpdateStep(step.id, status, step.expectedResult)
                         }
                       >
-                        Copy Expected
+                        {t("execution.copyExpected")}
                       </Button>
                     </div>
                     <textarea
-                      placeholder="What actually happened?"
+                      placeholder={t("execution.placeholders.actualResult")}
                       className={cn(textareaClassName, "border-slate-200 bg-white/50 focus:bg-white resize-none")}
                       value={result?.actualResult || ""}
                       onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
@@ -198,10 +203,10 @@ export function ExecutionStepList({
                   <div className="space-y-1.5">
                     <Label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       <MessageSquare className="size-3" />
-                      Notes / Observations
+                      {t("execution.notes")}
                     </Label>
                     <textarea
-                      placeholder="Any bugs or context..."
+                      placeholder={t("execution.placeholders.notes")}
                       className={cn(textareaClassName, "border-slate-200 bg-white/50 focus:bg-white resize-none")}
                       value={result?.notes || ""}
                       onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
@@ -222,7 +227,7 @@ export function ExecutionStepList({
                   {result.actualResult && (
                     <div className="space-y-1">
                       <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                        Actual Result
+                        {t("execution.actualResult")}
                       </span>
                       <p className="text-xs text-slate-600">
                         {result.actualResult}
@@ -232,7 +237,7 @@ export function ExecutionStepList({
                   {result.notes && (
                     <div className="space-y-1">
                       <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                        Notes
+                        {t("execution.notes")}
                       </span>
                       <p className="text-xs text-slate-600 font-medium italic">
                         {result.notes}
@@ -251,7 +256,7 @@ export function ExecutionStepList({
                     onClick={() => onCopyBugReport(step, result!)}
                   >
                     <Copy className="size-3" />
-                    Copy Bug Report
+                    {t("execution.copyBugReport")}
                   </Button>
                 </div>
               )}

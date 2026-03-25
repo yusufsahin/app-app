@@ -85,7 +85,7 @@ export function CreateArtifactModal({
         <Button variant="ghost" size="sm" onClick={onClose}>
           Cancel
         </Button>
-        <Button size="sm" onClick={() => onCreate(formValues)} disabled={isPending}>
+        <Button size="sm" onClick={() => onCreate(formValues)} disabled={isPending} data-testid="artifact-save-button">
           <Save className="mr-1.5 size-4" />
           Save
         </Button>
@@ -106,6 +106,7 @@ export function CreateArtifactModal({
               value={(formValues.title as string) ?? ""}
               onChange={(e) => updateField("title", e.target.value)}
               aria-invalid={!!formErrors.title}
+              data-testid="artifact-title-input"
             />
             {formErrors.title && <p className="mt-1 text-xs text-destructive">{formErrors.title}</p>}
           </div>

@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PlayCircle } from "lucide-react";
 import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
@@ -7,6 +7,7 @@ import {
   useArtifact,
   useArtifacts,
   useCreateArtifact,
+  useDeleteArtifact,
   useUpdateArtifact,
   type Artifact,
 } from "../../../shared/api/artifactApi";
@@ -24,12 +25,13 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Input,
 } from "../../../shared/components/ui";
 import { QualityFolderTreeNav } from "./QualityFolderTreeNav";
 import { qualityPath } from "../../../shared/utils/appPaths";
-import { TestStepsEditor } from "./TestStepsEditor";
 import type { TestStep } from "../types";
+import { parseTestSteps, normalizeTestSteps } from "../lib/testSteps";
+import { modalApi } from "../../../shared/modal/modalApi";
+import { useTranslation } from "react-i18next";
 
 interface LinkConfig {
   linkType: string;
@@ -53,24 +55,6 @@ function isUuid(value: string | null): value is string {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function parseTestSteps(raw: unknown): TestStep[] {
-  if (!Array.isArray(raw)) return [];
-  const steps: TestStep[] = [];
-  for (const row of raw) {
-    if (!row || typeof row !== "object") continue;
-    const obj = row as Record<string, unknown>;
-    const id = typeof obj.id === "string" ? obj.id : `step-${steps.length + 1}`;
-    steps.push({
-      id,
-      stepNumber: typeof obj.stepNumber === "number" ? obj.stepNumber : steps.length + 1,
-      action: typeof obj.action === "string" ? obj.action : "",
-      expectedResult: typeof obj.expectedResult === "string" ? obj.expectedResult : "",
-      status: "not-executed",
-    });
-  }
-  return steps;
-}
-
 export default function QualityArtifactWorkspace({
   artifactType,
   pageLabel,
@@ -81,6 +65,7 @@ export default function QualityArtifactWorkspace({
   runExecute = false,
   enableStepsEditor = false,
 }: QualityArtifactWorkspaceProps) {
+  const { t } = useTranslation("quality");
   const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: manifest } = useProjectManifest(orgSlug, project?.id);
@@ -134,6 +119,7 @@ export default function QualityArtifactWorkspace({
   );
 
   const createArtifact = useCreateArtifact(orgSlug, project?.id);
+  const deleteArtifact = useDeleteArtifact(orgSlug, project?.id);
   const selectedArtifactQuery = useArtifact(orgSlug, project?.id, selectedArtifactId ?? undefined);
   const updateArtifact = useUpdateArtifact(orgSlug, project?.id, selectedArtifactId ?? undefined);
   const linksQuery = useArtifactLinks(orgSlug, project?.id, selectedArtifactId ?? undefined);
@@ -158,31 +144,9 @@ export default function QualityArtifactWorkspace({
     false,
   );
 
-  const [newTitle, setNewTitle] = useState("");
-  const [newDescription, setNewDescription] = useState("");
-  const [editTitle, setEditTitle] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [steps, setSteps] = useState<TestStep[]>([]);
   const [targetArtifactId, setTargetArtifactId] = useState("");
   const selectedArtifact = selectedArtifactQuery.data;
   const listItems = listQuery.data?.items ?? [];
-
-  useEffect(() => {
-    if (!selectedArtifact) {
-      setEditTitle("");
-      setEditDescription("");
-      setSteps([]);
-      return;
-    }
-    setEditTitle(selectedArtifact.title ?? "");
-    setEditDescription(selectedArtifact.description ?? "");
-    if (enableStepsEditor) {
-      const rawSteps = (selectedArtifact.custom_fields as Record<string, unknown> | undefined)?.test_steps_json;
-      setSteps(parseTestSteps(rawSteps));
-    } else {
-      setSteps([]);
-    }
-  }, [enableStepsEditor, selectedArtifact]);
 
   const linkTargets = useMemo(() => {
     const allTargets = linkTargetsQuery.data?.items ?? [];
@@ -207,56 +171,101 @@ export default function QualityArtifactWorkspace({
     );
   }
 
-  const onCreate = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!project?.id || !orgSlug) return;
-    const trimmed = newTitle.trim();
-    if (!trimmed) return;
-    let parentId = selectedUnder;
-    if (artifactType === "quality-folder" && !parentId) parentId = rootQualityId;
-    if (!parentId && artifactType !== "quality-folder") return;
-    const payload: {
-      artifact_type: string;
-      title: string;
-      description?: string;
-      parent_id?: string;
-      custom_fields?: Record<string, unknown>;
-    } = {
-      artifact_type: artifactType,
-      title: trimmed,
-      description: newDescription.trim(),
-      parent_id: parentId ?? undefined,
-    };
-    if (enableStepsEditor && steps.length > 0) payload.custom_fields = { test_steps_json: steps };
-    const created = await createArtifact.mutateAsync(payload);
-    setNewTitle("");
-    setNewDescription("");
-    setSteps([]);
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.set("artifact", created.id);
-        return next;
+  const openCreateModal = () => {
+    const initialSteps: TestStep[] = [];
+    modalApi.openQualityArtifact(
+      {
+        mode: "create",
+        artifactType,
+        initialSteps,
+        enableStepsEditor,
+        isPending: createArtifact.isPending,
+        onSubmit: async ({ title, description, steps }) => {
+          if (!project?.id || !orgSlug) return;
+          let parentId = selectedUnder;
+          if (artifactType === "quality-folder" && !parentId) parentId = rootQualityId;
+          if (!parentId && artifactType !== "quality-folder") return;
+          const payload: {
+            artifact_type: string;
+            title: string;
+            description?: string;
+            parent_id?: string;
+            custom_fields?: Record<string, unknown>;
+          } = {
+            artifact_type: artifactType,
+            title,
+            description,
+            parent_id: parentId ?? undefined,
+          };
+          if (enableStepsEditor && steps.length > 0) payload.custom_fields = { test_steps_json: normalizeTestSteps(steps) };
+          const created = await createArtifact.mutateAsync(payload);
+          modalApi.closeModal();
+          setSearchParams(
+            (prev) => {
+              const next = new URLSearchParams(prev);
+              next.set("artifact", created.id);
+              return next;
+            },
+            { replace: true },
+          );
+        },
       },
-      { replace: true },
+      { title: t("modals.createTitle") },
     );
   };
 
-  const onSave = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!selectedArtifactId) return;
-    const customFields =
-      enableStepsEditor && selectedArtifact
-        ? {
-            ...((selectedArtifact.custom_fields ?? {}) as Record<string, unknown>),
-            test_steps_json: steps,
-          }
-        : undefined;
-    await updateArtifact.mutateAsync({
-      title: editTitle.trim(),
-      description: editDescription,
-      custom_fields: customFields,
-    });
+  const openEditModal = (artifact: Artifact) => {
+    const parsed = enableStepsEditor
+      ? parseTestSteps((artifact.custom_fields as Record<string, unknown> | undefined)?.test_steps_json)
+      : [];
+    modalApi.openQualityArtifact(
+      {
+        mode: "edit",
+        artifactType,
+        initialTitle: artifact.title ?? "",
+        initialDescription: artifact.description ?? "",
+        initialSteps: parsed,
+        enableStepsEditor,
+        isPending: updateArtifact.isPending,
+        onSubmit: async ({ title, description, steps }) => {
+          if (!artifact.id) return;
+          await updateArtifact.mutateAsync({
+            title,
+            description,
+            custom_fields: enableStepsEditor
+              ? {
+                  ...((artifact.custom_fields ?? {}) as Record<string, unknown>),
+                  test_steps_json: normalizeTestSteps(steps),
+                }
+              : undefined,
+          });
+          modalApi.closeModal();
+        },
+      },
+      { title: t("modals.editTitle") },
+    );
+  };
+
+  const onDeleteSelected = async () => {
+    if (!selectedArtifact) return;
+    modalApi.openDeleteArtifact(
+      {
+        artifact: {
+          id: selectedArtifact.id,
+          title: selectedArtifact.title,
+          artifact_key: selectedArtifact.artifact_key,
+        },
+        onConfirm: async () => {
+          await deleteArtifact.mutateAsync(selectedArtifact.id);
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete("artifact");
+            return next;
+          });
+        },
+      },
+      { title: t("modals.deleteTitle") },
+    );
   };
 
   const addLink = async () => {
@@ -284,32 +293,22 @@ export default function QualityArtifactWorkspace({
           <CardContent>
             {!hasQualityTree ? (
               <p className="text-sm text-muted-foreground">
-                Quality tree manifestte tanımlı değil. <code>tree_id: quality</code> eklenmeli.
+                {t("workspace.noQualityTree")} <code>tree_id: quality</code>.
               </p>
             ) : null}
             {!selectedUnder && artifactType !== "quality-folder" ? (
-              <p className="text-sm text-muted-foreground">Önce soldan bir klasor secin.</p>
+              <p className="text-sm text-muted-foreground">{t("workspace.selectFolderFirst")}</p>
             ) : null}
-            <form className="mt-3 grid gap-2 md:grid-cols-3" onSubmit={onCreate}>
-              <Input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder={`${createCta} title`}
-                disabled={createArtifact.isPending || (!selectedUnder && artifactType !== "quality-folder")}
-              />
-              <Input
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                placeholder="Description (optional)"
-                disabled={createArtifact.isPending || (!selectedUnder && artifactType !== "quality-folder")}
-              />
+            <div className="mt-3">
               <Button
-                type="submit"
-                disabled={createArtifact.isPending || !newTitle.trim() || (!selectedUnder && artifactType !== "quality-folder")}
+                type="button"
+                onClick={openCreateModal}
+                data-testid="quality-create-button"
+                disabled={createArtifact.isPending || (!selectedUnder && artifactType !== "quality-folder")}
               >
                 {createCta}
               </Button>
-            </form>
+            </div>
           </CardContent>
         </Card>
 
@@ -317,7 +316,7 @@ export default function QualityArtifactWorkspace({
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Items</CardTitle>
-              <CardDescription>{selectedUnder ? "Selected folder children" : "Select a folder to list items"}</CardDescription>
+              <CardDescription>{selectedUnder ? t("workspace.selectedFolderChildren") : t("workspace.selectFolderToList")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {listItems.length === 0 ? (
@@ -328,6 +327,7 @@ export default function QualityArtifactWorkspace({
                   return (
                     <button
                       key={item.id}
+                      data-testid={`quality-item-row-${item.id}`}
                       type="button"
                       onClick={() =>
                         setSearchParams((prev) => {
@@ -350,25 +350,24 @@ export default function QualityArtifactWorkspace({
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Details</CardTitle>
-              <CardDescription>{selectedArtifact ? "Edit selected item" : "Select an item to edit"}</CardDescription>
+              <CardDescription>{selectedArtifact ? t("workspace.selectedItem") : t("workspace.selectItemToEdit")}</CardDescription>
             </CardHeader>
             <CardContent>
               {!selectedArtifact ? (
-                <p className="text-sm text-muted-foreground">No item selected.</p>
+                <p className="text-sm text-muted-foreground">{t("workspace.noItemSelected")}</p>
               ) : (
-                <form className="space-y-3" onSubmit={onSave}>
-                  <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-                  <textarea
-                    aria-label="Description"
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    className="min-h-[90px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
-                  {enableStepsEditor ? <TestStepsEditor steps={steps} onChange={setSteps} /> : null}
-                  <Button type="submit" disabled={updateArtifact.isPending || !editTitle.trim()}>
-                    Save
-                  </Button>
-                </form>
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">{selectedArtifact.title}</p>
+                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">{selectedArtifact.description || "—"}</p>
+                  <div className="flex gap-2">
+                    <Button type="button" onClick={() => openEditModal(selectedArtifact)} data-testid="quality-edit-button">
+                      {t("common.edit")}
+                    </Button>
+                    <Button type="button" variant="destructive" onClick={onDeleteSelected} data-testid="quality-delete-button">
+                      {t("common.delete")}
+                    </Button>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -384,6 +383,7 @@ export default function QualityArtifactWorkspace({
               <div className="flex gap-2">
                 <select
                   aria-label={`${linkConfig.targetType} selection`}
+                  data-testid="quality-link-target-select"
                   className="h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm"
                   value={targetArtifactId}
                   onChange={(e) => setTargetArtifactId(e.target.value)}
@@ -395,7 +395,7 @@ export default function QualityArtifactWorkspace({
                     </option>
                   ))}
                 </select>
-                <Button type="button" disabled={!targetArtifactId || createLink.isPending} onClick={addLink}>
+                <Button type="button" disabled={!targetArtifactId || createLink.isPending} onClick={addLink} data-testid="quality-link-add">
                   Add link
                 </Button>
               </div>
