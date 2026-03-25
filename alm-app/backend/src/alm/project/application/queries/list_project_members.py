@@ -33,7 +33,4 @@ class ListProjectMembersHandler(QueryHandler[list[ProjectMemberDTO]]):
             return []
 
         members = await self._project_member_repo.list_by_project(query.project_id)
-        return [
-            ProjectMemberDTO(id=m.id, project_id=m.project_id, user_id=m.user_id, role=m.role)
-            for m in members
-        ]
+        return [ProjectMemberDTO(id=m.id, project_id=m.project_id, user_id=m.user_id, role=m.role) for m in members]

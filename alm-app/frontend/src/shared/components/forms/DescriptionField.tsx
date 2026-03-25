@@ -2,12 +2,20 @@
  * Reusable Description field: plain text, rich text (WYSIWYG), or markdown.
  * Controlled component (value + onChange). Use in metadata-driven forms or wrap with Controller for RHF.
  */
-import { useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useRef, useState } from "react";
 import type { DescriptionInputMode } from "../../types/formSchema";
 import { Button, Label } from "../ui";
 import { cn } from "../ui/utils";
-import { MarkdownFieldInner } from "./RhfMarkdownField";
-import { RichTextEditorInner } from "./RhfRichTextField";
+
+const RichTextEditorInner = lazy(async () => {
+  const mod = await import("./RhfRichTextField");
+  return { default: mod.RichTextEditorInner };
+});
+
+const MarkdownFieldInner = lazy(async () => {
+  const mod = await import("./RhfMarkdownField");
+  return { default: mod.MarkdownFieldInner };
+});
 
 export interface DescriptionFieldProps {
   value: string;
@@ -49,6 +57,9 @@ export function DescriptionField({
   allowModeSwitch = false,
 }: DescriptionFieldProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const registerTextareaRef = useCallback((el: HTMLTextAreaElement | null) => {
+    textareaRef.current = el;
+  }, []);
   const lastExternalValueRef = useRef<string | undefined>(undefined);
   const [localMode, setLocalMode] = useState<DescriptionInputMode>(modeProp);
   const mode = allowModeSwitch ? localMode : modeProp;
@@ -84,20 +95,22 @@ export function DescriptionField({
     return (
       <div>
         {modeSelector}
-        <RichTextEditorInner
-          value={value ?? ""}
-          onChange={onChange}
-          onBlur={onBlur ?? (() => {})}
-          inputRef={() => {}}
-          label={allowModeSwitch ? undefined : label}
-          placeholder={placeholder ?? "Write something…"}
-          minHeight={minHeight}
-          showToolbar={showToolbar}
-          disabled={disabled}
-          error={error}
-          helperText={helperText}
-          lastExternalValueRef={lastExternalValueRef}
-        />
+        <Suspense fallback={<div className="text-sm text-muted-foreground">Loading editor...</div>}>
+          <RichTextEditorInner
+            value={value ?? ""}
+            onChange={onChange}
+            onBlur={onBlur ?? (() => {})}
+            inputRef={() => {}}
+            label={allowModeSwitch ? undefined : label}
+            placeholder={placeholder ?? "Write something..."}
+            minHeight={minHeight}
+            showToolbar={showToolbar}
+            disabled={disabled}
+            error={error}
+            helperText={helperText}
+            lastExternalValueRef={lastExternalValueRef}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -106,23 +119,26 @@ export function DescriptionField({
     return (
       <div>
         {modeSelector}
-        <MarkdownFieldInner
-          value={value ?? ""}
-          onChange={onChange}
-          onBlur={onBlur ?? (() => {})}
-          ref={() => {}}
-          textareaRef={textareaRef}
-          label={allowModeSwitch ? undefined : label}
-          placeholder={placeholder ?? "Write markdown…"}
-          minHeight={minHeight}
-          rows={rows}
-          showToolbar={showToolbar}
-          showPreview={showPreview}
-          defaultView="edit"
-          disabled={disabled}
-          error={error}
-          helperText={helperText}
-        />
+        <Suspense fallback={<div className="text-sm text-muted-foreground">Loading editor...</div>}>
+          <MarkdownFieldInner
+            value={value ?? ""}
+            onChange={onChange}
+            onBlur={onBlur ?? (() => {})}
+            ref={() => {}}
+            registerTextareaRef={registerTextareaRef}
+            textareaRef={textareaRef}
+            label={allowModeSwitch ? undefined : label}
+            placeholder={placeholder ?? "Write markdown..."}
+            minHeight={minHeight}
+            rows={rows}
+            showToolbar={showToolbar}
+            showPreview={showPreview}
+            defaultView="edit"
+            disabled={disabled}
+            error={error}
+            helperText={helperText}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -142,7 +158,7 @@ export function DescriptionField({
         placeholder={placeholder}
         disabled={disabled}
         rows={rows}
-        aria-invalid={error}
+        aria-invalid={error ? "true" : undefined}
         aria-describedby={helperText ? "description-helper" : undefined}
         style={{ minHeight: minHeight ? `${minHeight}px` : undefined }}
       />

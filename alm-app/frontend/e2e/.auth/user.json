@@ -2,19 +2,23 @@
   "cookies": [],
   "origins": [
     {
-      "origin": "http://localhost:3000",
+      "origin": "http://localhost:9001",
       "localStorage": [
         {
+          "name": "access_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwZDdmNGIyZS1kMzQ2LTQxYjAtYTA5Yi1kYTRlZWE2YjE4NTQiLCJ0aWQiOiJhZjY4ZDAyMi0yYjUzLTRmMDUtOTRjNi0yMjkyZTlhOTMxNTYiLCJyb2xlcyI6WyJhZG1pbiJdLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc0NDM2NTg1LCJpYXQiOjE3NzQ0MzQ3ODV9.rF9Ml1MNxIt1pGEKxvLyeYQoKlDchKjpYnh092-fnzg"
+        },
+        {
+          "name": "alm-layout-ui",
+          "value": "{\"sidebarCollapsed\":false}"
+        },
+        {
           "name": "refresh_token",
-          "value": "73d95ebb658e4237854079c450f2bf0586348986b0e246e8a50e51d34239558b"
+          "value": "bd68025cdf004eb5801c24f49e657252e29e448857dc437a87b5441150b0c8bf"
         },
         {
           "name": "current_tenant",
-          "value": "{\"id\":\"87b4b195-8379-443a-8c9b-d99ba73c05cf\",\"name\":\"Demo\",\"slug\":\"demo\",\"tier\":\"free\",\"roles\":[\"admin\"]}"
-        },
-        {
-          "name": "access_token",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyYzNkYmY2Yi05ZGZkLTQzZGEtOTRmMi1mYTRhODNjYmVkOGUiLCJ0aWQiOiI4N2I0YjE5NS04Mzc5LTQ0M2EtOGM5Yi1kOTliYTczYzA1Y2YiLCJyb2xlcyI6WyJhZG1pbiJdLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzcxODk5ODE1LCJpYXQiOjE3NzE4OTgwMTV9.8RYOhISQgevhj5CMcY4906UjV1KOeS43uSDT5kxo0oM"
+          "value": "{\"id\":\"af68d022-2b53-4f05-94c6-2292e9a93156\",\"name\":\"Demo\",\"slug\":\"demo\",\"tier\":\"free\",\"roles\":[\"admin\"]}"
         }
       ]
     }

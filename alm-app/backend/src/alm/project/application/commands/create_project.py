@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from alm.artifact.domain.entities import Artifact
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
+from alm.config.settings import settings
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.application.dtos import ProjectDTO
 from alm.project.domain.entities import Project
@@ -14,6 +15,10 @@ from alm.project.domain.project_member import ProjectMember
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ConflictError, ValidationError
 from alm.shared.domain.value_objects import ProjectCode, Slug
+from alm.tenant.domain.ports import TenantRepository
+
+# Tenant JSON settings: optional org-wide default when CreateProject omits process_template_slug.
+TENANT_SETTINGS_DEFAULT_PROCESS_TEMPLATE_SLUG_KEY = "default_process_template_slug"
 
 
 @dataclass(frozen=True)
@@ -33,11 +38,13 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
         process_template_repo: ProcessTemplateRepository,
         project_member_repo: ProjectMemberRepository,
         artifact_repo: ArtifactRepository,
+        tenant_repo: TenantRepository,
     ) -> None:
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
         self._project_member_repo = project_member_repo
         self._artifact_repo = artifact_repo
+        self._tenant_repo = tenant_repo
 
     async def handle(self, command: Command) -> ProjectDTO:
         assert isinstance(command, CreateProject)
@@ -57,7 +64,16 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
         if existing_slug is not None:
             raise ConflictError(f"Project with slug '{slug.value}' already exists in this tenant")
 
-        template_slug = command.process_template_slug or "basic"
+        if command.process_template_slug and str(command.process_template_slug).strip():
+            template_slug = str(command.process_template_slug).strip()
+        else:
+            from_tenant: str | None = None
+            tenant = await self._tenant_repo.find_by_id(command.tenant_id)
+            if tenant and isinstance(tenant.settings, dict):
+                raw = tenant.settings.get(TENANT_SETTINGS_DEFAULT_PROCESS_TEMPLATE_SLUG_KEY)
+                if isinstance(raw, str) and raw.strip():
+                    from_tenant = raw.strip()
+            template_slug = from_tenant or settings.default_process_template_slug
         version = await self._process_template_repo.find_version_by_template_slug(template_slug)
         project = Project.create(
             tenant_id=command.tenant_id,

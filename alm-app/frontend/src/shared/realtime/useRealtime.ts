@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../stores/authStore";
 import { useNotificationStore } from "../stores/notificationStore";
+import { useRealtimeStore } from "../stores/realtimeStore";
 
 const WS_PATH = "/api/v1/ws";
 const RECONNECT_DELAY_MS = 2000;
@@ -18,6 +19,7 @@ interface RealtimeEvent {
   artifact_id?: string;
   from_state?: string;
   to_state?: string;
+  viewer_user_ids?: string[];
 }
 
 export function useRealtime(): void {
@@ -43,6 +45,19 @@ export function useRealtime(): void {
       ws.onmessage = (ev) => {
         try {
           const data = JSON.parse(ev.data as string) as RealtimeEvent;
+          // Keep lightweight local map so UI can highlight recently changed items.
+          if (data.artifact_id && data.type === "artifact_state_changed") {
+            useRealtimeStore.getState().markArtifactUpdated(data.artifact_id);
+          }
+          // Optional forward-compatible presence contract.
+          // Server may emit: { type: "artifact_presence", artifact_id, viewer_user_ids: [] }.
+          if (
+            data.type === "artifact_presence" &&
+            data.artifact_id &&
+            Array.isArray(data.viewer_user_ids)
+          ) {
+            useRealtimeStore.getState().setArtifactPresence(data.artifact_id, data.viewer_user_ids);
+          }
           if (data.type === "artifact_state_changed" && data.project_id) {
             queryClient.invalidateQueries({
               predicate: (query) =>
@@ -76,8 +91,12 @@ export function useRealtime(): void {
     };
 
     connect();
+    const pruneTimer = setInterval(() => {
+      useRealtimeStore.getState().prune();
+    }, 5000);
 
     return () => {
+      clearInterval(pruneTimer);
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;

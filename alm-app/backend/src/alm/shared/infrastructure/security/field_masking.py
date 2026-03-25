@@ -61,7 +61,7 @@ def allowed_actions_for_artifact(privileges: list[str]) -> list[str]:
     return actions
 
 
-async def mask_artifact_for_user(resp: "ArtifactResponse", user: "CurrentUser") -> "ArtifactResponse":
+async def mask_artifact_for_user(resp: ArtifactResponse, user: CurrentUser) -> ArtifactResponse:
     """Async helper: resolve user privileges, mask sensitive fields, add allowed_actions."""
     from alm.artifact.api.schemas import ArtifactResponse
     from alm.shared.infrastructure.security.dependencies import get_user_privileges
@@ -73,7 +73,7 @@ async def mask_artifact_for_user(resp: "ArtifactResponse", user: "CurrentUser") 
     return ArtifactResponse(**masked)
 
 
-async def mask_artifact_list_for_user(items: list["ArtifactResponse"], user: "CurrentUser") -> list["ArtifactResponse"]:
+async def mask_artifact_list_for_user(items: list[ArtifactResponse], user: CurrentUser) -> list[ArtifactResponse]:
     """Mask a list of artifact responses and add allowed_actions (fetches user privileges once)."""
     from alm.artifact.api.schemas import ArtifactResponse
     from alm.shared.infrastructure.security.dependencies import get_user_privileges

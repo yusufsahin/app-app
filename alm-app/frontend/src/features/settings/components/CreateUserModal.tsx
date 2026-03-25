@@ -62,7 +62,7 @@ export default function CreateUserModal({ open, onClose, orgSlug }: CreateUserMo
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm" aria-describedby={undefined}>
         <FormProvider {...form}>
           <form onSubmit={handleSubmit(onSubmit)} noValidate>
             <DialogHeader>

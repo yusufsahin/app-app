@@ -4,6 +4,8 @@ import uuid
 
 from pydantic import BaseModel, Field
 
+from alm.shared.api.schemas import MessageResponse as MessageResponse  # noqa: F811
+
 
 class RegisterRequest(BaseModel):
     email: str
@@ -65,6 +67,3 @@ class UserResponse(BaseModel):
     is_active: bool
     roles: list[str]
     permissions: list[str]
-
-
-from alm.shared.api.schemas import MessageResponse as MessageResponse  # noqa: F811

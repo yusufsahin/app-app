@@ -10,12 +10,12 @@ Integration tests need PostgreSQL. Use one of the following so that **no tests a
 cd backend
 docker compose -f docker-compose.test.yml up -d
 uv sync --extra dev
-set ALM_TEST_DATABASE_URL=postgresql+asyncpg://alm:alm_dev_password@localhost:5433/alm_test
+set ALM_TEST_DATABASE_URL=postgresql+asyncpg://alm:alm_dev_password@localhost:25433/alm_test
 uv run pytest
 docker compose -f docker-compose.test.yml down
 ```
 
-(Linux/macOS: `export ALM_TEST_DATABASE_URL=...`). Compose port 5433, ana uygulama 5432 ile çakışmaz.
+(Linux/macOS: `export ALM_TEST_DATABASE_URL=...`). Compose maps Postgres to host port **25433** (avoids clashing with app DB on 5433 and reduces issues with Windows reserved port ranges).
 
 ### B) Test container (testcontainers)
 

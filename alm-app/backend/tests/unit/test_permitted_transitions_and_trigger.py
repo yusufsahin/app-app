@@ -17,7 +17,7 @@ from alm.artifact.application.queries.get_permitted_transitions import (
     PermittedTransitionDTO,
 )
 from alm.artifact.domain.entities import Artifact
-from alm.shared.domain.exceptions import PolicyDeniedError, ValidationError
+from alm.shared.domain.exceptions import GuardDeniedError, PolicyDeniedError, ValidationError
 
 
 class _NoOpTransitionMetrics:
@@ -26,6 +26,17 @@ class _NoOpTransitionMetrics:
 
     def record_result(self, result: str) -> None:
         pass
+
+
+class _CapturingTransitionMetrics:
+    def __init__(self) -> None:
+        self.results: list[str] = []
+
+    def record_duration_seconds(self, duration: float) -> None:
+        pass
+
+    def record_result(self, result: str) -> None:
+        self.results.append(result)
 
 
 # Minimal project-like object
@@ -37,8 +48,8 @@ class _Project:
 
 # Minimal process template version with manifest
 class _Version:
-    def __init__(self, id: uuid.UUID, manifest_bundle: dict):
-        self.id = id
+    def __init__(self, version_id: uuid.UUID, manifest_bundle: dict):
+        self.id = version_id
         self.manifest_bundle = manifest_bundle
 
 
@@ -73,6 +84,23 @@ MANIFEST_WITH_ASSIGNEE_POLICY = {
         },
         {"kind": "ArtifactType", "id": "requirement", "workflow_id": "basic"},
         {"kind": "TransitionPolicy", "id": "assignee_active", "when": {"state": "active"}, "require": "assignee"},
+    ],
+}
+
+# Per-transition guard only (no TransitionPolicy) — tests guard_evaluator path in handler
+MANIFEST_WITH_TRANSITION_GUARD = {
+    "defs": [
+        {
+            "kind": "Workflow",
+            "id": "basic",
+            "initial": "new",
+            "states": ["new", "active", "resolved"],
+            "transitions": [
+                {"from": "new", "to": "active", "guard": "assignee_required"},
+                {"from": "active", "to": "resolved"},
+            ],
+        },
+        {"kind": "ArtifactType", "id": "requirement", "workflow_id": "basic"},
     ],
 }
 
@@ -293,7 +321,7 @@ class TestTransitionArtifactHandlerWithTrigger:
     async def test_policy_violation_raises_policy_denied_error(
         self, tenant_id: uuid.UUID, project_id: uuid.UUID, artifact_id: uuid.UUID, version_id: uuid.UUID
     ):
-        """When transition is valid per workflow but TransitionPolicy fails (e.g. assignee required), handler raises PolicyDeniedError."""
+        """When transition is valid but TransitionPolicy fails, handler raises PolicyDeniedError."""
         artifact = Artifact.create(
             project_id=project_id,
             artifact_type="requirement",
@@ -329,3 +357,87 @@ class TestTransitionArtifactHandlerWithTrigger:
         with pytest.raises(PolicyDeniedError) as exc_info:
             await handler.handle(command)
         assert "assignee" in str(exc_info.value).lower()
+
+    async def test_transition_guard_blocks_without_assignee(
+        self, tenant_id: uuid.UUID, project_id: uuid.UUID, artifact_id: uuid.UUID, version_id: uuid.UUID
+    ):
+        artifact = Artifact.create(
+            project_id=project_id,
+            artifact_type="requirement",
+            title="Req",
+            state="new",
+            id=artifact_id,
+        )
+        assert artifact.assignee_id is None
+        project = _Project(tenant_id=tenant_id, process_template_version_id=version_id)
+        version = _Version(version_id, MANIFEST_WITH_TRANSITION_GUARD)
+
+        artifact_repo = AsyncMock()
+        artifact_repo.find_by_id = AsyncMock(return_value=artifact)
+        project_repo = AsyncMock()
+        project_repo.find_by_id = AsyncMock(return_value=project)
+        process_repo = AsyncMock()
+        process_repo.find_version_by_id = AsyncMock(return_value=version)
+
+        metrics = _CapturingTransitionMetrics()
+        handler = TransitionArtifactHandler(
+            artifact_repo=artifact_repo,
+            project_repo=project_repo,
+            process_template_repo=process_repo,
+            metrics=metrics,
+        )
+        command = TransitionArtifact(
+            tenant_id=tenant_id,
+            project_id=project_id,
+            artifact_id=artifact_id,
+            new_state="active",
+            trigger=None,
+            updated_by=tenant_id,
+        )
+        with pytest.raises(GuardDeniedError) as exc_info:
+            await handler.handle(command)
+        assert exc_info.value.error_type == "/errors/guard-denied"
+        assert "assignee" in str(exc_info.value).lower()
+        assert "guard_denied" in metrics.results
+        artifact_repo.update.assert_not_called()
+
+    async def test_transition_guard_allows_with_assignee(
+        self, tenant_id: uuid.UUID, project_id: uuid.UUID, artifact_id: uuid.UUID, version_id: uuid.UUID
+    ):
+        assignee = uuid.uuid4()
+        artifact = Artifact.create(
+            project_id=project_id,
+            artifact_type="requirement",
+            title="Req",
+            state="new",
+            id=artifact_id,
+            assignee_id=assignee,
+        )
+        project = _Project(tenant_id=tenant_id, process_template_version_id=version_id)
+        version = _Version(version_id, MANIFEST_WITH_TRANSITION_GUARD)
+
+        artifact_repo = AsyncMock()
+        artifact_repo.find_by_id = AsyncMock(return_value=artifact)
+        artifact_repo.update = AsyncMock(side_effect=lambda a: a)
+        project_repo = AsyncMock()
+        project_repo.find_by_id = AsyncMock(return_value=project)
+        process_repo = AsyncMock()
+        process_repo.find_version_by_id = AsyncMock(return_value=version)
+
+        handler = TransitionArtifactHandler(
+            artifact_repo=artifact_repo,
+            project_repo=project_repo,
+            process_template_repo=process_repo,
+            metrics=_NoOpTransitionMetrics(),
+        )
+        command = TransitionArtifact(
+            tenant_id=tenant_id,
+            project_id=project_id,
+            artifact_id=artifact_id,
+            new_state="active",
+            trigger=None,
+            updated_by=tenant_id,
+        )
+        dto = await handler.handle(command)
+        assert dto.state == "active"
+        artifact_repo.update.assert_called_once()

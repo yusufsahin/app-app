@@ -13,6 +13,7 @@ try:
         VerificationPort,
     )
     from mpc.kernel.canonical import stable_hash
+
     _HAS_GOVERNANCE = True
 except ImportError:
     _HAS_GOVERNANCE = False
@@ -23,7 +24,11 @@ logger = logging.getLogger(__name__)
 class ALMGovernanceAdapter:
     """Provides enterprise governance features for ALM process templates."""
 
-    def __init__(self, signing_port: SigningPort | None = None, verification_port: VerificationPort | None = None) -> None:
+    def __init__(
+        self,
+        signing_port: SigningPort | None = None,
+        verification_port: VerificationPort | None = None,
+    ) -> None:
         self.signing_port = signing_port
         self.verification_port = verification_port
 
@@ -32,7 +37,7 @@ class ALMGovernanceAdapter:
         if not _HAS_GOVERNANCE or not self.verification_port:
             logger.warning("Governance or verification port not available")
             return True  # Fallback: allow for now if not configured
-            
+
         try:
             bundle = ArtifactBundle.from_dict(manifest_bundle)
             return bundle.verify(self.verification_port)
@@ -50,12 +55,12 @@ class ALMGovernanceAdapter:
         """Run the full activation protocol for a new manifest version."""
         if not _HAS_GOVERNANCE:
             return True
-            
+
         try:
             bundle_hash = self.get_manifest_hash(manifest_bundle)
             if not bundle_hash:
                 return False
-                
+
             protocol = ActivationProtocol()
             result = protocol.activate(bundle_hash)
             return result.success

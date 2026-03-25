@@ -46,6 +46,10 @@ export interface ArtifactListParams {
   release_cycle_node_id?: string;
   area_node_id?: string;
   tree?: string;
+  /** When true, API returns system root rows (Requirements / Quality / Defects folder roots). */
+  include_system_roots?: boolean;
+  /** Direct children of this parent artifact (combined with `tree` subtree when set). */
+  parent_id?: string;
 }
 
 /**
@@ -64,6 +68,8 @@ export function buildArtifactListParams(options: {
   releaseCycleNodeId?: string | null;
   areaNodeId?: string | null;
   tree?: string | null;
+  includeSystemRoots?: boolean;
+  parentId?: string | null;
 }): ArtifactListParams {
   const params: ArtifactListParams = {};
   const {
@@ -79,6 +85,8 @@ export function buildArtifactListParams(options: {
     releaseCycleNodeId,
     areaNodeId,
     tree,
+    includeSystemRoots,
+    parentId,
   } = options;
   if (stateFilter) params.state = stateFilter;
   if (typeFilter) params.type = typeFilter;
@@ -92,7 +100,11 @@ export function buildArtifactListParams(options: {
   if (releaseCycleNodeId) params.release_cycle_node_id = releaseCycleNodeId;
   else if (cycleNodeId) params.cycle_node_id = cycleNodeId;
   if (areaNodeId) params.area_node_id = areaNodeId;
-  if (tree && (tree === "requirement" || tree === "quality" || tree === "defect")) params.tree = tree;
+  const treeTrim = tree?.trim();
+  if (treeTrim) params.tree = treeTrim;
+  if (includeSystemRoots) params.include_system_roots = true;
+  const parentTrim = parentId?.trim();
+  if (parentTrim) params.parent_id = parentTrim;
   return params;
 }
 
@@ -111,6 +123,8 @@ export function useArtifacts(
   releaseCycleNodeId?: string | null,
   areaNodeId?: string | null,
   tree?: string | null,
+  includeSystemRoots?: boolean,
+  parentId?: string | null,
 ) {
   const params = buildArtifactListParams({
     stateFilter,
@@ -125,10 +139,32 @@ export function useArtifacts(
     releaseCycleNodeId,
     areaNodeId,
     tree,
+    includeSystemRoots,
+    parentId,
   });
 
   return useQuery({
-    queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", stateFilter, typeFilter, sortBy, sortOrder, searchQuery?.trim() || null, limit, offset, includeDeleted, cycleNodeId || null, releaseCycleNodeId || null, areaNodeId || null, tree || null],
+    queryKey: [
+      "orgs",
+      orgSlug,
+      "projects",
+      projectId,
+      "artifacts",
+      stateFilter,
+      typeFilter,
+      sortBy,
+      sortOrder,
+      searchQuery?.trim() || null,
+      limit,
+      offset,
+      includeDeleted,
+      cycleNodeId || null,
+      releaseCycleNodeId || null,
+      areaNodeId || null,
+      tree || null,
+      includeSystemRoots ?? false,
+      parentId?.trim() || null,
+    ],
     queryFn: async (): Promise<ArtifactsListResult> => {
       const { data } = await apiClient.get<ArtifactsListResult>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts`,

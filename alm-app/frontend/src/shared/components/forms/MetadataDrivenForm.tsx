@@ -16,6 +16,8 @@ import {
 import { cn } from "../ui/utils";
 import type { DescriptionInputMode, FormFieldSchema, FormSchemaDto } from "../../types/formSchema";
 import { DescriptionField } from "./DescriptionField";
+import { TestStepsEditor } from "../../../features/quality/components/TestStepsEditor";
+import type { TestStep } from "../../../features/quality/types";
 
 export interface ParentArtifactOption {
   id: string;
@@ -350,6 +352,26 @@ export function MetadataDrivenForm({
                 rows={mode === "text" ? 4 : 6}
                 allowModeSwitch
               />
+            );
+          }
+
+          if (field.key === "test_steps_json") {
+            const err = errors[field.key];
+            let steps: TestStep[] = [];
+            try {
+              steps = typeof val === "string" ? JSON.parse(val) : (val as TestStep[]) || [];
+            } catch {
+              steps = [];
+            }
+            return (
+              <div key={field.key} className="w-full space-y-1.5">
+                <TestStepsEditor
+                  steps={steps}
+                  onChange={(newSteps) => updateField(field.key, JSON.stringify(newSteps))}
+                  readOnly={disabled}
+                />
+                {err && <p className="text-sm text-destructive">{err}</p>}
+              </div>
             );
           }
 

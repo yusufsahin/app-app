@@ -15,6 +15,12 @@ import {
   Search,
   Network,
   History,
+  ClipboardCheck,
+  GitBranch,
+  ListChecks,
+  Layers,
+  PlayCircle,
+  FolderTree,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -57,6 +63,12 @@ interface NavItem {
   permissionAny?: string[];
 }
 
+interface NestedNavItem {
+  label: string;
+  path: string;
+  icon: React.ReactNode;
+}
+
 const NAV_ITEMS: NavItem[] = [
   { label: "Projects", path: "", icon: <Folder className="size-4" />, permission: "project:read" },
   { label: "Dashboard", path: "dashboard", icon: <LayoutDashboard className="size-4" />, permission: "project:read" },
@@ -65,9 +77,17 @@ const NAV_ITEMS: NavItem[] = [
 const PROJECT_NAV_ITEMS: NavItem[] = [
   { label: "Overview", path: "", icon: <FolderOpen className="size-4" />, permission: "project:read" },
   { label: "Artifacts", path: "artifacts", icon: <List className="size-4" />, permission: "artifact:read" },
+  { label: "Quality", path: "quality", icon: <ClipboardCheck className="size-4" />, permission: "artifact:read" },
   { label: "Board", path: "board", icon: <Columns className="size-4" />, permission: "artifact:read" },
   { label: "Planning", path: "planning", icon: <Calendar className="size-4" />, permission: "project:read" },
   { label: "Automation", path: "automation", icon: <Sparkles className="size-4" />, permission: "project:read" },
+];
+
+const QUALITY_SUBNAV_ITEMS: NestedNavItem[] = [
+  { label: "Tests", path: "quality/tests", icon: <ListChecks className="size-4" /> },
+  { label: "Suites", path: "quality/suites", icon: <Layers className="size-4" /> },
+  { label: "Runs", path: "quality/runs", icon: <PlayCircle className="size-4" /> },
+  { label: "Traceability", path: "quality/traceability", icon: <GitBranch className="size-4" /> },
 ];
 
 export default function AppLayout() {
@@ -165,6 +185,37 @@ export default function AppLayout() {
       const projectRead = hasPermission(permissions, "project:read");
       if (artifactRead) {
         quickLinks.push({ id: "goto-artifacts", label: "Go to Artifacts", path: `/${orgSlug}/${projectSlug}/artifacts`, icon: <List className="size-4" /> });
+        quickLinks.push({ id: "goto-quality", label: "Go to Quality", path: `/${orgSlug}/${projectSlug}/quality`, icon: <ClipboardCheck className="size-4" /> });
+        quickLinks.push({
+          id: "goto-quality-trace",
+          label: "Go to Quality traceability",
+          path: `/${orgSlug}/${projectSlug}/quality/traceability`,
+          icon: <GitBranch className="size-4" />,
+        });
+        quickLinks.push({
+          id: "goto-quality-tests",
+          label: "Quality — Test cases",
+          path: `/${orgSlug}/${projectSlug}/quality/tests`,
+          icon: <ListChecks className="size-4" />,
+        });
+        quickLinks.push({
+          id: "goto-quality-suites",
+          label: "Quality — Test suites",
+          path: `/${orgSlug}/${projectSlug}/quality/suites`,
+          icon: <Layers className="size-4" />,
+        });
+        quickLinks.push({
+          id: "goto-quality-runs",
+          label: "Quality — Test runs",
+          path: `/${orgSlug}/${projectSlug}/quality/runs`,
+          icon: <PlayCircle className="size-4" />,
+        });
+        quickLinks.push({
+          id: "goto-quality-campaigns",
+          label: "Quality — Campaigns",
+          path: `/${orgSlug}/${projectSlug}/quality/campaigns`,
+          icon: <FolderTree className="size-4" />,
+        });
         quickLinks.push({ id: "goto-board", label: "Go to Board", path: `/${orgSlug}/${projectSlug}/board`, icon: <Columns className="size-4" /> });
       }
       if (projectRead) {
@@ -336,11 +387,28 @@ export default function AppLayout() {
                       ? location.pathname === basePath || location.pathname === `${basePath}/`
                       : location.pathname.startsWith(`${basePath}/${item.path}`);
                     return (
-                      <SidebarMenuItem key={item.path || "overview"}>
-                        <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-                          <Link to={fullPath}>{item.icon}<span>{item.label}</span></Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                      <div key={item.path || "overview"}>
+                        <SidebarMenuItem>
+                          <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+                            <Link to={fullPath}>{item.icon}<span>{item.label}</span></Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        {item.path === "quality" ? (
+                          <div className="ml-4 mt-1 space-y-1 border-l border-sidebar-border/60 pl-2">
+                            {QUALITY_SUBNAV_ITEMS.map((sub) => {
+                              const subPath = `${basePath}/${sub.path}`;
+                              const subActive = location.pathname.startsWith(subPath);
+                              return (
+                                <SidebarMenuItem key={sub.path}>
+                                  <SidebarMenuButton asChild isActive={subActive} tooltip={sub.label}>
+                                    <Link to={subPath}>{sub.icon}<span>{sub.label}</span></Link>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
                     );
                   })}
                 </SidebarMenu>

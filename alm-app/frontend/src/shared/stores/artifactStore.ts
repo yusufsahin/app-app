@@ -35,8 +35,8 @@ export type ArtifactSortBy =
 export type ArtifactSortOrder = "asc" | "desc";
 export type ArtifactViewMode = "table" | "tree" | "board";
 
-/** Tree filter: show all, or only requirement/quality/defect root subtree. */
-export type ArtifactTreeFilter = "" | "requirement" | "quality" | "defect";
+/** Tree filter: empty = all trees; otherwise a tree_id from manifest ``tree_roots``. Default is `requirement` (Artifacts list excludes quality test cases until user picks "All trees"). */
+export type ArtifactTreeFilter = string;
 
 export interface ArtifactListState {
   sortBy: ArtifactSortBy;
@@ -91,7 +91,7 @@ const defaultListState: ArtifactListState = {
   sortOrder: "desc",
   stateFilter: "",
   typeFilter: "",
-  treeFilter: "",
+  treeFilter: "requirement",
   cycleNodeFilter: "",
   releaseCycleNodeFilter: "",
   areaNodeFilter: "",

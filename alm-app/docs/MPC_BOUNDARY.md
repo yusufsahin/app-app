@@ -25,14 +25,14 @@ Yani: artifact_type **kavramı** manifest DSL'inde (MPC bunu bilir); **değer** 
 
 ## 1. MPC'de Olması Gerekenler (Platform Core)
 
-**ALM'de güncel durum:** Geçiş grafiği ve permitted triggers **statelesspy adapter** (`alm.artifact.domain.workflow_sm`) ile sağlanır; MPC yalnızca PolicyEngine ve ACLEngine (policy/ACL) için kullanılır. Ayrıntı: [WORKFLOW_ENGINE_BOUNDARY.md](WORKFLOW_ENGINE_BOUNDARY.md).
+**ALM'de güncel durum:** Geçiş grafiği, permitted triggers ve transition action isimleri **`alm.artifact.domain.workflow_sm`** içinde; bu modül manifestten **`mpc.features.workflow.WorkflowEngine`** kurar. **TransitionPolicy** ve **`Policy`** kind değerlendirmesi **`mpc_resolver`**: `check_transition_policies` + `evaluate_transition_policy` → `PolicyEngine`. Ayrıntı: [WORKFLOW_ENGINE_BOUNDARY.md](WORKFLOW_ENGINE_BOUNDARY.md).
 
 | Modül | Sorumluluk | Not |
 |-------|------------|-----|
 | **Manifest DSL Parser** | Lark LALR, YAML/JSON parse | DomainMeta ile birlikte |
 | **DomainMeta** | Kind/type/function tanımları, metadata-driven | |
-| **WorkflowEngine** | Geçiş validasyonu, initial state, valid transitions | MPC kuruluyken opsiyonel; ALM statelesspy kullanır |
-| **PolicyEngine** | `when state require assignee` vb. kurallar | |
+| **WorkflowEngine** | Geçiş validasyonu, initial state, permitted triggers | ALM `workflow_sm` üzerinden kullanılır |
+| **PolicyEngine** | `kind: Policy` — event + `match` / `effect` | `TransitionPolicy` ayrı: `check_transition_policies` |
 | **ACLEngine** | RBAC, permission check, field masking | |
 | **ExpressionEngine** | `len`, `contains`, `now`, `daysBetween` | |
 | **Action Resolver** | `on_enter`, `on_leave` action isimlerini döner (handler değil) | |
@@ -45,7 +45,7 @@ Yani: artifact_type **kavramı** manifest DSL'inde (MPC bunu bilir); **değer** 
 | Modül | Sorumluluk | Not |
 |-------|------------|-----|
 | **DomainMeta tanımı** | `alm_meta/domain_meta.yaml` — ALM'e özel kind'lar | MPC'ye beslenir |
-| **Doğrudan MPC import** | MPC engine'leri doğrudan import edilir; adapter katmanı yok | `from mpc_workflow import WorkflowEngine` |
+| **Doğrudan MPC import** | `workflow_sm` ve `mpc_resolver` içinde `mpc.features.*` / `mpc.kernel.*` | Örn. `from mpc.features.workflow import WorkflowEngine` |
 | **Port implementasyonları** | GuardPort, AuthPort — ALM DB/session ile | MPC interface'ini implement eder |
 | **Artifact BC** | Entity, repository, CRUD, persistence | Uygulama mantığı |
 | **Process Template** | Proje–template ilişkisi, manifest_bundle depolama | |
@@ -53,50 +53,31 @@ Yani: artifact_type **kavramı** manifest DSL'inde (MPC bunu bilir); **değer** 
 
 ---
 
-## 3. Şu An Yanlış Yerde Olanlar (alm-app → MPC taşınacak)
+## 3. alm-app'te kalan domain kodu
 
-Aşağıdaki kod **geçici** olarak alm-app içinde; MPC hazır olduğunda oraya taşınacak:
-
-| alm-app dosyası | Taşınacak MPC modülü |
-|-----------------|----------------------|
-| `artifact/domain/workflow_engine.py` | MPC WorkflowEngine + PolicyEngine |
-| `artifact/domain/action_runner.py` | alm-app'te kalır (run_actions); sadece resolver MPC'ye taşınır |
-| `docs/manifest-dsl.md` (grammar/semantics) | MPC dokümantasyonu |
-
-**Geçiş stratejisi:** alm-app, MPC'yi dependency olarak ekleyip doğrudan import ile kullanacak. Adapter katmanı yok.
+| alm-app dosyası | Rol |
+|-----------------|-----|
+| `artifact/domain/workflow_sm.py` | Manifest → MPC `WorkflowEngine`; tek giriş noktası grafik için |
+| `artifact/domain/mpc_resolver.py` | AST cache, `check_transition_policies`, `evaluate_transition_policy`, ACL/redaction |
+| `artifact/domain/action_runner.py` | `run_actions` — yan etkiler ALM'de kalır |
+| `docs/manifest-dsl.md` | DSL referansı (MPC ile hizalı) |
 
 ---
 
-## 4. MPC API Kullanımı (Doğrudan Library)
+## 4. MPC API — alm-app kullanım özeti
 
-alm-app, MPC hazır olduğunda şu şekilde kullanacak:
+Gerçek importlar birleşik `mpc` paketinden (path: `manifest-platform-core-suite`):
 
 ```python
-from mpc_workflow import WorkflowEngine
-from mpc_policy import PolicyEngine
-from mpc_action import get_transition_actions
+from mpc.kernel.ast import normalize
+from mpc.kernel.meta import DomainMeta
+from mpc.features.workflow import WorkflowEngine
+from mpc.features.policy import PolicyEngine
 
-wf = WorkflowEngine()
-policy = PolicyEngine()
-
-# Geçiş geçerli mi? (generic: type_id + type_kind; ALM type_kind="ArtifactType")
-wf.is_valid_transition(manifest, type_id, from_state, to_state, type_kind=type_kind)
-
-# Policy ihlalleri? (entity_snapshot: domain-agnostic dict — MPC "Artifact" bilmez)
-violations = policy.check(manifest, to_state, entity_snapshot, type_id=type_id, type_kind=type_kind)
-
-# İlk state?
-wf.get_initial_state(manifest, type_id, type_kind=type_kind)
-
-# Geçerli hedef state'ler?
-wf.get_valid_transitions(manifest, type_id, current_state, type_kind=type_kind)
-
-# Hiyerarşi (parent_types, child_types)?
-wf.is_valid_parent_child(manifest, parent_type, child_type, type_kind=type_kind)
-
-# Transition actions? (on_leave, on_enter isimleri)
-actions = get_transition_actions(manifest, type_id, from_state, to_state, type_kind=type_kind)
-# run_actions() alm-app'te — bildirim, log, vb.
+# workflow_sm: WorkflowEngine.from_fixture_input(wf_def, expr_engine=...) ile grafik
+# mpc_resolver: ast = normalize(manifest_bundle)
+# PolicyEngine(ast=ast, meta=DomainMeta()).evaluate(event, actor_roles=[...])
+# TransitionPolicy: mpc_resolver.check_transition_policies(ast, event)
 ```
 
 ---
@@ -112,12 +93,11 @@ MPC’nin ALM’e özel “artifact” kelimesini taşımaması için:
 | `get_artifact_type_def(...)` | **`get_type_def(manifest, type_kind, type_id)`** | Generic: kind + id ile manifest’ten tip tanımı. |
 | Flat çıktı key `artifact_types` | **`types`** veya çağıranın belirttiği key | MPC generic “types” listesi döner; ALM isterse bunu `artifact_types` olarak map eder. |
 
-**Önerilen MPC API (generic):**
+**Önerilen ALM yüzeyi (generic type_kind):**
 
-- Geçiş grafiği ve permitted triggers tek kaynak: **statelesspy adapter** (`alm.artifact.domain.workflow_sm`). `get_initial_state`, `is_valid_transition`, `get_permitted_triggers`, `get_transition_actions` oradan gelir; MPC'de WorkflowEngine sadece policy/ACL için kullanılır.
-- `get_type_def(manifest, type_kind, type_id, ast=None)` — tip tanımı.
-- `check_transition_policies(manifest, type_id, to_state, entity_snapshot, type_kind, ast=None)`.
-- ALM çağrıları: `type_kind="ArtifactType"`, `type_id=artifact.artifact_type`.
+- Grafik: `workflow_sm`: `is_valid_transition`, `get_permitted_triggers`, `get_initial_state`, `get_transition_actions` (`type_kind="ArtifactType"`).
+- Tip tanımı: `mpc_resolver.get_type_def` / `get_artifact_type_def`.
+- Policy event: `mpc_resolver.build_artifact_transition_policy_event` + `check_transition_policies(ast, event)` + `evaluate_transition_policy(ast, event, actor_roles)`.
 
 Böylece MPC içinde “Artifact” / “artifact_type” isimleri kalmaz; kind ve tip id’yi uygulama sağlar.
 
@@ -127,13 +107,13 @@ Böylece MPC içinde “Artifact” / “artifact_type” isimleri kalmaz; kind 
 
 MPC yüklü olmadığında (örn. Docker build'te path dependency eksik) alm-app sınırlı bir fallback ile çalışır:
 
-| Ne | MPC varken | Fallback (ALM içinde) |
+| Ne | MPC varken | Fallback (MPC paketi yok) |
 |----|-------------|------------------------|
-| **TransitionPolicy (manifest)** | PolicyEngine + manifest TransitionPolicy | Sadece `check_transition_policies`: `when.state` + `require: assignee` (assignee_id snapshot'ta yoksa ihlal). |
-| **Event-based Policy** | `evaluate_transition_policy(ast, event, actor_roles)` → PolicyEngine | Çağrılmaz; sonuç `(True, [])` kabul edilir. |
-| **ACL** | `acl_check(ast, action, resource, actor_roles)` → ACLEngine | Çağrılmaz; sonuç `(True, [])` kabul edilir. |
+| **TransitionPolicy (manifest)** | `check_transition_policies(ast, event)` — AST fallback ile `defs` okunur | Aynı fonksiyon fallback AST üzerinde çalışır |
+| **Policy (kind)** | `evaluate_transition_policy` → `PolicyEngine` | `PolicyEngine` atlanır; `(True, [])` |
+| **ACL** | `acl_check` → ACLEngine | `(True, [])` |
 
-**Kural:** Yeni policy/ACL mantığı fallback'e eklenmemeli. Fallback yalnızca temel TransitionPolicy (assignee required) ile sınırlı kalır; tam kural seti için MPC kurulmalı.
+**Kural:** `TransitionPolicy` basit kuralları `check_transition_policies` içinde tutulur; tam `Policy` / ACL için `mpc` kurulu olmalı.
 
 ---
 

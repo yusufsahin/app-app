@@ -2,7 +2,14 @@
  * E1: Unit tests for app path helpers.
  */
 import { describe, it, expect } from "vitest";
-import { artifactsPath, artifactDetailPath } from "./appPaths";
+import {
+  artifactsPath,
+  artifactDetailPath,
+  qualityPath,
+  qualityTraceabilityPath,
+  qualityTestsPath,
+  qualitySuitesPath,
+} from "./appPaths";
 
 describe("artifactsPath", () => {
   it("returns base path when no params", () => {
@@ -51,5 +58,50 @@ describe("artifactDetailPath", () => {
     expect(artifactDetailPath("org", "proj", "art-123")).toBe(
       "/org/proj/artifacts?artifact=art-123",
     );
+  });
+});
+
+describe("qualityPath", () => {
+  it("returns base quality path", () => {
+    expect(qualityPath("o", "p")).toBe("/o/p/quality");
+  });
+
+  it("adds artifact and tree", () => {
+    expect(qualityPath("o", "p", { artifact: "a1", tree: "quality" })).toBe(
+      "/o/p/quality?artifact=a1&tree=quality",
+    );
+  });
+
+  it("adds only artifact", () => {
+    expect(qualityPath("org", "proj", { artifact: "x" })).toBe("/org/proj/quality?artifact=x");
+  });
+
+  it("encodes special characters in query values", () => {
+    expect(qualityPath("o", "p", { artifact: "id/with&chars", tree: "quality" })).toContain("artifact=");
+    const u = new URL(qualityPath("o", "p", { artifact: "a&b", tree: "quality" }), "http://localhost");
+    expect(u.searchParams.get("artifact")).toBe("a&b");
+  });
+});
+
+describe("qualityTraceabilityPath", () => {
+  it("returns traceability subpath", () => {
+    expect(qualityTraceabilityPath("my-org", "my-proj")).toBe("/my-org/my-proj/quality/traceability");
+  });
+
+  it("adds page and q when provided", () => {
+    expect(qualityTraceabilityPath("o", "p", { page: 2, q: "login" })).toBe(
+      "/o/p/quality/traceability?page=2&q=login",
+    );
+  });
+
+  it("omits page when 1", () => {
+    expect(qualityTraceabilityPath("o", "p", { page: 1, q: "x" })).toBe("/o/p/quality/traceability?q=x");
+  });
+});
+
+describe("quality section paths", () => {
+  it("returns tests and suites paths", () => {
+    expect(qualityTestsPath("o", "p")).toBe("/o/p/quality/tests");
+    expect(qualitySuitesPath("o", "p")).toBe("/o/p/quality/suites");
   });
 });

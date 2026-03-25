@@ -57,7 +57,16 @@ line-length = 120
 src = ["src"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "A", "SIM", "TCH"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "A", "SIM"]
+# B008: FastAPI/SQLAlchemy use Depends(), Query(), etc. in parameter defaults by design.
+# TCH (flake8-type-checking) removed: TC00x churn across the codebase without clear benefit for this repo.
+# A002: domain factories commonly use parameter name `id` (entity identity), shadowing builtin id().
+ignore = ["B008", "A002"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/alm/orgs/api/routes_*.py" = ["F403", "F405", "B008", "A004", "E501"]
+"src/alm/orgs/api/_router_deps.py" = ["F401"]
+"src/alm/shared/infrastructure/email_templates.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

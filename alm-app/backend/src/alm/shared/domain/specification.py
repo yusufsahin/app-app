@@ -7,12 +7,12 @@ Use for repository filtering, validation, and in-memory checks.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 T = TypeVar("T")
 
 
-class Specification(ABC, Generic[T]):
+class Specification[T](ABC):
     """Base specification. Subclass and implement is_satisfied_by."""
 
     @abstractmethod

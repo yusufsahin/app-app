@@ -1,19 +1,20 @@
 """P2: Manifest ACL check — ACLEngine.check(action, resource, actor_roles) before artifact/manifest read/update.
 No maskField. See docs/D1_POLICY_ACL_INTEGRATION.md and REMAINING_PLAN.md P2.
 """
+
 from __future__ import annotations
 
 import uuid
 
 from fastapi import Depends
 
+from alm.artifact.domain.mpc_resolver import _to_ast, acl_check
+from alm.config.dependencies import get_mediator
+from alm.project.application.queries.get_project_manifest import GetProjectManifest
+from alm.shared.application.mediator import Mediator
 from alm.shared.domain.exceptions import AccessDenied
 from alm.shared.infrastructure.org_resolver import ResolvedOrg, resolve_org
 from alm.shared.infrastructure.security.dependencies import CurrentUser, get_current_user
-from alm.config.dependencies import get_mediator
-from alm.shared.application.mediator import Mediator
-from alm.project.application.queries.get_project_manifest import GetProjectManifest
-from alm.artifact.domain.mpc_resolver import _to_ast, acl_check
 
 
 def require_manifest_acl(resource: str, action: str):
@@ -27,15 +28,11 @@ def require_manifest_acl(resource: str, action: str):
         user: CurrentUser = Depends(get_current_user),
         mediator: Mediator = Depends(get_mediator),
     ) -> None:
-        manifest = await mediator.query(
-            GetProjectManifest(tenant_id=org.tenant_id, project_id=project_id)
-        )
+        manifest = await mediator.query(GetProjectManifest(tenant_id=org.tenant_id, project_id=project_id))
         if manifest is None:
             return
         ast = _to_ast(manifest.manifest_bundle or {})
-        allowed, reasons = acl_check(
-            ast, action, resource, list(user.roles or [])
-        )
+        allowed, reasons = acl_check(ast, action, resource, list(user.roles or []))
         if not allowed:
             # Fail-open when manifest has no matching ACL rule (no policies or no rule for this resource).
             # Deny only when there is an explicit deny; missing config should not block access.

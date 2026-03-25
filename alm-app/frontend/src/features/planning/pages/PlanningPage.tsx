@@ -2,21 +2,21 @@ import { useParams, Link } from "react-router-dom";
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent, Dialog, DialogContent, DialogTitle, DialogFooter, Skeleton } from "../../../shared/components/ui";
 import { GitBranch, ChevronDown, ChevronRight, Plus, Folder, Pencil, Trash2, List, Package, IterationCw } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import {
-  useCycleNodes,
+  useIncrements,
   useAreaNodes,
-  useCreateCycleNode,
+  useCreateIncrement,
   useCreateAreaNode,
-  useUpdateCycleNode,
+  useUpdateIncrement,
   useUpdateAreaNode,
-  useDeleteCycleNode,
+  useDeleteIncrement,
   useDeleteAreaNode,
-  cycleNodeDisplayLabelWithKind,
-  type CycleNode,
+  incrementDisplayLabelWithType,
+  type Increment,
   type AreaNode,
 } from "../../../shared/api/planningApi";
 import { useArtifacts, useUpdateArtifact } from "../../../shared/api/artifactApi";
@@ -32,11 +32,11 @@ function CycleTreeItem({
   onDelete,
   onAddChild,
 }: {
-  node: CycleNode;
+  node: Increment;
   level: number;
-  onRename: (n: CycleNode) => void;
-  onDelete: (n: CycleNode) => void;
-  onAddChild: (n: CycleNode) => void;
+  onRename: (n: Increment) => void;
+  onDelete: (n: Increment) => void;
+  onAddChild: (n: Increment) => void;
 }) {
   const [open, setOpen] = useState(true);
   const hasChildren = node.children?.length > 0;
@@ -67,12 +67,12 @@ function CycleTreeItem({
             <p className="font-medium">{node.name}</p>
             <span
               className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium ${
-                node.kind === "release" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                node.type === "release" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
               }`}
-              title={node.kind === "release" ? "Release" : "Iteration"}
+              title={node.type === "release" ? "Release" : "Iteration"}
             >
-              {node.kind === "release" ? <Package className="size-3" /> : <IterationCw className="size-3" />}
-              {node.kind === "release" ? "Release" : "Iteration"}
+              {node.type === "release" ? <Package className="size-3" /> : <IterationCw className="size-3" />}
+              {node.type === "release" ? "Release" : "Iteration"}
             </span>
           </div>
           {node.path || node.state ? (
@@ -244,7 +244,7 @@ function BacklogArtifactRow({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rowForm stable, reset only when currentCycleId changes
   }, [currentCycleId]);
 
-  const watchedCycleId = rowForm.watch("cycleId");
+  const watchedCycleId = useWatch({ control: rowForm.control, name: "cycleId" }) ?? "";
   useEffect(() => {
     if (justResetRef.current) {
       justResetRef.current = false;
@@ -264,11 +264,12 @@ function BacklogArtifactRow({
   }, [watchedCycleId]);
 
   return (
-    <div className="flex items-center gap-2 py-1" onClick={(e) => e.stopPropagation()}>
-      <div className="min-w-0 flex-1">
+    <div className="flex items-center gap-2 py-1">
+      <div className="min-w-0 flex-1" onPointerDownCapture={(e) => e.stopPropagation()}>
         <Link
           to={orgSlug && projectSlug ? artifactDetailPath(orgSlug, projectSlug, artifact.id) : "#"}
           className="font-medium text-foreground hover:underline"
+          onClick={(e) => e.stopPropagation()}
         >
           {artifact.artifact_key ?? artifact.id} — {artifact.title || "(no title)"}
         </Link>
@@ -277,6 +278,7 @@ function BacklogArtifactRow({
         ) : null}
       </div>
       <FormProvider {...rowForm}>
+        <div onPointerDownCapture={(e) => e.stopPropagation()}>
         <RhfSelect<RowCycleValues>
           name="cycleId"
           control={rowForm.control}
@@ -290,6 +292,7 @@ function BacklogArtifactRow({
             className: "min-w-[160px] h-8 text-sm",
           }}
         />
+        </div>
       </FormProvider>
     </div>
   );
@@ -305,17 +308,21 @@ export default function PlanningPage() {
 
   const [activeTab, setActiveTab] = useState<"cycles" | "areas" | "backlog">("cycles");
   const backlogForm = useForm<{ releaseId: string; cycleId: string }>({ defaultValues: { releaseId: "", cycleId: "" } });
-  const selectedBacklogReleaseId = backlogForm.watch("releaseId");
-  const selectedBacklogCycleId = backlogForm.watch("cycleId");
+  const backlogReleaseCycle = useWatch({
+    control: backlogForm.control,
+    name: ["releaseId", "cycleId"],
+  });
+  const selectedBacklogReleaseId = backlogReleaseCycle?.[0] ?? "";
+  const selectedBacklogCycleId = backlogReleaseCycle?.[1] ?? "";
   const effectiveBacklogFilter = selectedBacklogReleaseId || selectedBacklogCycleId;
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addMode, setAddMode] = useState<"cycles" | "areas">("cycles");
   const [addParentId, setAddParentId] = useState<string | null>(null);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
-  const [renameNode, setRenameNode] = useState<CycleNode | AreaNode | null>(null);
+  const [renameNode, setRenameNode] = useState<Increment | AreaNode | null>(null);
 
   const addForm = useForm<{ name: string }>({ defaultValues: { name: "" } });
-  const renameForm = useForm<{ name: string; kind?: "release" | "iteration" }>({ defaultValues: { name: "", kind: "iteration" } });
+  const renameForm = useForm<{ name: string; type?: "release" | "iteration" }>({ defaultValues: { name: "", type: "iteration" } });
   const { reset: resetAddForm, handleSubmit: handleAddSubmit } = addForm;
   const { reset: resetRenameForm, handleSubmit: handleRenameSubmit } = renameForm;
   useEffect(() => {
@@ -323,28 +330,28 @@ export default function PlanningPage() {
       const isCycle = "goal" in renameNode;
       resetRenameForm({
         name: renameNode.name,
-        ...(isCycle && { kind: (renameNode as CycleNode).kind }),
+        ...(isCycle && { type: (renameNode as Increment).type }),
       });
     }
   }, [renameNode, resetRenameForm]);
 
-  const { data: cycleNodes = [], isLoading: cyclesLoading } = useCycleNodes(
+  const { data: increments = [], isLoading: incrementsLoading } = useIncrements(
     orgSlug,
     project?.id,
     false,
   );
-  const { data: cycleNodesFlatIterations = [] } = useCycleNodes(orgSlug, project?.id, true, "iteration");
-  const { data: cycleNodesFlatReleases = [] } = useCycleNodes(orgSlug, project?.id, true, "release");
+  const { data: incrementsFlatIterations = [] } = useIncrements(orgSlug, project?.id, true, "iteration");
+  const { data: incrementsFlatReleases = [] } = useIncrements(orgSlug, project?.id, true, "release");
   const { data: areaNodes = [], isLoading: areasLoading } = useAreaNodes(
     orgSlug,
     project?.id,
     false,
   );
-  const createCycle = useCreateCycleNode(orgSlug, project?.id);
+  const createIncrement = useCreateIncrement(orgSlug, project?.id);
   const createArea = useCreateAreaNode(orgSlug, project?.id);
-  const updateCycle = useUpdateCycleNode(orgSlug, project?.id);
+  const updateIncrement = useUpdateIncrement(orgSlug, project?.id);
   const updateArea = useUpdateAreaNode(orgSlug, project?.id);
-  const deleteCycle = useDeleteCycleNode(orgSlug, project?.id);
+  const deleteIncrement = useDeleteIncrement(orgSlug, project?.id);
   const deleteArea = useDeleteAreaNode(orgSlug, project?.id);
   const showNotification = useNotificationStore((s) => s.showNotification);
   const setListState = useArtifactStore((s) => s.setListState);
@@ -372,7 +379,7 @@ export default function PlanningPage() {
     resetAddForm({ name: "" });
     setAddDialogOpen(true);
   };
-  const handleAddChildCycle = (parent: CycleNode) => {
+  const handleAddChildCycle = (parent: Increment) => {
     setAddMode("cycles");
     setAddParentId(parent.id);
     resetAddForm({ name: "" });
@@ -382,9 +389,9 @@ export default function PlanningPage() {
     const name = data.name.trim();
     if (!name) return;
     if (addMode === "cycles") {
-      const kind = addParentId ? "iteration" : "release";
-      createCycle.mutate(
-        { name, parent_id: addParentId || undefined, kind },
+      const type = addParentId ? "iteration" : "release";
+      createIncrement.mutate(
+        { name, parent_id: addParentId || undefined, type },
         {
           onSuccess: () => {
             setAddDialogOpen(false);
@@ -420,7 +427,7 @@ export default function PlanningPage() {
     setAddDialogOpen(true);
   };
 
-  const handleRenameCycle = (node: CycleNode) => {
+  const handleRenameCycle = (node: Increment) => {
     setRenameNode(node);
     setRenameDialogOpen(true);
   };
@@ -428,12 +435,12 @@ export default function PlanningPage() {
     setRenameNode(node);
     setRenameDialogOpen(true);
   };
-  const onSubmitRename = (data: { name: string; kind?: "release" | "iteration" }) => {
+  const onSubmitRename = (data: { name: string; type?: "release" | "iteration" }) => {
     const name = data.name.trim();
     if (!name || !renameNode) return;
     if ("goal" in renameNode) {
-      updateCycle.mutate(
-        { cycleNodeId: renameNode.id, body: { name, ...(data.kind && { kind: data.kind }) } },
+      updateIncrement.mutate(
+        { incrementId: renameNode.id, body: { name, ...(data.type && { type: data.type }) } },
         {
           onSuccess: () => {
             setRenameDialogOpen(false);
@@ -458,13 +465,13 @@ export default function PlanningPage() {
     }
   };
 
-  const handleDeleteCycle = (node: CycleNode) => {
-    const isRelease = node.kind === "release";
+  const handleDeleteCycle = (node: Increment) => {
+    const isRelease = node.type === "release";
     const message = isRelease
       ? `Delete release "${node.name}"? If it has iterations, delete those first.`
       : `Delete iteration "${node.name}"?`;
     if (!window.confirm(message)) return;
-    deleteCycle.mutate(node.id, {
+    deleteIncrement.mutate(node.id, {
       onSuccess: () => showNotification(isRelease ? "Release deleted" : "Iteration deleted", "success"),
       onError: (e: Error) => showNotification(e?.message ?? "Failed to delete", "error"),
     });
@@ -499,7 +506,7 @@ export default function PlanningPage() {
             <TabsList className="w-full justify-start rounded-none border-b-0 bg-transparent p-0">
               <TabsTrigger value="cycles" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
                 <GitBranch className="size-4" />
-                Releases & iterations{!cyclesLoading ? ` (${cycleNodes.length})` : ""}
+                Releases & iterations{!incrementsLoading ? ` (${increments.length})` : ""}
               </TabsTrigger>
               <TabsTrigger value="areas" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
                 <Folder className="size-4" />
@@ -517,20 +524,20 @@ export default function PlanningPage() {
                   <span className="size-2 rounded-full bg-primary" />
                   <h2 className="text-lg font-semibold">Release & iteration tree</h2>
                 </div>
-                <Button size="sm" onClick={handleAddCycle} disabled={cyclesLoading}>
+                <Button size="sm" onClick={handleAddCycle} disabled={incrementsLoading}>
                   <Plus className="size-4" />
                   Add release
                 </Button>
               </div>
-              {cyclesLoading ? (
+              {incrementsLoading ? (
                 <Skeleton className="h-28 rounded-md" />
-              ) : cycleNodes.length === 0 ? (
+              ) : increments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No releases. Add a release, then add iterations (sprints) under it.
                 </p>
               ) : (
                 <div>
-                  {cycleNodes.map((node) => (
+                  {increments.map((node) => (
                     <CycleTreeItem
                       key={node.id}
                       node={node}
@@ -590,7 +597,7 @@ export default function PlanningPage() {
                       control={backlogForm.control}
                       label="Release"
                       placeholder="All releases"
-                      options={[{ value: "", label: "All releases" }, ...cycleNodesFlatReleases.map((c) => ({ value: c.id, label: cycleNodeDisplayLabelWithKind(c) }))]}
+                      options={[{ value: "", label: "All releases" }, ...incrementsFlatReleases.map((c) => ({ value: c.id, label: incrementDisplayLabelWithType(c) }))]}
                     />
                   </div>
                   <div className="min-w-[220px]">
@@ -599,7 +606,7 @@ export default function PlanningPage() {
                       control={backlogForm.control}
                       label="Iteration"
                       placeholder="Select iteration"
-                      options={[{ value: "", label: "All iterations" }, ...cycleNodesFlatIterations.map((c) => ({ value: c.id, label: cycleNodeDisplayLabelWithKind(c) }))]}
+                      options={[{ value: "", label: "All iterations" }, ...incrementsFlatIterations.map((c) => ({ value: c.id, label: incrementDisplayLabelWithType(c) }))]}
                     />
                   </div>
                 </div>
@@ -632,7 +639,7 @@ export default function PlanningPage() {
                           orgSlug={orgSlug}
                           projectId={project?.id}
                           projectSlug={projectSlug}
-                          cycleNodesFlat={cycleNodesFlatIterations}
+                          cycleNodesFlat={incrementsFlatIterations}
                           showNotification={showNotification}
                         />
                       ))}
@@ -650,7 +657,7 @@ export default function PlanningPage() {
       )}
 
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-xs">
+        <DialogContent className="sm:max-w-xs" aria-describedby={undefined}>
           <DialogTitle>
             {addMode === "cycles"
               ? addParentId
@@ -679,7 +686,7 @@ export default function PlanningPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={addMode === "cycles" ? createCycle.isPending : createArea.isPending}
+                  disabled={addMode === "cycles" ? createIncrement.isPending : createArea.isPending}
                 >
                   Add
                 </Button>
@@ -698,20 +705,20 @@ export default function PlanningPage() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-xs">
+        <DialogContent className="sm:max-w-xs" aria-describedby={undefined}>
         <DialogTitle>Rename</DialogTitle>
         <FormProvider {...renameForm}>
           <form onSubmit={handleRenameSubmit(onSubmitRename)} noValidate>
             <div className="grid gap-4 py-4">
-              <RhfTextField<{ name: string; kind?: "release" | "iteration" }>
+              <RhfTextField<{ name: string; type?: "release" | "iteration" }>
                 name="name"
                 label="Name"
                 // eslint-disable-next-line jsx-a11y/no-autofocus -- dialog first field
                 autoFocus
               />
               {renameNode && "goal" in renameNode && (
-                <RhfSelect<{ name: string; kind?: "release" | "iteration" }>
-                  name="kind"
+                <RhfSelect<{ name: string; type?: "release" | "iteration" }>
+                  name="type"
                   control={renameForm.control}
                   label="Type"
                   options={[

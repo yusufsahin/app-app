@@ -1,10 +1,9 @@
 """Unit tests for consolidated MPC features in alm-app."""
 
-import pytest
-from alm.artifact.domain.mpc_resolver import redact_data, acl_check, _to_ast
+from alm.artifact.domain.mpc_resolver import _to_ast, acl_check, redact_data
 from alm.artifact.domain.workflow_sm import (
-    get_workflow_engine,
     get_permitted_triggers,
+    get_workflow_engine,
     is_valid_transition,
 )
 
@@ -14,19 +13,41 @@ SAMPLE_MANIFEST = {
     "name": "test",
     "manifestVersion": "1.0.0",
     "defs": [
-        {"kind": "ACL", "id": "acl_read", "action": "read", "resource": "artifact", "roles": ["viewer"], "effect": "allow"},
-        {"kind": "ACL", "id": "acl_update", "action": "update", "resource": "artifact", "roles": ["editor"], "effect": "allow"},
-        {"kind": "ACL", "id": "acl_delete", "action": "delete", "resource": "artifact", "roles": ["admin"], "effect": "allow"},
+        {
+            "kind": "ACL",
+            "id": "acl_read",
+            "action": "read",
+            "resource": "artifact",
+            "roles": ["viewer"],
+            "effect": "allow",
+        },
+        {
+            "kind": "ACL",
+            "id": "acl_update",
+            "action": "update",
+            "resource": "artifact",
+            "roles": ["editor"],
+            "effect": "allow",
+        },
+        {
+            "kind": "ACL",
+            "id": "acl_delete",
+            "action": "delete",
+            "resource": "artifact",
+            "roles": ["admin"],
+            "effect": "allow",
+        },
         {
             "kind": "Redact",
             "id": "artifact_redact",
             "rules": [
                 {"field": "internal_notes", "roles": ["viewer"], "effect": "mask"},
                 {"field": "confidential_data", "roles": ["viewer", "editor"], "effect": "mask"},
-            ]
-        }
-    ]
+            ],
+        },
+    ],
 }
+
 
 def test_redact_data_viewer():
     ast = _to_ast(SAMPLE_MANIFEST)
@@ -34,15 +55,16 @@ def test_redact_data_viewer():
         "title": "Bug Report",
         "internal_notes": "Sensitive notes",
         "confidential_data": "Secret stuff",
-        "public_info": "Everyone can see"
+        "public_info": "Everyone can see",
     }
     redacted = redact_data(ast, data, actor_roles=["viewer"])
-    
+
     assert redacted["title"] == "Bug Report"
     assert redacted["public_info"] == "Everyone can see"
     # Masked fields
     assert "internal_notes" not in redacted or redacted["internal_notes"] != "Sensitive notes"
     assert "confidential_data" not in redacted or redacted["confidential_data"] != "Secret stuff"
+
 
 def test_redact_data_admin():
     ast = _to_ast(SAMPLE_MANIFEST)
@@ -50,19 +72,20 @@ def test_redact_data_admin():
     redacted = redact_data(ast, data, actor_roles=["admin"])
     assert redacted["internal_notes"] == "notes"
 
+
 def test_acl_check_viewer():
     ast = _to_ast(SAMPLE_MANIFEST)
     allowed, reasons = acl_check(ast, "read", "artifact", ["viewer"])
     assert allowed is True
-    
+
     allowed, reasons = acl_check(ast, "update", "artifact", ["viewer"])
     assert allowed is False
+
 
 def test_acl_check_admin():
     ast = _to_ast(SAMPLE_MANIFEST)
     allowed, reasons = acl_check(ast, "delete", "artifact", ["admin"])
     assert allowed is True
-
 
 
 # ---------------------------------------------------------------------------
@@ -75,11 +98,7 @@ WORKFLOW_MANIFEST = {
     "name": "workflow",
     "manifestVersion": "1.0.0",
     "defs": [
-        {
-            "kind": "ArtifactType",
-            "id": "requirement",
-            "workflow_id": "req_flow"
-        },
+        {"kind": "ArtifactType", "id": "requirement", "workflow_id": "req_flow"},
         {
             "kind": "Workflow",
             "id": "req_flow",
@@ -90,9 +109,9 @@ WORKFLOW_MANIFEST = {
                 {"from": "open", "on": "start", "to": "in_progress"},
                 {"from": "in_progress", "on": "close", "to": "closed"},
                 {"from": "open", "on": "close", "to": "closed"},
-            ]
-        }
-    ]
+            ],
+        },
+    ],
 }
 
 

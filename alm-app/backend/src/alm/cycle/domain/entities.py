@@ -1,4 +1,4 @@
-"""CycleNode domain entity — planning iteration tree (pamera IterationNode-like)."""
+"""Increment domain entity — planning iteration tree (pamera IterationNode-like)."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ from typing import Any, Literal
 
 from alm.shared.domain.aggregate import AggregateRoot
 
-CYCLE_NODE_KIND_RELEASE = "release"
-CYCLE_NODE_KIND_ITERATION = "iteration"
-CycleNodeKind = Literal["release", "iteration"]
+CYCLE_NODE_TYPE_RELEASE = "release"
+CYCLE_NODE_TYPE_ITERATION = "iteration"
+CycleNodeType = Literal["release", "iteration"]
 
 
-class CycleNode(AggregateRoot):
+class Increment(AggregateRoot):
     """Node in the cycle/iteration tree. Root has parent_id=None, path=name; child has path=parent.path + '/' + name.
-    kind: 'release' for top-level (e.g. 2024-R1), 'iteration' for sprints/iterations under a release."""
+    type: 'release' for top-level (e.g. 2024-R1), 'iteration' for sprints/iterations under a release."""
 
     def __init__(
         self,
@@ -31,7 +31,7 @@ class CycleNode(AggregateRoot):
         start_date: date | None = None,
         end_date: date | None = None,
         state: str = "planned",
-        kind: CycleNodeKind = "iteration",
+        type: CycleNodeType = "iteration",
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
     ) -> None:
@@ -46,7 +46,7 @@ class CycleNode(AggregateRoot):
         self.start_date = start_date
         self.end_date = end_date
         self.state = state
-        self.kind = kind
+        self.type = type
         self.created_at = created_at
         self.updated_at = updated_at
 
@@ -62,8 +62,8 @@ class CycleNode(AggregateRoot):
         start_date: date | None = None,
         end_date: date | None = None,
         state: str = "planned",
-        kind: CycleNodeKind = "release",
-    ) -> CycleNode:
+        type: CycleNodeType = "release",
+    ) -> Increment:
         name_trim = (name or "").strip()
         if not name_trim:
             raise ValueError("Cycle node name cannot be empty")
@@ -79,7 +79,7 @@ class CycleNode(AggregateRoot):
             start_date=start_date,
             end_date=end_date,
             state=state,
-            kind=kind,
+            type=type,
         )
 
     @classmethod
@@ -87,7 +87,7 @@ class CycleNode(AggregateRoot):
         cls,
         project_id: uuid.UUID,
         name: str,
-        parent: CycleNode,
+        parent: Increment,
         *,
         id: uuid.UUID | None = None,
         sort_order: int = 0,
@@ -95,8 +95,8 @@ class CycleNode(AggregateRoot):
         start_date: date | None = None,
         end_date: date | None = None,
         state: str = "planned",
-        kind: CycleNodeKind = "iteration",
-    ) -> CycleNode:
+        type: CycleNodeType = "iteration",
+    ) -> Increment:
         if parent.project_id != project_id:
             raise ValueError("Parent must belong to the same project")
         name_trim = (name or "").strip()
@@ -115,7 +115,7 @@ class CycleNode(AggregateRoot):
             start_date=start_date,
             end_date=end_date,
             state=state,
-            kind=kind,
+            type=type,
         )
 
     def to_snapshot_dict(self) -> dict[str, Any]:
@@ -131,7 +131,7 @@ class CycleNode(AggregateRoot):
             "start_date": self.start_date.isoformat() if self.start_date else None,
             "end_date": self.end_date.isoformat() if self.end_date else None,
             "state": self.state,
-            "kind": self.kind,
+            "type": self.type,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-import uuid
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import uuid
 
 
-class DomainException(Exception):
+class DomainException(Exception):  # noqa: N818
     """Base for all domain exceptions. Maps to Problem Details RFC 9457."""
 
     status_code: int = 500
@@ -65,3 +68,10 @@ class PolicyDeniedError(ValidationError):
 
     error_type = "/errors/policy-denied"
     title = "Policy Denied"
+
+
+class GuardDeniedError(ValidationError):
+    """Raised when transition is valid on the graph but the manifest transition guard fails."""
+
+    error_type = "/errors/guard-denied"
+    title = "Workflow Guard Failed"

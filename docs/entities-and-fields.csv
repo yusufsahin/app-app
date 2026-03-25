@@ -182,3 +182,11 @@ BaseEntity (ortak),updated_at,datetime
 BaseEntity (ortak),updated_by,UUID (optional)
 BaseEntity (ortak),deleted_at,datetime (optional)
 BaseEntity (ortak),deleted_by,UUID (optional)
+ArtifactTypeLogical,test-suite,"Physical row: Artifact with artifact_type=test-suite; tree=quality; see alm-app/docs/QUALITY_DOMAIN_MANIFEST_MAP.md"
+ArtifactTypeLogical,test-run,"Physical row: Artifact artifact_type=test-run; custom_fields.environment run_metrics_json optional"
+ArtifactTypeLogical,test-campaign,"Physical row: Artifact artifact_type=test-campaign; custom_fields.target_environment campaign_config_json optional"
+ArtifactTypeLogical,quality-folder,"Physical row: Artifact artifact_type=quality-folder; hierarchy via parent_id"
+ArtifactTypeLogical,test-case.test_steps_json,"Artifact custom field / manifest field; JSON string for step list (prototype parity)"
+ArtifactLink,suite_includes_test,"Directed link from test-suite to test-case"
+ArtifactLink,run_for_suite,"Directed link from test-run to test-suite"
+ArtifactLink,campaign_includes_suite,"Directed link from test-campaign to test-suite"

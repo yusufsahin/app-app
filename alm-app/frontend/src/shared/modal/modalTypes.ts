@@ -56,6 +56,8 @@ export type EditTaskModalProps = {
 export type AddLinkModalProps = {
   sourceArtifactId: string;
   artifactOptions: Array<{ value: string; label: string }>;
+  /** When set (non-empty), replaces built-in link type presets (from project manifest link_types). */
+  linkTypeOptions?: Array<{ value: string; label: string }>;
   onCreateLink: (linkType: string, targetArtifactId: string) => void;
 };
 

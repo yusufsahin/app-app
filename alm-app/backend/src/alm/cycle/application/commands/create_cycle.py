@@ -1,4 +1,4 @@
-"""Create cycle node (root or child)."""
+"""Create increment (root or child)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 
-from alm.cycle.application.dtos import CycleNodeDTO
-from alm.cycle.domain.entities import CycleNode
+from alm.cycle.application.dtos import IncrementDTO
+from alm.cycle.domain.entities import Increment
 from alm.cycle.domain.ports import CycleRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
@@ -15,7 +15,7 @@ from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)
-class CreateCycleNode(Command):
+class CreateIncrement(Command):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     name: str
@@ -25,10 +25,10 @@ class CreateCycleNode(Command):
     start_date: date | None = None
     end_date: date | None = None
     state: str = "planned"
-    kind: str = "iteration"  # "release" for root, "iteration" for child
+    type: str = "iteration"
 
 
-class CreateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
+class CreateIncrementHandler(CommandHandler[IncrementDTO]):
     def __init__(
         self,
         cycle_repo: CycleRepository,
@@ -37,19 +37,19 @@ class CreateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
         self._cycle_repo = cycle_repo
         self._project_repo = project_repo
 
-    async def handle(self, command: Command) -> CycleNodeDTO:
-        assert isinstance(command, CreateCycleNode)
+    async def handle(self, command: Command) -> IncrementDTO:
+        assert isinstance(command, CreateIncrement)
 
         project = await self._project_repo.find_by_id(command.project_id)
         if project is None or project.tenant_id != command.tenant_id:
             raise ValidationError("Project not found")
 
-        kind = (command.kind or "iteration").strip().lower()
-        if kind not in ("release", "iteration"):
-            kind = "iteration"
+        node_type = (command.type or "iteration").strip().lower()
+        if node_type not in ("release", "iteration"):
+            node_type = "iteration"
         if command.parent_id is None:
-            root_kind = kind if kind in ("release", "iteration") else "release"
-            node = CycleNode.create_root(
+            root_type = node_type if node_type in ("release", "iteration") else "release"
+            node = Increment.create_root(
                 project_id=command.project_id,
                 name=command.name,
                 sort_order=command.sort_order,
@@ -57,13 +57,13 @@ class CreateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
                 start_date=command.start_date,
                 end_date=command.end_date,
                 state=command.state,
-                kind=root_kind,
+                type=root_type,
             )
         else:
             parent = await self._cycle_repo.find_by_id(command.parent_id)
             if parent is None or parent.project_id != command.project_id:
                 raise ValidationError("Parent cycle not found")
-            node = CycleNode.create_child(
+            node = Increment.create_child(
                 project_id=command.project_id,
                 name=command.name,
                 parent=parent,
@@ -72,12 +72,12 @@ class CreateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
                 start_date=command.start_date,
                 end_date=command.end_date,
                 state=command.state,
-                kind="iteration",
+                type="iteration",
             )
 
         await self._cycle_repo.add(node)
 
-        return CycleNodeDTO(
+        return IncrementDTO(
             id=node.id,
             project_id=node.project_id,
             name=node.name,
@@ -89,7 +89,7 @@ class CreateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
             start_date=node.start_date,
             end_date=node.end_date,
             state=node.state,
-            kind=node.kind,
+            type=node.type,
             created_at=node.created_at.isoformat() if node.created_at else None,
             updated_at=node.updated_at.isoformat() if node.updated_at else None,
         )

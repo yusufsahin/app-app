@@ -58,8 +58,7 @@ class GetVelocityHandler(QueryHandler[list[VelocityPointDTO]]):
                 all_cycles = await self._cycle_repo.list_by_project(query.project_id)
                 release_path = getattr(release_node, "path", "") or ""
                 cycle_ids = [
-                    c.id for c in all_cycles
-                    if c.path != release_path and c.path.startswith(release_path + "/")
+                    c.id for c in all_cycles if c.path != release_path and c.path.startswith(release_path + "/")
                 ]
         if cycle_ids is None:
             cycles = await self._cycle_repo.list_by_project(query.project_id)

@@ -9,7 +9,7 @@ from typing import Any
 from alm.area.domain.ports import AreaRepository
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.entities import Artifact
-from alm.artifact.domain.constants import ROOT_ARTIFACT_TYPES
+from alm.artifact.domain.manifest_workflow_metadata import resolve_system_root_artifact_types
 from alm.artifact.domain.mpc_resolver import (
     get_artifact_type_def,
     get_manifest_ast,
@@ -74,11 +74,13 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
             raise ValidationError(f"Artifact type '{command.artifact_type}' not defined in manifest")
 
         type_def = get_artifact_type_def(manifest, command.artifact_type, ast=ast)
+        system_roots = resolve_system_root_artifact_types(manifest)
         if type_def and command.parent_id is None:
             parent_types = type_def.get("parent_types") or []
-            if parent_types and all(p in ROOT_ARTIFACT_TYPES for p in parent_types):
+            if parent_types and all(p in system_roots for p in parent_types):
                 raise ValidationError(
-                    f"Artifact type '{command.artifact_type}' must be created under a project root (Requirements, Quality, or Defects)"
+                    f"Artifact type '{command.artifact_type}' must be created under a project root "
+                    "(Requirements, Quality, or Defects)"
                 )
 
         if command.parent_id is not None:
@@ -90,6 +92,14 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
                     f"Artifact type '{command.artifact_type}' cannot be child of "
                     f"'{parent.artifact_type}' per manifest hierarchy"
                 )
+            if command.artifact_type in {"test-case", "test-suite", "test-run", "test-campaign"} and parent.artifact_type != "quality-folder":
+                raise ValidationError(
+                    f"Artifact type '{command.artifact_type}' must be created under a 'quality-folder'"
+                )
+        elif command.artifact_type in {"test-case", "test-suite", "test-run", "test-campaign"}:
+            raise ValidationError(
+                f"Artifact type '{command.artifact_type}' must be created under a 'quality-folder'"
+            )
 
         artifact_key = command.artifact_key
         if artifact_key is None or artifact_key.strip() == "":

@@ -73,7 +73,7 @@ def test_build_artifact_list_schema_includes_custom_columns():
             },
         ],
     }
-    schema = _build_artifact_list_schema(flat)
+    schema = _build_artifact_list_schema(flat, None)
     column_keys = [c.key for c in schema.columns]
     assert "artifact_key" in column_keys
     assert "title" in column_keys
@@ -102,11 +102,39 @@ def test_build_artifact_list_schema_empty_artifact_types():
         "workflows": [{"id": "basic", "states": ["new"], "transitions": []}],
         "artifact_types": [],
     }
-    schema = _build_artifact_list_schema(flat)
+    schema = _build_artifact_list_schema(flat, None)
     column_keys = [c.key for c in schema.columns]
     assert "artifact_key" in column_keys
     assert "title" in column_keys
     assert "state" in column_keys
+
+
+def test_build_artifact_list_schema_manifest_column_override():
+    """artifact_list.columns in manifest controls visible core columns and order."""
+    flat = {
+        "workflows": [{"id": "basic", "states": ["new", "active"], "transitions": []}],
+        "artifact_types": [
+            {
+                "id": "requirement",
+                "name": "Requirement",
+                "workflow_id": "basic",
+                "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
+            },
+        ],
+    }
+    manifest = {
+        "artifact_list": {
+            "columns": [
+                {"key": "title", "label": "Summary", "order": 1, "sortable": True},
+                {"key": "state", "visible": True, "order": 2},
+            ]
+        }
+    }
+    schema = _build_artifact_list_schema(flat, manifest)
+    keys = [c.key for c in schema.columns]
+    assert keys[:2] == ["title", "state"]
+    assert "artifact_key" not in keys
+    assert "priority" in keys
 
 
 def test_build_task_list_schema():

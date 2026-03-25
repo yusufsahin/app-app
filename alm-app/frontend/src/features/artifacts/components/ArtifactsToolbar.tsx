@@ -40,6 +40,8 @@ import type { ArtifactListState } from "../../../shared/stores/artifactStore";
 import type { Task } from "../../../shared/api/taskApi";
 import { areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import type { ProblemDetail } from "../../../shared/api/types";
+import type { ManifestTreeRoot } from "../../../shared/lib/manifestTreeRoots";
+import type { ListColumnSchema } from "../../../shared/types/listSchema";
 
 export type ToolbarFilterValues = {
   searchInput: string;
@@ -51,7 +53,7 @@ export type ToolbarFilterValues = {
   showDeleted: boolean;
 };
 
-type CycleNode = { id: string; path?: string; name?: string };
+type Increment = { id: string; path?: string; name?: string };
 type AreaNode = { id: string; path?: string; name?: string };
 type SavedQuery = { id: string; name: string; visibility?: string };
 type Bundle = {
@@ -74,7 +76,8 @@ export interface ArtifactsToolbarProps {
   setMyTasksMenuAnchor: (el: HTMLElement | null) => void;
   filterStates: string[];
   bundle: Bundle | undefined;
-  cycleNodesFlat: CycleNode[];
+  treeRootOptions: ManifestTreeRoot[];
+  cycleNodesFlat: Increment[];
   areaNodesFlat: AreaNode[];
   savedQueries: SavedQuery[];
   createSavedQueryMutation: {
@@ -91,6 +94,8 @@ export interface ArtifactsToolbarProps {
   artifacts: Artifact[];
   members: Member[] | undefined;
   listResult: ListResult | undefined;
+  /** When set, CSV export uses these columns (order/labels) to match the list view. */
+  listColumns?: ListColumnSchema[] | null;
   onCreateArtifact: (artifactTypeId: string) => void;
   listStateToFilterParams: (state: {
     stateFilter: string;
@@ -118,6 +123,7 @@ export function ArtifactsToolbar({
   setMyTasksMenuAnchor,
   filterStates,
   bundle,
+  treeRootOptions,
   cycleNodesFlat,
   areaNodesFlat,
   savedQueries,
@@ -130,6 +136,7 @@ export function ArtifactsToolbar({
   artifacts,
   members,
   listResult,
+  listColumns,
   onCreateArtifact,
   listStateToFilterParams,
   showNotification,
@@ -215,7 +222,7 @@ export function ArtifactsToolbar({
           <Button
             variant="outline"
             size="default"
-            onClick={() => downloadArtifactsCsv(artifacts, members ?? [])}
+            onClick={() => downloadArtifactsCsv(artifacts, members ?? [], listColumns)}
             disabled={artifacts.length === 0}
             aria-label="Export CSV"
             title="Export current page to CSV"
@@ -333,16 +340,18 @@ export function ArtifactsToolbar({
             >
               <Select
                 value={treeFilter || "all"}
-                onValueChange={(v) => setListState({ treeFilter: v === "all" ? "" : (v as "requirement" | "quality" | "defect") })}
+                onValueChange={(v) => setListState({ treeFilter: v === "all" ? "" : v })}
               >
                 <SelectTrigger size="sm" className="min-w-[140px]" aria-label="Tree filter">
                   <SelectValue placeholder="Tree" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All trees</SelectItem>
-                  <SelectItem value="requirement">Requirements</SelectItem>
-                  <SelectItem value="quality">Quality</SelectItem>
-                  <SelectItem value="defect">Defects</SelectItem>
+                  {treeRootOptions.map((t) => (
+                    <SelectItem key={t.tree_id} value={t.tree_id}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <RhfSelect<ToolbarFilterValues>

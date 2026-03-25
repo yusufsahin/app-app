@@ -99,7 +99,7 @@ export default function LoginPage() {
                 type="email"
                 fullWidth
                 autoComplete="email"
-                autoFocus
+                autoFocus // eslint-disable-line jsx-a11y/no-autofocus -- primary field focus
                 disabled={isPending}
               />
               <RhfTextField<LoginFormData>

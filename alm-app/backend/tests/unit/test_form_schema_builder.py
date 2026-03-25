@@ -106,7 +106,7 @@ class TestFormSchemaBuilder:
         assert schema.context == "edit"
 
     def test_build_task_create_form_schema(self):
-        schema = build_task_create_form_schema()
+        schema = build_task_create_form_schema({})
         assert schema.entity_type == "task"
         assert schema.context == "create"
         assert schema.artifact_type_options == ()
@@ -122,3 +122,21 @@ class TestFormSchemaBuilder:
         schema = build_form_schema({}, "task", "create", _FLATTENER)
         assert schema.entity_type == "task"
         assert schema.context == "create"
+
+    def test_build_task_form_from_manifest_workflow(self):
+        manifest = {
+            "task_workflow_id": "tw",
+            "defs": [
+                {
+                    "kind": "Workflow",
+                    "id": "tw",
+                    "initial": "backlog",
+                    "states": ["backlog", "wip"],
+                    "transitions": [],
+                },
+            ],
+        }
+        schema = build_task_create_form_schema(manifest)
+        state_field = next(f for f in schema.fields if f.key == "state")
+        assert state_field.default_value == "backlog"
+        assert {o["id"] for o in (state_field.options or [])} == {"backlog", "wip"}

@@ -1,0 +1,184 @@
+# Monorepo kökü: uygulama `alm-app/` altında. GitHub yalnızca repo kökündeki .github’ı kullanır.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      GATE_TIER: pr
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: alm
+          POSTGRES_PASSWORD: alm_ci_password
+          POSTGRES_DB: alm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Backend install
+        working-directory: alm-app/backend
+        run: uv sync --extra dev
+
+      - name: Backend lint (ruff)
+        working-directory: alm-app/backend
+        run: uv run ruff check src
+
+      - name: validate_artifacts
+        working-directory: alm-app/backend
+        run: uv run python scripts/validate_metadata.py
+
+      - name: export_traceability_graph CLI
+        working-directory: alm-app/backend
+        run: uv run python scripts/export_traceability_graph.py --help
+
+      - name: Gate scripts sanity tests
+        working-directory: alm-app/backend
+        run: uv run pytest tests/unit/test_artifact_gate_scripts.py -q
+
+      - name: compute_risk
+        working-directory: alm-app/backend
+        run: uv run python scripts/compute_risk.py
+
+      - name: select_tests
+        working-directory: alm-app/backend
+        run: uv run python scripts/select_tests.py
+
+      - name: flaky_quarantine_check
+        working-directory: alm-app/backend
+        run: uv run python scripts/flaky_quarantine_check.py
+
+      - name: Prepare artifacts directory
+        working-directory: alm-app/backend
+        run: mkdir -p artifacts
+
+      - name: Backend test (pytest)
+        id: backend_pytest
+        continue-on-error: true
+        working-directory: alm-app/backend
+        env:
+          ALM_DATABASE_URL: postgresql+asyncpg://alm:alm_ci_password@localhost:5432/alm
+          ALM_TEST_DATABASE_URL: postgresql+asyncpg://alm:alm_ci_password@localhost:5432/alm
+          ALM_REDIS_URL: redis://localhost:6379/0
+          ALM_JWT_SECRET_KEY: ci-secret-key-for-tests
+        run: uv run pytest tests -v --tb=short --ignore=tests/e2e --junitxml artifacts/pytest-report.xml
+
+      - name: derive_execution_report
+        if: always()
+        working-directory: alm-app/backend
+        run: uv run python scripts/derive_execution_report.py
+
+      - name: run_gates
+        if: always()
+        working-directory: alm-app/backend
+        run: uv run python scripts/run_gates.py
+
+      - name: publish_gate_report
+        if: always()
+        working-directory: alm-app/backend
+        run: uv run python scripts/publish_gate_report.py
+
+      - name: report_kpis
+        if: always()
+        working-directory: alm-app/backend
+        run: uv run python scripts/report.py
+
+      - name: kpi_threshold_check
+        if: always()
+        working-directory: alm-app/backend
+        run: uv run python scripts/kpi_threshold_check.py
+
+      - name: Upload artifact-native gate outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-gate-artifacts
+          path: alm-app/backend/artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Backend permission regression tests
+        working-directory: alm-app/backend
+        env:
+          ALM_DATABASE_URL: postgresql+asyncpg://alm:alm_ci_password@localhost:5432/alm
+          ALM_TEST_DATABASE_URL: postgresql+asyncpg://alm:alm_ci_password@localhost:5432/alm
+          ALM_REDIS_URL: redis://localhost:6379/0
+          ALM_JWT_SECRET_KEY: ci-secret-key-for-tests
+        run: uv run pytest tests/unit/test_security_dependencies.py tests/unit/test_field_masking.py -v --tb=short
+
+      - name: Backend dependency audit (pip-audit)
+        working-directory: alm-app/backend
+        run: uv run pip-audit
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: alm-app/frontend/package-lock.json
+
+      - name: Frontend install
+        working-directory: alm-app/frontend
+        run: npm ci
+
+      - name: Frontend dependency audit (npm audit)
+        working-directory: alm-app/frontend
+        run: npm audit --audit-level=critical
+
+      - name: Frontend lint
+        working-directory: alm-app/frontend
+        run: npm run lint
+
+      - name: Frontend build
+        working-directory: alm-app/frontend
+        run: npm run build
+
+      - name: Frontend bundle size check
+        working-directory: alm-app/frontend
+        run: npm run build:check-size
+
+      - name: Frontend unit tests
+        working-directory: alm-app/frontend
+        run: npm run test:unit
+
+      - name: Frontend flaky-test gate (repeat unit tests)
+        working-directory: alm-app/frontend
+        run: npm run test:unit

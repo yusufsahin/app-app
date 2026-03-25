@@ -53,7 +53,10 @@ class IPermissionCache(ABC):
 
 
 class IManifestDefsFlattener(ABC):
-    """Port for converting manifest defs format to flat (workflows, artifact_types, link_types). Implemented in artifact infrastructure."""
+    """Convert manifest defs to flat workflows, artifact_types, and link_types.
+
+    Implemented in artifact infrastructure.
+    """
 
     @abstractmethod
     def flatten(self, manifest_bundle: dict[str, Any]) -> dict[str, Any]: ...

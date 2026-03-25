@@ -4,8 +4,14 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
+from alm.artifact.domain.manifest_workflow_metadata import (
+    allowed_task_state_ids,
+    get_task_state_options_and_initial,
+)
 from alm.artifact.domain.ports import ArtifactRepository
+from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
@@ -32,10 +38,12 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
         task_repo: TaskRepository,
         artifact_repo: ArtifactRepository,
         project_repo: ProjectRepository,
+        process_template_repo: ProcessTemplateRepository,
     ) -> None:
         self._task_repo = task_repo
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
+        self._process_template_repo = process_template_repo
 
     async def handle(self, command: Command) -> TaskDTO:
         assert isinstance(command, CreateTask)
@@ -48,11 +56,23 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
         if artifact is None or artifact.project_id != command.project_id:
             raise ValidationError("Artifact not found")
 
+        manifest: dict[str, Any] = {}
+        if project.process_template_version_id:
+            version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+            if version and version.manifest_bundle:
+                manifest = version.manifest_bundle
+        _, initial_state = get_task_state_options_and_initial(manifest)
+        allowed = allowed_task_state_ids(manifest)
+        raw_state = (command.state or "").strip()
+        chosen = raw_state if raw_state else initial_state
+        if chosen not in allowed:
+            raise ValidationError(f"Invalid task state '{chosen}' for this project's manifest")
+
         task = Task.create(
             project_id=command.project_id,
             artifact_id=command.artifact_id,
             title=command.title.strip() or "Untitled task",
-            state=command.state or "todo",
+            state=chosen,
             description=command.description or "",
             assignee_id=command.assignee_id,
             rank_order=command.rank_order,

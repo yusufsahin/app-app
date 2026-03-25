@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from alm.artifact.domain.manifest_workflow_metadata import (
+    get_task_state_options_and_initial,
+    planning_area_field_allowed,
+    planning_cycle_field_allowed,
+)
 from alm.form_schema.domain.entities import FormFieldSchema, FormSchema
 from alm.shared.domain.ports import IManifestDefsFlattener
 
@@ -158,15 +163,43 @@ def build_artifact_edit_form_schema(
     Returns core fields (title, description, assignee, cycle, area) plus any
     custom fields defined in the manifest for the given artifact_type.
     """
-    _CORE_KEYS = {"title", "description", "assignee_id", "cycle_node_id", "area_node_id"}
+    core_keys = {"title", "description", "assignee_id", "cycle_node_id", "area_node_id"}
 
     fields: list[FormFieldSchema] = [
-        FormFieldSchema(key="title",         type="string",     label_key="Title",             required=True,  order=10),
-        FormFieldSchema(key="description",   type="string",     label_key="Description",       required=False, order=20),
-        FormFieldSchema(key="assignee_id",   type="entity_ref", label_key="Assignee (optional)", required=False, entity_ref="user",  order=30),
-        FormFieldSchema(key="cycle_node_id", type="entity_ref", label_key="Cycle",             required=False, entity_ref="cycle", order=40),
-        FormFieldSchema(key="area_node_id",  type="entity_ref", label_key="Area",              required=False, entity_ref="area",  order=50),
+        FormFieldSchema(key="title", type="string", label_key="Title", required=True, order=10),
+        FormFieldSchema(key="description", type="string", label_key="Description", required=False, order=20),
+        FormFieldSchema(
+            key="assignee_id",
+            type="entity_ref",
+            label_key="Assignee (optional)",
+            required=False,
+            entity_ref="user",
+            order=30,
+        ),
     ]
+    at_key = artifact_type or ""
+    if not artifact_type or planning_cycle_field_allowed(manifest_bundle, at_key):
+        fields.append(
+            FormFieldSchema(
+                key="cycle_node_id",
+                type="entity_ref",
+                label_key="Cycle",
+                required=False,
+                entity_ref="cycle",
+                order=40,
+            )
+        )
+    if not artifact_type or planning_area_field_allowed(manifest_bundle, at_key):
+        fields.append(
+            FormFieldSchema(
+                key="area_node_id",
+                type="entity_ref",
+                label_key="Area",
+                required=False,
+                entity_ref="area",
+                order=50,
+            )
+        )
 
     if artifact_type and manifest_bundle:
         flat = flattener.flatten(manifest_bundle)
@@ -174,9 +207,9 @@ def build_artifact_edit_form_schema(
         at_def = next((a for a in artifact_types if isinstance(a, dict) and a.get("id") == artifact_type), None)
         if at_def:
             order = 100
-            for f in (at_def.get("fields") or []):
+            for f in at_def.get("fields") or []:
                 fid = f.get("id")
-                if not fid or fid in _CORE_KEYS:
+                if not fid or fid in core_keys:
                     continue
                 field_type = f.get("type", "string")
                 options = None
@@ -211,16 +244,9 @@ def build_artifact_edit_form_schema(
     )
 
 
-# Fixed task state options for form (no manifest dependency)
-_TASK_STATE_OPTIONS = [
-    {"id": "todo", "label": "To do"},
-    {"id": "in_progress", "label": "In progress"},
-    {"id": "done", "label": "Done"},
-]
-
-
-def build_task_create_form_schema() -> FormSchema:
-    """Build fixed form schema for task create context (P3 — Task form/list schema)."""
+def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None) -> FormSchema:
+    """Build task create/edit form schema from manifest ``task_workflow_id`` (fallback if missing)."""
+    task_opts, initial_state = get_task_state_options_and_initial(manifest_bundle)
     fields: list[FormFieldSchema] = [
         FormFieldSchema(
             key="title",
@@ -241,8 +267,8 @@ def build_task_create_form_schema() -> FormSchema:
             type="choice",
             label_key="State",
             required=True,
-            options=_TASK_STATE_OPTIONS,
-            default_value="todo",
+            options=task_opts,
+            default_value=initial_state,
             order=30,
         ),
         FormFieldSchema(
@@ -282,5 +308,5 @@ def build_form_schema(
     if entity_type == "artifact" and context == "edit":
         return build_artifact_edit_form_schema(manifest_bundle, flattener, artifact_type=artifact_type)
     if entity_type == "task" and context in ("create", "edit"):
-        return build_task_create_form_schema()
+        return build_task_create_form_schema(manifest_bundle)
     return None

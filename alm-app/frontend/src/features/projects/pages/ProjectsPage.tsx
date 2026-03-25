@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useRef } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { Plus, FolderX, Search } from "lucide-react";
 import {
   Breadcrumb,
@@ -52,8 +52,8 @@ export default function ProjectsPage() {
   const form = useForm<ProjectsFilterValues>({
     defaultValues: { q: filter, sort_value: sortValue },
   });
-  const { watch, reset, control } = form;
-  const values = watch();
+  const { reset, control } = form;
+  const values = useWatch({ control }) ?? { q: "", sort_value: sortValue };
   const skipSyncRef = useRef(true);
 
   useEffect(() => {
@@ -66,13 +66,15 @@ export default function ProjectsPage() {
       return;
     }
     const [by, order] = (values.sort_value || "name-asc").split("-");
-    const next = new URLSearchParams(searchParams);
-    if (values.q) next.set("q", values.q);
-    else next.delete("q");
-    next.set("sort_by", by ?? "name");
-    next.set("sort_order", order ?? "asc");
-    setSearchParams(next, { replace: true });
-  }, [values.q, values.sort_value]);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (values.q) next.set("q", values.q);
+      else next.delete("q");
+      next.set("sort_by", by ?? "name");
+      next.set("sort_order", order ?? "asc");
+      return next;
+    }, { replace: true });
+  }, [values.q, values.sort_value, setSearchParams]);
 
   const { data: projects = [], isLoading } = useOrgProjects(orgSlug);
 

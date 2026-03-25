@@ -23,6 +23,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "../../../shared/components/ui";
 import { RhfSelect, RhfSwitch, RhfTextField } from "../../../shared/components/forms";
@@ -301,6 +302,9 @@ export default function AutomationPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add workflow rule</DialogTitle>
+            <DialogDescription className="sr-only">
+              Define a rule name, trigger, and actions for this project.
+            </DialogDescription>
           </DialogHeader>
           <FormProvider {...form}>
             <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
@@ -309,7 +313,7 @@ export default function AutomationPage() {
                 label="Rule name"
                 fullWidth
                 placeholder="e.g. Log new artifacts"
-                autoFocus
+                autoFocus // eslint-disable-line jsx-a11y/no-autofocus -- dialog first field
               />
               <RhfSelect<AddRuleFormValues>
                 name="trigger_event_type"

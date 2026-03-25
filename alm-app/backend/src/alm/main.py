@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 import structlog
 from fastapi import FastAPI
@@ -52,10 +52,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     subscriber_task.cancel()
-    try:
+    with suppress(asyncio.CancelledError):
         await subscriber_task
-    except asyncio.CancelledError:
-        pass
     logger.info("application_shutting_down")
 
 
@@ -103,6 +101,7 @@ def create_app() -> FastAPI:
     # OpenTelemetry Instrumentation (Faz D4)
     if not settings.debug:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
         FastAPIInstrumentor.instrument_app(app)
 
     return app

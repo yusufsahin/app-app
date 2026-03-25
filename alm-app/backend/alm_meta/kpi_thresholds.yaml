@@ -1,0 +1,8 @@
+# Plan: beş ana KPI için eşikler — scripts/kpi_threshold_check.py ile doğrulanır.
+version: "1"
+thresholds:
+  critical_pass_rate_min: 100
+  compatibility_success_rate_min: 95
+  flaky_rate_max_percent: 2
+  critical_artifact_coverage_min_percent: 90
+  traceability_completeness_min_percent: 95

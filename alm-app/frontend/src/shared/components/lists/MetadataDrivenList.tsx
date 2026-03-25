@@ -3,6 +3,7 @@
  */
 import { Checkbox } from "../ui";
 import { useMemo, useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { RhfSelect } from "../forms";
 import type { ListSchemaDto, ListColumnSchema, ListFilterSchema } from "../../types/listSchema";
@@ -22,7 +23,7 @@ export interface MetadataDrivenListProps<T> {
   getRowKey: (row: T) => string;
   filterValues?: Record<string, string>;
   onFilterChange?: (key: string, value: string) => void;
-  renderRowActions?: (row: T) => React.ReactNode;
+  renderRowActions?: (row: T) => ReactNode;
   emptyMessage?: string;
   onRowClick?: (row: T) => void;
   /** When set, show a checkbox column and call onToggleSelect when row checkbox is toggled. */
@@ -35,6 +36,12 @@ export interface MetadataDrivenListProps<T> {
   onSelectAll?: (checked: boolean) => void;
   /** When true, do not render the filter row (filters are shown elsewhere, e.g. toolbar). */
   hideFilters?: boolean;
+  /** Optional per-cell UI (e.g. icon + text). Return null/undefined to use default string rendering. */
+  renderCell?: (
+    row: T,
+    columnKey: string,
+    cellValue: string | number | null | undefined,
+  ) => ReactNode | null | undefined;
 }
 
 export function MetadataDrivenList<T>({
@@ -52,6 +59,7 @@ export function MetadataDrivenList<T>({
   onToggleSelect,
   onSelectAll,
   hideFilters = false,
+  renderCell,
 }: MetadataDrivenListProps<T>) {
   const sortedColumns = useMemo(
     () => [...(schema.columns ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
@@ -176,9 +184,14 @@ export function MetadataDrivenList<T>({
                     )}
                     {sortedColumns.map((col) => {
                       const val = getCellValue(row, col.key);
+                      const custom = renderCell?.(row, col.key, val);
                       return (
                         <td key={col.key} className="border-b border-border px-2 py-2">
-                          {val !== undefined && val !== null ? String(val) : "—"}
+                          {custom != null && custom !== false
+                            ? custom
+                            : val !== undefined && val !== null
+                              ? String(val)
+                              : "—"}
                         </td>
                       );
                     })}

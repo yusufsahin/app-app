@@ -101,7 +101,7 @@ export default function RegisterPage() {
                 label="Display Name"
                 fullWidth
                 autoComplete="name"
-                autoFocus
+                autoFocus // eslint-disable-line jsx-a11y/no-autofocus -- primary field focus
                 disabled={isPending}
               />
               <RhfTextField<RegisterFormData>

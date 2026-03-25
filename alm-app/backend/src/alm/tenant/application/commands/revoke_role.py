@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import uuid
 from dataclasses import dataclass
 
@@ -41,7 +42,5 @@ class RevokeRoleHandler(CommandHandler[None]):
 
         await self._membership_repo.remove_role(membership.id, command.role_id)
 
-        try:
+        with contextlib.suppress(Exception):
             await self._permission_cache.invalidate_user(command.tenant_id, command.user_id)
-        except Exception:
-            pass

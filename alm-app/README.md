@@ -88,9 +88,11 @@ cd alm-manifest-app/alm-app
 docker compose up --build -d
 ```
 
-- **Frontend:** http://localhost:3000
-- **API docs:** http://localhost:3000/api/v1/docs
-- **Mailhog:** http://localhost:8025
+- **Frontend (nginx):** http://localhost:9001 — API under same origin: `/api/…`; docs: http://localhost:9001/api/v1/docs
+- **API direct:** http://localhost:9000
+- **MailHog:** http://localhost:8025
+
+On Windows, use `.\docker-build-local.ps1` from `alm-app` so `ALM_DOCKER_CONTEXT` points at the directory that contains `alm-manifest-app` (see `DEPLOY.md`).
 
 Migration'lar backend başlarken otomatik çalışır. Durdurmak: `docker compose down` (verileri silmek: `-v`). Sadece DB/Redis: `docker compose up -d db redis mailhog`.
 

@@ -40,6 +40,7 @@ out/
 
 # Pytest
 .pytest_cache/
+.pytest_tmp/
 htmlcov/
 .coverage
 
@@ -54,3 +55,7 @@ htmlcov/
 
 # Nested git repos
 manifest-platform-core-suite/
+Metadatadriventestmanagement/.git
+
+# CI gate outputs (local)
+alm-app/backend/artifacts/

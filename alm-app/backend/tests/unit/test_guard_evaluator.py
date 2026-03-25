@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from alm.artifact.domain.guard_evaluator import evaluate_guard
+from alm.artifact.domain.guard_evaluator import evaluate_guard, guard_user_message_for_failure
 
 
 class TestEvaluateGuard:
@@ -87,3 +87,17 @@ class TestEvaluateGuard:
     def test_unknown_guard_type_fail_closed(self):
         assert evaluate_guard("unknown_type", {"state": "new"}) is False
         assert evaluate_guard({"type": "eval", "expr": "1+1"}, {}) is False
+
+
+class TestGuardUserMessageForFailure:
+    def test_assignee_required(self):
+        msg = guard_user_message_for_failure("assignee_required")
+        assert "assignee" in msg.lower()
+
+    def test_field_present_and_equals(self):
+        assert "missing" in guard_user_message_for_failure({"type": "field_present", "field": "state_reason"}).lower()
+        assert "field" in guard_user_message_for_failure({"type": "field_equals", "field": "x", "value": "y"}).lower()
+
+    def test_unknown_uses_generic(self):
+        msg = guard_user_message_for_failure("unknown_type")
+        assert "transition" in msg.lower()

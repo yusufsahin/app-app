@@ -1,16 +1,6 @@
-# Stage 1: Build MPC Studio
-FROM node:22-alpine AS studio-builder
-WORKDIR /studio
-# Context is root (../.. from alm-app/frontend)
-COPY manifest-platform-core-suite/tooling/mpc-studio/package*.json ./
-RUN npm install --legacy-peer-deps
-COPY manifest-platform-core-suite/tooling/mpc-studio ./
-COPY manifest-platform-core-suite/src/mpc /manifest-platform-core-suite/src/mpc
-# Ensure sync script finds mpc
-RUN sed -i 's|../../src/mpc|/manifest-platform-core-suite/src/mpc|g' scripts/sync-mpc.js
-RUN npm run build
-
-# Stage 2: Build ALM App Frontend
+# Build context: parent of alm-manifest-app (see alm-app/docker-compose.yml).
+# MPC Studio (/studio) is not built here: mpc-studio requires a full toolchain and
+# optional lib sources; the main ALM UI does not depend on it for core workflows.
 FROM node:22-alpine AS app-builder
 WORKDIR /app
 COPY alm-manifest-app/alm-app/frontend/package*.json ./
@@ -18,12 +8,11 @@ RUN npm install --legacy-peer-deps
 COPY alm-manifest-app/alm-app/frontend ./
 RUN npm run build
 
-# Stage 3: Runtime
 FROM nginx:alpine AS runtime
-# Main app at root
 COPY --from=app-builder /app/dist /usr/share/nginx/html
-# Studio at /studio
-COPY --from=studio-builder /studio/dist /usr/share/nginx/html/studio
+RUN mkdir -p /usr/share/nginx/html/studio && \
+  printf '%s\n' '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>MPC Studio</title></head><body><p>MPC Studio is not bundled in this Docker image.</p></body></html>' \
+  > /usr/share/nginx/html/studio/index.html
 COPY alm-manifest-app/alm-app/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

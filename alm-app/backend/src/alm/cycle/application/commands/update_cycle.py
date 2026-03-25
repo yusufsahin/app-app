@@ -1,4 +1,4 @@
-"""Update cycle node."""
+"""Update increment."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 
-from alm.cycle.application.dtos import CycleNodeDTO
-from alm.cycle.domain.entities import CycleNode
+from alm.cycle.application.dtos import IncrementDTO
+from alm.cycle.domain.entities import Increment
 from alm.cycle.domain.ports import CycleRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
@@ -15,7 +15,7 @@ from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)
-class UpdateCycleNode(Command):
+class UpdateIncrement(Command):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     cycle_node_id: uuid.UUID
@@ -25,10 +25,10 @@ class UpdateCycleNode(Command):
     end_date: date | None = None
     state: str | None = None
     sort_order: int | None = None
-    kind: str | None = None
+    type: str | None = None
 
 
-class UpdateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
+class UpdateIncrementHandler(CommandHandler[IncrementDTO]):
     def __init__(
         self,
         cycle_repo: CycleRepository,
@@ -37,8 +37,8 @@ class UpdateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
         self._cycle_repo = cycle_repo
         self._project_repo = project_repo
 
-    async def handle(self, command: Command) -> CycleNodeDTO:
-        assert isinstance(command, UpdateCycleNode)
+    async def handle(self, command: Command) -> IncrementDTO:
+        assert isinstance(command, UpdateIncrement)
 
         project = await self._project_repo.find_by_id(command.project_id)
         if project is None or project.tenant_id != command.tenant_id:
@@ -46,7 +46,7 @@ class UpdateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
 
         node = await self._cycle_repo.find_by_id(command.cycle_node_id)
         if node is None or node.project_id != command.project_id:
-            raise ValidationError("Cycle node not found")
+            raise ValidationError("Increment not found")
 
         name = command.name.strip() if (command.name and command.name.strip()) else node.name
         path = node.path
@@ -58,10 +58,11 @@ class UpdateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
                 parent = await self._cycle_repo.find_by_id(node.parent_id)
                 path = f"{parent.path}/{name}" if parent else name
 
-        kind = getattr(node, "kind", "iteration") or "iteration"
-        if command.kind is not None and command.kind.strip().lower() in ("release", "iteration"):
-            kind = command.kind.strip().lower()
-        updated = CycleNode(
+        node_type = getattr(node, "type", "iteration") or "iteration"
+        candidate_type = command.type
+        if candidate_type is not None and candidate_type.strip().lower() in ("release", "iteration"):
+            node_type = candidate_type.strip().lower()
+        updated = Increment(
             id=node.id,
             project_id=node.project_id,
             name=name,
@@ -73,7 +74,7 @@ class UpdateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
             start_date=command.start_date if command.start_date is not None else node.start_date,
             end_date=command.end_date if command.end_date is not None else node.end_date,
             state=command.state if command.state is not None else node.state,
-            kind=kind,
+            type=node_type,
             created_at=node.created_at,
             updated_at=node.updated_at,
         )
@@ -81,7 +82,7 @@ class UpdateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
 
         refreshed = await self._cycle_repo.find_by_id(command.cycle_node_id)
         assert refreshed is not None
-        return CycleNodeDTO(
+        return IncrementDTO(
             id=refreshed.id,
             project_id=refreshed.project_id,
             name=refreshed.name,
@@ -93,7 +94,7 @@ class UpdateCycleNodeHandler(CommandHandler[CycleNodeDTO]):
             start_date=refreshed.start_date,
             end_date=refreshed.end_date,
             state=refreshed.state,
-            kind=getattr(refreshed, "kind", "iteration") or "iteration",
+            type=getattr(refreshed, "type", "iteration") or "iteration",
             created_at=refreshed.created_at.isoformat() if refreshed.created_at else None,
             updated_at=refreshed.updated_at.isoformat() if refreshed.updated_at else None,
         )

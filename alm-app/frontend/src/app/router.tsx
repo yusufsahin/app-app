@@ -69,6 +69,17 @@ const AutomationPage = lazy(
 const BoardPage = lazy(
   () => import("../features/board/pages/BoardPage"),
 );
+const QualityPage = lazy(
+  () => import("../features/quality/pages/QualityPage"),
+);
+const QualityTraceabilityPage = lazy(
+  () => import("../features/quality/pages/QualityTraceabilityPage"),
+);
+const QualityTestsPage = lazy(() => import("../features/quality/pages/QualityTestsPage"));
+const QualitySuitesPage = lazy(() => import("../features/quality/pages/QualitySuitesPage"));
+const QualityRunsPage = lazy(() => import("../features/quality/pages/QualityRunsPage"));
+const QualityCampaignsPage = lazy(() => import("../features/quality/pages/QualityCampaignsPage"));
+const ManualExecutionPlayerPage = lazy(() => import("../features/quality/pages/ManualExecutionPlayer"));
 
 const OrgRedirect = lazy(() => import("./OrgRedirect"));
 
@@ -187,6 +198,34 @@ export const router = createBrowserRouter([
           {
             path: ":projectSlug/artifacts",
             element: withPermission("artifact:read", ArtifactsPage),
+          },
+          {
+            path: ":projectSlug/quality/traceability",
+            element: withPermission("artifact:read", QualityTraceabilityPage),
+          },
+          {
+            path: ":projectSlug/quality/tests",
+            element: withPermission("artifact:read", QualityTestsPage),
+          },
+          {
+            path: ":projectSlug/quality/suites",
+            element: withPermission("artifact:read", QualitySuitesPage),
+          },
+          {
+            path: ":projectSlug/quality/runs/:runId/execute",
+            element: withPermission("artifact:read", ManualExecutionPlayerPage),
+          },
+          {
+            path: ":projectSlug/quality/runs",
+            element: withPermission("artifact:read", QualityRunsPage),
+          },
+          {
+            path: ":projectSlug/quality/campaigns",
+            element: withPermission("artifact:read", QualityCampaignsPage),
+          },
+          {
+            path: ":projectSlug/quality",
+            element: withPermission("artifact:read", QualityPage),
           },
           {
             path: ":projectSlug/board",

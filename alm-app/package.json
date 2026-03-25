@@ -10,7 +10,7 @@
     "test:be": "cd backend && uv run pytest tests -v --tb=short",
     "test:fe": "cd frontend && npm run test:unit",
     "test:e2e": "cd frontend && npx playwright test",
-    "test:e2e:deployed": "cd frontend && cross-env PLAYWRIGHT_BASE_URL=http://localhost:3000 npx playwright test",
+    "test:e2e:deployed": "cd frontend && cross-env PLAYWRIGHT_BASE_URL=http://localhost:9001 npx playwright test",
     "deploy": "docker compose up --build -d",
     "deploy:down": "docker compose down",
     "lifecycle": "npm run build && npm run test && npm run deploy",

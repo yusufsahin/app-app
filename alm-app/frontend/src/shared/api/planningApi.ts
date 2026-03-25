@@ -6,9 +6,9 @@ import { apiClient } from "./client";
 
 // ── Cycle nodes (iterations) ──
 
-export type CycleNodeKind = "release" | "iteration";
+export type IncrementType = "release" | "iteration";
 
-export interface CycleNode {
+export interface Increment {
   id: string;
   project_id: string;
   name: string;
@@ -20,13 +20,13 @@ export interface CycleNode {
   start_date: string | null;
   end_date: string | null;
   state: string;
-  kind: CycleNodeKind;
+  type: IncrementType;
   created_at: string | null;
   updated_at: string | null;
-  children: CycleNode[];
+  children: Increment[];
 }
 
-export interface CycleNodeCreateRequest {
+export interface IncrementCreateRequest {
   name: string;
   parent_id?: string | null;
   sort_order?: number;
@@ -34,45 +34,64 @@ export interface CycleNodeCreateRequest {
   start_date?: string | null;
   end_date?: string | null;
   state?: string;
-  kind?: CycleNodeKind;
+  type?: IncrementType;
 }
 
-export interface CycleNodeUpdateRequest {
+export interface IncrementUpdateRequest {
   name?: string;
   goal?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   state?: string | null;
   sort_order?: number | null;
-  kind?: CycleNodeKind | null;
+  type?: IncrementType | null;
 }
 
 /** Display label for cycle in dropdowns (name + optional path). */
-export function cycleNodeDisplayLabel(node: { name: string; path?: string }): string {
+export function incrementDisplayLabel(node: { name: string; path?: string }): string {
   return node.path ? `${node.name} (${node.path})` : node.name;
 }
 
-/** Display label with kind badge for dropdowns: "Sprint 1 (Iteration)" or "2024-R1 (Release)". */
-export function cycleNodeDisplayLabelWithKind(node: { name: string; path?: string; kind?: CycleNodeKind }): string {
-  const base = cycleNodeDisplayLabel(node);
-  const k = node.kind === "release" ? "Release" : "Iteration";
+/** Display label with type badge for dropdowns: "Sprint 1 (Iteration)" or "2024-R1 (Release)". */
+function resolveCycleNodeType(node: { type?: IncrementType }): IncrementType {
+  return node.type ?? "iteration";
+}
+
+export function incrementDisplayLabelWithType(node: { name: string; path?: string; type?: IncrementType }): string {
+  const base = incrementDisplayLabel(node);
+  const k = resolveCycleNodeType(node) === "release" ? "Release" : "Iteration";
   return `${base} · ${k}`;
 }
 
-/** Get release name for a cycle (parent release node name). cycleTree = flat list with parent_id/path/kind. */
+/** Get release name for a cycle (parent release node name). cycleTree = flat list with parent_id/path/type. */
 export function getReleaseNameForCycle(
   cycleNodeId: string | null | undefined,
-  cycleTree: Array<{ id: string; parent_id: string | null; path?: string; kind?: CycleNodeKind }>,
+  cycleTree: Array<{ id: string; parent_id: string | null; path?: string; type?: IncrementType }>,
 ): string | null {
   if (!cycleNodeId) return null;
   const node = cycleTree.find((c) => c.id === cycleNodeId);
   if (!node) return null;
-  if (node.kind === "release") return node.path ?? null;
+  if (resolveCycleNodeType(node) === "release") return node.path ?? null;
   if (!node.parent_id) return null;
   const parent = cycleTree.find((c) => c.id === node.parent_id);
   if (!parent) return null;
-  if (parent.kind === "release") return parent.path ?? parent.id;
+  if (resolveCycleNodeType(parent) === "release") return parent.path ?? parent.id;
   return getReleaseNameForCycle(parent.id, cycleTree);
+}
+
+function normalizeIncrement(node: Increment): Increment {
+  const nodeType = resolveCycleNodeType(node);
+  const children = Array.isArray(node.children) ? node.children.map(normalizeIncrement) : [];
+  return { ...node, type: nodeType, children };
+}
+
+function normalizeIncrementRequest(body: IncrementCreateRequest | IncrementUpdateRequest): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...body };
+  const nodeType = body.type ?? undefined;
+  if (nodeType) {
+    out.type = nodeType;
+  }
+  return out;
 }
 
 /** Display label for area in dropdowns (name + optional path). */
@@ -80,89 +99,91 @@ export function areaNodeDisplayLabel(node: { name: string; path?: string }): str
   return node.path ? `${node.name} (${node.path})` : node.name;
 }
 
-export function useCycleNodes(
+export function useIncrements(
   orgSlug: string | undefined,
   projectId: string | undefined,
   flat = false,
-  kind?: CycleNodeKind,
+  type?: IncrementType,
 ) {
   return useQuery({
-    queryKey: ["orgs", orgSlug, "projects", projectId, "cycle-nodes", flat, kind],
-    queryFn: async (): Promise<CycleNode[]> => {
-      const params: { flat: boolean; kind?: string } = { flat };
-      if (kind) params.kind = kind;
-      const { data } = await apiClient.get<CycleNode[]>(
-        `/orgs/${orgSlug}/projects/${projectId}/cycle-nodes`,
+    queryKey: ["orgs", orgSlug, "projects", projectId, "increments", flat, type],
+    queryFn: async (): Promise<Increment[]> => {
+      const params: { flat: boolean; type?: string } = { flat };
+      if (type) {
+        params.type = type;
+      }
+      const { data } = await apiClient.get<Increment[]>(
+        `/orgs/${orgSlug}/projects/${projectId}/increments`,
         { params },
       );
-      return data;
+      return data.map(normalizeIncrement);
     },
     enabled: !!orgSlug && !!projectId,
   });
 }
 
-export function useCreateCycleNode(
+export function useCreateIncrement(
   orgSlug: string | undefined,
   projectId: string | undefined,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (body: CycleNodeCreateRequest): Promise<CycleNode> => {
-      const { data } = await apiClient.post<CycleNode>(
-        `/orgs/${orgSlug}/projects/${projectId}/cycle-nodes`,
-        body,
+    mutationFn: async (body: IncrementCreateRequest): Promise<Increment> => {
+      const { data } = await apiClient.post<Increment>(
+        `/orgs/${orgSlug}/projects/${projectId}/increments`,
+        normalizeIncrementRequest(body),
       );
-      return data;
+      return normalizeIncrement(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["orgs", orgSlug, "projects", projectId, "cycle-nodes"],
+        queryKey: ["orgs", orgSlug, "projects", projectId, "increments"],
       });
     },
   });
 }
 
-export function useUpdateCycleNode(
+export function useUpdateIncrement(
   orgSlug: string | undefined,
   projectId: string | undefined,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      cycleNodeId,
+      incrementId,
       body,
     }: {
-      cycleNodeId: string;
-      body: CycleNodeUpdateRequest;
-    }): Promise<CycleNode> => {
-      const { data } = await apiClient.patch<CycleNode>(
-        `/orgs/${orgSlug}/projects/${projectId}/cycle-nodes/${cycleNodeId}`,
-        body,
+      incrementId: string;
+      body: IncrementUpdateRequest;
+    }): Promise<Increment> => {
+      const { data } = await apiClient.patch<Increment>(
+        `/orgs/${orgSlug}/projects/${projectId}/increments/${incrementId}`,
+        normalizeIncrementRequest(body),
       );
-      return data;
+      return normalizeIncrement(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["orgs", orgSlug, "projects", projectId, "cycle-nodes"],
+        queryKey: ["orgs", orgSlug, "projects", projectId, "increments"],
       });
     },
   });
 }
 
-export function useDeleteCycleNode(
+export function useDeleteIncrement(
   orgSlug: string | undefined,
   projectId: string | undefined,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (cycleNodeId: string): Promise<void> => {
+    mutationFn: async (incrementId: string): Promise<void> => {
       await apiClient.delete(
-        `/orgs/${orgSlug}/projects/${projectId}/cycle-nodes/${cycleNodeId}`,
+        `/orgs/${orgSlug}/projects/${projectId}/increments/${incrementId}`,
       );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["orgs", orgSlug, "projects", projectId, "cycle-nodes"],
+        queryKey: ["orgs", orgSlug, "projects", projectId, "increments"],
       });
     },
   });

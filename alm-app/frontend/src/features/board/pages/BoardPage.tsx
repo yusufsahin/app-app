@@ -3,7 +3,7 @@ import { LayoutGrid } from "lucide-react";
 import { useMemo, useCallback } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm, FormProvider, useWatch } from "react-hook-form";
 import {
   Button,
   Card,
@@ -21,10 +21,11 @@ import { RhfSelect } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import { useProjectManifest } from "../../../shared/api/manifestApi";
-import { useCycleNodes, useAreaNodes, cycleNodeDisplayLabel, areaNodeDisplayLabel } from "../../../shared/api/planningApi";
+import { useIncrements, useAreaNodes, incrementDisplayLabel, areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import { useArtifacts, useTransitionArtifactById } from "../../../shared/api/artifactApi";
 import type { Artifact } from "../../../shared/stores/artifactStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
+import { useRealtimeStore } from "../../../shared/stores/realtimeStore";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import { artifactDetailPath, artifactsPath } from "../../../shared/utils/appPaths";
 import { getWorkflowStatesForType, type ManifestBundleShape } from "../../../shared/lib/workflowManifest";
@@ -57,17 +58,17 @@ export default function BoardPage() {
     projects?.find((p) => p.slug === projectSlug) ??
     (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
   const { data: manifest, isLoading: manifestLoading } = useProjectManifest(orgSlug, project?.id);
-  const { data: cycleNodesFlat = [] } = useCycleNodes(orgSlug, project?.id, true, "iteration");
+  const { data: incrementsFlat = [] } = useIncrements(orgSlug, project?.id, true, "iteration");
   const { data: areaNodesFlat = [] } = useAreaNodes(orgSlug, project?.id, true);
 
   type BoardFilterValues = { typeFilter: string; cycleFilter: string; areaFilter: string };
   const filterForm = useForm<BoardFilterValues>({
     defaultValues: { typeFilter: "", cycleFilter: "", areaFilter: "" },
   });
-  const { watch, control } = filterForm;
-  const typeFilter = watch("typeFilter");
-  const cycleFilter = watch("cycleFilter");
-  const areaFilter = watch("areaFilter");
+  const { control } = filterForm;
+  const typeFilter = useWatch({ control, name: "typeFilter" }) ?? "";
+  const cycleFilter = useWatch({ control, name: "cycleFilter" }) ?? "";
+  const areaFilter = useWatch({ control, name: "areaFilter" }) ?? "";
 
   const { data: artifactsData, isLoading: artifactsLoading } = useArtifacts(
     orgSlug,
@@ -81,10 +82,15 @@ export default function BoardPage() {
     0,
     false,
     cycleFilter || undefined,
+    undefined,
     areaFilter || undefined,
+    undefined,
+    true,
   );
   const transitionMutation = useTransitionArtifactById(orgSlug, project?.id);
   const showNotification = useNotificationStore((s) => s.showNotification);
+  const recentlyUpdatedArtifactIds = useRealtimeStore((s) => s.recentlyUpdatedArtifactIds);
+  const presenceByArtifactId = useRealtimeStore((s) => s.presenceByArtifactId);
 
   const bundle = manifest?.manifest_bundle as ManifestBundleShape | undefined;
   const artifactTypes = useMemo(() => bundle?.artifact_types ?? [], [bundle]);
@@ -207,14 +213,14 @@ export default function BoardPage() {
                     />
                   </div>
                 )}
-                {cycleNodesFlat.length > 0 && (
+                {incrementsFlat.length > 0 && (
                   <div className="min-w-[180px]">
                     <RhfSelect<BoardFilterValues>
                       name="cycleFilter"
                       control={control}
                       label="Cycle"
                       placeholder="All"
-                      options={[{ value: "", label: "All" }, ...cycleNodesFlat.map((c) => ({ value: c.id, label: cycleNodeDisplayLabel(c) }))]}
+                      options={[{ value: "", label: "All" }, ...incrementsFlat.map((c) => ({ value: c.id, label: incrementDisplayLabel(c) }))]}
                       selectProps={{ size: "sm" }}
                     />
                   </div>
@@ -302,6 +308,21 @@ export default function BoardPage() {
                             >
                               {a.title || "—"}
                             </Link>
+                            {(recentlyUpdatedArtifactIds[a.id] ||
+                              (presenceByArtifactId[a.id]?.length ?? 0) > 0) && (
+                              <div className="mt-1 flex items-center gap-1">
+                                {recentlyUpdatedArtifactIds[a.id] && (
+                                  <Badge variant="secondary" className="text-[10px]">
+                                    Live update
+                                  </Badge>
+                                )}
+                                {(presenceByArtifactId[a.id]?.length ?? 0) > 0 && (
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {presenceByArtifactId[a.id]!.length} viewing
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
                             <div className="mt-2 flex items-center justify-between">
                               {a.assignee_id ? (
                                 <Tooltip>

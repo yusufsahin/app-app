@@ -8,8 +8,9 @@ from typing import Any
 
 from alm.area.domain.ports import AreaRepository
 from alm.artifact.application.dtos import ArtifactDTO
-from alm.artifact.domain.constants import is_root_artifact
+from alm.artifact.domain.manifest_workflow_metadata import is_system_root_artifact_type
 from alm.artifact.domain.ports import ArtifactRepository
+from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
@@ -30,10 +31,12 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
         artifact_repo: ArtifactRepository,
         project_repo: ProjectRepository,
         area_repo: AreaRepository,
+        process_template_repo: ProcessTemplateRepository,
     ) -> None:
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
         self._area_repo = area_repo
+        self._process_template_repo = process_template_repo
 
     async def handle(self, command: Command) -> ArtifactDTO:
         assert isinstance(command, UpdateArtifact)
@@ -50,7 +53,12 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
             raise ValidationError("Cannot update a deleted artifact")
 
         updates = command.updates or {}
-        if "parent_id" in updates and is_root_artifact(artifact.artifact_type):
+        manifest: dict = {}
+        if project.process_template_version_id:
+            ver = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+            if ver and ver.manifest_bundle:
+                manifest = ver.manifest_bundle
+        if "parent_id" in updates and is_system_root_artifact_type(artifact.artifact_type, manifest):
             new_parent = updates["parent_id"]
             if new_parent is not None and str(new_parent).strip():
                 raise ValidationError("Cannot reparent a project root artifact")

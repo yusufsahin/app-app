@@ -81,7 +81,7 @@ class UpdateProjectManifestHandler(CommandHandler[dict[str, Any] | None]):
             id=uuid.uuid4(),
             template_id=current_version.template_id,
             version=f"custom-{version_suffix}",
-            manifest_bundle=dict(command.manifest_bundle),
+            manifest_bundle=dict(bundle),
         )
         await self._process_template_repo.add_version(new_version)
 
@@ -89,9 +89,8 @@ class UpdateProjectManifestHandler(CommandHandler[dict[str, Any] | None]):
         await self._project_repo.update(project)
 
         # Governance: run activation protocol for the new version (fire-and-forget)
-        if self._governance:
-            if not self._governance.activate_new_version(new_version.manifest_bundle):
-                logger.warning("Governance activation protocol did not succeed for version %s", new_version.version)
+        if self._governance and not self._governance.activate_new_version(new_version.manifest_bundle):
+            logger.warning("Governance activation protocol did not succeed for version %s", new_version.version)
 
         return {
             "manifest_bundle": new_version.manifest_bundle,

@@ -6,7 +6,18 @@ import { useTenantStore } from "../../../shared/stores/tenantStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
 import { OrgSettingsBreadcrumbs } from "../../../shared/components/Layout";
-import { Badge, Button, Card, CardContent, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../../../shared/components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../../shared/components/ui";
 import { useNavigate } from "react-router-dom";
 
 export default function SettingsPage() {
@@ -92,11 +103,11 @@ export default function SettingsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Archive organization?</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              This will archive the current organization. You will need to select another organization
+              or log out. This action can be reversed by a system administrator. Continue?
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            This will archive the current organization. You will need to select another organization
-            or log out. This action can be reversed by a system administrator. Continue?
-          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setArchiveDialogOpen(false)} disabled={archiving}>
               Cancel

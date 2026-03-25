@@ -251,7 +251,13 @@ export default function ManifestPage() {
             <span className="text-sm text-muted-foreground">v{manifest.version}</span>
           </div>
 
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="border-b">
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => {
+              if (v === "overview" || v === "studio" || v === "source") setActiveTab(v);
+            }}
+            className="border-b"
+          >
             <TabsList className="w-full justify-start rounded-none border-b-0 bg-transparent p-0">
               <TabsTrigger value="overview" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
                 <LayoutGrid className="size-4" />

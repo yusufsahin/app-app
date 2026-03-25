@@ -3,7 +3,7 @@
  * Form value: raw markdown string. Use z.string() in Zod.
  * Optional live preview and toolbar to insert markdown syntax.
  */
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Controller } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
 import { Bold, Italic, Code, List, ListOrdered, Link2, Eye, Pencil } from "lucide-react";
@@ -159,6 +159,9 @@ export function RhfMarkdownField<TFieldValues extends import("react-hook-form").
     helperText,
   });
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const registerTextareaRef = useCallback((el: HTMLTextAreaElement | null) => {
+    textareaRef.current = el;
+  }, []);
 
   return (
     <Controller
@@ -170,6 +173,7 @@ export function RhfMarkdownField<TFieldValues extends import("react-hook-form").
           onChange={onChange}
           onBlur={onBlur}
           ref={ref}
+          registerTextareaRef={registerTextareaRef}
           textareaRef={textareaRef}
           label={label}
           placeholder={placeholder}
@@ -192,6 +196,8 @@ export interface MarkdownFieldInnerProps {
   onChange: (v: string) => void;
   onBlur: () => void;
   ref: React.Ref<unknown>;
+  /** Syncs the textarea DOM node to the parent toolbar ref (avoid mutating ref props in render). */
+  registerTextareaRef: (el: HTMLTextAreaElement | null) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   label?: React.ReactNode;
   placeholder?: string;
@@ -210,6 +216,7 @@ export const MarkdownFieldInner = ({
   onChange,
   onBlur,
   ref,
+  registerTextareaRef,
   textareaRef,
   label,
   placeholder = "Write markdown…",
@@ -258,7 +265,7 @@ export const MarkdownFieldInner = ({
               <div className={cn("flex flex-col", view === "split" && "flex-1")}>
                 <textarea
                   ref={(el) => {
-                    (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
+                    registerTextareaRef(el);
                     if (typeof ref === "function") ref(el);
                     else if (ref && typeof ref === "object") (ref as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
                   }}

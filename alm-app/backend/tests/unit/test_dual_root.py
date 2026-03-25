@@ -49,9 +49,14 @@ async def test_delete_root_raises_validation_error():
     artifact_repo = AsyncMock()
     artifact_repo.find_by_id = AsyncMock(return_value=root)
     project_repo = AsyncMock()
-    project_repo.find_by_id = AsyncMock(return_value=AsyncMock(tenant_id=tenant_id))
+    project_repo.find_by_id = AsyncMock(return_value=AsyncMock(tenant_id=tenant_id, process_template_version_id=None))
+    process_template_repo = AsyncMock()
 
-    handler = DeleteArtifactHandler(artifact_repo=artifact_repo, project_repo=project_repo)
+    handler = DeleteArtifactHandler(
+        artifact_repo=artifact_repo,
+        project_repo=project_repo,
+        process_template_repo=process_template_repo,
+    )
     cmd = DeleteArtifact(tenant_id=tenant_id, project_id=project_id, artifact_id=root_id)
 
     with pytest.raises(ValidationError) as exc_info:

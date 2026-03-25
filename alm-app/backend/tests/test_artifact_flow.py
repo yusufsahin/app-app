@@ -53,7 +53,7 @@ async def _ensure_project(
 
 @pytest.mark.asyncio
 class TestArtifactFlow:
-    async def test_list_artifacts_empty(self, client: AsyncClient):
+    async def test_list_artifacts_excludes_system_roots(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         assert isinstance(tenants, list) and len(tenants) >= 1
@@ -70,10 +70,308 @@ class TestArtifactFlow:
         data = resp.json()
         assert "items" in data and "total" in data
         assert isinstance(data["items"], list)
-        # With three-root model, project with template has three root artifacts
-        assert data["total"] >= 3
-        types = {a["artifact_type"] for a in data["items"]}
-        assert "root-requirement" in types and "root-quality" in types and "root-defect" in types
+        # Default list hides system root placeholders (they still exist for tree/parent links).
+        assert data["total"] == 0
+        assert data["items"] == []
+
+    async def test_list_artifacts_tree_quality_param_ok(self, client: AsyncClient):
+        """tree=quality resolves to root-quality subtree; empty project yields total 0."""
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+
+        resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"tree": "quality"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "items" in data and "total" in data
+        assert data["total"] == 0
+        assert data["items"] == []
+
+    async def test_list_artifacts_tree_quality_and_type_test_suite_ok(self, client: AsyncClient):
+        """tree=quality with type=test-suite is accepted (empty project → zero rows)."""
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+
+        resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"tree": "quality", "type": "test-suite"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 0
+        assert data["items"] == []
+
+    async def test_list_artifacts_parent_id_param_ok(self, client: AsyncClient):
+        """parent_id filter is accepted; unknown parent yields zero rows."""
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+
+        resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"parent_id": str(uuid.uuid4())},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 0
+        assert data["items"] == []
+
+    async def test_quality_testcase_requires_quality_folder_parent(self, client: AsyncClient):
+        """Quality types must be created under a quality-folder (not root-quality or null)."""
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+
+        roots_resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"include_system_roots": "true", "tree": "quality", "limit": 200, "offset": 0},
+        )
+        roots_resp.raise_for_status()
+        items = roots_resp.json()["items"]
+        root_quality = next((a for a in items if a["artifact_type"] == "root-quality"), None)
+        quality_folder = next((a for a in items if a["artifact_type"] == "quality-folder"), None)
+        assert root_quality is not None, "project must have root-quality"
+        if quality_folder is None:
+            mk_folder = await client.post(
+                f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+                headers={"Authorization": f"Bearer {token}"},
+                json={
+                    "artifact_type": "quality-folder",
+                    "title": "QA Folder",
+                    "description": "",
+                    "parent_id": root_quality["id"],
+                },
+            )
+            assert mk_folder.status_code == 201
+            quality_folder = mk_folder.json()
+        assert quality_folder is not None
+
+        # parent_id omitted -> rejected
+        r1 = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"artifact_type": "test-case", "title": "TC no parent", "description": ""},
+        )
+        assert r1.status_code == 422
+        assert "quality-folder" in (r1.json().get("detail") or "")
+
+        # parent_id = root-quality -> rejected
+        r2 = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"artifact_type": "test-case", "title": "TC under root-quality", "description": "", "parent_id": root_quality["id"]},
+        )
+        assert r2.status_code == 422
+        assert "quality-folder" in (r2.json().get("detail") or "")
+
+        # parent_id = quality-folder -> ok
+        r3 = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"artifact_type": "test-case", "title": "TC under folder", "description": "", "parent_id": quality_folder["id"]},
+        )
+        assert r3.status_code == 201
+        created = r3.json()
+        assert created["artifact_type"] == "test-case"
+        assert created["parent_id"] == quality_folder["id"]
+
+        # list direct children of the folder within quality tree
+        list_resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"tree": "quality", "parent_id": quality_folder["id"], "type": "test-case", "limit": 50, "offset": 0},
+        )
+        list_resp.raise_for_status()
+        data = list_resp.json()
+        assert data["total"] >= 1
+        assert any(a["id"] == created["id"] for a in data["items"])
+
+    @pytest.mark.parametrize("artifact_type", ["test-suite", "test-run", "test-campaign"])
+    async def test_quality_types_require_quality_folder_parent(self, client: AsyncClient, artifact_type: str):
+        """All quality types must be created under a quality-folder."""
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+
+        roots_resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"include_system_roots": "true", "tree": "quality", "limit": 200, "offset": 0},
+        )
+        roots_resp.raise_for_status()
+        items = roots_resp.json()["items"]
+        root_quality = next((a for a in items if a["artifact_type"] == "root-quality"), None)
+        assert root_quality is not None
+
+        # Ensure there is a quality-folder to attach under
+        mk_folder = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "artifact_type": "quality-folder",
+                "title": "QA Folder",
+                "description": "",
+                "parent_id": root_quality["id"],
+            },
+        )
+        assert mk_folder.status_code == 201
+        folder = mk_folder.json()
+
+        # parent_id omitted -> rejected
+        r1 = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"artifact_type": artifact_type, "title": f"{artifact_type} no parent", "description": ""},
+        )
+        assert r1.status_code == 422
+        assert "quality-folder" in (r1.json().get("detail") or "")
+
+        # parent_id = root-quality -> rejected
+        r2 = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"artifact_type": artifact_type, "title": f"{artifact_type} under root", "description": "", "parent_id": root_quality["id"]},
+        )
+        assert r2.status_code == 422
+        assert "quality-folder" in (r2.json().get("detail") or "")
+
+        # parent_id = quality-folder -> ok
+        r3 = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"artifact_type": artifact_type, "title": f"{artifact_type} under folder", "description": "", "parent_id": folder["id"]},
+        )
+        assert r3.status_code == 201
+        assert r3.json()["parent_id"] == folder["id"]
+
+    async def test_tree_quality_and_parent_id_does_not_leak_other_trees(self, client: AsyncClient):
+        """tree=quality + parent_id must not return artifacts outside the quality subtree."""
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+
+        roots = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"include_system_roots": "true", "limit": 200, "offset": 0},
+        )
+        roots.raise_for_status()
+        items = roots.json()["items"]
+        root_defect = next((a for a in items if a["artifact_type"] == "root-defect"), None)
+        assert root_defect is not None
+
+        # Create a defect under root-defect (outside quality tree)
+        mk_def = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"artifact_type": "defect", "title": "Def outside quality", "description": "", "parent_id": root_defect["id"]},
+        )
+        assert mk_def.status_code == 201
+
+        # Query quality tree but with parent_id set to defect root -> should yield zero
+        resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"tree": "quality", "parent_id": root_defect["id"], "limit": 50, "offset": 0},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        assert data["total"] == 0
+        assert data["items"] == []
+
+    async def test_parent_id_filters_direct_children_only(self, client: AsyncClient):
+        """parent_id returns only direct children (not grandchildren)."""
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+
+        roots_resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"include_system_roots": "true", "tree": "quality", "limit": 200, "offset": 0},
+        )
+        roots_resp.raise_for_status()
+        items = roots_resp.json()["items"]
+        root_quality = next((a for a in items if a["artifact_type"] == "root-quality"), None)
+        assert root_quality is not None
+
+        f1 = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"artifact_type": "quality-folder", "title": "Folder 1", "description": "", "parent_id": root_quality["id"]},
+        )
+        assert f1.status_code == 201
+        folder1 = f1.json()
+        f2 = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"artifact_type": "quality-folder", "title": "Folder 2", "description": "", "parent_id": root_quality["id"]},
+        )
+        assert f2.status_code == 201
+        folder2 = f2.json()
+
+        # Create a child folder under folder1
+        f1_child = await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"artifact_type": "quality-folder", "title": "Folder 1.1", "description": "", "parent_id": folder1["id"]},
+        )
+        assert f1_child.status_code == 201
+        folder11 = f1_child.json()
+
+        # Create test-cases under folder1, folder1.1, folder2
+        def _mk_tc(parent_id: str, title: str):
+            return client.post(
+                f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"artifact_type": "test-case", "title": title, "description": "", "parent_id": parent_id},
+            )
+
+        tc1 = await _mk_tc(folder1["id"], "TC under folder1")
+        assert tc1.status_code == 201
+        tc11 = await _mk_tc(folder11["id"], "TC under folder1.1")
+        assert tc11.status_code == 201
+        tc2 = await _mk_tc(folder2["id"], "TC under folder2")
+        assert tc2.status_code == 201
+
+        # parent_id=folder1 should include only tc1 and folder11 (if no type filter), but not tc11
+        resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"tree": "quality", "parent_id": folder1["id"], "limit": 200, "offset": 0},
+        )
+        resp.raise_for_status()
+        ids = {a["id"] for a in resp.json()["items"]}
+        assert tc1.json()["id"] in ids
+        assert folder11["id"] in ids
+        assert tc11.json()["id"] not in ids
+
+        # With type filter, only the test-case direct children should remain (folder row excluded)
+        resp_tc = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"tree": "quality", "parent_id": folder1["id"], "type": "test-case", "limit": 200, "offset": 0},
+        )
+        resp_tc.raise_for_status()
+        tc_ids = {a["id"] for a in resp_tc.json()["items"]}
+        assert tc1.json()["id"] in tc_ids
+        assert folder11["id"] not in tc_ids
+        assert tc11.json()["id"] not in tc_ids
 
     async def test_create_and_list_artifact(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
@@ -119,6 +417,7 @@ class TestArtifactFlow:
         list_r = await client.get(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
+            params={"include_system_roots": "true"},
         )
         list_r.raise_for_status()
         root_defect = next((a for a in list_r.json()["items"] if a["artifact_type"] == "root-defect"), None)
@@ -204,6 +503,7 @@ class TestArtifactFlow:
         list_r = await client.get(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
+            params={"include_system_roots": "true"},
         )
         list_r.raise_for_status()
         root_defect = next((a for a in list_r.json()["items"] if a["artifact_type"] == "root-defect"), None)
@@ -324,7 +624,7 @@ class TestArtifactFlow:
         assert not any(a["id"] in ids for a in list_data["items"])
 
     async def test_project_has_two_roots_after_create(self, client: AsyncClient):
-        """With dual-root, creating a project with template yields two root artifacts."""
+        """Creating a project with template yields three system root artifacts (requirement / quality / defect)."""
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
@@ -339,6 +639,7 @@ class TestArtifactFlow:
         list_resp = await client.get(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
+            params={"include_system_roots": "true"},
         )
         list_resp.raise_for_status()
         data = list_resp.json()
@@ -356,6 +657,7 @@ class TestArtifactFlow:
         list_resp = await client.get(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
+            params={"include_system_roots": "true"},
         )
         list_resp.raise_for_status()
         root = next((a for a in list_resp.json()["items"] if a["artifact_type"] == "root-requirement"), None)

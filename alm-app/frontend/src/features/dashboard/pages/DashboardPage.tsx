@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   History,
@@ -37,9 +37,12 @@ import {
   useOrgDashboardStats,
   useOrgProjects,
   useOrgDashboardActivity,
+  useProjectVelocity,
+  useProjectBurndown,
   type DashboardActivityItem,
 } from "../../../shared/api/orgApi";
-import { useCycleNodes } from "../../../shared/api/planningApi";
+import { useProjectManifest } from "../../../shared/api/manifestApi";
+import { useIncrements } from "../../../shared/api/planningApi";
 import { StandardPageLayout } from "../../../shared/components/Layout";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import {
@@ -60,15 +63,6 @@ import {
 import { motion } from "motion/react";
 
 const COLORS = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
-
-const velocityData = [
-  { period: "Week 1", completed: 12, created: 15 },
-  { period: "Week 2", completed: 18, created: 14 },
-  { period: "Week 3", completed: 15, created: 20 },
-  { period: "Week 4", completed: 22, created: 18 },
-  { period: "Week 5", completed: 19, created: 16 },
-  { period: "Week 6", completed: 24, created: 22 },
-];
 
 function formatRelativeTime(iso: string | null): string {
   if (!iso) return "—";
@@ -179,6 +173,7 @@ export default function DashboardPage() {
   const { data: projects = [], isLoading: projectsLoading } = useOrgProjects(orgSlug);
   const { data: activity, isLoading: activityLoading } = useOrgDashboardActivity(orgSlug, 10);
   const [timeRange, setTimeRange] = useState<"week" | "month" | "year">("month");
+  const [selectedReleaseId, setSelectedReleaseId] = useState<string>("__all__");
 
   const firstProject = projects[0];
   const defaultSlug =
@@ -189,7 +184,30 @@ export default function DashboardPage() {
   const [showOnlySelectedProject, setShowOnlySelectedProject] = useState(false);
   const effectiveSlug = selectedSlug ?? defaultSlug;
   const selectedProject = effectiveSlug ? projects.find((p) => p.slug === effectiveSlug) : null;
-  const { data: releases = [] } = useCycleNodes(orgSlug, selectedProject?.id, true, "release");
+  const { data: releases = [] } = useIncrements(orgSlug, selectedProject?.id, true, "release");
+  const lastN = timeRange === "week" ? 4 : timeRange === "month" ? 8 : 16;
+  const effectiveReleaseId = selectedReleaseId === "__all__" ? undefined : selectedReleaseId;
+  const {
+    data: velocityPoints = [],
+    isLoading: velocityLoading,
+  } = useProjectVelocity(orgSlug, selectedProject?.id, {
+    releaseCycleNodeId: effectiveReleaseId,
+    lastN,
+  });
+  const {
+    data: burndownPoints = [],
+    isLoading: burndownLoading,
+  } = useProjectBurndown(orgSlug, selectedProject?.id, { lastN });
+
+  const { data: projectManifest } = useProjectManifest(orgSlug, selectedProject?.id);
+  const manifestSupportsTasks = useMemo(() => {
+    const b = projectManifest?.manifest_bundle as
+      | { task_workflow_id?: string; artifact_types?: Array<{ id?: string }> }
+      | undefined;
+    if (!b) return true;
+    if (b.task_workflow_id) return true;
+    return (b.artifact_types ?? []).some((t) => t.id === "task");
+  }, [projectManifest?.manifest_bundle]);
 
   const activityList: DashboardActivityItem[] = (activity as DashboardActivityItem[] | undefined) ?? [];
   const filteredActivity =
@@ -201,7 +219,7 @@ export default function DashboardPage() {
   const artifactsPath =
     orgSlug && selectedProject ? `/${orgSlug}/${selectedProject.slug}/artifacts` : undefined;
   const tasksPath =
-    orgSlug && selectedProject
+    orgSlug && selectedProject && manifestSupportsTasks
       ? `/${orgSlug}/${selectedProject.slug}/artifacts?type=task`
       : undefined;
   const openDefectsPath =
@@ -219,6 +237,15 @@ export default function DashboardPage() {
         { name: "Open Defects", value: stats.openDefects, fill: COLORS[3] },
       ]
     : [];
+  const velocityChartData = velocityPoints.map((point) => ({
+    period: point.cycle_name,
+    totalEffort: point.total_effort,
+  }));
+  const burndownChartData = burndownPoints.map((point) => ({
+    period: point.cycle_name,
+    completed: point.completed_effort,
+    remaining: point.remaining_effort,
+  }));
 
   const breadcrumbs = (
     <Breadcrumb>
@@ -276,6 +303,28 @@ export default function DashboardPage() {
             Go to projects
           </Link>
         </p>
+      )}
+      {effectiveSlug && (
+        <div className="min-w-[220px]">
+          <Label className="sr-only">Filter by release</Label>
+          <Select
+            value={selectedReleaseId}
+            onValueChange={setSelectedReleaseId}
+            disabled={releases.length === 0}
+          >
+            <SelectTrigger size="sm" className="w-full">
+              <SelectValue placeholder={releases.length ? "All releases" : "No releases"} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All releases</SelectItem>
+              {releases.map((release) => (
+                <SelectItem key={release.id} value={release.id}>
+                  {release.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       )}
     </div>
   );
@@ -365,10 +414,19 @@ export default function DashboardPage() {
           <div className="rounded-lg border border-border bg-card p-4 lg:col-span-8">
             <h3 className="text-lg font-semibold">Team Velocity</h3>
             <p className="mb-4 text-xs text-muted-foreground">
-              Completed vs Created artifacts over time
+              Completed effort by cycle
             </p>
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={velocityData}>
+            {velocityLoading ? (
+              <div className="flex h-[280px] items-center justify-center">
+                <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            ) : velocityChartData.length === 0 ? (
+              <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
+                No velocity data for selected scope.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={velocityChartData}>
                 <defs>
                   <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
@@ -386,24 +444,16 @@ export default function DashboardPage() {
                 <Legend />
                 <Area
                   type="monotone"
-                  dataKey="completed"
+                  dataKey="totalEffort"
                   stroke="#10b981"
                   fillOpacity={1}
                   fill="url(#colorCompleted)"
                   strokeWidth={2}
-                  name="Completed"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="created"
-                  stroke="#2563eb"
-                  fillOpacity={1}
-                  fill="url(#colorCreated)"
-                  strokeWidth={2}
-                  name="Created"
+                  name="Total effort"
                 />
               </AreaChart>
-            </ResponsiveContainer>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="rounded-lg border border-border bg-card p-4 lg:col-span-4">
@@ -439,23 +489,25 @@ export default function DashboardPage() {
 
         <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="rounded-lg border border-border bg-card p-4">
-            <h3 className="text-lg font-semibold">Work Items Overview</h3>
-            {isLoading ? (
+            <h3 className="text-lg font-semibold">Burndown</h3>
+            {burndownLoading ? (
               <div className="flex justify-center py-8">
                 <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               </div>
+            ) : burndownChartData.length === 0 ? (
+              <div className="flex h-[240px] items-center justify-center text-sm text-muted-foreground">
+                No burndown data for selected scope.
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={statsChartData}>
+                <BarChart data={burndownChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
+                  <XAxis dataKey="period" stroke="#6b7280" fontSize={12} />
                   <YAxis stroke="#6b7280" fontSize={12} />
                   <RechartsTooltip />
-                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                    {statsChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
+                  <Legend />
+                  <Bar dataKey="completed" fill="#10b981" radius={[8, 8, 0, 0]} name="Completed" />
+                  <Bar dataKey="remaining" fill="#ef4444" radius={[8, 8, 0, 0]} name="Remaining" />
                 </BarChart>
               </ResponsiveContainer>
             )}

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { UserMinus } from "lucide-react";
 import { Button } from "../../components/ui";
 import { RhfSelect } from "../../components/forms";
@@ -101,6 +101,7 @@ export function ProjectMembersModal({ orgSlug, projectId, projectName: _projectN
   const addMemberForm = useForm<AddMemberFormValues>({
     defaultValues: { user_id: "", role: "PROJECT_VIEWER" },
   });
+  const addMemberUserId = useWatch({ control: addMemberForm.control, name: "user_id" }) ?? "";
 
   const availableMembersForAdd = (members ?? []).filter(
     (m) => !(projectMembers ?? []).some((pm) => pm.user_id === m.user_id),
@@ -211,7 +212,7 @@ export function ProjectMembersModal({ orgSlug, projectId, projectName: _projectN
                 disabled={
                   projectMembersLoading ||
                   addProjectMemberMutation.isPending ||
-                  !addMemberForm.watch("user_id") ||
+                  !addMemberUserId ||
                   availableMembersForAdd.length === 0
                 }
               >

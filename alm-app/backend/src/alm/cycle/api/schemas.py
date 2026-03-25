@@ -1,4 +1,4 @@
-"""CycleNode API schemas (pamera IterationNode-like)."""
+"""Increment API schemas (pamera IterationNode-like)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class CycleNodeCreateRequest(BaseModel):
+class IncrementCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     parent_id: uuid.UUID | None = None
     sort_order: int = 0
@@ -17,20 +17,20 @@ class CycleNodeCreateRequest(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     state: str = "planned"
-    kind: str = "iteration"  # "release" for root, "iteration" for child
+    type: str = "iteration"
 
 
-class CycleNodeUpdateRequest(BaseModel):
+class IncrementUpdateRequest(BaseModel):
     name: str | None = Field(None, max_length=255)
     goal: str | None = None
     start_date: date | None = None
     end_date: date | None = None
     state: str | None = None
     sort_order: int | None = None
-    kind: str | None = None  # "release" | "iteration"
+    type: str | None = None
 
 
-class CycleNodeResponse(BaseModel):
+class IncrementResponse(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
     name: str
@@ -42,7 +42,7 @@ class CycleNodeResponse(BaseModel):
     start_date: date | None
     end_date: date | None
     state: str
-    kind: str  # "release" | "iteration"
+    type: str  # "release" | "iteration"
     created_at: str | None
     updated_at: str | None
     children: list[Any] = []

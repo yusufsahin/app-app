@@ -69,7 +69,10 @@ class RefreshTokenRepository(ABC):
 
 
 class IUserCreationPort(ABC):
-    """Port for ensuring a user exists (create or return existing). Implemented by Auth; Tenant BC uses this instead of User entity."""
+    """Ensure a user exists (create or return existing).
+
+    Implemented by Auth; Tenant BC uses this instead of the User entity.
+    """
 
     @abstractmethod
     async def ensure_user(

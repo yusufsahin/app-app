@@ -1,4 +1,4 @@
-import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import {
   Button,
   Skeleton,
@@ -35,16 +35,13 @@ import {
   ArrowLeftRight,
   ChevronLeft,
   List,
+  PlayCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { apiClient } from "../../../shared/api/client";
-import {
-  useOrgProjects,
-  useOrgMembers,
-} from "../../../shared/api/orgApi";
-import { useProjectStore } from "../../../shared/stores/projectStore";
+import { useOrgMembers } from "../../../shared/api/orgApi";
 import {
   useProjectMembers,
   useAddProjectMember,
@@ -57,6 +54,7 @@ import type { ProblemDetail } from "../../../shared/api/types";
 import type { FormFieldSchema, FormSchemaDto } from "../../../shared/types/formSchema";
 import { MetadataDrivenForm, RhfTextField } from "../../../shared/components/forms";
 import {
+  buildArtifactListParams,
   useArtifacts,
   useArtifact,
   useCreateArtifact,
@@ -90,7 +88,7 @@ import {
   useDeleteArtifactLink,
   type ArtifactLink,
 } from "../../../shared/api/artifactLinkApi";
-import { useCycleNodes, useAreaNodes, areaNodeDisplayLabel, getReleaseNameForCycle } from "../../../shared/api/planningApi";
+import { useIncrements, useAreaNodes, areaNodeDisplayLabel, getReleaseNameForCycle } from "../../../shared/api/planningApi";
 import {
   useAttachments,
   useUploadAttachment,
@@ -104,6 +102,7 @@ import {
   listStateToFilterParams,
   filterParamsToListStatePatch,
 } from "../../../shared/api/savedQueryApi";
+import { useEntityHistory } from "../../../shared/api/auditApi";
 import { useListSchema } from "../../../shared/api/listSchemaApi";
 import { MetadataDrivenList } from "../../../shared/components/lists/MetadataDrivenList";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
@@ -112,6 +111,7 @@ import { LoadingState } from "../../../shared/components/LoadingState";
 import { modalApi, useModalStore } from "../../../shared/modal";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { useArtifactStore } from "../../../shared/stores/artifactStore";
+import { useRealtimeStore } from "../../../shared/stores/realtimeStore";
 import {
   CORE_FIELD_KEYS,
   TITLE_MAX_LENGTH,
@@ -121,19 +121,25 @@ import {
   getValidTransitions,
   buildArtifactTree,
   isRootArtifact,
-  ROOT_ARTIFACT_TYPES,
+  getSystemRootArtifactTypes,
   type ArtifactNode,
 } from "../utils";
 import { ArtifactsToolbar, ArtifactsList, ArtifactDetailDrawer } from "../components";
 import type { ToolbarFilterValues } from "../components/ArtifactsToolbar";
+import { useArtifactsPageProject } from "./useArtifactsPageProject";
+import { getTreeRootsFromManifestBundle } from "../../../shared/lib/manifestTreeRoots";
 
 export type ViewMode = "table" | "tree";
 
-export default function ArtifactsPage() {
-  const { orgSlug, projectSlug } = useParams<{
-    orgSlug: string;
-    projectSlug: string;
-  }>();
+export type ArtifactsPageVariant = "default" | "quality";
+
+export interface ArtifactsPageProps {
+  /** `"quality"` — Quality suite route: breadcrumb + default `tree=quality` when manifest includes that tree. */
+  variant?: ArtifactsPageVariant;
+}
+
+export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProps) {
+  const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
   const [searchParams, setSearchParams] = useSearchParams();
   const artifactIdFromUrl = searchParams.get("artifact");
   const qFromUrl = searchParams.get("q") ?? "";
@@ -141,14 +147,36 @@ export default function ArtifactsPage() {
   const stateFromUrl = searchParams.get("state") ?? "";
   const cycleNodeIdFromUrl = searchParams.get("cycle_node_id") ?? "";
   const areaNodeIdFromUrl = searchParams.get("area_node_id") ?? "";
-  const treeFromUrl = (searchParams.get("tree") ?? "") as "" | "requirement" | "quality" | "defect";
-  const treeFromUrlValid = treeFromUrl === "" || treeFromUrl === "requirement" || treeFromUrl === "quality" || treeFromUrl === "defect" ? treeFromUrl : "";
-  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
-  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
-  const project =
-    projects?.find((p) => p.slug === projectSlug) ??
-    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
   const { data: manifest } = useProjectManifest(orgSlug, project?.id);
+  const treeRootOptions = useMemo(
+    () => getTreeRootsFromManifestBundle(manifest?.manifest_bundle),
+    [manifest?.manifest_bundle],
+  );
+  const systemRootTypes = useMemo(
+    () => getSystemRootArtifactTypes(manifest?.manifest_bundle),
+    [manifest?.manifest_bundle],
+  );
+  const validTreeIds = useMemo(() => new Set(treeRootOptions.map((o) => o.tree_id)), [treeRootOptions]);
+
+  /** Quality: `?under=<uuid>` lists direct children of that folder/root within the quality subtree. */
+  const underFolderIdFromUrl = useMemo(() => {
+    if (variant !== "quality") return null;
+    const raw = searchParams.get("under")?.trim() ?? "";
+    if (!raw) return null;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw) ? raw : null;
+  }, [variant, searchParams]);
+
+  /** URL `tree=all` = explicit "All trees"; missing/`""` on Artifacts defaults to requirement subtree (no quality test cases). */
+  const treeFromUrlValid = useMemo(() => {
+    const raw = searchParams.get("tree");
+    if (raw === "all") return "";
+    if (raw === null || raw === "") {
+      if (variant === "default" && validTreeIds.has("requirement")) return "requirement";
+      return "";
+    }
+    if (validTreeIds.has(raw)) return raw;
+    return variant === "default" && validTreeIds.has("requirement") ? "requirement" : "";
+  }, [searchParams, validTreeIds, variant]);
   const { data: listSchema, isLoading: listSchemaLoading, isError: listSchemaError, refetch: refetchListSchema } = useListSchema(orgSlug, project?.id, "artifact");
   const { data: formSchema, isError: formSchemaError, error: formSchemaErr } = useFormSchema(orgSlug, project?.id);
   const formSchema403 = formSchemaError && (formSchemaErr as unknown as ProblemDetail)?.status === 403;
@@ -160,6 +188,27 @@ export default function ArtifactsPage() {
   useUpdateProjectMember(orgSlug, project?.id);
   const listState = useArtifactStore((s) => s.listState);
   const setListState = useArtifactStore((s) => s.setListState);
+
+  /**
+   * Quality route must list only the quality tree (`tree=quality`). Runs in layout so it wins over
+   * the store→URL sync effect: otherwise a stale `treeFilter` from Artifacts (e.g. requirement)
+   * could write `?tree=requirement` into the URL after navigation and show the wrong subtree.
+   */
+  useLayoutEffect(() => {
+    if (variant !== "quality") return;
+    if (!validTreeIds.has("quality")) return;
+    if (searchParams.get("tree") === "quality") return;
+    setListState({ treeFilter: "quality" });
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("tree", "quality");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [variant, validTreeIds, searchParams, setSearchParams, setListState]);
+
   const setSelectedIds = useArtifactStore((s) => s.setSelectedIds);
   const toggleSelectedId = useArtifactStore((s) => s.toggleSelectedId);
   const clearSelection = useArtifactStore((s) => s.clearSelection);
@@ -198,6 +247,73 @@ export default function ArtifactsPage() {
     detailDrawerEditing,
   } = listState;
   const selectedIds = useMemo(() => new Set(selectedIdsList), [selectedIdsList]);
+
+  const treeFilterExceptQualityDefault = variant === "quality" ? "" : treeFilter;
+  const hasActiveArtifactFilters = useMemo(
+    () =>
+      !!(
+        stateFilter ||
+        typeFilter ||
+        treeFilterExceptQualityDefault ||
+        cycleNodeFilter ||
+        releaseCycleNodeFilter ||
+        areaNodeFilter ||
+        searchQuery
+      ),
+    [
+      stateFilter,
+      typeFilter,
+      treeFilterExceptQualityDefault,
+      cycleNodeFilter,
+      releaseCycleNodeFilter,
+      areaNodeFilter,
+      searchQuery,
+    ],
+  );
+
+  const emptyListTitle = useMemo(
+    () =>
+      hasActiveArtifactFilters
+        ? "No artifacts match your filters"
+        : variant === "quality"
+          ? "No quality items yet"
+          : "No artifacts yet",
+    [hasActiveArtifactFilters, variant],
+  );
+
+  const emptyListDescription = useMemo(
+    () =>
+      hasActiveArtifactFilters
+        ? "Try clearing filters or changing the tree."
+        : variant === "quality"
+          ? "Create test cases, suites, runs, campaigns, or folders under the Quality tree."
+          : "Create a requirement, defect, or bug to get started.",
+    [hasActiveArtifactFilters, variant],
+  );
+
+  const emptyTableMessage = useMemo(
+    () =>
+      hasActiveArtifactFilters
+        ? "No artifacts match your filters."
+        : variant === "quality"
+          ? "No quality items yet. Create one under the Quality tree."
+          : "No artifacts yet. Create one to get started.",
+    [hasActiveArtifactFilters, variant],
+  );
+
+  const handleClearArtifactFilters = useCallback(() => {
+    setListState({
+      stateFilter: "",
+      typeFilter: "",
+      treeFilter: variant === "default" ? "requirement" : variant === "quality" ? "quality" : "",
+      searchInput: "",
+      searchQuery: "",
+      cycleNodeFilter: "",
+      releaseCycleNodeFilter: "",
+      areaNodeFilter: "",
+      page: 0,
+    });
+  }, [variant, setListState]);
 
   const toolbarForm = useForm<ToolbarFilterValues>({
     defaultValues: {
@@ -284,6 +400,7 @@ export default function ArtifactsPage() {
       if (stateFilter) p.set("state", stateFilter);
       else p.delete("state");
       if (treeFilter) p.set("tree", treeFilter);
+      else if (variant === "default") p.set("tree", "all");
       else p.delete("tree");
       if (cycleNodeFilter) p.set("cycle_node_id", cycleNodeFilter);
       else p.delete("cycle_node_id");
@@ -291,28 +408,52 @@ export default function ArtifactsPage() {
       else p.delete("area_node_id");
       return p;
     });
-  }, [typeFilter, stateFilter, treeFilter, cycleNodeFilter, areaNodeFilter, setSearchParams]);
+  }, [typeFilter, stateFilter, treeFilter, cycleNodeFilter, areaNodeFilter, variant, setSearchParams]);
   useEffect(() => {
     const t = setTimeout(() => setListState({ searchQuery: searchInput }), 350);
     return () => clearTimeout(t);
   }, [searchInput, setListState]);
   useEffect(() => {
     setListState({ page: 0 });
-  }, [stateFilter, typeFilter, treeFilter, cycleNodeFilter, areaNodeFilter, searchQuery, setListState]);
+  }, [
+    stateFilter,
+    typeFilter,
+    treeFilter,
+    cycleNodeFilter,
+    areaNodeFilter,
+    searchQuery,
+    underFolderIdFromUrl,
+    setListState,
+  ]);
   useEffect(() => {
     if (showDeleted) {
       setListState({ page: 0 });
       clearSelection();
     }
   }, [showDeleted, setListState, clearSelection]);
-  const { data: cycleNodesFlat = [] } = useCycleNodes(orgSlug, project?.id, true);
-  const { data: cycleNodesFlatIterations = [] } = useCycleNodes(orgSlug, project?.id, true, "iteration");
+  const { data: incrementsFlat = [] } = useIncrements(orgSlug, project?.id, true);
+  const { data: incrementsFlatIterations = [] } = useIncrements(orgSlug, project?.id, true, "iteration");
   const { data: areaNodesFlat = [] } = useAreaNodes(orgSlug, project?.id, true);
   const { data: savedQueries = [] } = useSavedQueries(orgSlug, project?.id);
   const createSavedQueryMutation = useCreateSavedQuery(orgSlug, project?.id);
   const [_conflictDialogOpen, _setConflictDialogOpen] = useState(false);
   const [_conflictDetail, _setConflictDetail] = useState("");
   const isBoardView = viewMode === "board";
+  /**
+   * Quality: always quality subtree. Artifacts (default): requirement subtree by default so test cases
+   * stay on Quality; `?tree=all` shows every tree (incl. quality).
+   */
+  const treeForList = useMemo(() => {
+    if (variant === "quality" && validTreeIds.has("quality")) return "quality";
+    if (variant === "default" && validTreeIds.has("requirement")) {
+      const raw = searchParams.get("tree");
+      if (raw === "all") return undefined;
+      if (raw === null || raw === "") return "requirement";
+      if (validTreeIds.has(raw)) return raw;
+      return "requirement";
+    }
+    return treeFilter || undefined;
+  }, [variant, validTreeIds, treeFilter, searchParams]);
   const { data: listResult, isLoading, isRefetching, refetch: refetchArtifacts } = useArtifacts(
     orgSlug,
     project?.id,
@@ -327,10 +468,37 @@ export default function ArtifactsPage() {
     releaseCycleNodeFilter ? undefined : (cycleNodeFilter || undefined),
     releaseCycleNodeFilter || undefined,
     areaNodeFilter || undefined,
-    treeFilter || undefined,
+    treeForList,
+    isBoardView,
+    underFolderIdFromUrl,
   );
   const artifacts = useMemo(() => listResult?.items ?? [], [listResult?.items]);
   const totalArtifacts = listResult?.total ?? 0;
+
+  /**
+   * Parent picker data for create modal.
+   *
+   * Important for Quality: creating `test-case` etc. must default under a `quality-folder`.
+   * The main list is often filtered by `type`, so it may not include folder/root rows.
+   */
+  const { data: parentPickerResult } = useArtifacts(
+    orgSlug,
+    project?.id,
+    undefined,
+    undefined,
+    "updated_at",
+    "desc",
+    undefined,
+    500,
+    0,
+    false,
+    undefined,
+    undefined,
+    undefined,
+    treeForList ?? undefined,
+    true,
+  );
+  const parentPickerArtifacts = useMemo(() => parentPickerResult?.items ?? [], [parentPickerResult?.items]);
   const selectedArtifacts = useMemo(
     () => artifacts.filter((a) => selectedIds.has(a.id)),
     [artifacts, selectedIds],
@@ -338,7 +506,7 @@ export default function ArtifactsPage() {
   const canBulkTransition = selectedArtifacts.some((a) => a.allowed_actions?.includes("transition"));
   const canBulkDelete =
     selectedArtifacts.some((a) => a.allowed_actions?.includes("delete")) &&
-    !selectedArtifacts.some((a) => isRootArtifact(a));
+    !selectedArtifacts.some((a) => isRootArtifact(a, systemRootTypes));
   const boardTransitionMutation = useTransitionArtifactById(orgSlug, project?.id);
   const detailOrUrlId = detailArtifactId || artifactIdFromUrl || undefined;
   const {
@@ -432,12 +600,22 @@ export default function ArtifactsPage() {
   useEffect(() => {
     if (addLinkOpen) addLinkForm.reset({ linkType: "related", artifactId: "" });
   }, [addLinkOpen, addLinkForm]);
+  const linkPickerParams = useMemo(
+    () =>
+      buildArtifactListParams({
+        limit: 100,
+        offset: 0,
+        tree: variant === "quality" && treeForList ? treeForList : undefined,
+        includeSystemRoots: variant === "quality" && !!treeForList,
+      }),
+    [variant, treeForList],
+  );
   const { data: pickerArtifactsData } = useQuery({
-    queryKey: ["orgs", orgSlug, "projects", project?.id, "artifacts", "linkPicker"],
+    queryKey: ["orgs", orgSlug, "projects", project?.id, "artifacts", "linkPicker", linkPickerParams],
     queryFn: async () => {
       const { data } = await apiClient.get<{ items: Artifact[]; total: number }>(
         `/orgs/${orgSlug}/projects/${project?.id}/artifacts`,
-        { params: { limit: 100, offset: 0 } },
+        { params: Object.keys(linkPickerParams).length ? linkPickerParams : undefined },
       );
       return data;
     },
@@ -452,7 +630,10 @@ export default function ArtifactsPage() {
   const createArtifactTypeIdRef = useRef<string>("");
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
   const [myTasksMenuAnchor, setMyTasksMenuAnchor] = useState<null | HTMLElement>(null);
-  const [detailDrawerTab, setDetailDrawerTab] = useState<"details" | "tasks" | "links" | "attachments" | "comments">("details");
+  const [detailDrawerTab, setDetailDrawerTab] = useState<
+    "details" | "tasks" | "links" | "attachments" | "comments" | "audit"
+  >("details");
+  const [auditTarget, setAuditTarget] = useState<string>("artifact");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const transitionArtifact = useMemo(
     () => (transitionArtifactId ? artifacts?.find((a) => a.id === transitionArtifactId) ?? null : null),
@@ -472,6 +653,8 @@ export default function ArtifactsPage() {
   const batchDeleteMutation = useBatchDeleteArtifacts(orgSlug, project?.id);
   const restoreMutation = useRestoreArtifact(orgSlug, project?.id);
   const showNotification = useNotificationStore((s) => s.showNotification);
+  const recentlyUpdatedArtifactIds = useRealtimeStore((s) => s.recentlyUpdatedArtifactIds);
+  const presenceByArtifactId = useRealtimeStore((s) => s.presenceByArtifactId);
 
   const toggleSelect = (id: string) => toggleSelectedId(id);
   const handleSelectAllInTable = (checked: boolean) => {
@@ -513,6 +696,9 @@ export default function ArtifactsPage() {
 
   useEffect(() => {
     setDetailDrawerTab("details");
+  }, [detailArtifactId]);
+  useEffect(() => {
+    setAuditTarget("artifact");
   }, [detailArtifactId]);
 
   useEffect(() => {
@@ -559,8 +745,24 @@ export default function ArtifactsPage() {
       transitions?: Array<{ from: string; to: string }>;
       state_reason_options?: Array<{ id: string; label: string }>;
       resolution_options?: Array<{ id: string; label: string }>;
+      resolution_target_states?: string[];
     }>;
+    link_types?: Array<{ id?: string; name?: string; label?: string }>;
   } | undefined;
+
+  const manifestLinkTypeOptions = useMemo(() => {
+    const lt = bundle?.link_types;
+    if (!Array.isArray(lt) || lt.length === 0) return undefined;
+    const out: Array<{ value: string; label: string }> = [];
+    for (const x of lt) {
+      if (!x || typeof x !== "object") continue;
+      const id = String(x.id ?? "").trim();
+      if (!id) continue;
+      const label = String(x.label ?? x.name ?? id).trim() || id;
+      out.push({ value: id, label });
+    }
+    return out.length > 0 ? out : undefined;
+  }, [bundle?.link_types]);
 
   const transitionOptions = useMemo(() => {
     if (!transitionArtifact || !bundle?.workflows || !bundle?.artifact_types) {
@@ -572,12 +774,18 @@ export default function ArtifactsPage() {
     return {
       stateReasonOptions: workflow?.state_reason_options ?? [],
       resolutionOptions: workflow?.resolution_options ?? [],
+      resolutionTargetStates: workflow?.resolution_target_states,
     };
   }, [transitionArtifact, bundle?.workflows, bundle?.artifact_types]);
 
-  const showResolutionField =
-    !!transitionTargetState &&
-    ["resolved", "closed", "done"].includes(transitionTargetState.toLowerCase());
+  const showResolutionField = useMemo(() => {
+    if (!transitionTargetState) return false;
+    const rts = transitionOptions.resolutionTargetStates;
+    if (Array.isArray(rts) && rts.length > 0) {
+      return rts.includes(transitionTargetState);
+    }
+    return ["resolved", "closed", "done"].includes(transitionTargetState.toLowerCase());
+  }, [transitionTargetState, transitionOptions.resolutionTargetStates]);
 
   const transitionFormSchema = useMemo((): FormSchemaDto | null => {
     const fields: FormFieldSchema[] = [];
@@ -739,6 +947,27 @@ export default function ArtifactsPage() {
     }
     return count;
   }, [bulkTransitionState, artifacts, manifest, selectedIds]);
+  const selectedAuditEntity = useMemo(() => {
+    if (!detailArtifact) return null;
+    if (auditTarget === "artifact") {
+      return { entityType: "Artifact", entityId: detailArtifact.id };
+    }
+    if (auditTarget.startsWith("task:")) {
+      const taskId = auditTarget.slice("task:".length);
+      if (taskId) return { entityType: "Task", entityId: taskId };
+    }
+    return { entityType: "Artifact", entityId: detailArtifact.id };
+  }, [auditTarget, detailArtifact]);
+  const {
+    data: entityHistory,
+    isLoading: entityHistoryLoading,
+    isError: entityHistoryError,
+  } = useEntityHistory(
+    selectedAuditEntity?.entityType,
+    selectedAuditEntity?.entityId,
+    20,
+    0,
+  );
 
   const bulkTransitionOptions = useMemo(() => {
     if (!bundle?.workflows?.length) return { stateReasonOptions: [], resolutionOptions: [] };
@@ -880,7 +1109,7 @@ export default function ArtifactsPage() {
       onFormErrors: setCreateFormErrors,
       onCreate: (currentValues) => handleCreate(currentValues),
       isPending: createMutation.isPending,
-      parentArtifacts: artifacts?.map((a) => ({
+      parentArtifacts: parentPickerArtifacts?.map((a) => ({
         id: a.id,
         title: a.title,
         artifact_type: a.artifact_type,
@@ -912,17 +1141,35 @@ export default function ArtifactsPage() {
     }
     const parentTypes = artifactTypeParentMap[typeId] as string[] | undefined;
     let defaultParentId: string | null = null;
-    if (parentTypes?.length && artifacts?.length) {
-      const onlyRoots = parentTypes.every((p) => ROOT_ARTIFACT_TYPES.has(p));
-      if (onlyRoots && parentTypes.includes("root-requirement")) {
-        const reqRoot = artifacts.find((a) => a.artifact_type === "root-requirement");
-        if (reqRoot) defaultParentId = reqRoot.id;
-      } else if (onlyRoots && parentTypes.includes("root-quality")) {
-        const qualRoot = artifacts.find((a) => a.artifact_type === "root-quality");
-        if (qualRoot) defaultParentId = qualRoot.id;
-      } else if (onlyRoots && parentTypes.includes("root-defect")) {
-        const defectRoot = artifacts.find((a) => a.artifact_type === "root-defect");
-        if (defectRoot) defaultParentId = defectRoot.id;
+    if (parentTypes?.length && parentPickerArtifacts?.length) {
+      const onlyRoots = parentTypes.every((p) => systemRootTypes.has(p));
+      if (onlyRoots) {
+        for (const p of parentTypes) {
+          const rootArt = parentPickerArtifacts.find((a) => a.artifact_type === p);
+          if (rootArt) {
+            defaultParentId = rootArt.id;
+            break;
+          }
+        }
+      } else if (parentTypes.includes("quality-folder")) {
+        // Quality: prefer putting new items under the first folder in the quality tree.
+        const rootQual = parentPickerArtifacts.find((a) => a.artifact_type === "root-quality");
+        const firstFolder = parentPickerArtifacts.find(
+          (a) => a.artifact_type === "quality-folder" && (rootQual ? a.parent_id === rootQual.id : true),
+        );
+        if (firstFolder) defaultParentId = firstFolder.id;
+        else if (rootQual && parentTypes.includes("root-quality")) defaultParentId = rootQual.id;
+      }
+    }
+    if (
+      variant === "quality" &&
+      underFolderIdFromUrl &&
+      parentTypes?.includes("quality-folder") &&
+      parentPickerArtifacts?.length
+    ) {
+      const pick = parentPickerArtifacts.find((a) => a.id === underFolderIdFromUrl);
+      if (pick && (pick.artifact_type === "quality-folder" || pick.artifact_type === "root-quality")) {
+        defaultParentId = pick.id;
       }
     }
     openCreateArtifactModal({
@@ -1106,7 +1353,10 @@ export default function ArtifactsPage() {
 
   return (
     <div className="mx-auto max-w-5xl py-6">
-      <ProjectBreadcrumbs currentPageLabel="Artifacts" projectName={project?.name} />
+      <ProjectBreadcrumbs
+        currentPageLabel={variant === "quality" ? "Quality" : "Artifacts"}
+        projectName={project?.name}
+      />
 
       {projectSlug && orgSlug && !projectsLoading && !project ? (
         <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />
@@ -1127,7 +1377,8 @@ export default function ArtifactsPage() {
             setMyTasksMenuAnchor={setMyTasksMenuAnchor}
             filterStates={filterStates}
             bundle={bundle}
-            cycleNodesFlat={cycleNodesFlatIterations.length ? cycleNodesFlatIterations : cycleNodesFlat}
+            treeRootOptions={treeRootOptions}
+            cycleNodesFlat={incrementsFlatIterations.length ? incrementsFlatIterations : incrementsFlat}
             areaNodesFlat={areaNodesFlat}
             savedQueries={savedQueries}
             createSavedQueryMutation={createSavedQueryMutation}
@@ -1139,6 +1390,7 @@ export default function ArtifactsPage() {
             artifacts={artifacts}
             members={members}
             listResult={listResult}
+            listColumns={listSchema?.columns}
             onCreateArtifact={handleCreateOpen}
             listStateToFilterParams={listStateToFilterParams}
             showNotification={showNotification}
@@ -1325,10 +1577,10 @@ export default function ArtifactsPage() {
                 <div className="flex flex-1 items-center justify-center rounded-lg border border-border bg-muted/30 min-h-[400px]">
                   <EmptyState
                     icon={<List className="size-12" />}
-                    title={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "No artifacts match your filters" : "No artifacts yet"}
-                    description={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "Try clearing filters or changing the tree." : "Create a requirement, defect, or bug to get started."}
-                    actionLabel={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "Clear filters" : "Create artifact"}
-                    onAction={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? () => setListState({ stateFilter: "", typeFilter: "", treeFilter: "", searchInput: "", searchQuery: "", cycleNodeFilter: "", releaseCycleNodeFilter: "", areaNodeFilter: "", page: 0 }) : () => setListState({ createOpen: true })}
+                    title={emptyListTitle}
+                    description={emptyListDescription}
+                    actionLabel={hasActiveArtifactFilters ? "Clear filters" : "Create artifact"}
+                    onAction={hasActiveArtifactFilters ? handleClearArtifactFilters : () => setListState({ createOpen: true })}
                     bordered
                   />
                 </div>
@@ -1370,6 +1622,8 @@ export default function ArtifactsPage() {
                         key={a.id}
                         className="mb-2 rounded border p-2 cursor-grab active:cursor-grabbing hover:bg-muted"
                         style={{ cursor: a.allowed_actions?.includes("transition") ? "grab" : "default" }}
+                        role="button"
+                        tabIndex={0}
                         draggable={a.allowed_actions?.includes("transition") ?? true}
                         onDragStart={(e) => {
                           if (!a.allowed_actions?.includes("transition")) {
@@ -1381,6 +1635,16 @@ export default function ArtifactsPage() {
                           e.dataTransfer.effectAllowed = "move";
                         }}
                         onClick={() => {
+                          setListState({ detailArtifactId: a.id });
+                          setSearchParams((prev) => {
+                            const p = new URLSearchParams(prev);
+                            p.set("artifact", a.id);
+                            return p;
+                          });
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter" && e.key !== " ") return;
+                          e.preventDefault();
                           setListState({ detailArtifactId: a.id });
                           setSearchParams((prev) => {
                             const p = new URLSearchParams(prev);
@@ -1418,6 +1682,14 @@ export default function ArtifactsPage() {
                 schema={listSchema}
                 data={artifacts ?? []}
                 getCellValue={getArtifactCellValue}
+                renderCell={(row, columnKey, val) =>
+                  columnKey === "artifact_type" ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      {getArtifactIcon(row.artifact_type, bundle)}
+                      <span className="capitalize">{val != null && val !== "" ? String(val) : "—"}</span>
+                    </span>
+                  ) : null
+                }
                 getRowKey={(row) => row.id}
                 filterValues={{ state: stateFilter, type: typeFilter }}
                 onFilterChange={(key, value) => {
@@ -1481,7 +1753,7 @@ export default function ArtifactsPage() {
                             Duplicate
                           </DropdownMenuItem>
                         )}
-                        {row.allowed_actions?.includes("delete") && !isRootArtifact(row) && (
+                        {row.allowed_actions?.includes("delete") && !isRootArtifact(row, systemRootTypes) && (
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => {
@@ -1517,11 +1789,7 @@ export default function ArtifactsPage() {
                     </DropdownMenu>
                   </div>
                 )}
-                emptyMessage={
-                  stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery
-                    ? "No artifacts match your filters."
-                    : "No artifacts yet. Create one to get started."
-                }
+                emptyMessage={emptyTableMessage}
                 onRowClick={(row) => {
                   setListState({ detailArtifactId: row.id });
                   setSearchParams((prev) => {
@@ -1559,21 +1827,22 @@ export default function ArtifactsPage() {
                 <div className="rounded-lg border border-border bg-muted/30 p-4">
                   <EmptyState
                     icon={<List className="size-10" />}
-                    title={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "No artifacts match your filters" : "No artifacts yet"}
-                    description={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "Try clearing filters or changing the tree." : "Create a requirement, defect, or bug to get started."}
-                    actionLabel={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? "Clear filters" : "Create artifact"}
-                    onAction={stateFilter || typeFilter || treeFilter || cycleNodeFilter || releaseCycleNodeFilter || areaNodeFilter || searchQuery ? () => setListState({ stateFilter: "", typeFilter: "", treeFilter: "", searchInput: "", searchQuery: "", cycleNodeFilter: "", releaseCycleNodeFilter: "", areaNodeFilter: "", page: 0 }) : () => setListState({ createOpen: true })}
+                    title={emptyListTitle}
+                    description={emptyListDescription}
+                    actionLabel={hasActiveArtifactFilters ? "Clear filters" : "Create artifact"}
+                    onAction={hasActiveArtifactFilters ? handleClearArtifactFilters : () => setListState({ createOpen: true })}
                     compact
                     bordered
                   />
                 </div>
               ) : (
                 <ul className="list-none p-0">
-                  {buildArtifactTree(artifacts ?? []).map((node) => (
+                  {buildArtifactTree(artifacts ?? [], treeRootOptions).map((node) => (
                     <ArtifactTreeNode
                       key={node.id}
                       node={node}
                       manifest={manifest}
+                      iconBundle={bundle}
                       customFieldColumns={customFieldColumns}
                       renderMenuContent={(artifact) => (
                         <>
@@ -1592,7 +1861,7 @@ export default function ArtifactsPage() {
                               Duplicate
                             </DropdownMenuItem>
                           )}
-                          {artifact.allowed_actions?.includes("delete") && !isRootArtifact(artifact) && (
+                          {artifact.allowed_actions?.includes("delete") && !isRootArtifact(artifact, systemRootTypes) && (
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
                               onClick={() => {
@@ -1650,6 +1919,8 @@ export default function ArtifactsPage() {
             <span className="text-sm text-muted-foreground">Per page:</span>
             <select
               className="rounded-md border bg-background px-2 py-1 text-sm"
+              aria-label="Artifacts per page"
+              title="Artifacts per page"
               value={pageSize}
               onChange={(e) =>
                 setListState({ pageSize: parseInt(e.target.value, 10), page: 0 })
@@ -1897,7 +2168,7 @@ export default function ArtifactsPage() {
                       submitExternally
                       errors={editFormErrors}
                       userOptions={members?.map((m) => ({ id: m.user_id, label: m.display_name || m.email || m.user_id })) ?? []}
-                      cycleOptions={(cycleNodesFlatIterations.length ? cycleNodesFlatIterations : cycleNodesFlat).map((c) => ({ id: c.id, label: (c as { path?: string }).path || c.name }))}
+                      cycleOptions={(incrementsFlatIterations.length ? incrementsFlatIterations : incrementsFlat).map((c) => ({ id: c.id, label: (c as { path?: string }).path || c.name }))}
                       areaOptions={areaNodesFlat.map((a) => ({ id: a.id, label: areaNodeDisplayLabel(a) }))}
                     />
                   ) : (
@@ -1963,6 +2234,20 @@ export default function ArtifactsPage() {
                   <h3 className="mb-2 mt-1 text-lg font-semibold">
                     {detailArtifact.title}
                   </h3>
+                  {(recentlyUpdatedArtifactIds[detailArtifact.id] ||
+                    (presenceByArtifactId[detailArtifact.id]?.length ?? 0) > 0) && (
+                    <div className="mb-2 flex items-center gap-2">
+                      {recentlyUpdatedArtifactIds[detailArtifact.id] && (
+                        <Badge variant="secondary" className="text-xs">Live update</Badge>
+                      )}
+                      {(presenceByArtifactId[detailArtifact.id]?.length ?? 0) > 0 && (
+                        <Badge variant="outline" className="text-xs">
+                          {presenceByArtifactId[detailArtifact.id]!.length} active viewer
+                          {presenceByArtifactId[detailArtifact.id]!.length > 1 ? "s" : ""}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                   <p className="mb-2 text-sm text-muted-foreground">
                     Type: {detailArtifact.artifact_type} · State: {detailArtifact.state}
                   </p>
@@ -1981,34 +2266,48 @@ export default function ArtifactsPage() {
                         detailArtifact.assignee_id}
                     </p>
                   )}
-                  {!detailDrawerEditing &&
-                    detailArtifact.allowed_actions?.includes("transition") &&
-                    getValidTransitions(
-                      manifest,
-                      detailArtifact.artifact_type,
-                      detailArtifact.state,
-                    ).length > 0 && (
-                    <div className="mb-4 mt-3">
-                      <div className="flex flex-wrap gap-2">
-                        {getValidTransitions(
-                          manifest,
-                          detailArtifact.artifact_type,
-                          detailArtifact.state,
-                        ).map((targetState) => (
-                          <Button
-                            key={targetState}
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              handleOpenTransitionDialog(detailArtifact, targetState);
-                            }}
-                          >
-                            Move to {targetState}
-                          </Button>
-                        ))}
+                    {detailArtifact.artifact_type === "test-run" && (
+                      <div className="mb-4 mt-3">
+                        <Button
+                          size="sm"
+                          className="bg-blue-600 shadow-sm hover:bg-blue-700"
+                          asChild
+                        >
+                          <Link to={`/${orgSlug}/${projectSlug}/quality/runs/${detailArtifact.id}/execute`}>
+                            <PlayCircle className="mr-2 h-4 w-4" />
+                            Execute Run
+                          </Link>
+                        </Button>
                       </div>
-                    </div>
-                  )}
+                    )}
+                    {!detailDrawerEditing &&
+                      detailArtifact.allowed_actions?.includes("transition") &&
+                      getValidTransitions(
+                        manifest,
+                        detailArtifact.artifact_type,
+                        detailArtifact.state,
+                      ).length > 0 && (
+                      <div className="mb-4 mt-3">
+                        <div className="flex flex-wrap gap-2">
+                          {getValidTransitions(
+                            manifest,
+                            detailArtifact.artifact_type,
+                            detailArtifact.state,
+                          ).map((targetState) => (
+                            <Button
+                              key={targetState}
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                handleOpenTransitionDialog(detailArtifact, targetState);
+                              }}
+                            >
+                              Move to {targetState}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   <Tabs value={detailDrawerTab} onValueChange={(v) => setDetailDrawerTab(v as typeof detailDrawerTab)} className="mb-2 min-h-[40px]">
                     <TabsList className="w-full">
                       <TabsTrigger value="details">Details</TabsTrigger>
@@ -2016,6 +2315,7 @@ export default function ArtifactsPage() {
                       <TabsTrigger value="links">Links ({artifactLinks.length})</TabsTrigger>
                       <TabsTrigger value="attachments">Attachments ({attachments.length})</TabsTrigger>
                       <TabsTrigger value="comments">Comments ({comments.length})</TabsTrigger>
+                      <TabsTrigger value="audit">Audit</TabsTrigger>
                     </TabsList>
                   <TabsContent value="details" className="py-2">
                       {detailArtifact.description && (
@@ -2037,9 +2337,9 @@ export default function ArtifactsPage() {
                             <>
                               <strong>Cycle:</strong>{" "}
                               {(() => {
-                                const cycle = cycleNodesFlat.find((c) => c.id === detailArtifact.cycle_node_id);
+                                const cycle = incrementsFlat.find((c) => c.id === detailArtifact.cycle_node_id);
                                 const cycleLabel = cycle?.path || cycle?.name || detailArtifact.cycle_node_id;
-                                const releaseName = getReleaseNameForCycle(detailArtifact.cycle_node_id, cycleNodesFlat);
+                                const releaseName = getReleaseNameForCycle(detailArtifact.cycle_node_id, incrementsFlat);
                                 return releaseName ? `${cycleLabel} · ${releaseName}` : cycleLabel;
                               })()}
                             </>
@@ -2290,6 +2590,7 @@ export default function ArtifactsPage() {
                                 value: a.id,
                                 label: `[${a.artifact_key ?? a.id.slice(0, 8)}] ${a.title}`,
                               })),
+                            linkTypeOptions: manifestLinkTypeOptions,
                             onCreateLink: (linkType, targetArtifactId) => {
                               createLinkMutation.mutate(
                                 { to_artifact_id: targetArtifactId, link_type: linkType },
@@ -2486,6 +2787,67 @@ export default function ArtifactsPage() {
                   )}
                     </TabsContent>
                   )}
+                  {detailDrawerTab === "audit" && (
+                    <TabsContent value="audit" className="py-2">
+                      <div className="mb-2 flex flex-col gap-2">
+                        <p className="text-sm font-medium text-muted-foreground">Entity history</p>
+                        <select
+                          className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+                          aria-label="Audit entity target"
+                          title="Audit entity target"
+                          value={auditTarget}
+                          onChange={(e) => setAuditTarget(e.target.value)}
+                        >
+                          <option value="artifact">
+                            Artifact: {detailArtifact.artifact_key ?? detailArtifact.id.slice(0, 8)}
+                          </option>
+                          {tasks.map((task) => (
+                            <option key={task.id} value={`task:${task.id}`}>
+                              Task: {task.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {entityHistoryLoading ? (
+                        <Skeleton className="h-16 rounded-md" />
+                      ) : entityHistoryError ? (
+                        <p className="text-sm text-destructive">Failed to load audit history.</p>
+                      ) : !entityHistory || entityHistory.entries.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No audit entries.</p>
+                      ) : (
+                        <ul className="space-y-3">
+                          {entityHistory.entries.map((entry) => (
+                            <li key={entry.snapshot.id} className="rounded-md border p-2">
+                              <div className="mb-1 flex items-center justify-between gap-2">
+                                <span className="text-xs font-semibold">
+                                  v{entry.snapshot.version} · {entry.snapshot.change_type}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {entry.snapshot.committed_at
+                                    ? formatDateTime(entry.snapshot.committed_at)
+                                    : "—"}
+                                </span>
+                              </div>
+                              {entry.changes.length > 0 ? (
+                                <ul className="space-y-1">
+                                  {entry.changes.slice(0, 5).map((change) => (
+                                    <li key={`${entry.snapshot.id}-${change.property_name}`} className="text-xs">
+                                      <strong>{change.property_name}</strong>:{" "}
+                                      <span className="text-muted-foreground">
+                                        {String(change.left ?? "null")} → {String(change.right ?? "null")}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="text-xs text-muted-foreground">No property diff.</p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </TabsContent>
+                  )}
                   </Tabs>
                 </>
               )}
@@ -2502,6 +2864,7 @@ export default function ArtifactsPage() {
 function ArtifactTreeNode({
   node,
   manifest,
+  iconBundle,
   customFieldColumns,
   renderMenuContent,
   onSelect,
@@ -2513,6 +2876,7 @@ function ArtifactTreeNode({
 }: {
   node: ArtifactNode;
   manifest: Parameters<typeof getValidTransitions>[0];
+  iconBundle?: { artifact_types?: Array<{ id?: string; icon?: string }> } | null;
   customFieldColumns: { key: string; label: string }[];
   renderMenuContent: (artifact: Artifact) => React.ReactNode;
   onSelect?: (artifact: Artifact) => void;
@@ -2556,7 +2920,7 @@ function ArtifactTreeNode({
               {node.artifact_key}
             </span>
           )}
-          {getArtifactIcon(node.artifact_type)}
+          {getArtifactIcon(node.artifact_type, iconBundle)}
           <span className="text-sm capitalize text-muted-foreground">{node.artifact_type}</span>
           <span className="truncate font-medium">{node.title}</span>
           <Badge variant="outline" className="ml-1 text-xs">{node.state}</Badge>
@@ -2598,6 +2962,7 @@ function ArtifactTreeNode({
               key={child.id}
               node={child}
               manifest={manifest}
+              iconBundle={iconBundle}
               customFieldColumns={customFieldColumns}
               renderMenuContent={renderMenuContent}
               onSelect={onSelect}

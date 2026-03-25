@@ -16,9 +16,9 @@ MPC PolicyEngine ve ACLEngine ile alm-app entegrasyonu için yol haritası. Mevc
 | **Kapsam** | Endpoint bazlı: her route için tek bir permission (örn. `artifact:read`, `manifest:update`) |
 | **GuardPort/AuthPort** | `mpc_ports.AlmAppAuthPort`, `AlmAppGuardPort`; `get_user_privileges` + `_matches_permission` ile implemente |
 | **Field masking** | `field_masking`: `artifact:read_sensitive` yoksa `custom_fields` içinde `internal_notes`, `confidential` gizlenir; artifact GET/list/create/update/transition/restore response'larında uygulanır |
-| **Transition policy** | Manifest `TransitionPolicy` (örn. assignee zorunlu) `check_transition_policies` ile; PolicyEngine hook transition handler'da yorum olarak işaretli |
+| **Transition policy** | `mpc_resolver.check_transition_policies(ast, event)` (`TransitionPolicy` defs); ardından `evaluate_transition_policy` → MPC `PolicyEngine` (`Policy` kind) |
 
-Alan maskeleme veya kaynak bazlı (örn. “bu artifact’a yazma”) ayrıntılı kontrol yok; manifest tabanlı policy (örn. “active state’te assignee zorunlu”) henüz MPC PolicyEngine üzerinden değil, gerekirse alm-app içinde basit kontrol ile yapılıyor.
+`TransitionPolicy` MPC `PolicyEngine` tarafından işlenmez; `check_transition_policies` ile aynı event üzerinde değerlendirilir. `Policy` kind kuralları tamamen `PolicyEngine` içindedir.
 
 ---
 
@@ -27,7 +27,7 @@ Alan maskeleme veya kaynak bazlı (örn. “bu artifact’a yazma”) ayrıntıl
 | Bileşen | Hedef |
 |--------|--------|
 | **GuardPort / AuthPort** | MPC’nin “bu kullanıcı bu aksiyonu yapabilir mi?” sorusu için alm-app tarafında implementasyon. Mevcut `PermissionResolver` + `_matches_permission` ile cevap verilir. |
-| **PolicyEngine** | Geçiş öncesi manifest kuralları (örn. `when state = 'active' require assignee`). Transition handler içinde MPC PolicyEngine çağrılır; ihlal varsa 403/422. |
+| **PolicyEngine** | `kind: Policy` manifest kuralları; transition’da `evaluate_transition_policy` ile. `TransitionPolicy` ayrıca `check_transition_policies` ile (aynı event). |
 | **ACLEngine / field masking** | API response’ta alan filtreleme: kullanıcı rolüne göre belirli alanlar (örn. internal_notes) kaldırılır. Manifest’teki ACL kuralları veya alm-app’te rol bazlı alan listesi kullanılabilir. |
 | **Permission-aware UI** | Frontend zaten JWT’deki permissions ile buton/route gizliyor; gerekirse endpoint’ten “allowed_actions” veya “visible_fields” dönülebilir. |
 

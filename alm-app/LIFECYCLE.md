@@ -9,7 +9,7 @@ Run from **alm-app** directory. Requires Node 18+, npm, uv (Python), Docker.
 | `npm run build` | Build frontend (Vite) + sync backend deps (uv). |
 | `npm run test` | Backend pytest + frontend unit (Vitest). |
 | `npm run test:e2e` | Playwright E2E (default baseURL: http://localhost:5173). |
-| `npm run test:e2e:deployed` | Playwright E2E against Docker stack (http://localhost:3000). |
+| `npm run test:e2e:deployed` | Playwright E2E against Docker stack (http://localhost:9001). |
 | `npm run deploy` | `docker compose up --build -d`. |
 | `npm run lifecycle` | build → test → deploy. |
 | `npm run lifecycle:full` | build → test → deploy → test:e2e:deployed. |
@@ -36,7 +36,7 @@ npm run lifecycle:full
 ## Playwright (E2E)
 
 - **Dev:** frontend on 5173, backend on 8000 → `npm run test:e2e` (from frontend) or root `npm run test:e2e`.
-- **Deployed:** stack on 3000 → `PLAYWRIGHT_BASE_URL=http://localhost:3000 npm run test:e2e` or root `npm run test:e2e:deployed`.
+- **Deployed:** stack on 9001 → `PLAYWRIGHT_BASE_URL=http://localhost:9001 npm run test:e2e` or root `npm run test:e2e:deployed`.
 - First run: `cd frontend && npx playwright install`.
 
 ## Test cases

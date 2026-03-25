@@ -24,7 +24,10 @@ class AreaRepository:
 
     @abstractmethod
     async def find_by_project_and_path_prefix(self, project_id: uuid.UUID, path_prefix: str) -> list[AreaNode]:
-        """Node with path = path_prefix plus all descendants (path starting with path_prefix + '/'). For rename/move subtree update."""
+        """Nodes at path_prefix and under it (descendants).
+
+        Used for rename/move subtree updates.
+        """
         ...
 
     @abstractmethod

@@ -96,7 +96,7 @@ export function RhfTextField<TFieldValues extends import("react-hook-form").Fiel
           disabled={disabled}
           placeholder={placeholder}
           autoComplete={autoComplete}
-          autoFocus={autoFocus}
+          autoFocus={autoFocus} // eslint-disable-line jsx-a11y/no-autofocus -- optional prop for primary field focus
           aria-invalid={!!error}
           aria-describedby={displayText ? `${String(name)}-helper` : undefined}
           {...register(name)}

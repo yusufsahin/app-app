@@ -8,8 +8,8 @@ from dataclasses import dataclass, replace
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.mpc_resolver import get_manifest_ast, redact_data
 from alm.artifact.domain.ports import ArtifactRepository
-from alm.project.domain.ports import ProjectRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.query import Query, QueryHandler
 
 
@@ -77,5 +77,5 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
                 updates = {k: v for k, v in redacted_snapshot.items() if k in dto_fields}
                 if updates:
                     dto = replace(dto, **updates)
-        
+
         return dto

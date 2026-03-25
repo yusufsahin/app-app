@@ -35,6 +35,7 @@ export function ModalWrapper({ children, title, options, onClose }: ModalWrapper
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent
         className={cn(className, "max-h-[calc(100vh-2rem)] flex flex-col")}
+        aria-describedby={undefined}
         onPointerDownOutside={onClose}
         onEscapeKeyDown={onClose}
       >

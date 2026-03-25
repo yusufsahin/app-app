@@ -1,4 +1,4 @@
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { Skeleton } from "../../../shared/components/ui";
 import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useAccessAudit, type AccessAuditEntry } from "../../../shared/api/adminApi";
@@ -51,8 +51,12 @@ export default function AccessAuditPage() {
       limit: 200,
     },
   });
-  const { watch } = form;
-  const values = watch();
+  const values = useWatch({ control: form.control }) ?? {
+    from_date: "",
+    to_date: "",
+    type_filter: "",
+    limit: 200,
+  };
 
   const params = {
     from_date: values.from_date || undefined,

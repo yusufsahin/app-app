@@ -2,12 +2,19 @@
 
 ```bash
 cd alm-app
-docker compose up --build
+docker compose up --build -d
 ```
 
-- App: http://localhost:3000
-- API: http://localhost:8000
-- MailHog: http://localhost:8025
+**Published ports** (see `docker-compose.yml`):
+
+- **App (UI + proxied API):** http://localhost:9001 — OpenAPI: http://localhost:9001/api/v1/docs
+- **API direct (optional):** http://localhost:9000
+- **MailHog UI:** http://localhost:8025
+- **Postgres from host:** `localhost:5433` (user `alm`, password `alm_dev_password`, DB `alm`)
+
+Windows: build context must include `alm-manifest-app/...` under the context root. From `alm-app` run `.\docker-build-local.ps1`, or set `ALM_DOCKER_CONTEXT` to the parent of `alm-manifest-app` (e.g. `c:\source`) before `docker compose`.
+
+Local **Vite** dev remains http://localhost:5173 with API on http://localhost:8000; that is separate from Docker ports above.
 
 ---
 
@@ -26,30 +33,35 @@ Devre dışı bırakmak için: `ALM_SEED_DEMO_DATA=false`
 
 ### DB Sıfırlama (Local)
 
-```bash
+`scripts/reset_db.py` public şemayı düşürür ve **Alembic `upgrade head`** ile tabloları yeniden oluşturur (eski `create_all` yöntemi eksik model import’ları nedeniyle kullanılmıyor).
+
+Docker Compose ile Postgres kullanıyorsanız, host’tan `reset_db` çalıştırmak için `docker-compose.yml` içinde **db** servisine `5433:5432` port eşlemesi vardır:
+
+```powershell
 cd alm-app/backend
+$env:ALM_DATABASE_URL="postgresql+asyncpg://alm:alm_dev_password@127.0.0.1:5433/alm"
 uv run python scripts/reset_db.py
 ```
 
-Sonrasında uygulamayı başlatın; seed otomatik çalışır.
+Yerel Postgres `localhost:5432` ise `ALM_DATABASE_URL` atlamanız yeterli.
+
+Sonrasında API’yi başlatın; seed (privileges, şablonlar, demo tenant) uygulama **startup**’ında çalışır. Docker Compose: `docker compose up -d backend` (veya tam stack).
 
 ---
 
 ## Path Dependencies (Local Dev + Docker)
 
-Backend, MPC ve statelesspy için path dependency kullanabilir (PyPI’da yoksa).
+Backend, **MPC** (`manifest-platform-core-suite`) için path dependency kullanır (PyPI’da yok). Workflow grafiği ve policy motoru bu paketten gelir.
 
 ### Local geliştirme
 
-1. **MPC:** `manifest-platform-core-suite` — alm-app ile aynı üst dizinde (örn. `../manifest-platform-core-suite`)
-2. **statelesspy:** Workflow adapter state grafiği için — aynı workspace’te (örn. `../../../statelesspy`)
+1. **MPC:** `manifest-platform-core-suite` — `alm-manifest-app` ile aynı üst dizinde (örn. `../manifest-platform-core-suite`)
 
 `backend/pyproject.toml` örneği:
 
 ```toml
 [tool.uv.sources]
 mpc = { path = "../../manifest-platform-core-suite" }
-statelesspy = { path = "../../../statelesspy" }
 ```
 
 ### Docker build
@@ -65,11 +77,11 @@ COPY ../manifest-platform-core-suite /tmp/mpc
 RUN pip install /tmp/mpc
 ```
 
-Build context sınırlaması nedeniyle `../` genelde çalışmaz; MPC’yi alm-app altına veya submodule olarak ekleyin. statelesspy için de aynı şekilde image’a COPY veya submodule ile dahil edin.
+Build context sınırlaması nedeniyle `../` genelde çalışmaz; MPC’yi repo yapısına göre `COPY` ile image’a alın veya submodule kullanın.
 
 ### README notu
 
-Geliştirici kurulumunda MPC ve (isteğe bağlı) statelesspy’nin nereye klonlanacağını belirtin.
+Geliştirici kurulumunda `manifest-platform-core-suite` yolunun `pyproject.toml` ile eşleştiğinden emin olun.
 
 ---
 

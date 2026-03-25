@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from alm.artifact.domain.manifest_merge_defaults import merge_manifest_metadata_defaults
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.query import Query, QueryHandler
@@ -54,8 +55,9 @@ class GetProjectManifestHandler(QueryHandler[ProjectManifestResult | None]):
         template_name = template.name if template else "Unknown"
         template_slug = template.slug if template else "unknown"
 
+        merged = merge_manifest_metadata_defaults(version.manifest_bundle or {})
         return ProjectManifestResult(
-            manifest_bundle=version.manifest_bundle or {},
+            manifest_bundle=merged,
             template_name=template_name,
             template_slug=template_slug,
             version=version.version,

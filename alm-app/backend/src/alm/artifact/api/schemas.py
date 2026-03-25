@@ -137,5 +137,8 @@ class BatchResultResponse(BaseModel):
     errors: list[str] = Field(default_factory=list)
     results: dict[str, str] | None = Field(
         default=None,
-        description="Per-artifact result: artifact_id -> 'ok' | 'validation_error' | 'policy_denied' | 'conflict_error'",
+        description=(
+            "Per-artifact result: artifact_id -> "
+            "'ok' | 'validation_error' | 'guard_denied' | 'policy_denied' | 'conflict_error'"
+        ),
     )

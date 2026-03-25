@@ -1,4 +1,4 @@
-# Build context: parent of alm-manifest-app (so statelesspy and alm-manifest-app are in context).
+# Build context: parent of alm-manifest-app (repo root layout: alm-manifest-app/... + sibling paths if needed).
 FROM python:3.12-slim AS base
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -17,8 +17,11 @@ RUN pip install --no-cache-dir .
 FROM base AS runtime
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+RUN pip install --no-cache-dir "pytest>=8.3,<9" "pytest-asyncio>=0.24,<1"
 COPY alm-manifest-app/alm-app/backend/src/ src/
 COPY alm-manifest-app/alm-app/backend/migrations/ migrations/
+COPY alm-manifest-app/alm-app/backend/tests/ tests/
+COPY alm-manifest-app/alm-app/backend/pyproject.toml .
 COPY alm-manifest-app/alm-app/backend/alembic.ini .
 COPY alm-manifest-app/alm-app/backend/alm_meta/ alm_meta/
 COPY alm-manifest-app/alm-app/backend/entrypoint.sh .

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings
 
 
@@ -36,6 +38,16 @@ class Settings(BaseSettings):
     upload_dir: str = "uploads"  # Local directory for artifact attachments (ALM_UPLOAD_DIR)
 
     seed_demo_data: bool = True  # Create demo tenant/admin when DB is empty (ALM_SEED_DEMO_DATA)
+
+    # PostgreSQL text search config for artifact FTS (whitelist enforced in repository). ALM_FULLTEXT_SEARCH_CONFIG
+    fulltext_search_config: str = "english"
+
+    # Default process template slug when creating a project without template. ALM_DEFAULT_PROCESS_TEMPLATE_SLUG
+    # Org override: tenant.settings["default_process_template_slug"] (see CreateProjectHandler).
+    default_process_template_slug: str = "basic"
+
+    # strict: deny policy/ACL when MPC missing; degraded|disabled: permissive fallback + audit (non-prod only)
+    mpc_mode: Literal["strict", "degraded", "disabled"] = "degraded"
 
     @property
     def is_production(self) -> bool:
