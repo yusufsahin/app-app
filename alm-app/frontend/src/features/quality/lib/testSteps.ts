@@ -12,9 +12,17 @@ export function normalizeTestSteps(steps: TestStep[]): TestStep[] {
 }
 
 export function parseTestSteps(raw: unknown): TestStep[] {
-  if (!Array.isArray(raw)) return [];
+  let items = raw;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      items = JSON.parse(raw);
+    } catch {
+      items = [];
+    }
+  }
+  if (!Array.isArray(items)) return [];
   const parsed: TestStep[] = [];
-  for (const item of raw) {
+  for (const item of items) {
     const obj = asObject(item);
     if (!obj) continue;
     const fallbackName = typeof obj.action === "string" ? obj.action : "";

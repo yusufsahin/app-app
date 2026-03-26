@@ -59,10 +59,10 @@ export const qualityEn = {
     title: "Steps",
     add: "Add Step",
     empty: "No steps defined. Add one to begin.",
-    noName: "No name defined",
+    noName: "No action defined",
     dragHint: "Drag to reorder",
     fields: {
-      name: "Name",
+      name: "Action",
       description: "Description",
       expectedResult: "Expected Result",
     },

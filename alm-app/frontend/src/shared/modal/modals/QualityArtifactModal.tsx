@@ -26,7 +26,7 @@ export function QualityArtifactModal({
   const isSaveDisabled = useMemo(() => {
     if (!title.trim()) return true;
     if (!enableStepsEditor) return false;
-    return steps.some((step) => !step.name.trim() || !step.expectedResult.trim());
+    return steps.some((step) => !step.name.trim());
   }, [enableStepsEditor, steps, title]);
 
   const handleSubmit = async () => {

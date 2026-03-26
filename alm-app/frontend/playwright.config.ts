@@ -93,7 +93,7 @@ export default defineConfig({
     },
     {
       name: "quality-suite",
-      testMatch: /quality-suite\.spec\.ts/,
+      testMatch: /quality-(suite|steps-editor)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: "e2e/.auth/user.json",

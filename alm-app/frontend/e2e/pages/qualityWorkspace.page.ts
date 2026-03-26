@@ -79,8 +79,8 @@ export class QualityWorkspacePage {
         const addStepButton = this.page.getByTestId("step-add-button");
         if (await addStepButton.isVisible().catch(() => false)) {
           await addStepButton.click();
-          await dialog.getByLabel(/Name/i).first().fill("Open the target page");
-          await dialog.getByLabel(/Expected Result/i).first().fill("Page loads successfully");
+          await dialog.getByLabel(/action/i).first().fill("Open the target page");
+          await dialog.getByLabel(/expected result/i).first().fill("Page loads successfully");
         }
       }
       await createModalButton.click();
@@ -90,6 +90,49 @@ export class QualityWorkspacePage {
       await createButtonByRole.click();
     }
     await expect(this.page.getByText(title).first()).toBeVisible({ timeout: 20000 });
+  }
+
+  /** Create a test-case artifact with N steps (action text per step). Requires Tests page + steps editor. */
+  async createTestCaseWithStepActions(title: string, actions: string[]) {
+    await this.ensureUnderParam();
+    const createButtonByTestId = this.page.getByTestId("quality-create-button");
+    const createButtonByRole = this.page.getByRole("button", { name: /Create test case/i });
+    if (await createButtonByTestId.isVisible().catch(() => false)) await createButtonByTestId.click();
+    else await createButtonByRole.click();
+
+    const dialog = this.page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 10000 });
+    await this.page.getByTestId("artifact-modal-title-input").fill(title);
+
+    for (let i = 0; i < actions.length; i++) {
+      await dialog.getByTestId("step-add-button").click();
+      await dialog.getByLabel(/action/i).nth(i).fill(actions[i]!);
+    }
+
+    await this.page.getByTestId("artifact-modal-create").click();
+    await expect(this.page.getByText(title).first()).toBeVisible({ timeout: 20000 });
+  }
+
+  async findQualityArtifactIdByTitle(title: string, artifactType: string) {
+    const { orgSlug, projectSlug } = this.getRouteContext();
+    expect(orgSlug).toBeTruthy();
+    expect(projectSlug).toBeTruthy();
+    const res = await this.page.request.get(
+      `/api/v1/orgs/${orgSlug}/projects/${projectSlug}/artifacts?tree=quality&include_system_roots=true&limit=500`,
+    );
+    expect(res.ok()).toBeTruthy();
+    const data = (await res.json()) as {
+      items?: Array<{ id: string; artifact_type: string; title: string }>;
+    };
+    const item = (data.items ?? []).find((i) => i.artifact_type === artifactType && i.title === title);
+    expect(item?.id).toBeTruthy();
+    return item!.id;
+  }
+
+  async openLeafEditFromTree(artifactId: string) {
+    await this.page.getByTestId(`quality-tree-leaf-menu-${artifactId}`).click();
+    await this.page.getByTestId(`quality-tree-leaf-edit-${artifactId}`).click();
+    await expect(this.page.getByRole("dialog")).toBeVisible({ timeout: 10000 });
   }
 
   async clearFolderFilter() {

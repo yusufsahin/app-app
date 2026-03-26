@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, startTransition } from "react";
 import { Plus, Trash2, GripVertical, ChevronDown, ChevronRight, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "../../../shared/components/ui";
 import { cn } from "../../../shared/components/ui/utils";
@@ -12,7 +12,7 @@ interface TestStepsEditorProps {
 }
 
 const textareaClassName = cn(
-  "placeholder:text-muted-foreground border-input flex min-h-[80px] w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+  "text-foreground placeholder:text-muted-foreground border-input flex min-h-[80px] w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 );
 
 export function TestStepsEditor({ steps = [], onChange, readOnly = false }: TestStepsEditorProps) {
@@ -21,6 +21,35 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
     new Set(steps.map((s) => s.id))
   );
   const [draggedStepId, setDraggedStepId] = useState<string | null>(null);
+  const prevStepIdsKeyRef = useRef<string>("");
+  const stepIdsKey = steps.map((s) => s.id).join("\0");
+
+  /** Keep expanded/collapsed for existing ids; expand truly new ids; drop removed ids. */
+  useEffect(() => {
+    const oldKey = prevStepIdsKeyRef.current;
+    prevStepIdsKeyRef.current = stepIdsKey;
+
+    const ids = stepIdsKey ? stepIdsKey.split("\0") : [];
+    const oldIdSet = new Set(oldKey ? oldKey.split("\0") : []);
+
+    startTransition(() => {
+      if (ids.length === 0) {
+        setExpandedSteps(new Set());
+        return;
+      }
+      setExpandedSteps((prev) => {
+        const next = new Set<string>();
+        for (const id of ids) {
+          if (prev.has(id)) {
+            next.add(id);
+          } else if (!oldIdSet.has(id)) {
+            next.add(id);
+          }
+        }
+        return next;
+      });
+    });
+  }, [stepIdsKey]);
 
   const toggleStep = (stepId: string) => {
     const newExpanded = new Set(expandedSteps);
@@ -33,16 +62,21 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
   };
 
   const addStep = () => {
+    const newId = `step-${Math.random().toString(36).substring(2, 9)}-${Date.now()}`;
     const newStep: TestStep = {
-      id: `step-${Date.now()}`,
+      id: newId,
       stepNumber: steps.length + 1,
       name: "",
       description: "",
       expectedResult: "",
       status: "not-executed",
     };
+    
+    // Call parent onChange first
     onChange([...steps, newStep]);
-    setExpandedSteps(new Set([...expandedSteps, newStep.id]));
+    
+    // Update local expansion state
+    setExpandedSteps(prev => new Set([...prev, newId]));
   };
 
   const updateStep = (stepId: string, field: "name" | "description" | "expectedResult", value: string) => {
@@ -106,8 +140,9 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-slate-700">
-          {t("steps.title")} {steps.length > 0 && <span className="text-slate-400 ml-1">({steps.length})</span>}
+        <label className="text-sm font-medium text-foreground">
+          {t("steps.title")}{" "}
+          {steps.length > 0 && <span className="ml-1 text-muted-foreground">({steps.length})</span>}
         </label>
         {!readOnly && (
           <Button type="button" onClick={addStep} size="sm" variant="outline" className="h-8 gap-1.5 text-xs" data-testid="step-add-button">
@@ -118,10 +153,8 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
       </div>
 
       {steps.length === 0 ? (
-        <div className="text-center py-8 border-2 border-dashed rounded-xl bg-slate-50/50">
-          <p className="text-sm text-slate-500">
-            {t("steps.empty")}
-          </p>
+        <div className="rounded-xl border-2 border-dashed border-border bg-muted/30 py-8 text-center">
+          <p className="text-sm text-muted-foreground">{t("steps.empty")}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -132,37 +165,50 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
             return (
               <div
                 key={step.id}
-                draggable={!readOnly}
-                onDragStart={() => setDraggedStepId(step.id)}
+                data-testid={`quality-step-card-${step.id}`}
+                data-step-id={step.id}
                 onDragOver={(e) => {
                   if (readOnly) return;
                   e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
                 }}
                 onDrop={() => {
                   if (readOnly || !draggedStepId) return;
                   moveStepToIndex(draggedStepId, index);
                   setDraggedStepId(null);
                 }}
-                onDragEnd={() => setDraggedStepId(null)}
                 className={cn(
-                  "group relative overflow-hidden rounded-xl border transition-all duration-200",
+                  "group relative overflow-hidden rounded-xl border border-border transition-all duration-200",
                   draggedStepId === step.id && "opacity-70",
-                  isExpanded ? "border-slate-200 bg-white shadow-sm" : "border-slate-100 bg-slate-50/30 hover:bg-slate-50",
-                  isEmpty && !readOnly && "border-amber-100 bg-amber-50/30"
+                  isExpanded
+                    ? "bg-card text-card-foreground shadow-sm"
+                    : "bg-muted/30 hover:bg-muted/50",
+                  isEmpty && !readOnly && "border-amber-500/35 bg-amber-500/10 dark:border-amber-500/45 dark:bg-amber-500/15"
                 )}
               >
                 {/* Step Header: toggle is a button; toolbar stays outside to avoid nested interactive elements */}
                 <div className="flex items-center gap-1 p-3">
+                  {!readOnly && (
+                    <div
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", step.id);
+                        setDraggedStepId(step.id);
+                      }}
+                      onDragEnd={() => setDraggedStepId(null)}
+                      className="cursor-grab rounded p-1 text-muted-foreground transition-colors hover:bg-muted active:cursor-grabbing"
+                    >
+                      <GripVertical className="h-4 w-4 shrink-0" />
+                    </div>
+                  )}
+
                   <button
                     type="button"
                     className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-md text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => toggleStep(step.id)}
                   >
-                    {!readOnly && (
-                      <GripVertical className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-400" />
-                    )}
-
-                    <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-slate-100 font-mono text-[10px] font-bold text-slate-600">
+                    <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted font-mono text-[10px] font-bold text-foreground">
                       {step.stepNumber}
                     </div>
 
@@ -170,15 +216,15 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                       <div
                         className={cn(
                           "truncate text-sm font-medium transition-colors",
-                          isExpanded ? "text-slate-800" : "text-slate-600",
+                          isExpanded ? "text-foreground" : "text-foreground/90",
                         )}
                       >
                         {step.name || (
-                          <span className="font-normal italic text-slate-400">{t("steps.noName")}</span>
+                          <span className="font-normal italic text-muted-foreground">{t("steps.noName")}</span>
                         )}
                       </div>
                       {!readOnly ? (
-                        <div className="text-[10px] text-slate-400">{t("steps.dragHint")}</div>
+                        <div className="text-[10px] text-muted-foreground">{t("steps.dragHint")}</div>
                       ) : null}
                     </div>
                   </button>
@@ -190,9 +236,10 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="size-7 h-7 w-7 text-slate-400 hover:text-slate-600"
+                          className="size-7 h-7 w-7 text-muted-foreground hover:text-foreground"
                           onClick={() => moveStep(step.id, "up")}
                           disabled={index === 0}
+                          data-testid={`quality-step-move-up-${step.id}`}
                         >
                           <ArrowUp className="size-3.5" />
                         </Button>
@@ -200,9 +247,10 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="size-7 h-7 w-7 text-slate-400 hover:text-slate-600"
+                          className="size-7 h-7 w-7 text-muted-foreground hover:text-foreground"
                           onClick={() => moveStep(step.id, "down")}
                           disabled={index === steps.length - 1}
+                          data-testid={`quality-step-move-down-${step.id}`}
                         >
                           <ArrowDown className="size-3.5" />
                         </Button>
@@ -210,14 +258,15 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="size-7 h-7 w-7 text-slate-400 hover:text-destructive"
+                          className="size-7 h-7 w-7 text-muted-foreground hover:text-destructive"
                           onClick={() => removeStep(step.id)}
+                          data-testid={`quality-step-delete-${step.id}`}
                         >
                           <Trash2 className="size-3.5" />
                         </Button>
                       </>
                     )}
-                    <div className="ml-1 text-slate-400" aria-hidden>
+                    <div className="ml-1 text-muted-foreground" aria-hidden>
                       {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                     </div>
                   </div>
@@ -226,11 +275,11 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                 {/* Step Details */}
                 {isExpanded && (
                   <div className="p-4 pt-0 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <div className="space-y-1.5">
                         <label
                           htmlFor={`ts-step-${step.id}-action`}
-                          className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-400"
+                          className="ml-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
                         >
                           {t("steps.fields.name")}
                         </label>
@@ -241,10 +290,7 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                             updateStep(step.id, "name", e.target.value)
                           }
-                          className={cn(
-                            textareaClassName,
-                            "resize-none border-slate-200 bg-white focus:ring-1 focus:ring-primary/20",
-                          )}
+                          className={cn(textareaClassName, "resize-none focus-visible:ring-1 focus-visible:ring-primary/30")}
                           readOnly={readOnly}
                         />
                       </div>
@@ -252,7 +298,7 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                       <div className="space-y-1.5">
                         <label
                           htmlFor={`ts-step-${step.id}-description`}
-                          className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-400"
+                          className="ml-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
                         >
                           {t("steps.fields.description")}
                         </label>
@@ -263,10 +309,7 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                             updateStep(step.id, "description", e.target.value)
                           }
-                          className={cn(
-                            textareaClassName,
-                            "resize-none border-slate-200 bg-white focus:ring-1 focus:ring-primary/20",
-                          )}
+                          className={cn(textareaClassName, "resize-none focus-visible:ring-1 focus-visible:ring-primary/30")}
                           readOnly={readOnly}
                         />
                       </div>
@@ -274,7 +317,7 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                       <div className="space-y-1.5">
                         <label
                           htmlFor={`ts-step-${step.id}-expected`}
-                          className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-400"
+                          className="ml-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
                         >
                           {t("steps.fields.expectedResult")}
                         </label>
@@ -285,10 +328,7 @@ export function TestStepsEditor({ steps = [], onChange, readOnly = false }: Test
                           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                             updateStep(step.id, "expectedResult", e.target.value)
                           }
-                          className={cn(
-                            textareaClassName,
-                            "resize-none border-slate-200 bg-white focus:ring-1 focus:ring-primary/20",
-                          )}
+                          className={cn(textareaClassName, "resize-none focus-visible:ring-1 focus-visible:ring-primary/30")}
                           readOnly={readOnly}
                         />
                       </div>
