@@ -27,6 +27,8 @@ def test_tree_roots_merge_manifest_over_default() -> None:
 
 def test_resolve_tree_root() -> None:
     assert resolve_tree_root_artifact_type("requirement", None) == "root-requirement"
+    assert resolve_tree_root_artifact_type("quality", None) == "root-quality"
+    assert resolve_tree_root_artifact_type("testsuites", None) == "root-testsuites"
     assert resolve_tree_root_artifact_type("unknown", {}) is None
 
 

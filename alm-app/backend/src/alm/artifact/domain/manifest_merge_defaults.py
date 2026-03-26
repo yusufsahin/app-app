@@ -15,6 +15,7 @@ from alm.artifact.domain.quality_manifest_extension import merge_quality_domain_
 _DEFAULT_TREE_ROOTS: list[dict[str, str]] = [
     {"tree_id": "requirement", "root_artifact_type": "root-requirement"},
     {"tree_id": "quality", "root_artifact_type": "root-quality"},
+    {"tree_id": "testsuites", "root_artifact_type": "root-testsuites"},
     {"tree_id": "defect", "root_artifact_type": "root-defect"},
 ]
 

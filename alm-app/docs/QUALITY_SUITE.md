@@ -7,19 +7,19 @@ Proje içinde kalite çalışması için ayrı giriş noktaları:
 | Route | Açıklama |
 |-------|----------|
 | `/:orgSlug/:projectSlug/quality` | Hub + artifact listesi (Artifacts ile aynı API) |
-| `/:orgSlug/:projectSlug/quality/tests` | `test-case` tipi filtresi (`?type=test-case` + `tree=quality`) |
+| `/:orgSlug/:projectSlug/quality/tests` | `test-case` tipi filtresi (`?type=test-case` + `tree=tests`) |
 | `/:orgSlug/:projectSlug/quality/suites` | `test-suite` |
 | `/:orgSlug/:projectSlug/quality/runs` | `test-run` |
 | `/:orgSlug/:projectSlug/quality/campaigns` | `test-campaign` |
 | `/:orgSlug/:projectSlug/quality/traceability` | Quality ağacı; sayfalama + arama; detayda link yönetimi |
 
-Liste ve API **Artifacts ile aynıdır**; varsayılan olarak manifest’te tanımlı **`tree_id: "quality"`** ağacına filtre uygulanır (ağaç yoksa otomatik yazılmaz).
+Liste ve API **Artifacts ile aynıdır**; kalite altındaki test sayfaları manifest’te tanımlı ağaçlara filtre uygular: `tests` (test-case) ve `testsuites` (suite/run/campaign).
 
 ## Davranış
 
 - **İzin:** `artifact:read` (Artifacts / Board ile aynı).
-- **Artifacts listesi:** Varsayılan ağaç filtresi **Requirements** (`tree=requirement`); quality ağacındaki test case’ler burada görünmez. Hepsini görmek için filtrede **All trees** (`?tree=all`).
-- **Varsayılan ağaç:** `tree_roots` içinde `tree_id` **quality** yoksa otomatik `tree=quality` yazılmaz.
+- **Artifacts listesi:** Varsayılan ağaç filtresi **Requirements** (`tree=requirement`); test case/suite öğeleri kendi ağaçlarında (`tests`, `testsuites`) tutulur. Hepsini görmek için filtrede **All trees** (`?tree=all`).
+- **Varsayılan ağaç:** `tree_roots` içinde ilgili ağaç (`tests` veya `testsuites`) yoksa sayfa bu ağaca filtre uygulamaz.
 - **Breadcrumb:** Quality sayfasında "Quality"; traceability’de "Traceability".
 - **Hub (Faz 2B):** Üstte özet; Quality ağacı tanımlıysa `useArtifacts` ile `limit=1` sorgusundan gelen **toplam sayı** gösterilir (ayrı aggregate endpoint yok).
 - **Traceability:** API proje genelinde link listesi sunmaz; linkler artifact başına. Sayfa Quality ağacını **sayfalar** (`limit`/`offset`, URL `?page=`); **arama** `?q=` ile `Artifacts` ile aynı parametre. **Details** ile `?artifact=` üzerinden detay çekmecesinde linkler düzenlenir.
@@ -39,20 +39,23 @@ Kalite testleri / suite / run / campaign / klasör kavramları tek **artifact mo
 
 **Repo notu:** `Metadatadriventestmanagement/.git` iç içe repo oluşturabilir; kök `.gitignore` ile yok sayılabilir veya ayrı submodule olarak yönetilir.
 
-## Manifest: Quality ağacı ve link tipleri
+## Manifest: Tests / TestSuites ağaçları ve link tipleri
 
-`tree_roots` içinde `tree_id: quality` ve `root_artifact_type` (ör. `root-quality`) tanımlı olmalı. Varsayılanlar: [manifestTreeRoots.ts](../frontend/src/shared/lib/manifestTreeRoots.ts).
+`tree_roots` içinde `tree_id: tests` + `root-tests` ve `tree_id: testsuites` + `root-testsuites` tanımlı olmalı. Varsayılanlar: [manifestTreeRoots.ts](../frontend/src/shared/lib/manifestTreeRoots.ts).
 
-Yerleşik süreç şablonlarında (Basic, Scrum, Kanban, Azure DevOps Basic) `root-quality` altında **`quality-folder`**, **`test-case`**, **`test-suite`**, **`test-run`**, **`test-campaign`** türleri ve ilişki link tipleri seed ile enjekte edilir — [seed.py](../backend/src/alm/config/seed.py) (`_with_quality_manifest_bundle`). Demo kurulum iki örnek test case, örnek requirement’a **`verifies`**, ayrıca demo suite / run / campaign ve `suite_includes_test` / `run_for_suite` / `campaign_includes_suite` linkleri ekler.
+Yerleşik süreç şablonlarında (Basic, Scrum, Kanban, Azure DevOps Basic) ayrıştırılmış türler seed ile enjekte edilir: `test-folder` + `test-case` (tests ağacı) ve `testsuite-folder` + `test-suite` / `test-run` / `test-campaign` (testsuites ağacı). Demo kurulum örnek test case’ler, suite/run/campaign ve `suite_includes_test` / `run_for_suite` / `campaign_includes_suite` linklerini içerir.
 
 **Örnek** (`defs` içinde LinkType satırları flat yanıtta `link_types` olur; ayrıntı [manifest-schema.md](./manifest-schema.md) — Link types):
 
 ```yaml
 # Özet — tam manifest şablonu proje ihtiyacına göre
 tree_roots:
-  - tree_id: quality
-    root_artifact_type: root-quality
-    label: Quality
+  - tree_id: tests
+    root_artifact_type: root-tests
+    label: Tests
+  - tree_id: testsuites
+    root_artifact_type: root-testsuites
+    label: Test suites
 
 # defs veya flat manifest içinde örnek link tipleri (id'ler API'de link_type olarak kullanılır):
 # - id: validates
@@ -79,8 +82,8 @@ artifact_list:
 
 ## Testler (birim + API)
 
-- Frontend (Vitest): [manifestTreeRoots.test.ts](../frontend/src/shared/lib/manifestTreeRoots.test.ts) (`getTreeRootsFromManifestBundle`, varsayılan `quality` ağacı), [appPaths.test.ts](../frontend/src/shared/utils/appPaths.test.ts) (`qualityPath` / `qualityTraceabilityPath`); [artifactApi.test.ts](../frontend/src/shared/api/artifactApi.test.ts) içinde `buildArtifactListParams` + `tree`.
-- Backend (pytest): [test_artifact_flow.py](../backend/tests/test_artifact_flow.py) — `test_list_artifacts_tree_quality_param_ok` (`GET .../artifacts?tree=quality`).
+- Frontend (Vitest): [manifestTreeRoots.test.ts](../frontend/src/shared/lib/manifestTreeRoots.test.ts) (`getTreeRootsFromManifestBundle`, varsayılan `tests` + `testsuites` ağaçları), [appPaths.test.ts](../frontend/src/shared/utils/appPaths.test.ts) (`qualityPath` / `qualityTraceabilityPath`); [artifactApi.test.ts](../frontend/src/shared/api/artifactApi.test.ts) içinde `buildArtifactListParams` + `tree`.
+- Backend (pytest): [test_artifact_flow.py](../backend/tests/test_artifact_flow.py) — `test_list_artifacts_tree_tests_param_ok` (`GET .../artifacts?tree=tests`) ve `...tree=testsuites`.
 
 ## E2E
 

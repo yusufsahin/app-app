@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from alm.artifact.domain.entities import Artifact
 from alm.artifact.domain.ports import ArtifactRepository
+from alm.artifact.domain.manifest_workflow_metadata import get_tree_root_type_map
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
 from alm.config.settings import settings
 from alm.process_template.domain.ports import ProcessTemplateRepository
@@ -111,7 +112,7 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
         )
 
     async def _create_project_roots(self, project: Project) -> None:
-        """Create root artifacts (root-requirement, root-quality, root-defect) when template defines them."""
+        """Create project roots from manifest tree_roots (requirements/tests/testsuites/defects)."""
         from alm.artifact.domain.mpc_resolver import get_manifest_ast
 
         version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
@@ -119,37 +120,27 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
             return
         manifest = version.manifest_bundle
         ast = get_manifest_ast(version.id, manifest)
-        state_req = workflow_get_initial_state(manifest, "root-requirement", ast=ast)
-        state_qual = workflow_get_initial_state(manifest, "root-quality", ast=ast)
-        if state_req is None or state_qual is None:
-            return
-        root_req = Artifact.create(
-            project_id=project.id,
-            artifact_type="root-requirement",
-            title=project.name,
-            state=state_req,
-            parent_id=None,
-            artifact_key=f"{project.code}-R0",
-        )
-        root_qual = Artifact.create(
-            project_id=project.id,
-            artifact_type="root-quality",
-            title=project.name,
-            state=state_qual,
-            parent_id=None,
-            artifact_key=f"{project.code}-Q0",
-        )
-        await self._artifact_repo.add(root_req)
-        await self._artifact_repo.add(root_qual)
+        root_type_map = get_tree_root_type_map(manifest)
+        root_types = list(dict.fromkeys(root_type_map.values()))
+        key_suffix_map = {
+            "root-requirement": "R0",
+            "root-tests": "T0",
+            "root-testsuites": "TS0",
+            "root-defect": "D0",
+            "root-quality": "Q0",
+        }
 
-        state_defect = workflow_get_initial_state(manifest, "root-defect", ast=ast)
-        if state_defect is not None:
-            root_defect = Artifact.create(
+        for root_type in root_types:
+            state = workflow_get_initial_state(manifest, root_type, ast=ast)
+            if state is None:
+                continue
+            suffix = key_suffix_map.get(root_type, f"{root_type.upper()}0")
+            root = Artifact.create(
                 project_id=project.id,
-                artifact_type="root-defect",
+                artifact_type=root_type,
                 title=project.name,
-                state=state_defect,
+                state=state,
                 parent_id=None,
-                artifact_key=f"{project.code}-D0",
+                artifact_key=f"{project.code}-{suffix}",
             )
-            await self._artifact_repo.add(root_defect)
+            await self._artifact_repo.add(root)

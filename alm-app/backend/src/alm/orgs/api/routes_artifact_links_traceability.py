@@ -108,3 +108,88 @@ async def delete_artifact_link(
             link_id=link_id,
         )
     )
+
+
+@router.post(
+    "/projects/{project_id}/artifacts/{artifact_id}/links/bulk",
+    response_model=ArtifactLinkBulkResultResponse,
+    status_code=200,
+)
+async def bulk_create_artifact_links(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    body: ArtifactLinkBulkCreateRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:update"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ArtifactLinkBulkResultResponse:
+    succeeded: list[uuid.UUID] = []
+    failed: list[ArtifactLinkBulkResultItem] = []
+
+    # validate link type via manifest when restricted
+    manifest_result = await mediator.query(GetProjectManifest(tenant_id=org.tenant_id, project_id=project_id))
+    if manifest_result and manifest_result.manifest_bundle:
+        flat = manifest_defs_to_flat(manifest_result.manifest_bundle)
+        allowed = flat.get("link_types") or []
+        if allowed:
+            allowed_ids = [str(lt.get("id", "")).lower() for lt in allowed if lt.get("id")]
+            link_type_normalized = (body.link_type or "").strip().lower() or "related"
+            if allowed_ids and link_type_normalized not in allowed_ids:
+                raise HTTPException(400, detail=f"link_type must be one of: {', '.join(allowed_ids)}")
+
+    for target_id in body.to_artifact_ids:
+        try:
+            await mediator.send(
+                CreateArtifactLink(
+                    tenant_id=org.tenant_id,
+                    project_id=project_id,
+                    from_artifact_id=artifact_id,
+                    to_artifact_id=target_id,
+                    link_type=body.link_type,
+                )
+            )
+            succeeded.append(target_id)
+        except ValidationError as exc:
+            detail = str(exc)
+            # Treat duplicate link as successful for idempotent bulk behavior.
+            if "already exists" in detail.lower():
+                succeeded.append(target_id)
+            else:
+                failed.append(ArtifactLinkBulkResultItem(id=target_id, reason=detail))
+
+    return ArtifactLinkBulkResultResponse(succeeded=succeeded, failed=failed)
+
+
+@router.post(
+    "/projects/{project_id}/artifacts/{artifact_id}/links/bulk-delete",
+    response_model=ArtifactLinkBulkResultResponse,
+    status_code=200,
+)
+async def bulk_delete_artifact_links(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    body: ArtifactLinkBulkDeleteRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:update"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ArtifactLinkBulkResultResponse:
+    succeeded: list[uuid.UUID] = []
+    failed: list[ArtifactLinkBulkResultItem] = []
+
+    for link_id in body.link_ids:
+        try:
+            await mediator.send(
+                DeleteArtifactLink(
+                    tenant_id=org.tenant_id,
+                    project_id=project_id,
+                    artifact_id=artifact_id,
+                    link_id=link_id,
+                )
+            )
+            succeeded.append(link_id)
+        except ValidationError as exc:
+            failed.append(ArtifactLinkBulkResultItem(id=link_id, reason=str(exc)))
+
+    return ArtifactLinkBulkResultResponse(succeeded=succeeded, failed=failed)

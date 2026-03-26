@@ -19,6 +19,7 @@ import {
 import { getDeclaredTreeRootsFromManifestBundle } from "../../../shared/lib/manifestTreeRoots";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import {
+  Badge,
   Button,
   Card,
   CardContent,
@@ -36,8 +37,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
 } from "../../../shared/components/ui";
 import { QualityFolderTreeNav } from "./QualityFolderTreeNav";
+import { SuiteTestLinkModal } from "./SuiteTestLinkModal";
 import { qualityPath } from "../../../shared/utils/appPaths";
 import type { TestStep } from "../types";
 import { parseTestSteps, normalizeTestSteps } from "../lib/testSteps";
@@ -53,6 +56,10 @@ interface LinkConfig {
 
 interface QualityArtifactWorkspaceProps {
   artifactType: string;
+  treeId?: string;
+  linkTargetTreeId?: string;
+  rootArtifactType?: string;
+  folderArtifactType?: string;
   pageLabel: string;
   description: string;
   createCta: string;
@@ -68,7 +75,7 @@ function isUuid(value: string | null): value is string {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-/** Quality artifacts that appear as leaves under `quality-folder` in the explorer (matches backend rules). */
+/** Quality artifacts that appear as leaves under the selected folder type in explorer. */
 const QUALITY_EXPLORER_LEAF_TYPES = new Set([
   "test-case",
   "test-suite",
@@ -78,6 +85,10 @@ const QUALITY_EXPLORER_LEAF_TYPES = new Set([
 
 export default function QualityArtifactWorkspace({
   artifactType,
+  treeId = "quality",
+  linkTargetTreeId,
+  rootArtifactType = "root-quality",
+  folderArtifactType = "quality-folder",
   pageLabel,
   description,
   createCta,
@@ -98,7 +109,7 @@ export default function QualityArtifactWorkspace({
     () => getDeclaredTreeRootsFromManifestBundle(manifest?.manifest_bundle),
     [manifest?.manifest_bundle],
   );
-  const hasQualityTree = treeRoots.some((t) => t.tree_id === "quality");
+  const hasTargetTree = treeRoots.some((t) => t.tree_id === treeId);
   const showExplorerLeaves = QUALITY_EXPLORER_LEAF_TYPES.has(artifactType);
 
   const newLeafMenuLabel = useMemo(() => {
@@ -130,12 +141,12 @@ export default function QualityArtifactWorkspace({
     undefined,
     undefined,
     undefined,
-    "quality",
+    treeId,
     true,
   );
   const rootQualityId = useMemo(
-    () => (folderData?.items ?? []).find((a) => a.artifact_type === "root-quality")?.id ?? null,
-    [folderData?.items],
+    () => (folderData?.items ?? []).find((a) => a.artifact_type === rootArtifactType)?.id ?? null,
+    [folderData?.items, rootArtifactType],
   );
 
   const listQuery = useArtifacts(
@@ -152,7 +163,7 @@ export default function QualityArtifactWorkspace({
     undefined,
     undefined,
     undefined,
-    "quality",
+    treeId,
     false,
     selectedUnder,
   );
@@ -178,16 +189,74 @@ export default function QualityArtifactWorkspace({
     undefined,
     undefined,
     undefined,
-    "quality",
+    linkTargetTreeId ?? treeId,
     false,
   );
 
   const [targetArtifactId, setTargetArtifactId] = useState("");
   const [moveArtifactId, setMoveArtifactId] = useState<string | null>(null);
   const [moveTargetFolderId, setMoveTargetFolderId] = useState("");
+  const [suiteLinkModalOpen, setSuiteLinkModalOpen] = useState(false);
+  const [workspaceIncludeSubfolders, setWorkspaceIncludeSubfolders] = useState(false);
   const selectedArtifact = selectedArtifactQuery.data;
+  const canUpdateSelectedArtifact = !!(
+    (selectedArtifact as Artifact & { allowed_actions?: string[] } | undefined)?.allowed_actions?.includes("update")
+  );
   const listItems = listQuery.data?.items ?? [];
   const folderItems = folderData?.items ?? [];
+  const allFolderNodes = useMemo(
+    () => folderItems.filter((a) => a.artifact_type === folderArtifactType),
+    [folderItems, folderArtifactType],
+  );
+  const descendantFolderIds = useMemo(() => {
+    if (!selectedUnder) return new Set<string>();
+    const childrenByParent = new Map<string, string[]>();
+    for (const f of allFolderNodes) {
+      if (!f.parent_id) continue;
+      const list = childrenByParent.get(f.parent_id) ?? [];
+      list.push(f.id);
+      childrenByParent.set(f.parent_id, list);
+    }
+    const allIds = new Set<string>([selectedUnder]);
+    const stack = [selectedUnder];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) break;
+      const children = childrenByParent.get(current) ?? [];
+      for (const child of children) {
+        if (allIds.has(child)) continue;
+        allIds.add(child);
+        stack.push(child);
+      }
+    }
+    return allIds;
+  }, [allFolderNodes, selectedUnder]);
+
+  const workspaceItems = useMemo(() => {
+    const isTestCaseWorkspace = artifactType === "test-case";
+    if (!isTestCaseWorkspace || !selectedUnder) return listItems;
+    if (!workspaceIncludeSubfolders) {
+      return folderItems.filter(
+        (item) =>
+          item.parent_id === selectedUnder &&
+          (item.artifact_type === folderArtifactType || item.artifact_type === "test-case"),
+      );
+    }
+    return folderItems.filter((item) => {
+      if (item.artifact_type === folderArtifactType) {
+        return item.parent_id === selectedUnder;
+      }
+      return item.artifact_type === "test-case" && !!item.parent_id && descendantFolderIds.has(item.parent_id);
+    });
+  }, [
+    artifactType,
+    descendantFolderIds,
+    folderArtifactType,
+    folderItems,
+    listItems,
+    selectedUnder,
+    workspaceIncludeSubfolders,
+  ]);
 
   const patchArtifactMutation = useMutation({
     mutationFn: async ({ artifactId, body }: { artifactId: string; body: Record<string, unknown> }) => {
@@ -209,12 +278,12 @@ export default function QualityArtifactWorkspace({
   const qualityFolderOptions = useMemo(
     () =>
       (folderData?.items ?? [])
-        .filter((a) => a.artifact_type === "quality-folder")
+        .filter((a) => a.artifact_type === folderArtifactType)
         .slice()
         .sort((a, b) =>
           (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base" }),
         ),
-    [folderData?.items],
+    [folderData?.items, folderArtifactType],
   );
 
   const linkTargets = useMemo(() => {
@@ -264,8 +333,10 @@ export default function QualityArtifactWorkspace({
         onSubmit: async ({ title, description, steps }) => {
           if (!project?.id || !orgSlug) return;
           let parentId = resolvedParent;
-          if (artifactType === "quality-folder" && !parentId) parentId = rootQualityId;
-          if (!parentId && artifactType !== "quality-folder") return;
+          if (artifactType === folderArtifactType && !parentId) parentId = rootQualityId;
+          if (!parentId && artifactType !== folderArtifactType) {
+            throw new Error("Please select a folder before creating this item.");
+          }
           const payload: {
             artifact_type: string;
             title: string;
@@ -299,7 +370,7 @@ export default function QualityArtifactWorkspace({
     modalApi.openQualityArtifact(
       {
         mode: "create",
-        artifactType: "quality-folder",
+        artifactType: folderArtifactType,
         enableStepsEditor: false,
         isPending: createArtifact.isPending,
         onSubmit: async ({ title, description }) => {
@@ -307,7 +378,7 @@ export default function QualityArtifactWorkspace({
           const parentId = forcedParentId ?? selectedUnder ?? rootQualityId;
           if (!parentId) return;
           const created = await createArtifact.mutateAsync({
-            artifact_type: "quality-folder",
+            artifact_type: folderArtifactType,
             title,
             description,
             parent_id: parentId,
@@ -329,12 +400,12 @@ export default function QualityArtifactWorkspace({
   };
 
   const openRenameFolderModal = (folderId: string) => {
-    const folder = folderItems.find((a) => a.id === folderId && a.artifact_type === "quality-folder");
+    const folder = folderItems.find((a) => a.id === folderId && a.artifact_type === folderArtifactType);
     if (!folder || !orgSlug || !project?.id) return;
     modalApi.openQualityArtifact(
       {
         mode: "edit",
-        artifactType: "quality-folder",
+        artifactType: folderArtifactType,
         initialTitle: folder.title ?? "",
         initialDescription: folder.description ?? "",
         enableStepsEditor: false,
@@ -355,7 +426,7 @@ export default function QualityArtifactWorkspace({
   };
 
   const openDeleteFolderModal = (folderId: string) => {
-    const folder = folderItems.find((a) => a.id === folderId && a.artifact_type === "quality-folder");
+    const folder = folderItems.find((a) => a.id === folderId && a.artifact_type === folderArtifactType);
     if (!folder || !orgSlug || !project?.id) return;
     modalApi.openDeleteArtifact(
       {
@@ -508,6 +579,9 @@ export default function QualityArtifactWorkspace({
           onRenameFolder={allowFolderCreate ? openRenameFolderModal : undefined}
           onDeleteFolder={allowFolderCreate ? openDeleteFolderModal : undefined}
           leafArtifactType={showExplorerLeaves ? artifactType : undefined}
+          treeId={treeId}
+          rootArtifactType={rootArtifactType}
+          folderArtifactType={folderArtifactType}
           newLeafLabel={newLeafMenuLabel}
           selectedArtifactId={selectedArtifactId}
           onNewLeafInFolder={showExplorerLeaves ? (fid) => openCreateModal(fid) : undefined}
@@ -537,12 +611,12 @@ export default function QualityArtifactWorkspace({
             <CardDescription>{description}</CardDescription>
           </CardHeader>
           <CardContent>
-            {!hasQualityTree ? (
+            {!hasTargetTree ? (
               <p className="text-sm text-muted-foreground">
-                {t("workspace.noQualityTree")} <code>tree_id: quality</code>.
+                {t("workspace.noQualityTree")} <code>tree_id: {treeId}</code>.
               </p>
             ) : null}
-            {!selectedUnder && artifactType !== "quality-folder" ? (
+            {!selectedUnder && artifactType !== folderArtifactType ? (
               <p className="text-sm text-muted-foreground">{t("workspace.selectFolderFirst")}</p>
             ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
@@ -550,7 +624,7 @@ export default function QualityArtifactWorkspace({
                 type="button"
                 onClick={() => openCreateModal()}
                 data-testid="quality-create-button"
-                disabled={createArtifact.isPending || (!selectedUnder && artifactType !== "quality-folder")}
+                disabled={createArtifact.isPending || (!selectedUnder && artifactType !== folderArtifactType)}
               >
                 {createCta}
               </Button>
@@ -573,30 +647,69 @@ export default function QualityArtifactWorkspace({
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Items</CardTitle>
-              <CardDescription>{selectedUnder ? t("workspace.selectedFolderChildren") : t("workspace.selectFolderToList")}</CardDescription>
+              <CardDescription>
+                {selectedUnder ? t("workspace.selectedFolderChildren") : t("workspace.selectFolderToList")}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {listItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+              {artifactType === "test-case" ? (
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">
+                    Scope: {selectedUnder ? "Selected folder" : "No folder selected"}
+                  </Badge>
+                  <Badge variant="outline">
+                    Mode: {workspaceIncludeSubfolders ? "Include subfolders" : "Direct children"}
+                  </Badge>
+                  <label className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
+                    <Switch
+                      checked={workspaceIncludeSubfolders}
+                      onCheckedChange={setWorkspaceIncludeSubfolders}
+                      disabled={!selectedUnder}
+                    />
+                    Include subfolders
+                  </label>
+                </div>
+              ) : null}
+              {workspaceItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {artifactType === "test-case" && workspaceIncludeSubfolders
+                    ? "No items in this scope. Try changing folder selection."
+                    : emptyLabel}
+                </p>
               ) : (
-                listItems.map((item: Artifact) => {
+                workspaceItems.map((item: Artifact) => {
                   const active = selectedArtifactId === item.id;
+                  const isFolderRow = item.artifact_type === folderArtifactType;
                   return (
                     <button
                       key={item.id}
                       data-testid={`quality-item-row-${item.id}`}
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        if (isFolderRow) {
+                          setSearchParams((prev) => {
+                            const next = new URLSearchParams(prev);
+                            next.set("under", item.id);
+                            next.delete("artifact");
+                            return next;
+                          });
+                          return;
+                        }
                         setSearchParams((prev) => {
                           const next = new URLSearchParams(prev);
                           next.set("artifact", item.id);
                           return next;
-                        })
-                      }
+                        });
+                      }}
                       className={`w-full rounded-md border px-3 py-2 text-left text-sm transition ${active ? "border-primary bg-primary/5" : "border-border hover:bg-muted/60"}`}
                     >
-                      <div className="font-medium">{item.title}</div>
-                      <div className="text-xs text-muted-foreground">{item.artifact_key ?? item.artifact_type}</div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-medium">{item.title}</div>
+                        {isFolderRow ? <Badge variant="secondary">Folder</Badge> : null}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {isFolderRow ? item.artifact_type : item.artifact_key ?? item.artifact_type}
+                      </div>
                     </button>
                   );
                 })
@@ -637,25 +750,37 @@ export default function QualityArtifactWorkspace({
               <CardDescription>Link type: {linkConfig.linkType}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex gap-2">
-                <select
-                  aria-label={`${linkConfig.targetType} selection`}
-                  data-testid="quality-link-target-select"
-                  className="h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm"
-                  value={targetArtifactId}
-                  onChange={(e) => setTargetArtifactId(e.target.value)}
+              {artifactType === "test-suite" && linkConfig.linkType === "suite_includes_test" ? (
+                <Button
+                  type="button"
+                  onClick={() => setSuiteLinkModalOpen(true)}
+                  data-testid="quality-link-manage-modal"
+                  disabled={!canUpdateSelectedArtifact}
+                  title={!canUpdateSelectedArtifact ? "You do not have permission to update links." : undefined}
                 >
-                  <option value="">Select {linkConfig.targetType}</option>
-                  {availableTargets.map((target) => (
-                    <option key={target.id} value={target.id}>
-                      {target.title}
-                    </option>
-                  ))}
-                </select>
-                <Button type="button" disabled={!targetArtifactId || createLink.isPending} onClick={addLink} data-testid="quality-link-add">
-                  Add link
+                  Manage links
                 </Button>
-              </div>
+              ) : (
+                <div className="flex gap-2">
+                  <select
+                    aria-label={`${linkConfig.targetType} selection`}
+                    data-testid="quality-link-target-select"
+                    className="h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+                    value={targetArtifactId}
+                    onChange={(e) => setTargetArtifactId(e.target.value)}
+                  >
+                    <option value="">Select {linkConfig.targetType}</option>
+                    {availableTargets.map((target) => (
+                      <option key={target.id} value={target.id}>
+                        {target.title}
+                      </option>
+                    ))}
+                  </select>
+                  <Button type="button" disabled={!targetArtifactId || createLink.isPending} onClick={addLink} data-testid="quality-link-add">
+                    Add link
+                  </Button>
+                </div>
+              )}
               {linkedTargets.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No linked items yet.</p>
               ) : (
@@ -674,6 +799,17 @@ export default function QualityArtifactWorkspace({
               )}
             </CardContent>
           </Card>
+        ) : null}
+        {project?.id && orgSlug && selectedArtifact && linkConfig && artifactType === "test-suite" ? (
+          <SuiteTestLinkModal
+            open={suiteLinkModalOpen}
+            onClose={() => setSuiteLinkModalOpen(false)}
+            orgSlug={orgSlug}
+            projectId={project.id}
+            suiteArtifactId={selectedArtifact.id}
+            linkType={linkConfig.linkType}
+            manifestBundle={manifest?.manifest_bundle}
+          />
         ) : null}
 
         {runExecute && selectedArtifactId && orgSlug && projectSlug ? (

@@ -62,6 +62,9 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
                 manifest = ver.manifest_bundle
                 ast = get_manifest_ast(ver.id, manifest)
 
+        if is_system_root_artifact_type(artifact.artifact_type, manifest):
+            raise ValidationError("Project root artifacts cannot be updated")
+
         if "parent_id" in updates:
             raw_pid = updates["parent_id"]
             if raw_pid is None:
@@ -76,18 +79,24 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
                 if new_parent_id is not None:
                     raise ValidationError("Cannot reparent a project root artifact")
             else:
-                quality_types = frozenset({"test-case", "test-suite", "test-run", "test-campaign"})
-                if artifact.artifact_type in quality_types:
+                quality_parent_map = {
+                    "test-case": "quality-folder",
+                    "test-suite": "testsuite-folder",
+                    "test-run": "testsuite-folder",
+                    "test-campaign": "testsuite-folder",
+                }
+                expected_parent_type = quality_parent_map.get(artifact.artifact_type)
+                if expected_parent_type:
                     if new_parent_id is None:
                         raise ValidationError(
-                            f"Artifact type '{artifact.artifact_type}' must be under a 'quality-folder'"
+                            f"Artifact type '{artifact.artifact_type}' must be under a '{expected_parent_type}'"
                         )
                     parent = await self._artifact_repo.find_by_id(new_parent_id)
                     if parent is None or parent.project_id != command.project_id:
                         raise ValidationError("Parent artifact not found or belongs to another project")
-                    if parent.artifact_type != "quality-folder":
+                    if parent.artifact_type != expected_parent_type:
                         raise ValidationError(
-                            f"Artifact type '{artifact.artifact_type}' must be under a 'quality-folder'"
+                            f"Artifact type '{artifact.artifact_type}' must be under a '{expected_parent_type}'"
                         )
                     if not is_valid_parent_child(manifest, parent.artifact_type, artifact.artifact_type, ast=ast):
                         raise ValidationError(

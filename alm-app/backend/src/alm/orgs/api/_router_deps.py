@@ -45,7 +45,14 @@ from alm.artifact.application.queries.get_artifact import GetArtifact
 from alm.artifact.application.queries.get_permitted_transitions import GetPermittedTransitions
 from alm.artifact.application.queries.list_artifacts import ListArtifacts
 from alm.artifact.domain.mpc_resolver import manifest_defs_to_flat
-from alm.artifact_link.api.schemas import ArtifactLinkCreateRequest, ArtifactLinkResponse
+from alm.artifact_link.api.schemas import (
+    ArtifactLinkBulkCreateRequest,
+    ArtifactLinkBulkDeleteRequest,
+    ArtifactLinkBulkResultItem,
+    ArtifactLinkBulkResultResponse,
+    ArtifactLinkCreateRequest,
+    ArtifactLinkResponse,
+)
 from alm.artifact_link.application.commands.create_artifact_link import CreateArtifactLink
 from alm.artifact_link.application.commands.delete_artifact_link import DeleteArtifactLink
 from alm.artifact_link.application.queries.list_artifact_links import ListArtifactLinks

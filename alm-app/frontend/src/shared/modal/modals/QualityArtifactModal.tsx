@@ -37,8 +37,12 @@ export function QualityArtifactModal({
         description: description.trim(),
         steps: normalizeTestSteps(steps),
       });
-    } catch {
-      setSubmitError(t("modals.saveError"));
+    } catch (error: unknown) {
+      const detail =
+        (error as { body?: { detail?: string }; detail?: string; message?: string })?.body?.detail ??
+        (error as { detail?: string; message?: string })?.detail ??
+        (error as { message?: string })?.message;
+      setSubmitError(detail || t("modals.saveError"));
     }
   };
 

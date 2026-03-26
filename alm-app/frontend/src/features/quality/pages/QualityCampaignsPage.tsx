@@ -4,6 +4,9 @@ export default function QualityCampaignsPage() {
   return (
     <QualityArtifactWorkspace
       artifactType="test-campaign"
+      treeId="testsuites"
+      rootArtifactType="root-testsuites"
+      folderArtifactType="testsuite-folder"
       pageLabel="Test campaigns"
       description="Campaigns group suite execution."
       createCta="Create campaign"

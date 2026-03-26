@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from alm.artifact.domain.entities import Artifact as ArtifactEntity
 from alm.artifact.domain.mpc_resolver import get_manifest_ast
+from alm.artifact.domain.manifest_workflow_metadata import get_tree_root_type_map
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.quality_manifest_extension import with_quality_manifest_bundle
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
@@ -45,6 +46,7 @@ _MANIFEST_TASK_AND_TREES: dict[str, Any] = {
     "tree_roots": [
         {"tree_id": "requirement", "root_artifact_type": "root-requirement"},
         {"tree_id": "quality", "root_artifact_type": "root-quality"},
+        {"tree_id": "testsuites", "root_artifact_type": "root-testsuites"},
         {"tree_id": "defect", "root_artifact_type": "root-defect"},
     ],
 }
@@ -832,42 +834,30 @@ async def _create_project_roots_in_seed(
     manifest_bundle: dict[str, Any],
     version_id: uuid.UUID,
 ) -> None:
-    """Create root artifacts (R0, Q0, D0) for a project when manifest defines them (used in seed only)."""
+    """Create project roots from manifest tree_roots (used in seed only)."""
     ast = get_manifest_ast(version_id, manifest_bundle)
-    state_req = workflow_get_initial_state(manifest_bundle, "root-requirement", ast=ast)
-    state_qual = workflow_get_initial_state(manifest_bundle, "root-quality", ast=ast)
-    if state_req is None or state_qual is None:
-        return
-    root_req = ArtifactEntity.create(
-        project_id=project.id,
-        artifact_type="root-requirement",
-        title=project.name,
-        state=state_req,
-        parent_id=None,
-        artifact_key=f"{project.code}-R0",
-    )
-    root_qual = ArtifactEntity.create(
-        project_id=project.id,
-        artifact_type="root-quality",
-        title=project.name,
-        state=state_qual,
-        parent_id=None,
-        artifact_key=f"{project.code}-Q0",
-    )
-    await artifact_repo.add(root_req)
-    await artifact_repo.add(root_qual)
-
-    state_defect = workflow_get_initial_state(manifest_bundle, "root-defect", ast=ast)
-    if state_defect is not None:
-        root_defect = ArtifactEntity.create(
+    root_type_map = get_tree_root_type_map(manifest_bundle)
+    root_types = list(dict.fromkeys(root_type_map.values()))
+    key_suffix_map = {
+        "root-requirement": "R0",
+        "root-testsuites": "TS0",
+        "root-defect": "D0",
+        "root-quality": "Q0",
+    }
+    for root_type in root_types:
+        state = workflow_get_initial_state(manifest_bundle, root_type, ast=ast)
+        if state is None:
+            continue
+        suffix = key_suffix_map.get(root_type, f"{root_type.upper()}0")
+        root = ArtifactEntity.create(
             project_id=project.id,
-            artifact_type="root-defect",
+            artifact_type=root_type,
             title=project.name,
-            state=state_defect,
+            state=state,
             parent_id=None,
-            artifact_key=f"{project.code}-D0",
+            artifact_key=f"{project.code}-{suffix}",
         )
-        await artifact_repo.add(root_defect)
+        await artifact_repo.add(root)
 
 
 async def seed_demo_data(
@@ -1001,39 +991,87 @@ async def seed_demo_data(
                 gov_rule.created_by = user.id
                 await artifact_repo.add(gov_rule)
 
-                root_qual_list = await artifact_repo.list_by_project(first_project[0].id, type_filter="root-quality")
-                parent_qual_id = root_qual_list[0].id if root_qual_list else None
+                root_quality_list = await artifact_repo.list_by_project(first_project[0].id, type_filter="root-quality")
+                parent_tests_id = root_quality_list[0].id if root_quality_list else None
+                root_suites_list = await artifact_repo.list_by_project(first_project[0].id, type_filter="root-testsuites")
+                parent_suites_id = root_suites_list[0].id if root_suites_list else None
                 tc_state = "new"
-                if default_version and default_version.manifest_bundle and parent_qual_id:
+                if default_version and default_version.manifest_bundle and parent_tests_id:
                     ast_tc = get_manifest_ast(default_version.id, default_version.manifest_bundle)
                     tc_state = (
                         workflow_get_initial_state(default_version.manifest_bundle, "test-case", ast=ast_tc) or "new"
                     )
 
-                quality_folder = None
+                tests_folder = None
+                suites_folder = None
                 tc_login = None
                 tc_api = None
                 tc_security = None
+                perf_folder = None
+                api_subfolder = None
+                extra_test_cases: list[ArtifactEntity] = []
                 demo_suite = None
                 api_suite = None
+                scale_suite = None
                 demo_run = None
                 failed_run = None
                 demo_campaign = None
                 release_campaign = None
-                if parent_qual_id:
+                if parent_tests_id and parent_suites_id:
                     seq_qf = await project_repo.increment_artifact_seq(first_project[0].id)
-                    quality_folder = ArtifactEntity(
+                    tests_folder = ArtifactEntity(
                         project_id=first_project[0].id,
                         artifact_type="quality-folder",
-                        title="Sprint 24 - Quality",
-                        description="Seeded quality folder to demonstrate nested quality artifacts.",
+                        title="Sprint 24 - Tests",
+                        description="Seeded test folder to demonstrate test-case hierarchy.",
                         state="Active",
-                        parent_id=parent_qual_id,
+                        parent_id=parent_tests_id,
                         artifact_key=f"{first_project[0].code}-{seq_qf}",
                         custom_fields={},
                     )
-                    quality_folder.created_by = user.id
-                    await artifact_repo.add(quality_folder)
+                    tests_folder.created_by = user.id
+                    await artifact_repo.add(tests_folder)
+                    seq_sf = await project_repo.increment_artifact_seq(first_project[0].id)
+                    suites_folder = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="testsuite-folder",
+                        title="Sprint 24 - Suites",
+                        description="Seeded suite folder to demonstrate test-suite hierarchy.",
+                        state="Active",
+                        parent_id=parent_suites_id,
+                        artifact_key=f"{first_project[0].code}-{seq_sf}",
+                        custom_fields={},
+                    )
+                    suites_folder.created_by = user.id
+                    await artifact_repo.add(suites_folder)
+
+                    seq_pf = await project_repo.increment_artifact_seq(first_project[0].id)
+                    perf_folder = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="quality-folder",
+                        title="Performance",
+                        description="Seeded nested folder for scale/performance test-cases.",
+                        state="Active",
+                        parent_id=tests_folder.id,
+                        artifact_key=f"{first_project[0].code}-{seq_pf}",
+                        custom_fields={},
+                    )
+                    perf_folder.created_by = user.id
+                    await artifact_repo.add(perf_folder)
+
+                    seq_af = await project_repo.increment_artifact_seq(first_project[0].id)
+                    api_subfolder = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="quality-folder",
+                        title="API Contracts",
+                        description="Seeded nested folder under Performance.",
+                        state="Active",
+                        parent_id=perf_folder.id,
+                        artifact_key=f"{first_project[0].code}-{seq_af}",
+                        custom_fields={},
+                    )
+                    api_subfolder.created_by = user.id
+                    await artifact_repo.add(api_subfolder)
 
                     seq_tc1 = await project_repo.increment_artifact_seq(first_project[0].id)
                     tc_login = ArtifactEntity(
@@ -1042,7 +1080,7 @@ async def seed_demo_data(
                         title="Login — happy path",
                         description="Demo test case under the Quality tree; links to the sample requirement.",
                         state=tc_state,
-                        parent_id=quality_folder.id if quality_folder is not None else parent_qual_id,
+                        parent_id=tests_folder.id if tests_folder is not None else parent_tests_id,
                         artifact_key=f"{first_project[0].code}-{seq_tc1}",
                         custom_fields={
                             "priority": "high",
@@ -1064,7 +1102,7 @@ async def seed_demo_data(
                         title="API — error response contract",
                         description="Second demo row for Quality list and traceability views.",
                         state=tc_state,
-                        parent_id=quality_folder.id if quality_folder is not None else parent_qual_id,
+                        parent_id=tests_folder.id if tests_folder is not None else parent_tests_id,
                         artifact_key=f"{first_project[0].code}-{seq_tc2}",
                         custom_fields={
                             "priority": "medium",
@@ -1085,7 +1123,7 @@ async def seed_demo_data(
                         title="Rate limit - brute force protection",
                         description="Validate lockout / throttling behavior after repeated failed login attempts.",
                         state=tc_state,
-                        parent_id=quality_folder.id if quality_folder is not None else parent_qual_id,
+                        parent_id=tests_folder.id if tests_folder is not None else parent_tests_id,
                         artifact_key=f"{first_project[0].code}-{seq_tc3}",
                         custom_fields={
                             "priority": "critical",
@@ -1098,6 +1136,38 @@ async def seed_demo_data(
                     )
                     tc_security.created_by = user.id
                     await artifact_repo.add(tc_security)
+
+                    extra_case_specs = [
+                        ("API — list users pagination", "Validate pagination metadata and bounds handling."),
+                        ("API — unauthorized access", "Validate 401 response for missing auth token."),
+                        ("API — invalid enum value", "Validate validation payload for invalid enum values."),
+                        ("Load — 100 concurrent logins", "Validate median response latency under baseline load."),
+                        ("Load — burst traffic 500 rps", "Validate throttling and degradation behavior."),
+                        ("Security — SQL injection attempt", "Validate malicious payload sanitization."),
+                        ("Security — XSS payload rejection", "Validate script payload output encoding."),
+                        ("Resilience — transient DB outage", "Validate retry/fallback and graceful recovery."),
+                    ]
+                    for idx, (title, desc) in enumerate(extra_case_specs, start=1):
+                        seq_extra = await project_repo.increment_artifact_seq(first_project[0].id)
+                        extra_case = ArtifactEntity(
+                            project_id=first_project[0].id,
+                            artifact_type="test-case",
+                            title=title,
+                            description=desc,
+                            state=tc_state,
+                            parent_id=api_subfolder.id if idx <= 3 else perf_folder.id,
+                            artifact_key=f"{first_project[0].code}-{seq_extra}",
+                            custom_fields={
+                                "priority": "high" if idx <= 3 else "medium",
+                                "automation": "automated" if idx % 2 == 0 else "manual",
+                                "test_steps_json": (
+                                    '[{"stepNumber":1,"action":"Execute test scenario","expectedResult":"Expected system behavior is observed"}]'
+                                ),
+                            },
+                        )
+                        extra_case.created_by = user.id
+                        await artifact_repo.add(extra_case)
+                        extra_test_cases.append(extra_case)
 
                     if default_version and default_version.manifest_bundle:
                         ast_q = get_manifest_ast(default_version.id, default_version.manifest_bundle)
@@ -1112,7 +1182,7 @@ async def seed_demo_data(
                             title="Demo regression suite",
                             description="Sample test suite (manifest test-suite); includes Login test via link.",
                             state=suite_st,
-                            parent_id=quality_folder.id if quality_folder is not None else parent_qual_id,
+                            parent_id=suites_folder.id if suites_folder is not None else parent_suites_id,
                             artifact_key=f"{first_project[0].code}-{seq_su}",
                             custom_fields={"suite_note": "Seed demo"},
                         )
@@ -1126,12 +1196,26 @@ async def seed_demo_data(
                             title="API contract suite",
                             description="Covers API validation and security contract checks.",
                             state=suite_st,
-                            parent_id=quality_folder.id if quality_folder is not None else parent_qual_id,
+                            parent_id=suites_folder.id if suites_folder is not None else parent_suites_id,
                             artifact_key=f"{first_project[0].code}-{seq_su2}",
                             custom_fields={"suite_note": "API + security"},
                         )
                         api_suite.created_by = user.id
                         await artifact_repo.add(api_suite)
+
+                        seq_su3 = await project_repo.increment_artifact_seq(first_project[0].id)
+                        scale_suite = ArtifactEntity(
+                            project_id=first_project[0].id,
+                            artifact_type="test-suite",
+                            title="Scale and resilience suite",
+                            description="High-volume suite seeded for link modal stress scenarios.",
+                            state=suite_st,
+                            parent_id=suites_folder.id if suites_folder is not None else parent_suites_id,
+                            artifact_key=f"{first_project[0].code}-{seq_su3}",
+                            custom_fields={"suite_note": "Scale coverage"},
+                        )
+                        scale_suite.created_by = user.id
+                        await artifact_repo.add(scale_suite)
 
                         seq_run = await project_repo.increment_artifact_seq(first_project[0].id)
                         demo_run = ArtifactEntity(
@@ -1140,7 +1224,7 @@ async def seed_demo_data(
                             title="Demo test run",
                             description="Sample run against the demo suite.",
                             state=run_st,
-                            parent_id=quality_folder.id if quality_folder is not None else parent_qual_id,
+                            parent_id=suites_folder.id if suites_folder is not None else parent_suites_id,
                             artifact_key=f"{first_project[0].code}-{seq_run}",
                             custom_fields={
                                 "environment": "staging",
@@ -1157,7 +1241,7 @@ async def seed_demo_data(
                             title="Nightly API run - failed",
                             description="Seeded failed run to demonstrate run status distribution.",
                             state="failed",
-                            parent_id=quality_folder.id if quality_folder is not None else parent_qual_id,
+                            parent_id=suites_folder.id if suites_folder is not None else parent_suites_id,
                             artifact_key=f"{first_project[0].code}-{seq_run2}",
                             custom_fields={
                                 "environment": "staging",
@@ -1174,7 +1258,7 @@ async def seed_demo_data(
                             title="Demo campaign",
                             description="Sample campaign grouping suite execution.",
                             state=camp_st,
-                            parent_id=quality_folder.id if quality_folder is not None else parent_qual_id,
+                            parent_id=suites_folder.id if suites_folder is not None else parent_suites_id,
                             artifact_key=f"{first_project[0].code}-{seq_camp}",
                             custom_fields={
                                 "target_environment": "staging",
@@ -1191,7 +1275,7 @@ async def seed_demo_data(
                             title="Release readiness campaign",
                             description="Aggregates regression and API suites for release gate.",
                             state="in_progress",
-                            parent_id=quality_folder.id if quality_folder is not None else parent_qual_id,
+                            parent_id=suites_folder.id if suites_folder is not None else parent_suites_id,
                             artifact_key=f"{first_project[0].code}-{seq_camp2}",
                             custom_fields={
                                 "target_environment": "production",
@@ -1284,6 +1368,25 @@ async def seed_demo_data(
                             link_type="suite_includes_test",
                         )
                     )
+                if scale_suite is not None and tc_login is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=scale_suite.id,
+                            to_artifact_id=tc_login.id,
+                            link_type="suite_includes_test",
+                        )
+                    )
+                if scale_suite is not None:
+                    for extra_case in extra_test_cases:
+                        await link_repo.add(
+                            ArtifactLink.create(
+                                project_id=first_project[0].id,
+                                from_artifact_id=scale_suite.id,
+                                to_artifact_id=extra_case.id,
+                                link_type="suite_includes_test",
+                            )
+                        )
                 if demo_run is not None and demo_suite is not None:
                     await link_repo.add(
                         ArtifactLink.create(

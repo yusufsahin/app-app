@@ -1,13 +1,13 @@
 # Quality domain — prototype → manifest mapping
 
-Maps concepts from [Metadatadriventestmanagement](../../Metadatadriventestmanagement/) to ALM **artifacts** under the single `tree_id: quality` root (`root-quality`).
+Maps concepts from [Metadatadriventestmanagement](../../Metadatadriventestmanagement/) to ALM **artifacts** under separate `tests` and `testsuites` roots.
 
 ## Decisions
 
 | Topic | Choice |
 |-------|--------|
-| Trees | One **quality** tree; all quality artifact types live under `root-quality` or `quality-folder`. |
-| Folders | **`quality-folder`** artifact type (`workflow_id: root`) instead of parallel Redux folder stores. |
+| Trees | Two trees: **`tests`** (`root-tests`) and **`testsuites`** (`root-testsuites`). |
+| Folders | **`test-folder`** for test-cases, **`testsuite-folder`** for suites/runs/campaigns. |
 | Suite ↔ test membership | **`suite_includes_test`** link: `from` = `test-suite`, `to` = `test-case`. |
 | Run ↔ suite | **`run_for_suite`** link: `from` = `test-run`, `to` = `test-suite`. |
 | Campaign ↔ suite | **`campaign_includes_suite`** link: `from` = `test-campaign`, `to` = `test-suite`. |
@@ -19,7 +19,8 @@ Maps concepts from [Metadatadriventestmanagement](../../Metadatadriventestmanage
 
 | `artifact_type` | Role |
 |-----------------|------|
-| `quality-folder` | Container (replaces Test/Suite/Run folder slices). |
+| `test-folder` | Container for `test-case` hierarchy. |
+| `testsuite-folder` | Container for `test-suite`, `test-run`, `test-campaign`. |
 | `test-case` | Executable test; steps in `test_steps_json`. |
 | `test-suite` | Groups tests via links. |
 | `test-run` | Execution of a suite; metrics JSON optional. |

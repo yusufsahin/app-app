@@ -11,6 +11,7 @@ from alm.artifact.application.commands.delete_artifact import (
     DeleteArtifact,
     DeleteArtifactHandler,
 )
+from alm.artifact.application.commands.update_artifact import UpdateArtifact, UpdateArtifactHandler
 from alm.artifact.domain.constants import ROOT_ARTIFACT_TYPES, is_root_artifact
 from alm.artifact.domain.entities import Artifact
 from alm.shared.domain.exceptions import ValidationError
@@ -19,6 +20,7 @@ from alm.shared.domain.exceptions import ValidationError
 def test_is_root_artifact():
     assert is_root_artifact("root-requirement") is True
     assert is_root_artifact("root-quality") is True
+    assert is_root_artifact("root-testsuites") is True
     assert is_root_artifact("root-defect") is True
     assert is_root_artifact("requirement") is False
     assert is_root_artifact("defect") is False
@@ -28,8 +30,9 @@ def test_is_root_artifact():
 def test_root_artifact_types_constant():
     assert "root-requirement" in ROOT_ARTIFACT_TYPES
     assert "root-quality" in ROOT_ARTIFACT_TYPES
+    assert "root-testsuites" in ROOT_ARTIFACT_TYPES
     assert "root-defect" in ROOT_ARTIFACT_TYPES
-    assert len(ROOT_ARTIFACT_TYPES) == 3
+    assert len(ROOT_ARTIFACT_TYPES) == 4
 
 
 @pytest.mark.asyncio
@@ -63,4 +66,45 @@ async def test_delete_root_raises_validation_error():
         await handler.handle(cmd)
     assert "root" in exc_info.value.detail.lower()
 
+    artifact_repo.update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_root_raises_validation_error() -> None:
+    tenant_id = uuid.uuid4()
+    project_id = uuid.uuid4()
+    root_id = uuid.uuid4()
+    root = Artifact(
+        project_id=project_id,
+        artifact_type="root-testsuites",
+        title="Suites Root",
+        state="Active",
+        id=root_id,
+        artifact_key="PRJ-TS0",
+    )
+    project = AsyncMock(tenant_id=tenant_id, process_template_version_id=None)
+
+    artifact_repo = AsyncMock()
+    artifact_repo.find_by_id = AsyncMock(return_value=root)
+    project_repo = AsyncMock()
+    project_repo.find_by_id = AsyncMock(return_value=project)
+    process_template_repo = AsyncMock()
+    area_repo = AsyncMock()
+
+    handler = UpdateArtifactHandler(
+        artifact_repo=artifact_repo,
+        project_repo=project_repo,
+        area_repo=area_repo,
+        process_template_repo=process_template_repo,
+    )
+    cmd = UpdateArtifact(
+        tenant_id=tenant_id,
+        project_id=project_id,
+        artifact_id=root_id,
+        updates={"title": "New title"},
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        await handler.handle(cmd)
+    assert "cannot be updated" in exc_info.value.detail.lower()
     artifact_repo.update.assert_not_called()

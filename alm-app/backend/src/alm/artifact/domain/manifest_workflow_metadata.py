@@ -11,6 +11,7 @@ from typing import Any
 DEFAULT_TREE_ROOT_MAP: dict[str, str] = {
     "requirement": "root-requirement",
     "quality": "root-quality",
+    "testsuites": "root-testsuites",
     "defect": "root-defect",
 }
 
@@ -24,7 +25,7 @@ _FALLBACK_TASK_OPTIONS: list[dict[str, str]] = [
 
 # Default when manifest omits system_roots / defs flags (kept in sync with constants.ROOT_ARTIFACT_TYPES).
 DEFAULT_SYSTEM_ROOT_TYPES: frozenset[str] = frozenset(
-    ("root-requirement", "root-quality", "root-defect"),
+    ("root-requirement", "root-quality", "root-testsuites", "root-defect"),
 )
 
 DEFAULT_BURNDOWN_DONE_STATES: tuple[str, ...] = ("done", "closed", "resolved")

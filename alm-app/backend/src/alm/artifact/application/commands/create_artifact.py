@@ -92,14 +92,29 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
                     f"Artifact type '{command.artifact_type}' cannot be child of "
                     f"'{parent.artifact_type}' per manifest hierarchy"
                 )
-            if command.artifact_type in {"test-case", "test-suite", "test-run", "test-campaign"} and parent.artifact_type != "quality-folder":
+            quality_parent_map = {
+                "test-case": "quality-folder",
+                "test-suite": "testsuite-folder",
+                "test-run": "testsuite-folder",
+                "test-campaign": "testsuite-folder",
+            }
+            expected_parent_type = quality_parent_map.get(command.artifact_type)
+            if expected_parent_type and parent.artifact_type != expected_parent_type:
                 raise ValidationError(
-                    f"Artifact type '{command.artifact_type}' must be created under a 'quality-folder'"
+                    f"Artifact type '{command.artifact_type}' must be created under a '{expected_parent_type}'"
                 )
-        elif command.artifact_type in {"test-case", "test-suite", "test-run", "test-campaign"}:
-            raise ValidationError(
-                f"Artifact type '{command.artifact_type}' must be created under a 'quality-folder'"
-            )
+        else:
+            quality_parent_map = {
+                "test-case": "quality-folder",
+                "test-suite": "testsuite-folder",
+                "test-run": "testsuite-folder",
+                "test-campaign": "testsuite-folder",
+            }
+            expected_parent_type = quality_parent_map.get(command.artifact_type)
+            if expected_parent_type:
+                raise ValidationError(
+                    f"Artifact type '{command.artifact_type}' must be created under a '{expected_parent_type}'"
+                )
 
         artifact_key = command.artifact_key
         if artifact_key is None or artifact_key.strip() == "":

@@ -18,6 +18,22 @@ export interface CreateArtifactLinkRequest {
   link_type?: string;
 }
 
+export interface BulkArtifactLinkRequest {
+  to_artifact_ids: string[];
+  link_type?: string;
+  idempotency_key?: string;
+}
+
+export interface BulkArtifactUnlinkRequest {
+  link_ids: string[];
+  idempotency_key?: string;
+}
+
+export interface BulkArtifactLinkResult {
+  succeeded: string[];
+  failed: Array<{ id: string; reason: string }>;
+}
+
 export function useArtifactLinks(
   orgSlug: string | undefined,
   projectId: string | undefined,
@@ -73,6 +89,50 @@ export function useDeleteArtifactLink(
       await apiClient.delete(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/links/${linkId}`,
       );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "links"],
+      });
+    },
+  });
+}
+
+export function useBulkCreateArtifactLinks(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+  artifactId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: BulkArtifactLinkRequest): Promise<BulkArtifactLinkResult> => {
+      const { data } = await apiClient.post<BulkArtifactLinkResult>(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/links/bulk`,
+        payload,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "links"],
+      });
+    },
+  });
+}
+
+export function useBulkDeleteArtifactLinks(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+  artifactId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: BulkArtifactUnlinkRequest): Promise<BulkArtifactLinkResult> => {
+      const { data } = await apiClient.post<BulkArtifactLinkResult>(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/links/bulk-delete`,
+        payload,
+      );
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

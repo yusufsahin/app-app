@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import ForeignKey, String, Uuid
+from sqlalchemy import ForeignKey, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from alm.shared.infrastructure.db.base_model import Base, TimestampMixin
@@ -12,6 +12,15 @@ from alm.shared.infrastructure.db.base_model import Base, TimestampMixin
 
 class ArtifactLinkModel(Base, TimestampMixin):
     __tablename__ = "artifact_links"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "from_artifact_id",
+            "to_artifact_id",
+            "link_type",
+            name="uq_artifact_links_project_from_to_type",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(

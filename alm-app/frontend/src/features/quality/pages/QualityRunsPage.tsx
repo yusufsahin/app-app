@@ -4,6 +4,9 @@ export default function QualityRunsPage() {
   return (
     <QualityArtifactWorkspace
       artifactType="test-run"
+      treeId="testsuites"
+      rootArtifactType="root-testsuites"
+      folderArtifactType="testsuite-folder"
       pageLabel="Test runs"
       description="Execution records linked to suites."
       createCta="Create run"

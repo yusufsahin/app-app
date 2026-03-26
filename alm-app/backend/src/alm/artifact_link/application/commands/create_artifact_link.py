@@ -5,6 +5,8 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from sqlalchemy.exc import IntegrityError
+
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact_link.application.dtos import ArtifactLinkDTO
 from alm.artifact_link.domain.entities import ArtifactLink
@@ -66,7 +68,10 @@ class CreateArtifactLinkHandler(CommandHandler[ArtifactLinkDTO]):
             to_artifact_id=command.to_artifact_id,
             link_type=link_type,
         )
-        await self._link_repo.add(link)
+        try:
+            await self._link_repo.add(link)
+        except IntegrityError as exc:
+            raise ValidationError("Link already exists between these artifacts with this type") from exc
 
         return ArtifactLinkDTO(
             id=link.id,
