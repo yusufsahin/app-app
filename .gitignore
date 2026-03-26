@@ -57,5 +57,8 @@ htmlcov/
 manifest-platform-core-suite/
 Metadatadriventestmanagement/.git
 
+# Claude Code worktrees (nested clones; must not be tracked as submodules)
+alm-app/frontend/.claude/worktrees/
+
 # CI gate outputs (local)
 alm-app/backend/artifacts/
