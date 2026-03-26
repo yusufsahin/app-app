@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import uuid
 from dataclasses import dataclass
 
@@ -60,7 +61,5 @@ class AssignRolesHandler(CommandHandler[None]):
 
         await self._membership_repo.set_roles(membership.id, command.role_ids, assigned_by=command.assigned_by)
 
-        try:
+        with contextlib.suppress(Exception):
             await self._permission_cache.invalidate_user(command.tenant_id, command.user_id)
-        except Exception:
-            pass

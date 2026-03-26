@@ -1,6 +1,6 @@
 # Run from alm-app directory: docker compose up --build -d
-# Backend build context is parent of alm-manifest-app (.. from alm-app = ../..) so both
-# manifest-platform-core-suite (inside alm-manifest-app) and statelesspy (sibling repo) are available.
+# Backend build context is parent of alm-manifest-app (../.. from alm-app) so
+# manifest-platform-core-suite is available for the native MPC engine.
 services:
   db:
     image: postgres:16-alpine
@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: alm_dev_password
       POSTGRES_DB: alm
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,8 +20,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -36,20 +36,23 @@ services:
 
   backend:
     build:
-      context: ../..
+      # Context must be parent of alm-manifest-app (repo root). From alm-app: ../..
+      # On Windows use docker-build-local.ps1 or set ALM_DOCKER_CONTEXT to that path (e.g. c:\source).
+      context: ${ALM_DOCKER_CONTEXT:-../..}
       dockerfile: alm-manifest-app/alm-app/backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "9000:8000"
     environment:
       ALM_DEBUG: "true"
       ALM_DATABASE_URL: "postgresql+asyncpg://alm:alm_dev_password@db:5432/alm"
       ALM_REDIS_URL: "redis://redis:6379/0"
       ALM_JWT_SECRET_KEY: "docker-dev-secret-change-in-prod"
-      ALM_CORS_ORIGINS: '["http://localhost:3000","http://localhost:5173"]'
+      ALM_CORS_ORIGINS: '["http://localhost:9001","http://localhost:3000","http://localhost:5173"]'
       ALM_SMTP_HOST: "mailhog"
       ALM_SMTP_PORT: "1025"
       ALM_SMTP_FROM: "noreply@alm.local"
-      ALM_BASE_URL: "http://localhost:3000"
+      ALM_BASE_URL: "http://localhost:9001"
+      ALM_RATE_LIMIT_REQUESTS_PER_MINUTE: "600"
     depends_on:
       db:
         condition: service_healthy
@@ -64,10 +67,10 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: alm-manifest-app/alm-app/frontend/Dockerfile
     ports:
-      - "3000:80"
+      - "9001:80"
     depends_on:
       backend:
         condition: service_healthy

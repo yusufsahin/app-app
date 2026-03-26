@@ -5,7 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 
 export default [
-  { ignores: ["dist", "node_modules", "**/*.config.js", "**/*.config.ts"] },
+  { ignores: ["dist", "node_modules", ".claude", "**/*.config.js", "**/*.config.ts"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

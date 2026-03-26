@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import uuid
+
 from alm.shared.infrastructure.security.field_masking import (
     SENSITIVE_CUSTOM_FIELD_KEYS,
-    allowed_actions_for_artifact,
     mask_artifact_response,
 )
 
@@ -41,27 +42,75 @@ class TestMaskArtifactResponse:
         assert "internal_notes" in SENSITIVE_CUSTOM_FIELD_KEYS
         assert "confidential" in SENSITIVE_CUSTOM_FIELD_KEYS
 
+    async def test_mask_artifact_for_user(self):
+        from unittest.mock import AsyncMock, patch
 
-class TestAllowedActionsForArtifact:
-    def test_maps_permissions_to_actions(self):
-        actions = allowed_actions_for_artifact(
-            ["artifact:read", "artifact:update", "artifact:transition"],
+        from alm.artifact.api.schemas import ArtifactResponse
+        from alm.shared.infrastructure.security.dependencies import CurrentUser
+
+        resp = ArtifactResponse(
+            id=uuid.uuid4(),
+            project_id=uuid.uuid4(),
+            artifact_type="task",
+            title="T1",
+            description="",
+            state="new",
+            assignee_id=None,
+            parent_id=None,
+            custom_fields={"internal_notes": "secret", "priority": "high"},
         )
-        assert "read" in actions
-        assert "update" in actions
-        assert "restore" in actions  # restore comes with update
-        assert "transition" in actions
-        assert "delete" not in actions
+        user = CurrentUser(id=uuid.uuid4(), tenant_id=uuid.uuid4(), roles=["viewer"])
 
-    def test_empty_privileges(self):
-        assert allowed_actions_for_artifact([]) == []
+        with patch(
+            "alm.shared.infrastructure.security.dependencies.get_user_privileges",
+            AsyncMock(return_value=["artifact:read"]),
+        ):
+            from alm.shared.infrastructure.security.field_masking import mask_artifact_for_user
 
-    def test_wildcard_grants_all(self):
-        actions = allowed_actions_for_artifact(["*"])
-        assert "read" in actions
-        assert "update" in actions
-        assert "delete" in actions
-        assert "transition" in actions
-        assert "create" in actions
-        assert "comment" in actions
-        assert "restore" in actions
+            out = await mask_artifact_for_user(resp, user)
+            assert "internal_notes" not in out.custom_fields
+            assert out.custom_fields["priority"] == "high"
+            assert "read" in out.allowed_actions
+
+    async def test_mask_artifact_list_for_user(self):
+        from unittest.mock import AsyncMock, patch
+
+        from alm.artifact.api.schemas import ArtifactResponse
+        from alm.shared.infrastructure.security.dependencies import CurrentUser
+
+        items = [
+            ArtifactResponse(
+                id=uuid.uuid4(),
+                project_id=uuid.uuid4(),
+                artifact_type="t",
+                title="T1",
+                description="",
+                state="n",
+                assignee_id=None,
+                parent_id=None,
+                custom_fields={"internal_notes": "s"},
+            ),
+            ArtifactResponse(
+                id=uuid.uuid4(),
+                project_id=uuid.uuid4(),
+                artifact_type="t",
+                title="T2",
+                description="",
+                state="n",
+                assignee_id=None,
+                parent_id=None,
+                custom_fields={"priority": "h"},
+            ),
+        ]
+        user = CurrentUser(id=uuid.uuid4(), tenant_id=uuid.uuid4(), roles=["viewer"])
+
+        with patch(
+            "alm.shared.infrastructure.security.dependencies.get_user_privileges",
+            AsyncMock(return_value=["artifact:read"]),
+        ):
+            from alm.shared.infrastructure.security.field_masking import mask_artifact_list_for_user
+
+            out = await mask_artifact_list_for_user(items, user)
+            assert len(out) == 2
+            assert "internal_notes" not in out[0].custom_fields
+            assert out[1].custom_fields["priority"] == "h"

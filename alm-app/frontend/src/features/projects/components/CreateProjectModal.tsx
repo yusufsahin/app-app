@@ -1,15 +1,16 @@
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Loader2 } from "lucide-react";
 import {
-  Box,
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
-  Button,
-  CircularProgress,
-} from "@mui/material";
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "../../../shared/components/ui/dialog";
+import { Button } from "../../../shared/components/ui";
 import { RhfDescriptionField, RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useCreateOrgProject } from "../../../shared/api/orgApi";
 import { useProcessTemplates } from "../../../shared/api/processTemplateApi";
@@ -80,61 +81,60 @@ export default function CreateProjectModal({ open, onClose, orgSlug }: CreatePro
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <FormProvider {...form}>
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <DialogTitle fontWeight={600}>New Project</DialogTitle>
-          <DialogContent>
-            <RhfTextField<CreateProjectFormData>
-              name="code"
-              label="Code"
-              placeholder="e.g. ALM"
-              fullWidth
-              helperText="2-10 alphanumeric characters, uppercase"
-              sx={{ mt: 1, mb: 2 }}
-              inputProps={{ maxLength: 10 }}
-            />
-            <RhfTextField<CreateProjectFormData>
-              name="name"
-              label="Project name"
-              fullWidth
-              sx={{ mb: 2 }}
-            />
-            <Box sx={{ mb: 2 }}>
+    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
+      <DialogContent className="max-w-sm">
+        <FormProvider {...form}>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <DialogHeader>
+              <DialogTitle>New Project</DialogTitle>
+              <DialogDescription className="sr-only">
+                Create a new project in this organization. Enter code, name, process template, and optional description.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-2 space-y-4">
+              <RhfTextField<CreateProjectFormData>
+                name="code"
+                label="Code"
+                placeholder="e.g. ALM"
+                fullWidth
+                helperText="2-10 alphanumeric characters, uppercase"
+                inputProps={{ maxLength: 10 }}
+              />
+              <RhfTextField<CreateProjectFormData>
+                name="name"
+                label="Project name"
+                fullWidth
+              />
               <RhfSelect<CreateProjectFormData>
                 name="process_template_slug"
                 control={control}
                 label="Process template"
                 options={templateOptions}
               />
-            </Box>
-            <RhfDescriptionField<CreateProjectFormData>
-              name="description"
-              control={control}
-              mode="text"
-              label="Description (optional)"
-              allowModeSwitch
-              rows={4}
-            />
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button onClick={handleClose} disabled={createMutation.isPending}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={createMutation.isPending}
-            >
-              {createMutation.isPending ? (
-                <CircularProgress size={22} color="inherit" />
-              ) : (
-                "Create"
-              )}
-            </Button>
-          </DialogActions>
-        </form>
-      </FormProvider>
+              <RhfDescriptionField<CreateProjectFormData>
+                name="description"
+                control={control}
+                mode="text"
+                label="Description (optional)"
+                allowModeSwitch
+                rows={4}
+              />
+            </div>
+            <DialogFooter className="mt-6 gap-2 px-0 pb-0">
+              <Button type="button" variant="outline" onClick={handleClose} disabled={createMutation.isPending}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? (
+                  <Loader2 className="size-5 animate-spin" />
+                ) : (
+                  "Create"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </FormProvider>
+      </DialogContent>
     </Dialog>
   );
 }

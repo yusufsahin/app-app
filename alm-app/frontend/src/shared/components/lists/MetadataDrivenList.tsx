@@ -1,19 +1,9 @@
 /**
  * Metadata-driven list — renders table from ListSchemaDto (columns + optional filters).
  */
-import {
-  Box,
-  Checkbox,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Typography,
-} from "@mui/material";
+import { Checkbox } from "../ui";
 import { useMemo, useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { RhfSelect } from "../forms";
 import type { ListSchemaDto, ListColumnSchema, ListFilterSchema } from "../../types/listSchema";
@@ -33,7 +23,7 @@ export interface MetadataDrivenListProps<T> {
   getRowKey: (row: T) => string;
   filterValues?: Record<string, string>;
   onFilterChange?: (key: string, value: string) => void;
-  renderRowActions?: (row: T) => React.ReactNode;
+  renderRowActions?: (row: T) => ReactNode;
   emptyMessage?: string;
   onRowClick?: (row: T) => void;
   /** When set, show a checkbox column and call onToggleSelect when row checkbox is toggled. */
@@ -44,6 +34,14 @@ export interface MetadataDrivenListProps<T> {
   onToggleSelect?: (rowKey: string) => void;
   /** Called when header "select all" is toggled (true = select all on page, false = deselect all). */
   onSelectAll?: (checked: boolean) => void;
+  /** When true, do not render the filter row (filters are shown elsewhere, e.g. toolbar). */
+  hideFilters?: boolean;
+  /** Optional per-cell UI (e.g. icon + text). Return null/undefined to use default string rendering. */
+  renderCell?: (
+    row: T,
+    columnKey: string,
+    cellValue: string | number | null | undefined,
+  ) => ReactNode | null | undefined;
 }
 
 export function MetadataDrivenList<T>({
@@ -60,6 +58,8 @@ export function MetadataDrivenList<T>({
   selectedKeys,
   onToggleSelect,
   onSelectAll,
+  hideFilters = false,
+  renderCell,
 }: MetadataDrivenListProps<T>) {
   const sortedColumns = useMemo(
     () => [...(schema.columns ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
@@ -71,7 +71,7 @@ export function MetadataDrivenList<T>({
     [schema.filters],
   );
 
-  const hasFilters = sortedFilters.length > 0 && onFilterChange;
+  const hasFilters = sortedFilters.length > 0 && onFilterChange && !hideFilters;
 
   type FilterFormValues = Record<string, string>;
   const filterDefaultValues = useMemo<FilterFormValues>(
@@ -81,6 +81,7 @@ export function MetadataDrivenList<T>({
   const filterForm = useForm<FilterFormValues>({ defaultValues: filterDefaultValues });
   useEffect(() => {
     filterForm.reset(Object.fromEntries(sortedFilters.map((f) => [f.key, filterValues[f.key] ?? ""])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when filter values/tabs change; filterForm omitted to avoid loops
   }, [filterValues, sortedFilters]);
   const watchedFilterValues = filterForm.watch();
   const filterInitialMount = useRef(true);
@@ -97,6 +98,7 @@ export function MetadataDrivenList<T>({
         break;
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run on watchedFilterValues change only; onFilterChange/filterValues/sortedFilters omitted
   }, [watchedFilterValues]);
 
   const selectedSet = useMemo(() => {
@@ -113,10 +115,10 @@ export function MetadataDrivenList<T>({
     sortedColumns.length + (renderRowActions ? 1 : 0) + (selectionColumn ? 1 : 0);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+    <div className="flex flex-col gap-4">
       {hasFilters && (
         <FormProvider {...filterForm}>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+          <div className="flex flex-wrap gap-4">
             {sortedFilters.map((f) => (
               <RhfSelect<FilterFormValues>
                 key={f.key}
@@ -124,88 +126,87 @@ export function MetadataDrivenList<T>({
                 control={filterForm.control}
                 label={filterLabel(f)}
                 options={[{ value: "", label: "All" }, ...(f.options ?? []).map((opt) => ({ value: opt, label: opt }))]}
-                selectProps={{ size: "small", sx: { minWidth: 140 } }}
+                selectProps={{ size: "sm" }}
               />
             ))}
-          </Box>
+          </div>
         </FormProvider>
       )}
 
-      <TableContainer component={Paper} variant="outlined">
-        <Table size="small" aria-label={schema.entity_type}>
-          <TableHead>
-            <TableRow>
+      <div className="max-h-[70vh] overflow-auto rounded-md border border-border">
+        <table className="w-full border-collapse text-sm" aria-label={schema.entity_type}>
+          <thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur">
+            <tr>
               {selectionColumn && (
-                <TableCell padding="checkbox">
+                <th className="w-12 border-b border-border p-2">
                   <Checkbox
-                    indeterminate={someSelected && !allSelected}
-                    checked={allSelected}
-                    onChange={(_, checked) => onSelectAll?.(checked)}
+                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                    onCheckedChange={(checked) => onSelectAll?.(!!checked)}
                     disabled={data.length === 0}
                     aria-label="Select all on page"
                     onClick={(e) => e.stopPropagation()}
                   />
-                </TableCell>
+                </th>
               )}
               {sortedColumns.map((col) => (
-                <TableCell key={col.key}>
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    {columnLabel(col)}
-                  </Typography>
-                </TableCell>
+                <th key={col.key} className="border-b border-border px-2 py-2 text-left font-semibold">
+                  {columnLabel(col)}
+                </th>
               ))}
-              {renderRowActions && <TableCell width={80}>Actions</TableCell>}
-            </TableRow>
-          </TableHead>
-          <TableBody>
+              {renderRowActions && <th className="w-20 border-b border-border px-2 py-2 text-left">Actions</th>}
+            </tr>
+          </thead>
+          <tbody>
             {data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={colSpan} align="center">
-                  <Typography variant="body2" color="text.secondary">
-                    {emptyMessage}
-                  </Typography>
-                </TableCell>
-              </TableRow>
+              <tr>
+                <td colSpan={colSpan} className="border-b border-border px-2 py-6 text-center text-muted-foreground">
+                  {emptyMessage}
+                </td>
+              </tr>
             ) : (
               data.map((row) => {
                 const rowKey = getRowKey(row);
                 const checked = selectedSet.has(rowKey);
                 return (
-                  <TableRow
+                  <tr
                     key={rowKey}
-                    hover={!!onRowClick}
                     onClick={() => onRowClick?.(row)}
-                    sx={onRowClick ? { cursor: "pointer" } : undefined}
+                    className={onRowClick ? "cursor-pointer hover:bg-muted/50" : ""}
                   >
                     {selectionColumn && (
-                      <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                      <td className="border-b border-border p-2" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={checked}
-                          onChange={() => onToggleSelect?.(rowKey)}
+                          onCheckedChange={() => onToggleSelect?.(rowKey)}
                           aria-label={`Select ${rowKey}`}
                         />
-                      </TableCell>
+                      </td>
                     )}
                     {sortedColumns.map((col) => {
                       const val = getCellValue(row, col.key);
+                      const custom = renderCell?.(row, col.key, val);
                       return (
-                        <TableCell key={col.key}>
-                          {val !== undefined && val !== null ? String(val) : "—"}
-                        </TableCell>
+                        <td key={col.key} className="border-b border-border px-2 py-2">
+                          {custom != null && custom !== false
+                            ? custom
+                            : val !== undefined && val !== null
+                              ? String(val)
+                              : "—"}
+                        </td>
                       );
                     })}
                     {renderRowActions && (
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <td className="border-b border-border px-2 py-2" onClick={(e) => e.stopPropagation()}>
                         {renderRowActions(row)}
-                      </TableCell>
+                      </td>
                     )}
-                  </TableRow>
+                  </tr>
                 );
               })
             )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

@@ -13,10 +13,11 @@ Metrikler, loglama ve tracing — artifact workflow geçişleri için.
 
 ### alm_artifact_transition_total labels
 
-- **result:** `success` | `validation_error` | `policy_denied` | `conflict_error`
+- **result:** `success` | `validation_error` | `guard_denied` | `policy_denied` | `conflict_error`
   - `success`: Geçiş uygulandı.
-  - `validation_error`: Geçersiz trigger/state, guard sağlanmadı veya diğer validasyon hataları.
-  - `policy_denied`: Geçiş grafikte geçerli ancak TransitionPolicy veya MPC PolicyEngine reddetti.
+  - `validation_error`: Geçersiz trigger/state, manifest dışı validasyonlar (guard dışı).
+  - `guard_denied`: Geçiş grafikte geçerli ancak manifest transition `guard` (whitelist evaluator) başarısız; API `GuardDeniedError` → `/errors/guard-denied`.
+  - `policy_denied`: TransitionPolicy veya MPC `PolicyEngine` reddetti.
   - `conflict_error`: Optimistic lock uyuşmazlığı (expected_updated_at).
 
 ### alm_artifact_transition_duration_seconds
@@ -56,5 +57,5 @@ Dağıtık izlemede geçiş akışını filtrelemek için kullanılabilir.
 
 ## 4. İlgili dokümanlar
 
-- [WORKFLOW_ENGINE_BOUNDARY.md](WORKFLOW_ENGINE_BOUNDARY.md) — Handler sırası, Statelesspy vs MPC.
+- [WORKFLOW_ENGINE_BOUNDARY.md](WORKFLOW_ENGINE_BOUNDARY.md) — Handler sırası, workflow_sm ve MPC policy sınırı.
 - [WORKFLOW_API.md](WORKFLOW_API.md) — Transition ve batch-transition API.

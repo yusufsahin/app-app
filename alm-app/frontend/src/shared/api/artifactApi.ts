@@ -43,7 +43,13 @@ export interface ArtifactListParams {
   offset?: number;
   include_deleted?: boolean;
   cycle_node_id?: string;
+  release_cycle_node_id?: string;
   area_node_id?: string;
+  tree?: string;
+  /** When true, API returns system root rows (Requirements / Quality / Defects folder roots). */
+  include_system_roots?: boolean;
+  /** Direct children of this parent artifact (combined with `tree` subtree when set). */
+  parent_id?: string;
 }
 
 /**
@@ -59,7 +65,11 @@ export function buildArtifactListParams(options: {
   offset?: number;
   includeDeleted?: boolean;
   cycleNodeId?: string | null;
+  releaseCycleNodeId?: string | null;
   areaNodeId?: string | null;
+  tree?: string | null;
+  includeSystemRoots?: boolean;
+  parentId?: string | null;
 }): ArtifactListParams {
   const params: ArtifactListParams = {};
   const {
@@ -72,7 +82,11 @@ export function buildArtifactListParams(options: {
     offset,
     includeDeleted,
     cycleNodeId,
+    releaseCycleNodeId,
     areaNodeId,
+    tree,
+    includeSystemRoots,
+    parentId,
   } = options;
   if (stateFilter) params.state = stateFilter;
   if (typeFilter) params.type = typeFilter;
@@ -83,8 +97,14 @@ export function buildArtifactListParams(options: {
   if (limit != null) params.limit = limit;
   if (offset != null) params.offset = offset;
   if (includeDeleted) params.include_deleted = true;
-  if (cycleNodeId) params.cycle_node_id = cycleNodeId;
+  if (releaseCycleNodeId) params.release_cycle_node_id = releaseCycleNodeId;
+  else if (cycleNodeId) params.cycle_node_id = cycleNodeId;
   if (areaNodeId) params.area_node_id = areaNodeId;
+  const treeTrim = tree?.trim();
+  if (treeTrim) params.tree = treeTrim;
+  if (includeSystemRoots) params.include_system_roots = true;
+  const parentTrim = parentId?.trim();
+  if (parentTrim) params.parent_id = parentTrim;
   return params;
 }
 
@@ -100,7 +120,11 @@ export function useArtifacts(
   offset?: number,
   includeDeleted?: boolean,
   cycleNodeId?: string | null,
+  releaseCycleNodeId?: string | null,
   areaNodeId?: string | null,
+  tree?: string | null,
+  includeSystemRoots?: boolean,
+  parentId?: string | null,
 ) {
   const params = buildArtifactListParams({
     stateFilter,
@@ -112,11 +136,35 @@ export function useArtifacts(
     offset,
     includeDeleted,
     cycleNodeId,
+    releaseCycleNodeId,
     areaNodeId,
+    tree,
+    includeSystemRoots,
+    parentId,
   });
 
   return useQuery({
-    queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", stateFilter, typeFilter, sortBy, sortOrder, searchQuery?.trim() || null, limit, offset, includeDeleted, cycleNodeId || null, areaNodeId || null],
+    queryKey: [
+      "orgs",
+      orgSlug,
+      "projects",
+      projectId,
+      "artifacts",
+      stateFilter,
+      typeFilter,
+      sortBy,
+      sortOrder,
+      searchQuery?.trim() || null,
+      limit,
+      offset,
+      includeDeleted,
+      cycleNodeId || null,
+      releaseCycleNodeId || null,
+      areaNodeId || null,
+      tree || null,
+      includeSystemRoots ?? false,
+      parentId?.trim() || null,
+    ],
     queryFn: async (): Promise<ArtifactsListResult> => {
       const { data } = await apiClient.get<ArtifactsListResult>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts`,
@@ -178,6 +226,8 @@ export interface UpdateArtifactRequest {
   assignee_id?: string | null;
   cycle_node_id?: string | null;
   area_node_id?: string | null;
+  parent_id?: string | null;
+  custom_fields?: Record<string, unknown>;
 }
 
 export interface PermittedTransitionItem {
@@ -251,6 +301,8 @@ export function useUpdateArtifact(
       if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id ?? null;
       if (payload.cycle_node_id !== undefined) body.cycle_node_id = payload.cycle_node_id ?? null;
       if (payload.area_node_id !== undefined) body.area_node_id = payload.area_node_id ?? null;
+      if (payload.parent_id !== undefined) body.parent_id = payload.parent_id ?? null;
+      if (payload.custom_fields !== undefined) body.custom_fields = payload.custom_fields;
       const { data } = await apiClient.patch<Artifact>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}`,
         body,

@@ -1,4 +1,6 @@
 # Faz E3: build, lint, unit tests. E2E (Playwright) isteğe bağlı ayrı job ile çalıştırılabilir.
+# Monorepo kökü ayrı bir GitHub repo ise: üst dizinde `.github/workflows/ci.yml` (alm-app/ yollarıyla) kullanılır;
+# bu dosya yalnızca `alm-app` tek başına clone edildiğinde çalışır.
 name: CI
 
 on:
@@ -10,6 +12,8 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      GATE_TIER: pr
     services:
       postgres:
         image: postgres:16-alpine
@@ -51,18 +55,98 @@ jobs:
         working-directory: backend
         run: uv sync --extra dev
 
+      - name: Verify MPC package import
+        working-directory: backend
+        run: uv run python -c "from alm.artifact.domain.mpc_facade import HAS_MPC; print('HAS_MPC', HAS_MPC)"
+
       - name: Backend lint (ruff)
         working-directory: backend
         run: uv run ruff check src
 
+      - name: validate_artifacts
+        working-directory: backend
+        run: uv run python scripts/validate_metadata.py
+
+      - name: export_traceability_graph CLI
+        working-directory: backend
+        run: uv run python scripts/export_traceability_graph.py --help
+
+      - name: Gate scripts sanity tests
+        working-directory: backend
+        run: uv run pytest tests/unit/test_artifact_gate_scripts.py -q
+
+      - name: compute_risk
+        working-directory: backend
+        run: uv run python scripts/compute_risk.py
+
+      - name: select_tests
+        working-directory: backend
+        run: uv run python scripts/select_tests.py
+
+      - name: flaky_quarantine_check
+        working-directory: backend
+        run: uv run python scripts/flaky_quarantine_check.py
+
+      - name: Prepare artifacts directory
+        working-directory: backend
+        run: mkdir -p artifacts
+
       - name: Backend test (pytest)
+        id: backend_pytest
+        continue-on-error: true
         working-directory: backend
         env:
           ALM_DATABASE_URL: postgresql+asyncpg://alm:alm_ci_password@localhost:5432/alm
           ALM_TEST_DATABASE_URL: postgresql+asyncpg://alm:alm_ci_password@localhost:5432/alm
           ALM_REDIS_URL: redis://localhost:6379/0
           ALM_JWT_SECRET_KEY: ci-secret-key-for-tests
-        run: uv run pytest tests -v --tb=short --ignore=tests/e2e
+          ALM_MPC_MODE: degraded
+        run: uv run pytest tests -v --tb=short --ignore=tests/e2e --junitxml artifacts/pytest-report.xml
+
+      - name: derive_execution_report
+        if: always()
+        working-directory: backend
+        run: uv run python scripts/derive_execution_report.py
+
+      - name: run_gates
+        if: always()
+        working-directory: backend
+        run: uv run python scripts/run_gates.py
+
+      - name: publish_gate_report
+        if: always()
+        working-directory: backend
+        run: uv run python scripts/publish_gate_report.py
+
+      - name: report_kpis
+        if: always()
+        working-directory: backend
+        run: uv run python scripts/report.py
+
+      - name: kpi_threshold_check
+        if: always()
+        working-directory: backend
+        run: uv run python scripts/kpi_threshold_check.py
+
+      # Monorepo kökü için bkz. depo kökündeki `.github/workflows/ci.yml` (path: alm-app/backend/artifacts/).
+      - name: Upload artifact-native gate outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-gate-artifacts
+          path: backend/artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Backend permission regression tests
+        working-directory: backend
+        env:
+          ALM_DATABASE_URL: postgresql+asyncpg://alm:alm_ci_password@localhost:5432/alm
+          ALM_TEST_DATABASE_URL: postgresql+asyncpg://alm:alm_ci_password@localhost:5432/alm
+          ALM_REDIS_URL: redis://localhost:6379/0
+          ALM_JWT_SECRET_KEY: ci-secret-key-for-tests
+          ALM_MPC_MODE: degraded
+        run: uv run pytest tests/unit/test_security_dependencies.py tests/unit/test_field_masking.py -v --tb=short
 
       - name: Backend dependency audit (pip-audit)
         working-directory: backend
@@ -101,5 +185,9 @@ jobs:
         run: npm run build:check-size
 
       - name: Frontend unit tests
+        working-directory: frontend
+        run: npm run test:unit
+
+      - name: Frontend flaky-test gate (repeat unit tests)
         working-directory: frontend
         run: npm run test:unit

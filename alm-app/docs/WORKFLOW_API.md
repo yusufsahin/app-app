@@ -33,13 +33,13 @@ Artifact durum geçişleri için kullanılan HTTP API özeti. Manifest’teki wo
 
 - **Body:** `artifact_ids`, ve `new_state` veya `trigger` (en az biri). Opsiyonel: `state_reason`, `resolution`.
 - **trigger:** Aynı trigger her artifact için kendi mevcut durumuna göre hedef state’e çözümlenir (artifact’lar farklı durumda olabilir).
-- **Yanıt:** `success_count`, `error_count`, `errors`, `results` (artifact_id → `ok` | `validation_error` | `policy_denied` | `conflict_error`).
+- **Yanıt:** `success_count`, `error_count`, `errors`, `results` (artifact_id → `ok` | `validation_error` | `guard_denied` | `policy_denied` | `conflict_error`).
 
 ---
 
 ## 4. İlgili dokümanlar
 
-- [WORKFLOW_ENGINE_BOUNDARY.md](./WORKFLOW_ENGINE_BOUNDARY.md) — Adapter vs MPC, handler sırası, guard entegrasyonu.
+- [WORKFLOW_ENGINE_BOUNDARY.md](./WORKFLOW_ENGINE_BOUNDARY.md) — `workflow_sm` (grafik) / `mpc_resolver` (policy), handler sırası.
 - [TRANSITION_OBSERVABILITY.md](./TRANSITION_OBSERVABILITY.md) — Geçiş metrikleri, log, tracing.
 - [GUARD_EVALUATOR_SECURITY.md](./GUARD_EVALUATOR_SECURITY.md) — Guard tipleri (assignee_required, field_present, field_equals), güvenlik kuralları.
 - [manifest-schema.md](./manifest-schema.md) — Workflow transitions (trigger, trigger_label, guard).

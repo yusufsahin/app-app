@@ -1,22 +1,27 @@
-import { List, ListItemButton, ListItemIcon, ListItemText, Box } from "@mui/material";
 import {
-  Dashboard,
-  People,
-  Security,
-  VerifiedUser,
+  LayoutDashboard,
+  Users,
+  Shield,
+  ShieldCheck,
   History,
-  AccountTree,
-} from "@mui/icons-material";
+  Network,
+} from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuthStore } from "../../../shared/stores/authStore";
+import { cn } from "../../../shared/components/ui";
 
-const NAV_ITEMS: { path: string; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
-  { path: "settings", label: "Overview", icon: <Dashboard /> },
-  { path: "members", label: "Members", icon: <People /> },
-  { path: "roles", label: "Roles", icon: <Security /> },
-  { path: "privileges", label: "Privileges", icon: <VerifiedUser /> },
-  { path: "manifest", label: "Process manifest", icon: <AccountTree />, adminOnly: true },
-  { path: "audit", label: "Access audit", icon: <History />, adminOnly: true },
+const NAV_ITEMS: {
+  path: string;
+  label: string;
+  icon: React.ReactNode;
+  adminOnly?: boolean;
+}[] = [
+  { path: "settings", label: "Overview", icon: <LayoutDashboard className="size-4" /> },
+  { path: "members", label: "Members", icon: <Users className="size-4" /> },
+  { path: "roles", label: "Roles", icon: <Shield className="size-4" /> },
+  { path: "privileges", label: "Privileges", icon: <ShieldCheck className="size-4" /> },
+  { path: "manifest", label: "Process manifest", icon: <Network className="size-4" />, adminOnly: true },
+  { path: "audit", label: "Access audit", icon: <History className="size-4" />, adminOnly: true },
 ];
 
 export function SettingsSubNav() {
@@ -28,17 +33,11 @@ export function SettingsSubNav() {
   const items = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
 
   return (
-    <Box
-      sx={{
-        width: 220,
-        flexShrink: 0,
-        borderRight: 1,
-        borderColor: "divider",
-        pr: 1,
-        mr: 3,
-      }}
+    <nav
+      className="mr-6 w-[220px] shrink-0 border-r border-border pr-2"
+      aria-label="Settings"
     >
-      <List dense disablePadding>
+      <ul className="space-y-0.5">
         {items.map((item) => {
           const fullPath = orgSlug ? `/${orgSlug}/${item.path}` : "#";
           const isActive =
@@ -49,28 +48,23 @@ export function SettingsSubNav() {
                 : location.pathname.startsWith(fullPath) || location.pathname === fullPath;
 
           return (
-            <ListItemButton
-              key={item.path}
-              component={Link}
-              to={fullPath}
-              selected={isActive}
-              sx={{
-                borderRadius: 1,
-                mb: 0.5,
-                "&.Mui-selected": {
-                  bgcolor: "primary.main",
-                  color: "primary.contrastText",
-                  "&:hover": { bgcolor: "primary.dark" },
-                  "& .MuiListItemIcon-root": { color: "inherit" },
-                },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} primaryTypographyProps={{ variant: "body2" }} />
-            </ListItemButton>
+            <li key={item.path}>
+              <Link
+                to={fullPath}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-2 py-1.5 text-sm transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {item.icon}
+                {item.label}
+              </Link>
+            </li>
           );
         })}
-      </List>
-    </Box>
+      </ul>
+    </nav>
   );
 }

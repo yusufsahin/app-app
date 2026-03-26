@@ -3,7 +3,8 @@
  * Form value: File | File[] | null. Use z.instanceof(File).nullable() or z.array(z.instanceof(File)) in Zod.
  */
 import { Controller } from "react-hook-form";
-import { Button, FormControl, FormHelperText, FormLabel, Typography } from "@mui/material";
+import { Button, Label } from "../ui";
+import { FormItem, FormControl, FormMessage } from "../ui/form";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
 
@@ -45,38 +46,36 @@ export function RhfFileInput<TFieldValues extends import("react-hook-form").Fiel
           ? (files as File[]).map((f) => f.name).join(", ") || "No files chosen"
           : (files as File | null)?.name ?? "No file chosen";
         return (
-          <FormControl fullWidth error={!!errorMessage} disabled={disabled} component="fieldset" variant="standard">
-            {label != null && label !== "" && <FormLabel component="legend" sx={{ mb: 0.5 }}>{label}</FormLabel>}
-            <Button
-              variant="outlined"
-              component="label"
-              disabled={disabled}
-              sx={{ alignSelf: "flex-start" }}
-            >
-              {buttonLabel}
-              <input
-                ref={ref}
-                type="file"
-                hidden
-                multiple={multiple}
-                accept={accept}
-                onChange={(e) => {
-                  const list = e.target.files;
-                  if (!list?.length) return;
-                  onChange((multiple ? Array.from(list) : list[0] ?? null) as File | File[] | null);
-                }}
-                onBlur={onBlur}
-              />
-            </Button>
-            {display && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                {display}
-              </Typography>
-            )}
-            {displayText != null && displayText !== "" && (
-              <FormHelperText sx={{ mt: 0.5 }}>{displayText}</FormHelperText>
-            )}
-          </FormControl>
+          <FormItem>
+            {label != null && label !== "" && <Label>{label}</Label>}
+            <FormControl>
+              <div className="space-y-1">
+                <Button variant="outline" asChild disabled={disabled} className="inline-flex">
+                  <label className="cursor-pointer">
+                    {buttonLabel}
+                    <input
+                      ref={ref}
+                      type="file"
+                      className="hidden"
+                      multiple={multiple}
+                      accept={accept}
+                      onChange={(e) => {
+                        const list = e.target.files;
+                        if (!list?.length) return;
+                        onChange((multiple ? Array.from(list) : list[0] ?? null) as File | File[] | null);
+                      }}
+                      onBlur={onBlur}
+                      disabled={disabled}
+                    />
+                  </label>
+                </Button>
+                {display && <p className="text-sm text-muted-foreground">{display}</p>}
+              </div>
+            </FormControl>
+            {(displayText != null && displayText !== "") || errorMessage ? (
+              <FormMessage>{errorMessage ?? displayText}</FormMessage>
+            ) : null}
+          </FormItem>
         );
       }}
     />

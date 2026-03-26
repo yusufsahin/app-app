@@ -181,6 +181,7 @@ Bundan sonra sırayla: Planning (D4 cycle/area/baseline/release), Traceability (
 - [manifest-dsl.md](./manifest-dsl.md) — DSL grammar ve semantik
 - [manifest-schema.md](./manifest-schema.md) — JSON/yapı
 - [REMAINING_PLAN.md](./REMAINING_PLAN.md) — Faz A–E görevleri
+- [MANIFEST_METADATA_MASTER_PLAN.md](../../docs/MANIFEST_METADATA_MASTER_PLAN.md) — Manifest/metadata bütünleşik plan (tamamlananlar, kalan sabitler, tüm context sırası; repo kökü `docs/`)
 - [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) — Gap analizi (mevcut vs hedef)
 - [BOARD_CONTEXT.md](./BOARD_CONTEXT.md) — Board context taslağı (Kanban/Scrum)
 - [alm-app.md §12](./alm-app.md#12-asama-plani-phases) — Phase 1–12

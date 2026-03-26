@@ -6,6 +6,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from alm.artifact.domain.manifest_merge_defaults import merge_manifest_metadata_defaults
+from alm.artifact.domain.manifest_workflow_metadata import get_task_state_options_and_initial
 from alm.form_schema.domain.entities import (
     ListColumnSchema,
     ListFilterSchema,
@@ -40,20 +42,51 @@ def _humanize_id(field_id: str) -> str:
     return field_id.replace("_", " ").replace("-", " ").title()
 
 
-def _build_artifact_list_schema(flat: dict[str, Any]) -> ListSchema:
-    columns_list: list[ListColumnSchema] = [
-        ListColumnSchema(key="artifact_key", label="Key", order=1, sortable=True),
-        ListColumnSchema(key="artifact_type", label="Type", order=2, sortable=True),
-        ListColumnSchema(key="title", label="Title", order=3, sortable=True),
-        ListColumnSchema(key="state", label="State", order=4, sortable=True),
-        ListColumnSchema(key="state_reason", label="State reason", order=5, sortable=False),
-        ListColumnSchema(key="resolution", label="Resolution", order=6, sortable=False),
-        ListColumnSchema(key="created_at", label="Created", order=7, sortable=True),
-        ListColumnSchema(key="updated_at", label="Updated", order=8, sortable=True),
-    ]
-    artifact_types = flat.get("artifact_types") or []
+def _build_artifact_list_schema(
+    flat: dict[str, Any],
+    manifest_bundle: dict[str, Any] | None = None,
+) -> ListSchema:
+    mb = manifest_bundle or {}
+    al_override = mb.get("artifact_list") if isinstance(mb.get("artifact_list"), dict) else {}
+    raw_cols = al_override.get("columns")
+    columns_list: list[ListColumnSchema] = []
     seen_field_keys: set[str] = set()
-    order = 10
+
+    if isinstance(raw_cols, list) and raw_cols:
+        for i, c in enumerate(raw_cols):
+            if not isinstance(c, dict):
+                continue
+            if c.get("visible") is False:
+                continue
+            key = c.get("key")
+            if not key:
+                continue
+            sk = str(key)
+            seen_field_keys.add(sk)
+            columns_list.append(
+                ListColumnSchema(
+                    key=sk,
+                    label=str(c.get("label") or _humanize_id(sk)),
+                    type=str(c["type"]) if c.get("type") else None,
+                    order=int(c.get("order", i + 1)),
+                    sortable=bool(c.get("sortable", False)),
+                )
+            )
+    else:
+        columns_list = [
+            ListColumnSchema(key="artifact_key", label="Key", order=1, sortable=True),
+            ListColumnSchema(key="artifact_type", label="Type", order=2, sortable=True),
+            ListColumnSchema(key="title", label="Title", order=3, sortable=True),
+            ListColumnSchema(key="state", label="State", order=4, sortable=True),
+            ListColumnSchema(key="state_reason", label="State reason", order=5, sortable=False),
+            ListColumnSchema(key="resolution", label="Resolution", order=6, sortable=False),
+            ListColumnSchema(key="created_at", label="Created", order=7, sortable=True),
+            ListColumnSchema(key="updated_at", label="Updated", order=8, sortable=True),
+        ]
+        seen_field_keys = {c.key for c in columns_list}
+
+    artifact_types = flat.get("artifact_types") or []
+    order = max((c.order for c in columns_list), default=0) + 1
     for at in artifact_types:
         for f in at.get("fields") or []:
             if not isinstance(f, dict):
@@ -61,12 +94,13 @@ def _build_artifact_list_schema(flat: dict[str, Any]) -> ListSchema:
             key = f.get("id") or f.get("key")
             if not key or key in seen_field_keys:
                 continue
-            seen_field_keys.add(key)
+            seen_field_keys.add(str(key))
             label = f.get("name") or f.get("label") or _humanize_id(key)
             col_type = f.get("type") or "string"
+            sk = str(key)
             columns_list.append(
                 ListColumnSchema(
-                    key=key,
+                    key=sk,
                     label=label,
                     type=col_type,
                     order=order,
@@ -95,12 +129,10 @@ def _build_artifact_list_schema(flat: dict[str, Any]) -> ListSchema:
     )
 
 
-# Fixed task states for list filter (no manifest dependency)
-_TASK_STATE_OPTIONS = ("todo", "in_progress", "done")
-
-
-def _build_task_list_schema() -> ListSchema:
-    """Build fixed list schema for task entity (P3 — Task form/list schema)."""
+def _build_task_list_schema(manifest_bundle: dict[str, Any] | None = None) -> ListSchema:
+    """Build list schema for tasks; state filter options from manifest task workflow."""
+    opts, _ = get_task_state_options_and_initial(manifest_bundle)
+    state_options = tuple(o["id"] for o in opts)
     columns: tuple[ListColumnSchema, ...] = (
         ListColumnSchema(key="id", label="Id", order=1, sortable=True),
         ListColumnSchema(key="title", label="Title", order=2, sortable=True),
@@ -116,7 +148,7 @@ def _build_task_list_schema() -> ListSchema:
             label="State",
             type="choice",
             order=1,
-            options=list(_TASK_STATE_OPTIONS),
+            options=list(state_options),
         ),
     )
     return ListSchema(
@@ -142,21 +174,29 @@ class GetListSchemaHandler(QueryHandler[ListSchema | None]):
 
         project = await self._project_repo.find_by_id(query.project_id)
         if project is None or project.tenant_id != query.tenant_id:
+            # Return default artifact schema so Table view does not break with 404 (e.g. RLS/tenant timing)
+            if query.entity_type == "artifact":
+                return _build_artifact_list_schema({"workflows": [], "artifact_types": []}, None)
             return None
 
         if query.entity_type == "task":
-            return _build_task_list_schema()
+            task_bundle: dict[str, Any] | None = None
+            if project.process_template_version_id:
+                tv = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+                if tv and tv.manifest_bundle:
+                    task_bundle = merge_manifest_metadata_defaults(tv.manifest_bundle)
+            return _build_task_list_schema(task_bundle)
 
         if query.entity_type != "artifact":
             return None
 
         if project.process_template_version_id is None:
-            return None
+            return _build_artifact_list_schema({"workflows": [], "artifact_types": []}, None)
 
         version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
         if version is None:
-            return None
+            return _build_artifact_list_schema({"workflows": [], "artifact_types": []}, None)
 
-        manifest_bundle = version.manifest_bundle or {}
+        manifest_bundle = merge_manifest_metadata_defaults(version.manifest_bundle or {})
         flat = _get_flat_manifest(manifest_bundle, self._manifest_flattener)
-        return _build_artifact_list_schema(flat)
+        return _build_artifact_list_schema(flat, manifest_bundle)

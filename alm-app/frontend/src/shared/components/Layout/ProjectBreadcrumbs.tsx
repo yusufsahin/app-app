@@ -1,17 +1,22 @@
 import { Link, useParams } from "react-router-dom";
-import { Box, Breadcrumbs, Button, Link as MuiLink, Typography } from "@mui/material";
-import { ArrowBack } from "@mui/icons-material";
+import { ArrowLeft } from "lucide-react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "../ui";
+import { Button } from "../ui";
 
 export interface ProjectBreadcrumbsProps {
-  /** Current page label (e.g. "Manifest", "Board") */
   currentPageLabel: string;
-  /** Project display name (falls back to projectSlug if not provided) */
   projectName?: string | null;
 }
 
 /**
  * Shared breadcrumbs + "Back to project" for project-scoped pages.
- * Uses orgSlug and projectSlug from route params.
  */
 export function ProjectBreadcrumbs({ currentPageLabel, projectName }: ProjectBreadcrumbsProps) {
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug?: string }>();
@@ -19,24 +24,32 @@ export function ProjectBreadcrumbs({ currentPageLabel, projectName }: ProjectBre
   const displayName = projectName ?? projectSlug ?? "Project";
 
   return (
-    <Box sx={{ mb: 2 }}>
-      <Breadcrumbs sx={{ mb: 1.5 }}>
-        <MuiLink component={Link} to={orgSlug ? `/${orgSlug}` : "#"} underline="hover" color="inherit">
-          {orgSlug ?? "Org"}
-        </MuiLink>
-        <MuiLink component={Link} to={projectDetailPath} underline="hover" color="inherit">
-          {displayName}
-        </MuiLink>
-        <Typography color="text.primary">{currentPageLabel}</Typography>
-      </Breadcrumbs>
-      <Button
-        component={Link}
-        to={projectDetailPath}
-        startIcon={<ArrowBack />}
-        sx={{ mb: 2 }}
-      >
-        Back to project
+    <div className="mb-4">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to={orgSlug ? `/${orgSlug}` : "#"}>{orgSlug ?? "Org"}</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to={projectDetailPath}>{displayName}</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{currentPageLabel}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+      <Button variant="ghost" size="sm" className="mt-2" asChild>
+        <Link to={projectDetailPath}>
+          <ArrowLeft className="mr-2 size-4" />
+          Back to project
+        </Link>
       </Button>
-    </Box>
+    </div>
   );
 }

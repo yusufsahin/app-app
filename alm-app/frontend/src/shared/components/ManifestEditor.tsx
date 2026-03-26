@@ -4,7 +4,6 @@
 import { useRef, useEffect } from "react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import { Box } from "@mui/material";
 
 export interface ManifestEditorProps {
   value: string;
@@ -74,50 +73,28 @@ export function ManifestEditor({
   }, [errorLine]);
 
   return (
-    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, overflow: "hidden" }}>
-      <Box
-        sx={{
-          "& .manifest-editor-error-line": {
-            backgroundColor: "error.light",
-            opacity: 0.2,
-          },
-          "& .manifest-editor-error-glyph": {
-            backgroundColor: "error.main",
-            width: "4px !important",
-            marginLeft: "4px",
-          },
+    <div className="overflow-hidden rounded-md border border-border [&_.manifest-editor-error-line]:bg-destructive/20 [&_.manifest-editor-error-glyph]:ml-1 [&_.manifest-editor-error-glyph]:w-1 [&_.manifest-editor-error-glyph]:bg-destructive">
+      <Editor
+        height={height}
+        language={language}
+        value={value}
+        onChange={onChange ? (v: string | undefined) => v != null && onChange(v) : undefined}
+        onMount={onEditorMount}
+        options={{
+          readOnly,
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          wordWrap: "on",
+          lineNumbers: "on",
+          folding: true,
+          glyphMargin: true,
         }}
-      >
-        <Editor
-          height={height}
-          language={language}
-          value={value}
-          onChange={onChange ? (v: string | undefined) => v != null && onChange(v) : undefined}
-          onMount={onEditorMount}
-          options={{
-            readOnly,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            wordWrap: "on",
-            lineNumbers: "on",
-            folding: true,
-            glyphMargin: true,
-          }}
-          loading={
-            <Box
-              sx={{
-                height,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                bgcolor: "action.hover",
-              }}
-            >
-              Loading editor…
-            </Box>
-          }
-        />
-      </Box>
-    </Box>
+        loading={
+          <div style={{ height }} className="flex items-center justify-center bg-muted/50">
+            Loading editor…
+          </div>
+        }
+      />
+    </div>
   );
 }

@@ -61,6 +61,7 @@ from alm.artifact.application.queries.list_artifacts import (
     ListArtifactsHandler,
 )
 from alm.artifact.domain.events import ArtifactCreated, ArtifactStateChanged
+from alm.artifact.domain.governance_adapter import ALMGovernanceAdapter
 from alm.artifact.infrastructure.metrics import PrometheusArtifactTransitionMetrics
 from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepository
 
@@ -135,15 +136,15 @@ from alm.config.dependencies import get_manifest_flattener
 from alm.config.settings import settings
 
 # ── Cycle (planning tree) commands ──
-from alm.cycle.application.commands.create_cycle import CreateCycleNode, CreateCycleNodeHandler
-from alm.cycle.application.commands.delete_cycle import DeleteCycleNode, DeleteCycleNodeHandler
-from alm.cycle.application.commands.update_cycle import UpdateCycleNode, UpdateCycleNodeHandler
-from alm.cycle.application.queries.get_cycle import GetCycleNode, GetCycleNodeHandler
+from alm.cycle.application.commands.create_cycle import CreateIncrement, CreateIncrementHandler
+from alm.cycle.application.commands.delete_cycle import DeleteIncrement, DeleteIncrementHandler
+from alm.cycle.application.commands.update_cycle import UpdateIncrement, UpdateIncrementHandler
+from alm.cycle.application.queries.get_cycle import GetIncrement, GetIncrementHandler
 
 # ── Cycle queries ──
 from alm.cycle.application.queries.list_cycles_by_project import (
-    ListCycleNodesByProject,
-    ListCycleNodesByProjectHandler,
+    ListIncrementsByProject,
+    ListIncrementsByProjectHandler,
 )
 from alm.cycle.infrastructure.repositories import SqlAlchemyCycleRepository
 from alm.form_schema.application.queries.get_form_schema import (
@@ -390,9 +391,7 @@ def register_all_handlers() -> None:
 
     # Workflow rule event handlers use runner port (no application → infrastructure import)
     _workflow_rule_runner = WorkflowRuleRunner()
-    _on_artifact_created_wf, _on_artifact_state_changed_wf = create_workflow_rule_handlers(
-        _workflow_rule_runner
-    )
+    _on_artifact_created_wf, _on_artifact_state_changed_wf = create_workflow_rule_handlers(_workflow_rule_runner)
 
     # DDD Enterprise Clean Architecture: wire Domain Event Dispatcher
     dispatcher = DomainEventDispatcher()
@@ -707,6 +706,8 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
             project_member_repo=SqlAlchemyProjectMemberRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            tenant_repo=SqlAlchemyTenantRepository(s),
         ),
     )
     register_command_handler(
@@ -720,6 +721,7 @@ def register_all_handlers() -> None:
         lambda s: UpdateProjectManifestHandler(
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+            governance=ALMGovernanceAdapter(),
         ),
     )
 
@@ -776,6 +778,7 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             cycle_repo=SqlAlchemyCycleRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
 
@@ -785,6 +788,7 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
             task_repo=SqlAlchemyTaskRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
 
@@ -853,6 +857,7 @@ def register_all_handlers() -> None:
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
             area_repo=SqlAlchemyAreaRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
     register_command_handler(
@@ -860,6 +865,7 @@ def register_all_handlers() -> None:
         lambda s: DeleteArtifactHandler(
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
     register_command_handler(
@@ -876,6 +882,8 @@ def register_all_handlers() -> None:
         lambda s: ListArtifactsHandler(
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
+            cycle_repo=SqlAlchemyCycleRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
     register_query_handler(
@@ -883,6 +891,7 @@ def register_all_handlers() -> None:
         lambda s: GetArtifactHandler(
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
     register_query_handler(
@@ -901,12 +910,15 @@ def register_all_handlers() -> None:
             task_repo=SqlAlchemyTaskRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
     register_command_handler(
         UpdateTask,
         lambda s: UpdateTaskHandler(
             task_repo=SqlAlchemyTaskRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
     register_command_handler(
@@ -1075,37 +1087,37 @@ def register_all_handlers() -> None:
 
     # ── Cycle (planning tree) commands ──
     register_command_handler(
-        CreateCycleNode,
-        lambda s: CreateCycleNodeHandler(
+        CreateIncrement,
+        lambda s: CreateIncrementHandler(
             cycle_repo=SqlAlchemyCycleRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     register_command_handler(
-        UpdateCycleNode,
-        lambda s: UpdateCycleNodeHandler(
+        UpdateIncrement,
+        lambda s: UpdateIncrementHandler(
             cycle_repo=SqlAlchemyCycleRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     register_command_handler(
-        DeleteCycleNode,
-        lambda s: DeleteCycleNodeHandler(
+        DeleteIncrement,
+        lambda s: DeleteIncrementHandler(
             cycle_repo=SqlAlchemyCycleRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     # ── Cycle queries ──
     register_query_handler(
-        ListCycleNodesByProject,
-        lambda s: ListCycleNodesByProjectHandler(
+        ListIncrementsByProject,
+        lambda s: ListIncrementsByProjectHandler(
             cycle_repo=SqlAlchemyCycleRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     register_query_handler(
-        GetCycleNode,
-        lambda s: GetCycleNodeHandler(
+        GetIncrement,
+        lambda s: GetIncrementHandler(
             cycle_repo=SqlAlchemyCycleRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),

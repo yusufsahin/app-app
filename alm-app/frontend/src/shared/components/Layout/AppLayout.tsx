@@ -1,113 +1,102 @@
 import { useState, useEffect, useMemo } from "react";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { useTheme } from "@mui/material/styles";
-import { Outlet, useNavigate, useLocation, useParams, Navigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation, useParams, Navigate, Link } from "react-router-dom";
 import {
-  AppBar,
-  Box,
-  Drawer,
-  IconButton,
-  List,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Menu,
-  MenuItem,
-  Toolbar,
-  Typography,
-  Avatar,
-  Divider,
-  Popover,
-  Card,
-  CardActionArea,
-  CardContent,
-  CircularProgress,
-  Chip,
-} from "@mui/material";
-import {
-  Menu as MenuIcon,
   Folder,
-  Settings,
-  Logout,
-  Add,
-  ChevronLeft,
-  ChevronRight,
-  Dashboard,
-  History,
+  LayoutDashboard,
   FolderOpen,
-  CalendarMonth,
-  ViewList,
-  ViewColumn,
-  AutoAwesome,
-} from "@mui/icons-material";
+  Calendar,
+  List,
+  Columns,
+  Sparkles,
+  Settings,
+  LogOut,
+  Plus,
+  Bell,
+  Search,
+  Network,
+  History,
+  ClipboardCheck,
+  GitBranch,
+  ListChecks,
+  Layers,
+  PlayCircle,
+  FolderTree,
+} from "lucide-react";
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarInset,
+  SidebarTrigger,
+  SidebarHeader,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarFooter,
+  SidebarSeparator,
+} from "../ui";
+import { Button, Avatar, AvatarFallback, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, Popover, PopoverContent, PopoverTrigger, Card, CardContent, Separator } from "../ui";
 import { useAuthStore } from "../../stores/authStore";
 import { useOrgProjects } from "../../api/orgApi";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { CommandPalette } from "./CommandPalette";
-import type { CommandPaletteItem } from "./CommandPalette";
+import type { CommandPaletteItem, CommandPaletteGroup } from "./CommandPalette";
 import { useTenantStore } from "../../stores/tenantStore";
 import { useProjectStore } from "../../stores/projectStore";
 import { useArtifactStore } from "../../stores/artifactStore";
-import { useLayoutUI } from "../../contexts/LayoutUIContext";
 import { useSwitchTenant } from "../../api/authApi";
 import { ModalManager } from "../../modal";
 import { useNotificationStore } from "../../stores/notificationStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { hasPermission } from "../../utils/permissions";
 import { useRealtime } from "../../realtime/useRealtime";
-
-const DRAWER_WIDTH_EXPANDED = 260;
-const DRAWER_WIDTH_COLLAPSED = 72;
+import { ThemeToggle } from "../../../app/theme/ThemeToggle";
+import CreateProjectModal from "../../../features/projects/components/CreateProjectModal";
 
 interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
-  /** Single required permission */
   permission?: string;
-  /** Show if user has ANY of these (for umbrella pages like Settings) */
   permissionAny?: string[];
 }
 
+interface NestedNavItem {
+  label: string;
+  path: string;
+  icon: React.ReactNode;
+}
+
 const NAV_ITEMS: NavItem[] = [
-  { label: "Projects", path: "", icon: <Folder />, permission: "project:read" },
-  { label: "Dashboard", path: "dashboard", icon: <Dashboard />, permission: "project:read" },
+  { label: "Projects", path: "", icon: <Folder className="size-4" />, permission: "project:read" },
+  { label: "Dashboard", path: "dashboard", icon: <LayoutDashboard className="size-4" />, permission: "project:read" },
 ];
 
-/** Project-scoped nav (shown when URL has projectSlug). Paths relative to /:orgSlug/:projectSlug. Manifest is under Organization settings, not here. */
 const PROJECT_NAV_ITEMS: NavItem[] = [
-  { label: "Overview", path: "", icon: <FolderOpen />, permission: "project:read" },
-  { label: "Planning", path: "planning", icon: <CalendarMonth />, permission: "project:read" },
-  { label: "Artifacts", path: "artifacts", icon: <ViewList />, permission: "artifact:read" },
-  { label: "Board", path: "board", icon: <ViewColumn />, permission: "artifact:read" },
-  { label: "Automation", path: "automation", icon: <AutoAwesome />, permission: "project:read" },
+  { label: "Overview", path: "", icon: <FolderOpen className="size-4" />, permission: "project:read" },
+  { label: "Artifacts", path: "artifacts", icon: <List className="size-4" />, permission: "artifact:read" },
+  { label: "Quality", path: "quality", icon: <ClipboardCheck className="size-4" />, permission: "artifact:read" },
+  { label: "Board", path: "board", icon: <Columns className="size-4" />, permission: "artifact:read" },
+  { label: "Planning", path: "planning", icon: <Calendar className="size-4" />, permission: "project:read" },
+  { label: "Automation", path: "automation", icon: <Sparkles className="size-4" />, permission: "project:read" },
+];
+
+const QUALITY_SUBNAV_ITEMS: NestedNavItem[] = [
+  { label: "Tests", path: "quality/tests", icon: <ListChecks className="size-4" /> },
+  { label: "Suites", path: "quality/suites", icon: <Layers className="size-4" /> },
+  { label: "Runs", path: "quality/runs", icon: <PlayCircle className="size-4" /> },
+  { label: "Traceability", path: "quality/traceability", icon: <GitBranch className="size-4" /> },
 ];
 
 export default function AppLayout() {
   useRealtime();
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug?: string }>();
-  const theme = useTheme();
   const { data: projects = [] } = useOrgProjects(orgSlug);
   const setCurrentProject = useProjectStore((s) => s.setCurrentProject);
   const setLastVisitedProjectSlug = useProjectStore((s) => s.setLastVisitedProjectSlug);
   const clearCurrentProject = useProjectStore((s) => s.clearCurrentProject);
-
-  // Sync URL project to store (and lastVisited) so Switcher and Dashboard use correct context
-  useEffect(() => {
-    if (!orgSlug) return;
-    if (projectSlug && projects.length > 0) {
-      const project = projects.find((p) => p.slug === projectSlug);
-      if (project) {
-        setCurrentProject(project);
-        setLastVisitedProjectSlug(projectSlug);
-      } else {
-        setCurrentProject(null);
-      }
-    } else {
-      clearCurrentProject();
-    }
-  }, [orgSlug, projectSlug, projects, setCurrentProject, setLastVisitedProjectSlug, clearCurrentProject]);
-  const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -127,11 +116,25 @@ export default function AppLayout() {
   const showNotification = useNotificationStore((s) => s.showNotification);
   const switchTenantMutation = useSwitchTenant();
 
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
-  const [tenantAnchor, setTenantAnchor] = useState<null | HTMLElement>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const { sidebarCollapsed, setSidebarCollapsed } = useLayoutUI();
+  const [tenantPopoverOpen, setTenantPopoverOpen] = useState(false);
+  const createModalOpen = useProjectStore((s) => s.listState.createModalOpen);
+  const setCreateModalOpen = useProjectStore((s) => s.setCreateModalOpen);
+
+  useEffect(() => {
+    if (!orgSlug) return;
+    if (projectSlug && projects.length > 0) {
+      const project = projects.find((p) => p.slug === projectSlug);
+      if (project) {
+        setCurrentProject(project);
+        setLastVisitedProjectSlug(projectSlug);
+      } else {
+        setCurrentProject(null);
+      }
+    } else {
+      clearCurrentProject();
+    }
+  }, [orgSlug, projectSlug, projects, setCurrentProject, setLastVisitedProjectSlug, clearCurrentProject]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -144,26 +147,89 @@ export default function AppLayout() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const isCollapsed = isDesktop && sidebarCollapsed;
-  const drawerWidth = isCollapsed ? DRAWER_WIDTH_COLLAPSED : DRAWER_WIDTH_EXPANDED;
-
-  const toggleSidebar = () => {
-    setSidebarCollapsed((prev) => !prev);
-  };
-
   const visibleNavItems = NAV_ITEMS.filter((item) => {
     if (item.permission) return hasPermission(permissions, item.permission);
-    if (item.permissionAny)
-      return item.permissionAny.some((p) => hasPermission(permissions, p));
+    if (item.permissionAny) return item.permissionAny.some((p) => hasPermission(permissions, p));
     return true;
   });
 
-  const commandPaletteItems: CommandPaletteItem[] = useMemo(() => {
+  const lastVisitedProjectSlug = useProjectStore((s) => s.lastVisitedProjectSlug);
+
+  const commandPaletteGroups: CommandPaletteGroup[] = useMemo(() => {
     if (!orgSlug) return [];
-    const list: CommandPaletteItem[] = [];
+    const groups: CommandPaletteGroup[] = [];
+
+    const recentProjects: CommandPaletteItem[] = [];
+    if (projects.length > 0) {
+      const sorted = [...projects].sort((a, b) => {
+        if (lastVisitedProjectSlug === a.slug) return -1;
+        if (lastVisitedProjectSlug === b.slug) return 1;
+        return 0;
+      });
+      for (const p of sorted.slice(0, 5)) {
+        recentProjects.push({
+          id: `recent-${p.slug}`,
+          label: p.name ?? p.slug,
+          path: `/${orgSlug}/${p.slug}`,
+          icon: <FolderOpen className="size-4" />,
+        });
+      }
+      if (recentProjects.length > 0) {
+        groups.push({ group: "Recent projects", items: recentProjects });
+      }
+    }
+
+    if (projectSlug) {
+      const quickLinks: CommandPaletteItem[] = [];
+      const artifactRead = hasPermission(permissions, "artifact:read");
+      const projectRead = hasPermission(permissions, "project:read");
+      if (artifactRead) {
+        quickLinks.push({ id: "goto-artifacts", label: "Go to Artifacts", path: `/${orgSlug}/${projectSlug}/artifacts`, icon: <List className="size-4" /> });
+        quickLinks.push({ id: "goto-quality", label: "Go to Quality", path: `/${orgSlug}/${projectSlug}/quality`, icon: <ClipboardCheck className="size-4" /> });
+        quickLinks.push({
+          id: "goto-quality-trace",
+          label: "Go to Quality traceability",
+          path: `/${orgSlug}/${projectSlug}/quality/traceability`,
+          icon: <GitBranch className="size-4" />,
+        });
+        quickLinks.push({
+          id: "goto-quality-tests",
+          label: "Quality — Test cases",
+          path: `/${orgSlug}/${projectSlug}/quality/tests`,
+          icon: <ListChecks className="size-4" />,
+        });
+        quickLinks.push({
+          id: "goto-quality-suites",
+          label: "Quality — Test suites",
+          path: `/${orgSlug}/${projectSlug}/quality/suites`,
+          icon: <Layers className="size-4" />,
+        });
+        quickLinks.push({
+          id: "goto-quality-runs",
+          label: "Quality — Test runs",
+          path: `/${orgSlug}/${projectSlug}/quality/runs`,
+          icon: <PlayCircle className="size-4" />,
+        });
+        quickLinks.push({
+          id: "goto-quality-campaigns",
+          label: "Quality — Campaigns",
+          path: `/${orgSlug}/${projectSlug}/quality/campaigns`,
+          icon: <FolderTree className="size-4" />,
+        });
+        quickLinks.push({ id: "goto-board", label: "Go to Board", path: `/${orgSlug}/${projectSlug}/board`, icon: <Columns className="size-4" /> });
+      }
+      if (projectRead) {
+        quickLinks.push({ id: "goto-planning", label: "Go to Planning", path: `/${orgSlug}/${projectSlug}/planning`, icon: <Calendar className="size-4" /> });
+      }
+      if (quickLinks.length > 0) {
+        groups.push({ group: "Quick links", items: quickLinks });
+      }
+    }
+
+    const pages: CommandPaletteItem[] = [];
     for (const item of visibleNavItems) {
       const path = item.path ? `/${orgSlug}/${item.path}` : `/${orgSlug}`;
-      list.push({ id: item.path || "projects", label: item.label, path, icon: item.icon });
+      pages.push({ id: item.path || "projects", label: item.label, path, icon: item.icon });
     }
     if (projectSlug) {
       const projectItems = PROJECT_NAV_ITEMS.filter((item) => {
@@ -173,29 +239,30 @@ export default function AppLayout() {
       });
       for (const item of projectItems) {
         const path = item.path ? `/${orgSlug}/${projectSlug}/${item.path}` : `/${orgSlug}/${projectSlug}`;
-        list.push({ id: `proj-${item.path || "overview"}`, label: item.label, path, icon: item.icon });
+        pages.push({ id: `proj-${item.path || "overview"}`, label: item.label, path, icon: item.icon });
       }
     }
     if (hasPermission(permissions, "tenant:read") || hasPermission(permissions, "member:read") || hasPermission(permissions, "role:read")) {
-      list.push({ id: "settings", label: "Organization settings", path: `/${orgSlug}/settings`, icon: <Settings fontSize="small" /> });
+      pages.push({ id: "settings", label: "Organization settings", path: `/${orgSlug}/settings`, icon: <Settings className="size-4" /> });
     }
     if (isAdmin) {
-      list.push({ id: "audit", label: "Access audit", path: `/${orgSlug}/audit`, icon: <History fontSize="small" /> });
+      pages.push({ id: "audit", label: "Access audit", path: `/${orgSlug}/audit`, icon: <History className="size-4" /> });
     }
-    return list;
-  }, [orgSlug, projectSlug, visibleNavItems, permissions, isAdmin]);
+    if (pages.length > 0) {
+      groups.push({ group: "Pages", items: pages });
+    }
+    return groups;
+  }, [orgSlug, projectSlug, visibleNavItems, permissions, isAdmin, projects, lastVisitedProjectSlug]);
 
-  // OrgGuard: URL org must match current tenant (JWT is tenant-scoped)
-  if (
-    orgSlug &&
-    currentTenant?.slug &&
-    orgSlug !== currentTenant.slug
-  ) {
+  const commandPaletteItems: CommandPaletteItem[] = useMemo(() => {
+    return commandPaletteGroups.flatMap((g) => g.items);
+  }, [commandPaletteGroups]);
+
+  if (orgSlug && currentTenant?.slug && orgSlug !== currentTenant.slug) {
     return <Navigate to={`/${currentTenant.slug}`} replace />;
   }
 
   const handleLogout = () => {
-    setUserMenuAnchor(null);
     logout();
     clearTenant();
     clearProjectStore();
@@ -205,15 +272,9 @@ export default function AppLayout() {
   };
 
   const handleSwitchTenant = async (tenantId: string) => {
-    if (!accessToken || tenantId === currentTenant?.id) {
-      setTenantAnchor(null);
-      return;
-    }
+    if (!accessToken || tenantId === currentTenant?.id) return;
     try {
-      const result = await switchTenantMutation.mutateAsync({
-        tenantId,
-        token: accessToken,
-      });
+      const result = await switchTenantMutation.mutateAsync({ tenantId, token: accessToken });
       setTokens(result.access_token, result.refresh_token);
       const selected = tenants.find((t) => t.id === tenantId);
       if (selected) {
@@ -223,454 +284,273 @@ export default function AppLayout() {
         navigate(`/${selected.slug}`);
       }
       queryClient.clear();
-      setTenantAnchor(null);
+      setTenantPopoverOpen(false);
       showNotification("Switched organization successfully");
     } catch {
       showNotification("Failed to switch organization", "error");
-      setTenantAnchor(null);
     }
   };
 
   const userInitial = user?.display_name?.charAt(0).toUpperCase() ?? "U";
+  const isOrgHome = !!orgSlug && !projectSlug && (location.pathname === `/${orgSlug}` || location.pathname === `/${orgSlug}/`);
+  const canCreateProject = hasPermission(permissions, "project:create");
+  const settingsPermission = hasPermission(permissions, "tenant:read") || hasPermission(permissions, "member:read") || hasPermission(permissions, "role:read");
 
-  const orgInitial = (currentTenant?.name ?? "O").charAt(0).toUpperCase();
-
-  const drawerContent = (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Box
-        onClick={(e) => setTenantAnchor(e.currentTarget)}
-        sx={{
-          p: isCollapsed ? 1.5 : 2,
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: isCollapsed ? "center" : "flex-start",
-          bgcolor: "action.selected",
-          "&:hover": { bgcolor: "action.hover" },
-        }}
-      >
-        <Avatar
-          sx={{
-            width: 40,
-            height: 40,
-            bgcolor: "primary.main",
-            fontSize: 18,
-            fontWeight: 600,
-          }}
-        >
-          {orgInitial}
-        </Avatar>
-        {!isCollapsed && (
-          <Box sx={{ flex: 1, minWidth: 0, ml: 1.5 }}>
-            <Typography variant="subtitle2" fontWeight={600} noWrap>
-              {currentTenant?.name ?? "No Organization"}
-            </Typography>
-            {currentTenant?.slug && (
-              <Typography variant="caption" color="text.secondary" noWrap component="p">
-                {currentTenant.slug}
-              </Typography>
-            )}
-          </Box>
-        )}
-      </Box>
-
-      {!isCollapsed && (
-        <ListItemButton
-          onClick={() => {
-            navigate("/select-tenant");
-            setMobileOpen(false);
-          }}
-          sx={{
-            mx: 1,
-            mt: 1,
-            borderRadius: 1,
-            justifyContent: "flex-start",
-            color: "primary.main",
-            "&:hover": { bgcolor: "action.hover" },
-          }}
-        >
-          <Add fontSize="small" sx={{ mr: 1.5 }} />
-          <Typography variant="body2" fontWeight={500}>
-            New organization
-          </Typography>
-        </ListItemButton>
-      )}
-
-      <Divider sx={{ mt: 1 }} />
-
-      <List sx={{ flex: 1, px: isCollapsed ? 0.5 : 1, py: 1.5 }}>
-        {visibleNavItems.map((item) => {
-          const basePath = orgSlug ? `/${orgSlug}` : "";
-          const fullPath = item.path ? `${basePath}/${item.path}` : basePath || "/";
-          const isActive = item.path === ""
-            ? location.pathname === basePath || location.pathname === `${basePath}/`
-            : location.pathname.startsWith(`${basePath}/${item.path}`);
-
-          return (
-            <ListItemButton
-              key={item.path || "projects"}
-              onClick={() => {
-                navigate(fullPath);
-                setMobileOpen(false);
-              }}
-              selected={isActive}
-              title={isCollapsed ? item.label : undefined}
-              sx={{
-                borderRadius: 1.5,
-                mb: 0.5,
-                justifyContent: isCollapsed ? "center" : "flex-start",
-                px: isCollapsed ? 1 : 2,
-                "&.Mui-selected": {
-                  bgcolor: "primary.main",
-                  color: "primary.contrastText",
-                  "&:hover": { bgcolor: "primary.dark" },
-                  "& .MuiListItemIcon-root": { color: "inherit" },
-                },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40 }}>
-                {item.icon}
-              </ListItemIcon>
-              {!isCollapsed && (
-                <ListItemText
-                  primary={item.label}
-                  primaryTypographyProps={{ fontWeight: isActive ? 600 : 400 }}
-                />
-              )}
-            </ListItemButton>
-          );
-        })}
-      </List>
-
-      {projectSlug && (
-        <>
-          <Divider sx={{ mt: 0.5 }} />
-          <ProjectSwitcher
-            collapsed={isCollapsed}
-            onNavigate={() => setMobileOpen(false)}
-          />
-          <List sx={{ px: isCollapsed ? 0.5 : 1, py: 0.5 }}>
-            {PROJECT_NAV_ITEMS.filter((item) => {
-              if (item.permission) return hasPermission(permissions, item.permission);
-              if (item.permissionAny) return item.permissionAny.some((p) => hasPermission(permissions, p));
-              return true;
-            }).map((item) => {
-              const basePath = orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "";
-              const fullPath = item.path ? `${basePath}/${item.path}` : basePath;
-              const isActive =
-                item.path === ""
-                  ? location.pathname === basePath || location.pathname === `${basePath}/`
-                  : location.pathname.startsWith(`${basePath}/${item.path}`);
-              return (
-                <ListItemButton
-                  key={item.path || "overview"}
-                  onClick={() => {
-                    navigate(fullPath);
-                    setMobileOpen(false);
-                  }}
-                  selected={isActive}
-                  title={isCollapsed ? item.label : undefined}
-                  sx={{
-                    borderRadius: 1.5,
-                    mb: 0.5,
-                    justifyContent: isCollapsed ? "center" : "flex-start",
-                    px: isCollapsed ? 1 : 2,
-                    "&.Mui-selected": {
-                      bgcolor: "primary.main",
-                      color: "primary.contrastText",
-                      "&:hover": { bgcolor: "primary.dark" },
-                      "& .MuiListItemIcon-root": { color: "inherit" },
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40 }}>
-                    {item.icon}
-                  </ListItemIcon>
-                  {!isCollapsed && (
-                    <ListItemText
-                      primary={item.label}
-                      primaryTypographyProps={{ fontWeight: isActive ? 600 : 400 }}
-                    />
-                  )}
-                </ListItemButton>
-              );
-            })}
-          </List>
-        </>
-      )}
-
-      {(hasPermission(permissions, "tenant:read") ||
-        hasPermission(permissions, "member:read") ||
-        hasPermission(permissions, "role:read")) && (
-        <>
-          <Divider />
-          <List sx={{ py: 0 }}>
-            <ListItemButton
-              onClick={() => {
-                navigate(orgSlug ? `/${orgSlug}/settings` : "/");
-                setMobileOpen(false);
-              }}
-              selected={
-                location.pathname === `/${orgSlug}/settings` ||
-                location.pathname === `/${orgSlug}/members` ||
-                location.pathname === `/${orgSlug}/roles` ||
-                location.pathname === `/${orgSlug}/privileges` ||
-                location.pathname === `/${orgSlug}/audit`
-              }
-              title={isCollapsed ? "Organization settings" : undefined}
-              sx={{
-                borderRadius: 1,
-                mx: isCollapsed ? 0.5 : 1,
-                mb: 0.5,
-                justifyContent: isCollapsed ? "center" : "flex-start",
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 40 }}>
-                <Settings fontSize="small" />
-              </ListItemIcon>
-              {!isCollapsed && (
-                <ListItemText
-                  primary="Organization settings"
-                  primaryTypographyProps={{ variant: "body2" }}
-                />
-              )}
-            </ListItemButton>
-          </List>
-        </>
-      )}
-
-      {isDesktop && (
-        <>
-          <Divider />
-          <Box sx={{ p: 0.5, display: "flex", justifyContent: "center" }}>
-            <IconButton
-              size="small"
-              onClick={toggleSidebar}
-              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              sx={{ color: "text.secondary" }}
-            >
-              {isCollapsed ? (
-                <ChevronRight fontSize="small" />
-              ) : (
-                <ChevronLeft fontSize="small" />
-              )}
-            </IconButton>
-          </Box>
-        </>
-      )}
-    </Box>
-  );
+  const projectNavItems = PROJECT_NAV_ITEMS.filter((item) => {
+    if (item.permission) return hasPermission(permissions, item.permission);
+    if (item.permissionAny) return item.permissionAny.some((p) => hasPermission(permissions, p));
+    return true;
+  });
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh" }}>
-      <AppBar
-        position="fixed"
-        elevation={0}
-        sx={{
-          width: { md: `calc(100% - ${drawerWidth}px)` },
-          ml: { md: `${drawerWidth}px` },
-          transition: (theme) =>
-            theme.transitions.create(["margin", "width"], {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-          bgcolor: "background.paper",
-          borderBottom: 1,
-          borderColor: "divider",
-        }}
-      >
-        <Toolbar>
-          <IconButton
-            edge="start"
-            onClick={() => setMobileOpen(true)}
-            sx={{ mr: 1, display: { md: "none" } }}
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarHeader className="border-b border-sidebar-border">
+          <Popover open={tenantPopoverOpen} onOpenChange={setTenantPopoverOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md p-2 text-left outline-none hover:bg-sidebar-accent"
+                aria-label="Switch organization"
+              >
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <Network className="size-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{currentTenant?.name ?? "ALM"}</p>
+                  <p className="truncate text-xs text-muted-foreground">Management Suite</p>
+                </div>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-64 p-2">
+              <p className="mb-2 px-2 text-xs text-muted-foreground">Switch organization</p>
+              <Button variant="ghost" className="w-full justify-start" asChild>
+                <Link to="/select-tenant" onClick={() => setTenantPopoverOpen(false)}>
+                  <Plus className="mr-2 size-4" />
+                  New organization
+                </Link>
+              </Button>
+              <Separator className="my-2" />
+              <div className="max-h-64 space-y-1 overflow-y-auto">
+                {tenants.map((t) => (
+                  <Card
+                    key={t.id}
+                    className={`cursor-pointer transition-colors hover:bg-accent ${t.id === currentTenant?.id ? "ring-2 ring-primary" : ""}`}
+                    onClick={() => handleSwitchTenant(t.id)}
+                  >
+                    <CardContent className="p-3">
+                      <p className="text-sm font-medium">{t.name}</p>
+                      <p className="text-xs text-muted-foreground">{t.slug}</p>
+                      {switchTenantMutation.isPending && t.id !== currentTenant?.id && (
+                        <span className="text-xs">Switching…</span>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </SidebarHeader>
+
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Organization</SidebarGroupLabel>
+            <SidebarMenu>
+              {visibleNavItems.map((item) => {
+                const basePath = orgSlug ? `/${orgSlug}` : "";
+                const fullPath = item.path ? `${basePath}/${item.path}` : basePath || "/";
+                const isActive = item.path === ""
+                  ? location.pathname === basePath || location.pathname === `${basePath}/`
+                  : location.pathname.startsWith(`${basePath}/${item.path}`);
+                return (
+                  <SidebarMenuItem key={item.path || "projects"}>
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+                      <Link to={fullPath}>{item.icon}<span>{item.label}</span></Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
+
+          {projectSlug && (
+            <>
+              <SidebarSeparator />
+              <SidebarGroup>
+                <SidebarGroupLabel>Project</SidebarGroupLabel>
+                <ProjectSwitcher onNavigate={() => {}} />
+                <SidebarMenu>
+                  {projectNavItems.map((item) => {
+                    const basePath = orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "";
+                    const fullPath = item.path ? `${basePath}/${item.path}` : basePath;
+                    const isActive = item.path === ""
+                      ? location.pathname === basePath || location.pathname === `${basePath}/`
+                      : location.pathname.startsWith(`${basePath}/${item.path}`);
+                    return (
+                      <div key={item.path || "overview"}>
+                        <SidebarMenuItem>
+                          <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+                            <Link to={fullPath}>{item.icon}<span>{item.label}</span></Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        {item.path === "quality" ? (
+                          <div className="ml-4 mt-1 space-y-1 border-l border-sidebar-border/60 pl-2">
+                            {QUALITY_SUBNAV_ITEMS.map((sub) => {
+                              const subPath = `${basePath}/${sub.path}`;
+                              const subActive = location.pathname.startsWith(subPath);
+                              return (
+                                <SidebarMenuItem key={sub.path}>
+                                  <SidebarMenuButton asChild isActive={subActive} tooltip={sub.label}>
+                                    <Link to={subPath}>{sub.icon}<span>{sub.label}</span></Link>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroup>
+            </>
+          )}
+
+          {settingsPermission && (
+            <>
+              <SidebarSeparator />
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname === `/${orgSlug}/settings` || location.pathname.startsWith(`/${orgSlug}/settings/`)} tooltip="Organization settings">
+                    <Link to={orgSlug ? `/${orgSlug}/settings` : "/"}>
+                      <Settings className="size-4" />
+                      <span>Organization settings</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </>
+          )}
+        </SidebarContent>
+
+        <SidebarFooter className="border-t border-sidebar-border">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-lg p-2 outline-none hover:bg-sidebar-accent"
+              >
+                <Avatar className="size-8">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                    {userInitial}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="truncate text-sm font-medium">{user?.display_name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive" variant="destructive">
+                <LogOut className="mr-2 size-4" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div className="flex justify-center p-1">
+            <SidebarTrigger />
+          </div>
+        </SidebarFooter>
+      </Sidebar>
+
+      <SidebarInset>
+        <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background px-4">
+          <SidebarTrigger className="md:hidden" />
+          <Link
+            to={orgSlug ? `/${orgSlug}` : "/"}
+            className="hidden items-center gap-2 md:flex"
           >
-            <MenuIcon />
-          </IconButton>
-
-          <Box sx={{ flex: 1 }} />
-
-          <Chip
-            label={typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl+K"}
-            size="small"
+            <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Network className="size-4" />
+            </div>
+            <span className="font-semibold">ALM</span>
+          </Link>
+          <button
+            type="button"
             onClick={() => setCommandPaletteOpen(true)}
-            sx={{
-              display: { xs: "none", sm: "inline-flex" },
-              mr: 1,
-              "& .MuiChip-label": { fontSize: "0.75rem" },
-              cursor: "pointer",
-            }}
-            title="Quick navigation"
-          />
-
-          <IconButton onClick={(e) => setUserMenuAnchor(e.currentTarget)} sx={{ ml: 1 }}>
-            <Avatar
-              sx={{
-                width: 36,
-                height: 36,
-                bgcolor: "primary.main",
-                fontSize: 16,
-              }}
-            >
-              {userInitial}
-            </Avatar>
-          </IconButton>
-
-          <Menu
-            anchorEl={userMenuAnchor}
-            open={!!userMenuAnchor}
-            onClose={() => setUserMenuAnchor(null)}
-            transformOrigin={{ horizontal: "right", vertical: "top" }}
-            anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+            className="hidden items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground hover:bg-muted sm:flex max-w-[400px] flex-1"
           >
-            <Box sx={{ px: 2, py: 1, minWidth: 180 }}>
-              <Typography variant="subtitle2" fontWeight={600}>
-                {user?.display_name}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {user?.email}
-              </Typography>
-            </Box>
-            <Divider />
-            <MenuItem
-              onClick={handleLogout}
-              sx={{ color: "error.main", gap: 1 }}
-            >
-              <Logout fontSize="small" />
-              Sign Out
-            </MenuItem>
-          </Menu>
-        </Toolbar>
-      </AppBar>
+            <Search className="size-4" />
+            <span>Search</span>
+            <kbd className="pointer-events-none ml-auto hidden rounded border bg-muted px-1.5 font-mono text-[10px] sm:inline-block">
+              {typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl"} K
+            </kbd>
+          </button>
+          <span className="flex-1 md:hidden" />
+          <div className="flex items-center gap-1">
+            {isOrgHome && canCreateProject && (
+              <Button size="sm" className="hidden sm:inline-flex" onClick={() => setCreateModalOpen(true)}>
+                <Plus className="mr-2 size-4" />
+                New project
+              </Button>
+            )}
+            <span className="hidden sm:inline-flex"><ThemeToggle /></span>
+            <Button variant="ghost" size="icon" className="size-9" aria-label="Notifications">
+              <Bell className="size-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="size-9" aria-label="Settings" onClick={() => navigate(orgSlug ? `/${orgSlug}/settings` : "/")}>
+              <Settings className="size-4" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="size-9 rounded-full">
+                  <Avatar className="size-8">
+                    <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                      {userInitial}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <p className="font-medium">{user?.display_name}</p>
+                  <p className="text-xs font-normal text-muted-foreground">{user?.email}</p>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} variant="destructive">
+                  <LogOut className="mr-2 size-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
 
-      <Box
-        component="nav"
-        sx={{
-          width: { md: drawerWidth },
-          flexShrink: { md: 0 },
-          transition: (theme) =>
-            theme.transitions.create("width", {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-        }}
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-          ModalProps={{ keepMounted: true }}
-          sx={{
-            display: { xs: "block", md: "none" },
-            "& .MuiDrawer-paper": { width: DRAWER_WIDTH_EXPANDED },
-          }}
-        >
-          {drawerContent}
-        </Drawer>
-
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: "none", md: "block" },
-            "& .MuiDrawer-paper": {
-              width: drawerWidth,
-              borderRight: 1,
-              borderColor: "divider",
-              boxSizing: "border-box",
-              overflowX: "hidden",
-              transition: (theme) =>
-                theme.transitions.create("width", {
-                  easing: theme.transitions.easing.sharp,
-                  duration: theme.transitions.duration.enteringScreen,
-                }),
-            },
-          }}
-          open
-        >
-          {drawerContent}
-        </Drawer>
-      </Box>
-
-      <Popover
-        open={!!tenantAnchor}
-        anchorEl={tenantAnchor}
-        onClose={() => setTenantAnchor(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { sx: { width: 260, p: 1 } } }}
-      >
-        <Typography variant="caption" color="text.secondary" sx={{ px: 1, py: 0.5 }}>
-          Switch organization
-        </Typography>
-        <ListItemButton
-          onClick={() => {
-            setTenantAnchor(null);
-            navigate("/select-tenant");
-          }}
-          sx={{ borderRadius: 1 }}
-        >
-          <Add fontSize="small" sx={{ mr: 1.5 }} />
-          <Typography variant="body2" fontWeight={500}>
-            New organization
-          </Typography>
-        </ListItemButton>
-        <Divider sx={{ my: 1 }} />
-        {tenants.map((t) => (
-          <Card
-            key={t.id}
-            variant={t.id === currentTenant?.id ? "outlined" : "elevation"}
-            sx={{
-              mb: 0.5,
-              border: t.id === currentTenant?.id ? 2 : 0,
-              borderColor: "primary.main",
-            }}
-          >
-            <CardActionArea
-              onClick={() => handleSwitchTenant(t.id)}
-              disabled={switchTenantMutation.isPending}
-              sx={{ p: 1.5 }}
-            >
-              <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
-                <Typography variant="body2" fontWeight={600}>
-                  {t.name}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {t.slug}
-                </Typography>
-                {switchTenantMutation.isPending && t.id !== currentTenant?.id && (
-                  <CircularProgress size={16} sx={{ ml: 1 }} />
-                )}
-              </CardContent>
-            </CardActionArea>
-          </Card>
-        ))}
-      </Popover>
-
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          width: { md: `calc(100% - ${drawerWidth}px)` },
-          transition: (theme) =>
-            theme.transitions.create("width", {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-          mt: "64px",
-          bgcolor: "background.default",
-          minHeight: "calc(100vh - 64px)",
-        }}
-      >
-        <Outlet />
-      </Box>
+        <main className="flex-1 overflow-auto bg-muted/30 p-4 md:p-6">
+          <Outlet />
+        </main>
+      </SidebarInset>
 
       <CommandPalette
         open={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
         items={commandPaletteItems}
+        groups={commandPaletteGroups}
         onSelect={(path) => navigate(path)}
+        placeholder="Search or jump to…"
+        description="Search pages, projects, or go to Artifacts…"
       />
+      {orgSlug && (
+        <CreateProjectModal
+          open={createModalOpen}
+          onClose={() => setCreateModalOpen(false)}
+          orgSlug={orgSlug}
+        />
+      )}
       <ModalManager />
-    </Box>
+    </SidebarProvider>
   );
 }

@@ -1,4 +1,4 @@
-import { Box, Button, Chip, Typography } from "@mui/material";
+import { Button, Badge } from "../../components/ui";
 import { MetadataDrivenForm } from "../../components/forms";
 import type { TransitionArtifactModalProps } from "../modalTypes";
 
@@ -23,26 +23,25 @@ export function TransitionArtifactModal({
   };
   return (
     <>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+      <p className="mb-4 text-sm text-muted-foreground">
         {artifact.artifact_key ?? artifact.id} — {artifact.title}
-      </Typography>
+      </p>
       {permittedTransitions.length > 1 && (
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-            Change target
-          </Typography>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+        <div className="mb-4">
+          <span className="mb-1 block text-xs text-muted-foreground">Change target</span>
+          <div className="flex flex-wrap gap-1">
             {permittedTransitions.map((item) => (
-              <Chip
+              <Badge
                 key={item.trigger}
-                label={item.label ?? item.to_state}
+                variant={targetState === item.to_state ? "default" : "outline"}
+                className="cursor-pointer"
                 onClick={() => onSelectTargetState(item.to_state)}
-                variant={targetState === item.to_state ? "filled" : "outlined"}
-                size="small"
-              />
+              >
+                {item.label ?? item.to_state}
+              </Badge>
             ))}
-          </Box>
-        </Box>
+          </div>
+        </div>
       )}
       {schema && (
         <MetadataDrivenForm
@@ -55,12 +54,12 @@ export function TransitionArtifactModal({
           submitExternally
         />
       )}
-      <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end", mt: 2 }}>
-        <Button onClick={handleCancel}>Cancel</Button>
-        <Button variant="contained" onClick={onConfirm} disabled={isPending}>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+        <Button onClick={onConfirm} disabled={isPending}>
           Transition
         </Button>
-      </Box>
+      </div>
     </>
   );
 }

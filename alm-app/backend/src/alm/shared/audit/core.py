@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import Any
 
 
-class ChangeType(str, enum.Enum):
+class ChangeType(enum.StrEnum):
     INITIAL = "INITIAL"
     UPDATE = "UPDATE"
     DELETE = "DELETE"

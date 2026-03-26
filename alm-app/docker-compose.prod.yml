@@ -1,0 +1,74 @@
+# Production Deployment: docker compose -f docker-compose.prod.yml up -d
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${ALM_POSTGRES_USER:-alm}
+      POSTGRES_PASSWORD: ${ALM_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${ALM_POSTGRES_DB:-alm}
+    volumes:
+      - alm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${ALM_POSTGRES_USER:-alm}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - alm_internal
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - alm_internal
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: alm-manifest-app/alm-app/backend/Dockerfile
+    restart: always
+    environment:
+      ALM_ENVIRONMENT: "production"
+      ALM_DEBUG: "false"
+      ALM_DATABASE_URL: "postgresql+asyncpg://${ALM_POSTGRES_USER:-alm}:${ALM_POSTGRES_PASSWORD}@db:5432/${ALM_POSTGRES_DB:-alm}"
+      ALM_REDIS_URL: "redis://redis:6379/0"
+      ALM_JWT_SECRET_KEY: ${ALM_JWT_SECRET_KEY}
+      ALM_SEED_DEMO_DATA: "false"
+      # Other variables (SMTP, CORS) should be provided via .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - alm_internal
+      - alm_public
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - alm_public
+
+networks:
+  alm_internal:
+    internal: true
+  alm_public:
+
+volumes:
+  alm_pgdata:

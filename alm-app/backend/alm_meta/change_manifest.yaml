@@ -1,0 +1,8 @@
+change_set_id: "cs_example_001"
+change_type: "non-breaking"
+affected_artifacts:
+  - "schema.cycle.v1"
+risk_inputs:
+  blast_radius: "single"
+  runtime_impact: "low"
+  rollback_complexity: "low"

@@ -1,16 +1,20 @@
 /**
- * Reusable Switch wired to React Hook Form via Controller.
- * Use inside a form wrapped with FormProvider, or pass control explicitly.
+ * Switch wired to React Hook Form via Controller. Radix UI + Tailwind.
  */
 import { Controller } from "react-hook-form";
-import { FormControlLabel, FormHelperText, Switch, type SwitchProps } from "@mui/material";
+import { Switch, Label } from "../ui";
+import { cn } from "../ui/utils";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
 
 type RhfSwitchProps<TFieldValues extends import("react-hook-form").FieldValues> =
   RhfControllerFieldProps<TFieldValues> & {
     label?: React.ReactNode;
-    switchProps?: Omit<SwitchProps, "checked" | "onChange" | "onBlur" | "inputRef">;
+    switchProps?: {
+      className?: string;
+      disabled?: boolean;
+      [key: string]: unknown;
+    };
   };
 
 export function RhfSwitch<TFieldValues extends import("react-hook-form").FieldValues>({
@@ -32,23 +36,39 @@ export function RhfSwitch<TFieldValues extends import("react-hook-form").FieldVa
       name={name}
       control={control}
       render={({ field: { value, onChange, onBlur, ref } }) => (
-        <>
-          <FormControlLabel
-            control={
-              <Switch
-                {...switchProps}
-                checked={!!value}
-                onChange={(e) => onChange(e.target.checked)}
-                onBlur={onBlur}
-                inputRef={ref}
-              />
-            }
-            label={label}
-          />
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Switch
+              id={String(name)}
+              ref={ref}
+              checked={!!value}
+              onCheckedChange={(checked) => onChange(!!checked)}
+              onBlur={onBlur}
+              aria-invalid={!!errorMessage}
+              aria-describedby={displayText ? `${String(name)}-helper` : undefined}
+              {...switchProps}
+            />
+            {label != null && label !== "" && (
+              <Label
+                htmlFor={String(name)}
+                className="cursor-pointer font-normal"
+              >
+                {label}
+              </Label>
+            )}
+          </div>
           {displayText != null && displayText !== "" && (
-            <FormHelperText error={!!errorMessage}>{displayText}</FormHelperText>
+            <p
+              id={`${String(name)}-helper`}
+              className={cn(
+                "text-sm",
+                errorMessage ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {displayText}
+            </p>
           )}
-        </>
+        </div>
       )}
     />
   );

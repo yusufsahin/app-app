@@ -1,0 +1,26 @@
+# Haftalık hatırlatıcı: KPI / gate review gündemi (issue açmaz; Actions özetinde checklist).
+name: Weekly quality sync reminder
+
+on:
+  schedule:
+    - cron: "0 7 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Haftalık gündem özeti
+        run: |
+          cat << 'EOF' >> "$GITHUB_STEP_SUMMARY"
+          ### Artifact gate — haftalık KPI review
+
+          - Gündem: `alm-app/docs/KPI_ARTIFACT_GATES.md`
+          - Takvim: `alm-app/docs/calendar/quality-sync-weekly.ics` (Outlook / Google Takvim’e içe aktarın)
+          - PR gate çıktıları: `alm-app/docs/CI_DOWNLOAD_GATE_ARTIFACTS.md`
+
+          **Checklist:** son 7 gün `gate_decision`, `block_reasons` top 3, `flaky_quarantine.yaml` SLA.
+          EOF

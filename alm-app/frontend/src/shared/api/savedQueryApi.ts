@@ -138,6 +138,7 @@ export async function runSavedQuery(
 export function listStateToFilterParams(state: {
   stateFilter?: string;
   typeFilter?: string;
+  treeFilter?: string;
   searchQuery?: string;
   cycleNodeFilter?: string;
   areaNodeFilter?: string;
@@ -147,6 +148,8 @@ export function listStateToFilterParams(state: {
   const fp: Record<string, unknown> = {};
   if (state.stateFilter) fp.state = state.stateFilter;
   if (state.typeFilter) fp.type = state.typeFilter;
+  const treeTrim = state.treeFilter?.trim();
+  if (treeTrim) fp.tree = treeTrim;
   if (state.searchQuery?.trim()) fp.q = state.searchQuery.trim();
   if (state.cycleNodeFilter) fp.cycle_node_id = state.cycleNodeFilter;
   if (state.areaNodeFilter) fp.area_node_id = state.areaNodeFilter;
@@ -163,6 +166,7 @@ export function filterParamsToListStatePatch(
 ): Partial<{
   stateFilter: string;
   typeFilter: string;
+  treeFilter: string;
   searchQuery: string;
   searchInput: string;
   cycleNodeFilter: string;
@@ -176,6 +180,8 @@ export function filterParamsToListStatePatch(
   }
   const state = String(filterParams.state ?? "").trim();
   const type = String(filterParams.type ?? "").trim();
+  const tree = String(filterParams.tree ?? "").trim();
+  const treeFilter = tree;
   const q = String(filterParams.q ?? "").trim();
   const cycle = String(filterParams.cycle_node_id ?? "").trim();
   const area = String(filterParams.area_node_id ?? "").trim();
@@ -186,6 +192,7 @@ export function filterParamsToListStatePatch(
   return {
     stateFilter: state,
     typeFilter: type,
+    treeFilter,
     searchQuery: q,
     searchInput: q,
     cycleNodeFilter: cycle,

@@ -5,9 +5,10 @@ from __future__ import annotations
 import uuid
 
 from alm.artifact.domain.mpc_resolver import (
-    _HAS_ACL,
+    _HAS_MPC,
     _to_ast,
     acl_check,
+    build_artifact_transition_policy_event,
     check_transition_policies,
     evaluate_transition_policy,
     get_manifest_ast,
@@ -68,12 +69,12 @@ SAMPLE_MANIFEST = {
 
 class TestMpcResolver:
     def test_workflow_initial_state(self):
-        """Workflow graph comes from workflow_sm (statelesspy); MPC only policy/ACL."""
+        """Initial state from workflow_sm (MPC WorkflowEngine when mpc is installed)."""
         assert get_initial_state(SAMPLE_MANIFEST, "requirement") == "new"
         assert get_initial_state(SAMPLE_MANIFEST, "unknown") is None
 
     def test_is_valid_transition(self):
-        """Transition validity from workflow_sm (statelesspy), not MPC engine."""
+        """Transition validity from workflow_sm / MPC WorkflowEngine graph."""
         assert is_valid_transition(SAMPLE_MANIFEST, "requirement", "new", "active")
         assert is_valid_transition(SAMPLE_MANIFEST, "requirement", "active", "resolved")
         assert not is_valid_transition(SAMPLE_MANIFEST, "requirement", "new", "closed")
@@ -84,23 +85,59 @@ class TestMpcResolver:
         assert not is_valid_parent_child(SAMPLE_MANIFEST, "requirement", "epic")
 
     def test_check_transition_policies_assignee_required(self):
-        violations = check_transition_policies(
-            SAMPLE_MANIFEST,
-            "active",
-            {"assignee_id": None},
-            type_id="requirement",
-        )
-        assert len(violations) == 1
-        assert "Assignee required" in violations[0]
+        ast = get_manifest_ast(uuid.uuid4(), SAMPLE_MANIFEST)
+        event = {
+            "object": {"assignee_id": None},
+            "context": {"to_state": "active"},
+        }
+        msgs = check_transition_policies(ast, event)
+        assert msgs
+        assert "assignee" in " ".join(msgs).lower()
 
     def test_check_transition_policies_assignee_ok(self):
-        violations = check_transition_policies(
-            SAMPLE_MANIFEST,
-            "active",
-            {"assignee_id": "user-123"},
-            type_id="requirement",
+        ast = get_manifest_ast(uuid.uuid4(), SAMPLE_MANIFEST)
+        event = {
+            "object": {"assignee_id": "u1"},
+            "context": {"to_state": "active"},
+        }
+        assert check_transition_policies(ast, event) == []
+
+    def test_build_artifact_transition_policy_event_shape(self):
+        pid = uuid.uuid4()
+        tid = uuid.uuid4()
+        uid = uuid.uuid4()
+        e = build_artifact_transition_policy_event(
+            artifact_id=pid,
+            artifact_type="requirement",
+            from_state="new",
+            to_state="active",
+            assignee_id=None,
+            custom_fields={"k": "v"},
+            project_id=tid,
+            tenant_id=tid,
+            updated_by=uid,
+            actor_roles=("editor",),
         )
-        assert len(violations) == 0
+        assert e["kind"] == "transition"
+        assert e["object"]["id"] == str(pid)
+        assert e["context"]["to_state"] == "active"
+        assert e["actor"]["roles"] == ["editor"]
+
+    def test_evaluate_transition_policy_violation(self):
+        ast = get_manifest_ast(uuid.uuid4(), SAMPLE_MANIFEST)
+        event = {
+            "kind": "transition",
+            "name": "artifact.transition",
+            "object": {"id": "a1", "type": "artifact", "state": "active", "assignee_id": None},
+            "actor": {"id": "u1", "type": "user", "roles": ["member"]},
+            "context": {"from_state": "new", "to_state": "active", "project_id": "p1"},
+            "timestamp": "2025-01-01T12:00:00Z",
+        }
+        # In MPC v0.1.0, TransitionPolicy (which is a kind of Policy) will be evaluated.
+        # Our mock/sample manifest has a TransitionPolicy requiring assignee.
+        allow, violations = evaluate_transition_policy(ast, event, actor_roles=["member"])
+        assert allow is False
+        assert len(violations) > 0
 
     def test_get_transition_actions(self):
         actions = get_transition_actions(SAMPLE_MANIFEST, "requirement", "new", "active")
@@ -142,6 +179,34 @@ class TestMpcResolver:
         assert flat["workflows"] == []
         assert flat["artifact_types"] == []
 
+    def test_manifest_defs_to_flat_link_type_optional_metadata(self):
+        manifest = {
+            "defs": [
+                {
+                    "kind": "LinkType",
+                    "id": "blocks",
+                    "name": "Blocks",
+                    "direction": "directed",
+                    "cardinality": "many-to-many",
+                    "from_types": ["task"],
+                    "to_types": ["requirement"],
+                    "description": "Task blocks requirement",
+                },
+            ],
+        }
+        flat = manifest_defs_to_flat(manifest)
+        assert flat["link_types"] == [
+            {
+                "id": "blocks",
+                "name": "Blocks",
+                "direction": "directed",
+                "cardinality": "many-to-many",
+                "from_types": ["task"],
+                "to_types": ["requirement"],
+                "description": "Task blocks requirement",
+            },
+        ]
+
     def test_manifest_defs_to_flat_preserves_trigger_and_label(self):
         manifest = {
             "defs": [
@@ -181,7 +246,12 @@ class TestMpcResolver:
         event = {
             "kind": "transition",
             "name": "artifact.transition",
-            "object": {"id": "a1", "type": "artifact", "state": "new"},
+            "object": {
+                "id": "a1",
+                "type": "artifact",
+                "state": "new",
+                "assignee_id": "550e8400-e29b-41d4-a716-446655440000",
+            },
             "actor": {"id": "u1", "type": "user", "roles": ["member"]},
             "context": {"from_state": "new", "to_state": "active", "project_id": "p1"},
             "timestamp": "2025-01-01T12:00:00Z",
@@ -205,7 +275,7 @@ class TestMpcResolver:
         allowed, reasons = acl_check(ast, "read", "artifact", [])
         assert isinstance(allowed, bool)
         assert isinstance(reasons, list)
-        if not _HAS_ACL:
+        if not _HAS_MPC:
             assert allowed is True
             assert reasons == []
 

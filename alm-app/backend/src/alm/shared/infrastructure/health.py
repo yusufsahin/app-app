@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from sqlalchemy import text
 
+from alm.artifact.domain.mpc_facade import HAS_MPC
 from alm.config.settings import settings
 from alm.shared.infrastructure.db.session import engine
 
@@ -31,5 +32,11 @@ async def readiness() -> dict[str, str | bool | None]:
         checks["app_version"] = settings.app_version
     if settings.environment:
         checks["environment"] = settings.environment
+
+    checks["mpc_installed"] = HAS_MPC
+    checks["mpc_mode"] = settings.mpc_mode
+    if settings.is_production and not HAS_MPC:
+        checks["status"] = "degraded"
+        checks["mpc_note"] = "MPC not installed; policy/ACL run in strict-deny mode in production"
 
     return checks

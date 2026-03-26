@@ -1,23 +1,19 @@
 import { useParams } from "react-router-dom";
-import { useState, useMemo, useEffect } from "react";
-import {
-  Container,
-  Typography,
-  Button,
-  Box,
-  Paper,
-  Chip,
-  Skeleton,
-  Alert,
-  Tabs,
-  Tab,
-  Snackbar,
-  ToggleButtonGroup,
-  ToggleButton,
-} from "@mui/material";
-import { AccountTree, Policy, Preview, Code, ViewModule, Save, DataObject, AccountTreeOutlined } from "@mui/icons-material";
+import { useState, useEffect, useRef } from "react";
+import { Button, Tabs, TabsList, TabsTrigger, TabsContent, Badge, Skeleton } from "../../../shared/components/ui";
+import { LayoutGrid, GitBranch, Code, Save, Braces, Shield } from "lucide-react";
 import yaml from "js-yaml";
 import { useOrgProjects } from "../../../shared/api/orgApi";
+import { useProjectStore } from "../../../shared/stores/projectStore";
+import {
+  useProjectManifest,
+  useUpdateProjectManifest,
+  type ManifestResponse,
+} from "../../../shared/api/manifestApi";
+import type { ProblemDetail } from "../../../shared/api/types";
+import { ManifestEditor } from "../../../shared/components/ManifestEditor";
+import { useManifestStore } from "../../../shared/stores/manifestStore";
+import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 
 /** Get 1-based line number from JSON.parse position (e.g. "Unexpected token at position 42"). */
 function jsonErrorLine(source: string, error: unknown): number | undefined {
@@ -31,26 +27,49 @@ function jsonErrorLine(source: string, error: unknown): number | undefined {
   }
   return line;
 }
-import {
-  useProjectManifest,
-  useUpdateProjectManifest,
-  type ManifestResponse,
-} from "../../../shared/api/manifestApi";
-import type { ProblemDetail } from "../../../shared/api/types";
-import { buildPreviewSchemaFromManifest } from "../../../shared/lib/manifestPreviewSchema";
-import { MetadataDrivenForm } from "../../../shared/components/forms/MetadataDrivenForm";
-import { ManifestEditor } from "../../../shared/components/ManifestEditor";
-import { useManifestStore } from "../../../shared/stores/manifestStore";
-import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
-import { WorkflowDesignerView } from "../components/WorkflowDesignerView";
+
+/** Backend errors are ProblemDetail { detail }; mutations receive that, not Error. */
+function getApiErrorMessage(err: unknown, fallback = "Failed to save manifest."): string {
+  if (err && typeof err === "object" && "detail" in err && typeof (err as { detail: unknown }).detail === "string") {
+    return (err as { detail: string }).detail;
+  }
+  return err instanceof Error ? err.message : fallback;
+}
+
+/** Sync defs ArtifactType.fields from artifact_types so types (e.g. date) match and save succeeds. */
+function syncDefsFromArtifactTypes(bundle: Record<string, unknown>): void {
+  const defs = bundle.defs as Array<Record<string, unknown>> | undefined;
+  const artifactTypes = bundle.artifact_types as Array<Record<string, unknown>> | undefined;
+  if (!defs?.length || !artifactTypes?.length) return;
+  for (const at of artifactTypes) {
+    const id = at.id as string | undefined;
+    const flatFields = at.fields as Array<Record<string, unknown>> | undefined;
+    if (!id || !flatFields?.length) continue;
+    const def = defs.find((d) => d.kind === "ArtifactType" && d.id === id) as Record<string, unknown> | undefined;
+    if (!def?.fields || !Array.isArray(def.fields)) continue;
+    const defFields = def.fields as Array<Record<string, unknown>>;
+    for (const ff of flatFields) {
+      const fid = ff.id as string | undefined;
+      if (!fid) continue;
+      const existing = defFields.find((f) => (f.id as string) === fid);
+      if (existing) {
+        existing.type = ff.type ?? existing.type;
+        if (ff.options != null) existing.options = ff.options;
+      }
+    }
+  }
+}
 
 export default function ManifestPage() {
   const { orgSlug, projectSlug } = useParams<{
     orgSlug: string;
     projectSlug: string;
   }>();
-  const { data: projects } = useOrgProjects(orgSlug);
-  const project = projects?.find((p) => p.slug === projectSlug);
+  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
+  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
+  const project =
+    projects?.find((p) => p.slug === projectSlug) ??
+    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
 
   const {
     data: manifest,
@@ -63,12 +82,12 @@ export default function ManifestPage() {
   const is404 = isError && apiError?.status === 404;
   const is403 = isError && apiError?.status === 403;
 
-  const activeTab = useManifestStore((s) => s.activeTab);
+  const activeTab = useManifestStore((s) => s.activeTab) as "overview" | "source" | "studio";
   const sourceValue = useManifestStore((s) => s.sourceValue);
   const sourceLanguage = useManifestStore((s) => s.sourceLanguage);
   const snackMessage = useManifestStore((s) => s.snackMessage);
   const snackOpen = useManifestStore((s) => s.snackOpen);
-  const setActiveTab = useManifestStore((s) => s.setActiveTab);
+  const setActiveTab = useManifestStore((s) => s.setActiveTab) as (tab: "overview" | "source" | "studio") => void;
   const setSourceValue = useManifestStore((s) => s.setSourceValue);
   const setSourceLanguage = useManifestStore((s) => s.setSourceLanguage);
   const showSnack = useManifestStore((s) => s.showSnack);
@@ -84,8 +103,7 @@ export default function ManifestPage() {
     }
   }, [manifest?.manifest_bundle, resetEditorFromBundle]);
 
-  const handleSourceLanguageChange = (_: React.MouseEvent<HTMLElement>, value: "json" | "yaml" | null) => {
-    if (value === null) return;
+  const handleSourceLanguageChange = (value: "json" | "yaml") => {
     if (value === sourceLanguage) return;
     setEditorErrorLine(undefined);
     try {
@@ -106,11 +124,6 @@ export default function ManifestPage() {
     }
   };
 
-  const previewSchema = useMemo(
-    () => (manifest?.manifest_bundle ? buildPreviewSchemaFromManifest(manifest.manifest_bundle) : null),
-    [manifest?.manifest_bundle],
-  );
-  const [previewValues, setPreviewValues] = useState<Record<string, unknown>>({});
 
   const handleSourceChange = (value: string) => {
     setEditorErrorLine(undefined);
@@ -142,237 +155,215 @@ export default function ManifestPage() {
       showSnack("Manifest must be an object (workflows, artifact_types, policies).");
       return;
     }
-    updateManifest.mutate(bundle as ManifestResponse["manifest_bundle"], {
+    const bundleObj = bundle as Record<string, unknown>;
+    syncDefsFromArtifactTypes(bundleObj);
+    updateManifest.mutate(bundleObj as ManifestResponse["manifest_bundle"], {
       onSuccess: () => {
         setEditorErrorLine(undefined);
         showSnack("Manifest saved.");
       },
-      onError: (err: Error) => showSnack(err?.message ?? "Failed to save manifest."),
+      onError: (err: unknown) => showSnack(getApiErrorMessage(err)),
     });
   };
 
-  if (!project && projectSlug && orgSlug) {
+  useEffect(() => {
+    if (!snackOpen) return;
+    const t = setTimeout(clearSnack, 6000);
+    return () => clearTimeout(t);
+  }, [snackOpen, clearSnack]);
+
+  // Sync with embedded Studio
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'UPDATE_DSL') {
+        setSourceValue(event.data.dsl);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [setSourceValue]);
+
+  const studioRef = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    if (activeTab === 'studio' && studioRef.current?.contentWindow) {
+      studioRef.current.contentWindow.postMessage({ type: 'SET_DSL', dsl: sourceValue }, '*');
+    }
+  }, [activeTab, sourceValue]);
+
+  if (projectSlug && orgSlug && !projectsLoading && !project) {
     return <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />;
   }
   if (is403 && orgSlug && projectSlug) {
     return <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />;
   }
+  if (projectSlug && orgSlug && projectsLoading) {
+    return (
+      <div className="mx-auto max-w-5xl py-6">
+        <div className="flex items-center gap-2 text-muted-foreground">Loading project…</div>
+      </div>
+    );
+  }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <div className="mx-auto max-w-5xl py-6">
       <ProjectBreadcrumbs currentPageLabel="Process manifest" projectName={project?.name} />
 
       {isLoading ? (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <Skeleton variant="text" width={200} height={40} />
-          <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
-        </Box>
+        <div className="flex flex-col gap-4">
+          <Skeleton className="h-10 w-48" />
+          <Skeleton className="h-[200px] rounded-md" />
+        </div>
       ) : is404 ? (
-        <Alert
-          severity="warning"
-          action={
-            project?.id && orgSlug ? (
-              <Button
-                color="inherit"
-                size="small"
-                onClick={() =>
-                  updateManifest.mutate(
-                    {
-                      workflows: [],
-                      artifact_types: [],
-                      link_types: [],
-                    },
-                    {
-                      onSuccess: () => refetch(),
-                      onError: () => {},
-                    },
-                  )
-                }
-                disabled={updateManifest.isPending}
-              >
-                {updateManifest.isPending ? "Initializing…" : "Initialize manifest"}
-              </Button>
-            ) : null
-          }
-        >
-          This project has no process template assigned. Initialize a manifest to get started.
-        </Alert>
-      ) : isError ? (
-        <Alert severity="warning">
-          Could not load the manifest. Please try again later.
-        </Alert>
-      ) : manifest ? (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-            <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
-              Process Manifest
-            </Typography>
-            <Chip label={manifest.template_name} size="small" color="primary" />
-            <Typography variant="body2" color="text.secondary">
-              v{manifest.version}
-            </Typography>
-          </Box>
-
-          <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ borderBottom: 1, borderColor: "divider" }}>
-            <Tab value="overview" label="Overview" icon={<ViewModule fontSize="small" />} iconPosition="start" />
-            <Tab value="workflow" label="Workflow" icon={<AccountTreeOutlined fontSize="small" />} iconPosition="start" />
-            <Tab value="preview" label="Form preview" icon={<Preview fontSize="small" />} iconPosition="start" />
-            <Tab value="source" label="Source" icon={<Code fontSize="small" />} iconPosition="start" />
-          </Tabs>
-
-          {activeTab === "source" && (
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              {editorErrorLine != null && editorErrorLine >= 1 && (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setEditorErrorLine(undefined)}>
-                  Parse error at line {editorErrorLine}. Fix the syntax above and try again.
-                </Alert>
-              )}
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1, mb: 1 }}>
-                <ToggleButtonGroup
-                  value={sourceLanguage}
-                  exclusive
-                  onChange={handleSourceLanguageChange}
-                  size="small"
-                  aria-label="Source format"
-                >
-                  <ToggleButton value="json" aria-label="JSON">
-                    <DataObject sx={{ mr: 0.5 }} fontSize="small" />
-                    JSON
-                  </ToggleButton>
-                  <ToggleButton value="yaml" aria-label="YAML">
-                    <Code sx={{ mr: 0.5 }} fontSize="small" />
-                    YAML
-                  </ToggleButton>
-                </ToggleButtonGroup>
-                <Button
-                  variant="contained"
-                  startIcon={<Save />}
-                  onClick={handleSaveManifest}
-                  disabled={updateManifest.isPending}
-                >
-                  {updateManifest.isPending ? "Saving…" : "Save manifest"}
-                </Button>
-              </Box>
-              <ManifestEditor
-                value={sourceValue}
-                onChange={handleSourceChange}
-                language={sourceLanguage}
-                readOnly={false}
-                height={480}
-                errorLine={editorErrorLine}
-              />
-            </Paper>
-          )}
-
-          {activeTab === "workflow" && (
-            <WorkflowDesignerView
-              workflows={(manifest.manifest_bundle?.workflows ?? []) as Array<{ id: string; name?: string; states?: Array<{ id: string; name?: string; category?: string }>; transitions?: Array<{ from: string; to: string }> }>}
-              editable
-              isSaving={updateManifest.isPending}
-              onSaveWorkflow={(updatedWorkflow) => {
-                const bundle = { ...manifest.manifest_bundle } as Record<string, unknown>;
-                const workflows = Array.isArray(bundle.workflows) ? [...bundle.workflows] : [];
-                const idx = workflows.findIndex((w: { id?: string }) => (w as { id?: string }).id === updatedWorkflow.id);
-                if (idx >= 0) workflows[idx] = updatedWorkflow;
-                else workflows.push(updatedWorkflow);
+        <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-amber-800 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2">
+          <span>This project has no process template assigned. Initialize a manifest to get started.</span>
+          {project?.id && orgSlug ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
                 updateManifest.mutate(
-                  { ...bundle, workflows } as ManifestResponse["manifest_bundle"],
                   {
-                    onSuccess: () => showSnack("Workflow saved."),
-                    onError: (err: Error) => showSnack(err?.message ?? "Failed to save workflow."),
+                    workflows: [],
+                    artifact_types: [],
+                    link_types: [],
                   },
-                );
-              }}
-            />
-          )}
+                  {
+                    onSuccess: () => refetch(),
+                    onError: () => {},
+                  },
+                )
+              }
+              disabled={updateManifest.isPending}
+            >
+              {updateManifest.isPending ? "Initializing…" : "Initialize manifest"}
+            </Button>
+          ) : null}
+        </div>
+      ) : isError ? (
+        <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-amber-800 dark:text-amber-200">
+          Could not load the manifest. Please try again later.
+        </div>
+      ) : manifest ? (
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-wrap items-center gap-4">
+            <h1 className="text-2xl font-semibold">Process Manifest</h1>
+            <Badge>{manifest.template_name}</Badge>
+            <span className="text-sm text-muted-foreground">v{manifest.version}</span>
+          </div>
 
-          {activeTab === "preview" && previewSchema && (
-            <Paper variant="outlined" sx={{ p: 3 }}>
-              <Typography variant="overline" color="primary" fontWeight={600} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-                <Preview fontSize="small" />
-                Artifact form preview (from manifest)
-              </Typography>
-              <MetadataDrivenForm
-                schema={previewSchema}
-                values={previewValues}
-                onChange={setPreviewValues}
-                onSubmit={() => {}}
-                submitLabel="Create (preview only)"
-                disabled
-                submitExternally
-              />
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                This is a live preview of the create-artifact form derived from the manifest. Submit is disabled.
-              </Typography>
-            </Paper>
-          )}
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => {
+              if (v === "overview" || v === "studio" || v === "source") setActiveTab(v);
+            }}
+            className="border-b"
+          >
+            <TabsList className="w-full justify-start rounded-none border-b-0 bg-transparent p-0">
+              <TabsTrigger value="overview" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
+                <LayoutGrid className="size-4" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="studio" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none text-blue-500">
+                <Shield className="size-4" />
+                MPC Studio
+              </TabsTrigger>
+              <TabsTrigger value="source" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
+                <Code className="size-4" />
+                Source
+              </TabsTrigger>
+            </TabsList>
 
-          {activeTab === "overview" && (
-            <>
-          <Paper variant="outlined" sx={{ p: 3 }}>
-            <Typography variant="overline" color="primary" fontWeight={600} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-              <AccountTree fontSize="small" />
-              Workflows
-            </Typography>
-            {manifest.manifest_bundle.workflows &&
-            manifest.manifest_bundle.workflows.length > 0 ? (
-              <Box
-                component="pre"
-                sx={{
-                  p: 2,
-                  bgcolor: "action.hover",
-                  borderRadius: 1,
-                  overflow: "auto",
-                  fontSize: 13,
-                  fontFamily: "monospace",
-                }}
-              >
-                {JSON.stringify(manifest.manifest_bundle.workflows, null, 2)}
-              </Box>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                No workflows defined.
-              </Typography>
-            )}
-          </Paper>
+            <TabsContent value="source" className="rounded-lg border p-4">
+                {editorErrorLine != null && editorErrorLine >= 1 && (
+                  <div className="mb-4 flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-destructive">
+                    <span>Parse error at line {editorErrorLine}. Fix the syntax above and try again.</span>
+                    <button type="button" onClick={() => setEditorErrorLine(undefined)} className="shrink-0 rounded p-1 hover:bg-destructive/20" aria-label="Dismiss">×</button>
+                  </div>
+                )}
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Source format">
+                    <button
+                      type="button"
+                      onClick={() => handleSourceLanguageChange("json")}
+                      className={`inline-flex items-center gap-1 rounded px-2 py-1.5 text-sm font-medium ${sourceLanguage === "json" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                    >
+                      <Braces className="size-4" />
+                      JSON
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSourceLanguageChange("yaml")}
+                      className={`inline-flex items-center gap-1 rounded px-2 py-1.5 text-sm font-medium ${sourceLanguage === "yaml" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                    >
+                      <Code className="size-4" />
+                      YAML
+                    </button>
+                  </div>
+                  <Button onClick={handleSaveManifest} disabled={updateManifest.isPending}>
+                    <Save className="size-4" />
+                    {updateManifest.isPending ? "Saving…" : "Save manifest"}
+                  </Button>
+                </div>
+                <ManifestEditor
+                  value={sourceValue}
+                  onChange={handleSourceChange}
+                  language={sourceLanguage}
+                  readOnly={false}
+                  height={480}
+                  errorLine={editorErrorLine}
+                />
+            </TabsContent>
 
-          <Paper variant="outlined" sx={{ p: 3 }}>
-            <Typography variant="overline" color="primary" fontWeight={600} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-              <Policy fontSize="small" />
-              Policies
-            </Typography>
-            {manifest.manifest_bundle.policies &&
-            manifest.manifest_bundle.policies.length > 0 ? (
-              <Box
-                component="pre"
-                sx={{
-                  p: 2,
-                  bgcolor: "action.hover",
-                  borderRadius: 1,
-                  overflow: "auto",
-                  fontSize: 13,
-                  fontFamily: "monospace",
-                }}
-              >
-                {JSON.stringify(manifest.manifest_bundle.policies, null, 2)}
-              </Box>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                No policies defined.
-              </Typography>
-            )}
-          </Paper>
-            </>
-          )}
-        </Box>
+            <TabsContent value="studio" className="h-[700px] rounded-lg border overflow-hidden bg-[#0a0b10]">
+               <iframe
+                 ref={studioRef}
+                 src="/studio/?embedded=true"
+                 className="w-full h-full border-none"
+                 title="MPC Studio"
+               />
+            </TabsContent>
+
+            <TabsContent value="overview">
+                  <div className="rounded-lg border p-6">
+                    <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
+                      <GitBranch className="size-4" />
+                      Workflows
+                    </p>
+                    {manifest.manifest_bundle.workflows && manifest.manifest_bundle.workflows.length > 0 ? (
+                      <pre className="overflow-auto rounded bg-muted/50 p-4 font-mono text-[13px]">
+                        {JSON.stringify(manifest.manifest_bundle.workflows, null, 2)}
+                      </pre>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No workflows defined.</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border p-6">
+                    <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
+                      <Shield className="size-4" />
+                      Policies
+                    </p>
+                    {manifest.manifest_bundle.policies && manifest.manifest_bundle.policies.length > 0 ? (
+                      <pre className="overflow-auto rounded bg-muted/50 p-4 font-mono text-[13px]">
+                        {JSON.stringify(manifest.manifest_bundle.policies, null, 2)}
+                      </pre>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No policies defined.</p>
+                    )}
+                  </div>
+            </TabsContent>
+          </Tabs>
+        </div>
       ) : null}
-      <Snackbar
-        open={snackOpen}
-        autoHideDuration={6000}
-        onClose={clearSnack}
-        message={snackMessage}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      />
-    </Container>
+
+      {snackOpen && (
+        <div
+          className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border bg-card px-4 py-3 shadow-lg"
+          role="status"
+        >
+          {snackMessage}
+        </div>
+      )}
+    </div>
   );
 }

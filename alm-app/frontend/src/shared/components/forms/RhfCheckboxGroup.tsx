@@ -3,7 +3,9 @@
  * Form value: string[] (selected option values). Use z.array(z.string()) in Zod.
  */
 import { Controller } from "react-hook-form";
-import { Checkbox, FormControl, FormControlLabel, FormGroup, FormHelperText, FormLabel } from "@mui/material";
+import { Checkbox, Label } from "../ui";
+import { FormItem, FormControl, FormMessage } from "../ui/form";
+import { cn } from "../ui/utils";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
 
@@ -48,28 +50,27 @@ export function RhfCheckboxGroup<TFieldValues extends import("react-hook-form").
           onChange(next);
         };
         return (
-          <FormControl error={!!errorMessage} component="fieldset" variant="standard">
-            {label != null && label !== "" && <FormLabel component="legend" sx={{ mb: 0.5 }}>{label}</FormLabel>}
-            <FormGroup row={row} ref={ref}>
-              {options.map((opt) => (
-                <FormControlLabel
-                  key={String(opt.value)}
-                  control={
+          <FormItem>
+            {label != null && label !== "" && <Label>{label}</Label>}
+            <FormControl>
+              <div ref={ref} className={cn("flex flex-col gap-2", row && "flex-row flex-wrap")}>
+                {options.map((opt) => (
+                  <label key={String(opt.value)} className="flex cursor-pointer items-center gap-2">
                     <Checkbox
                       checked={selected.includes(opt.value as T)}
-                      onChange={() => toggle(opt.value as T)}
+                      onCheckedChange={() => toggle(opt.value as T)}
                       onBlur={onBlur}
                       disabled={opt.disabled}
                     />
-                  }
-                  label={opt.label}
-                />
-              ))}
-            </FormGroup>
-            {displayText != null && displayText !== "" && (
-              <FormHelperText sx={{ mt: 0.5 }}>{displayText}</FormHelperText>
-            )}
-          </FormControl>
+                    <span className="text-sm">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </FormControl>
+            {(displayText != null && displayText !== "") || errorMessage ? (
+              <FormMessage>{errorMessage ?? displayText}</FormMessage>
+            ) : null}
+          </FormItem>
         );
       }}
     />

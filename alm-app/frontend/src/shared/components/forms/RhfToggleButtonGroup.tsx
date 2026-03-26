@@ -3,7 +3,9 @@
  * Form value: string (exclusive) or string[] (multiple). Use z.string() or z.array(z.string()) in Zod.
  */
 import { Controller } from "react-hook-form";
-import { FormControl, FormHelperText, FormLabel, ToggleButton, ToggleButtonGroup } from "@mui/material";
+import { Label } from "../ui";
+import { FormItem, FormControl, FormMessage } from "../ui/form";
+import { cn } from "../ui/utils";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
 
@@ -29,8 +31,7 @@ export function RhfToggleButtonGroup<TFieldValues extends import("react-hook-for
   label,
   options,
   multiple = false,
-  exclusive,
-  size = "medium",
+  exclusive: _exclusive,
   fullWidth,
   error,
   helperText,
@@ -47,31 +48,57 @@ export function RhfToggleButtonGroup<TFieldValues extends import("react-hook-for
       control={control}
       render={({ field: { value, onChange, onBlur, ref } }) => {
         const val = value ?? (multiple ? [] : "");
+        const selected: string[] = multiple
+          ? (Array.isArray(val) ? (val as string[]) : [])
+          : val == null || val === "" ? [] : [String(val)];
+        const toggle = (optValue: string) => {
+          if (multiple) {
+            const arr = selected;
+            const next = arr.includes(optValue)
+              ? arr.filter((x) => x !== optValue)
+              : [...arr, optValue];
+            onChange(next);
+          } else {
+            onChange(selected.includes(optValue) ? "" : optValue);
+          }
+        };
         return (
-          <FormControl error={!!errorMessage} component="fieldset" variant="standard" fullWidth={fullWidth}>
-            {label != null && label !== "" && <FormLabel component="legend" sx={{ mb: 0.5 }}>{label}</FormLabel>}
-            <ToggleButtonGroup
-              value={val}
-              onChange={(_, newValue) => {
-                if (newValue != null) onChange(newValue);
-              }}
-              onBlur={onBlur}
-              ref={ref}
-              exclusive={exclusive ?? !multiple}
-              size={size}
-              fullWidth={fullWidth}
-              aria-label={typeof label === "string" ? label : undefined}
-            >
-              {options.map((opt) => (
-                <ToggleButton key={String(opt.value)} value={opt.value} disabled={opt.disabled} aria-label={String(opt.value)}>
-                  {opt.label}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-            {displayText != null && displayText !== "" && (
-              <FormHelperText sx={{ mt: 0.5 }}>{displayText}</FormHelperText>
-            )}
-          </FormControl>
+          <FormItem>
+            {label != null && label !== "" && <Label>{label}</Label>}
+            <FormControl>
+              <div
+                ref={ref}
+                onBlur={onBlur}
+                className={cn("flex flex-wrap gap-1", fullWidth && "w-full")}
+                role="group"
+                aria-label={typeof label === "string" ? label : undefined}
+              >
+                {options.map((opt) => {
+                  const isSelected = selected.includes(String(opt.value));
+                  return (
+                    <button
+                      key={String(opt.value)}
+                      type="button"
+                      onClick={() => toggle(String(opt.value))}
+                      disabled={opt.disabled}
+                      className={cn(
+                        "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+                        isSelected
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-input bg-background hover:bg-muted",
+                      )}
+                      aria-pressed={isSelected}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </FormControl>
+            {(displayText != null && displayText !== "") || errorMessage ? (
+              <FormMessage>{errorMessage ?? displayText}</FormMessage>
+            ) : null}
+          </FormItem>
         );
       }}
     />

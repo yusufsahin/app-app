@@ -22,7 +22,7 @@ export function useListSchema(
       if (!orgSlug || !projectId) return null;
       const { data } = await apiClient.get<ListSchemaDto>(
         `/orgs/${orgSlug}/projects/${projectId}/list-schema`,
-        { params: { entityType } },
+        { params: { entity_type: entityType } },
       );
       return data;
     },

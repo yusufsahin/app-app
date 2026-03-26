@@ -86,3 +86,30 @@ def evaluate_guard(
 
     # Unknown guard type: fail closed (do not allow transition)
     return False
+
+
+def guard_user_message_for_failure(guard_ref: str | dict[str, Any] | None) -> str:
+    """Short, safe user-facing text when evaluate_guard returned False (no snapshot secrets)."""
+    if guard_ref is None:
+        return "This transition cannot be completed with the current data."
+
+    if isinstance(guard_ref, str):
+        guard_type = guard_ref.strip()
+    elif isinstance(guard_ref, dict) and guard_ref.get("type"):
+        guard_type = str(guard_ref["type"]).strip()
+    else:
+        return "This transition cannot be completed with the current data."
+
+    if not guard_type:
+        return "This transition cannot be completed with the current data."
+
+    if guard_type == "assignee_required":
+        return "An assignee must be assigned before this transition."
+
+    if guard_type == "field_present":
+        return "Required information is missing before this transition."
+
+    if guard_type == "field_equals":
+        return "This transition requires different field values than currently set."
+
+    return "This transition cannot be completed with the current data."

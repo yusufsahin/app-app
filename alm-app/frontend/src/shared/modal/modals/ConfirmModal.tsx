@@ -1,4 +1,4 @@
-import { Box, Button, Typography } from "@mui/material";
+import { Button } from "../../components/ui";
 import type { ConfirmModalProps } from "../modalTypes";
 
 type Props = ConfirmModalProps & { onClose: () => void };
@@ -18,17 +18,16 @@ export function ConfirmModal({
 
   return (
     <>
-      <Typography sx={{ mb: 2 }}>{message}</Typography>
-      <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
-        <Button onClick={onClose}>{cancelLabel}</Button>
+      <p className="mb-4">{message}</p>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>{cancelLabel}</Button>
         <Button
-          variant="contained"
-          color={variant === "destructive" ? "error" : "primary"}
+          variant={variant === "destructive" ? "destructive" : "default"}
           onClick={handleConfirm}
         >
           {confirmLabel}
         </Button>
-      </Box>
+      </div>
     </>
   );
 }

@@ -3,6 +3,10 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from alm.artifact.domain.entities import Artifact
+from alm.artifact.domain.ports import ArtifactRepository
+from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
+from alm.config.settings import settings
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.application.dtos import ProjectDTO
 from alm.project.domain.entities import Project
@@ -11,6 +15,10 @@ from alm.project.domain.project_member import ProjectMember
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ConflictError, ValidationError
 from alm.shared.domain.value_objects import ProjectCode, Slug
+from alm.tenant.domain.ports import TenantRepository
+
+# Tenant JSON settings: optional org-wide default when CreateProject omits process_template_slug.
+TENANT_SETTINGS_DEFAULT_PROCESS_TEMPLATE_SLUG_KEY = "default_process_template_slug"
 
 
 @dataclass(frozen=True)
@@ -29,10 +37,14 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
         project_repo: ProjectRepository,
         process_template_repo: ProcessTemplateRepository,
         project_member_repo: ProjectMemberRepository,
+        artifact_repo: ArtifactRepository,
+        tenant_repo: TenantRepository,
     ) -> None:
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
         self._project_member_repo = project_member_repo
+        self._artifact_repo = artifact_repo
+        self._tenant_repo = tenant_repo
 
     async def handle(self, command: Command) -> ProjectDTO:
         assert isinstance(command, CreateProject)
@@ -52,7 +64,16 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
         if existing_slug is not None:
             raise ConflictError(f"Project with slug '{slug.value}' already exists in this tenant")
 
-        template_slug = command.process_template_slug or "basic"
+        if command.process_template_slug and str(command.process_template_slug).strip():
+            template_slug = str(command.process_template_slug).strip()
+        else:
+            from_tenant: str | None = None
+            tenant = await self._tenant_repo.find_by_id(command.tenant_id)
+            if tenant and isinstance(tenant.settings, dict):
+                raw = tenant.settings.get(TENANT_SETTINGS_DEFAULT_PROCESS_TEMPLATE_SLUG_KEY)
+                if isinstance(raw, str) and raw.strip():
+                    from_tenant = raw.strip()
+            template_slug = from_tenant or settings.default_process_template_slug
         version = await self._process_template_repo.find_version_by_template_slug(template_slug)
         project = Project.create(
             tenant_id=command.tenant_id,
@@ -75,6 +96,9 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
             )
             await self._project_member_repo.add(member)
 
+        if project.process_template_version_id:
+            await self._create_project_roots(project)
+
         return ProjectDTO(
             id=project.id,
             code=project.code,
@@ -85,3 +109,47 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
             settings=project.settings,
             metadata_=project.metadata_,
         )
+
+    async def _create_project_roots(self, project: Project) -> None:
+        """Create root artifacts (root-requirement, root-quality, root-defect) when template defines them."""
+        from alm.artifact.domain.mpc_resolver import get_manifest_ast
+
+        version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+        if not version or not version.manifest_bundle:
+            return
+        manifest = version.manifest_bundle
+        ast = get_manifest_ast(version.id, manifest)
+        state_req = workflow_get_initial_state(manifest, "root-requirement", ast=ast)
+        state_qual = workflow_get_initial_state(manifest, "root-quality", ast=ast)
+        if state_req is None or state_qual is None:
+            return
+        root_req = Artifact.create(
+            project_id=project.id,
+            artifact_type="root-requirement",
+            title=project.name,
+            state=state_req,
+            parent_id=None,
+            artifact_key=f"{project.code}-R0",
+        )
+        root_qual = Artifact.create(
+            project_id=project.id,
+            artifact_type="root-quality",
+            title=project.name,
+            state=state_qual,
+            parent_id=None,
+            artifact_key=f"{project.code}-Q0",
+        )
+        await self._artifact_repo.add(root_req)
+        await self._artifact_repo.add(root_qual)
+
+        state_defect = workflow_get_initial_state(manifest, "root-defect", ast=ast)
+        if state_defect is not None:
+            root_defect = Artifact.create(
+                project_id=project.id,
+                artifact_type="root-defect",
+                title=project.name,
+                state=state_defect,
+                parent_id=None,
+                artifact_key=f"{project.code}-D0",
+            )
+            await self._artifact_repo.add(root_defect)

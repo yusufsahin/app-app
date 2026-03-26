@@ -53,9 +53,8 @@ class UpdateWorkflowRuleHandler(CommandHandler[WorkflowRuleDTO]):
             condition = (command.condition_expression.strip() or None) if command.condition_expression else None
 
         actions = existing.actions
-        if command.actions is not None:
-            if isinstance(command.actions, list):
-                actions = command.actions
+        if command.actions is not None and isinstance(command.actions, list):
+            actions = command.actions
 
         is_active = existing.is_active
         if command.is_active is not None:

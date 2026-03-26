@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
+from alm.artifact.domain.manifest_workflow_metadata import allowed_task_state_ids
+from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
 from alm.task.application.dtos import TaskDTO
@@ -24,8 +28,15 @@ class UpdateTask(Command):
 
 
 class UpdateTaskHandler(CommandHandler[TaskDTO]):
-    def __init__(self, task_repo: TaskRepository) -> None:
+    def __init__(
+        self,
+        task_repo: TaskRepository,
+        project_repo: ProjectRepository,
+        process_template_repo: ProcessTemplateRepository,
+    ) -> None:
         self._task_repo = task_repo
+        self._project_repo = project_repo
+        self._process_template_repo = process_template_repo
 
     async def handle(self, command: Command) -> TaskDTO:
         assert isinstance(command, UpdateTask)
@@ -37,7 +48,19 @@ class UpdateTaskHandler(CommandHandler[TaskDTO]):
         if command.title is not None:
             task.title = command.title.strip() or task.title
         if command.state is not None:
-            task.state = command.state.strip() or task.state
+            new_s = command.state.strip()
+            if new_s:
+                project = await self._project_repo.find_by_id(command.project_id)
+                if project is None or project.tenant_id != command.tenant_id:
+                    raise ValidationError("Project not found")
+                manifest: dict[str, Any] = {}
+                if project.process_template_version_id:
+                    version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+                    if version and version.manifest_bundle:
+                        manifest = version.manifest_bundle
+                if new_s not in allowed_task_state_ids(manifest):
+                    raise ValidationError(f"Invalid task state '{new_s}' for this project's manifest")
+                task.state = new_s
         if command.description is not None:
             task.description = command.description
         if command.assignee_id is not None:

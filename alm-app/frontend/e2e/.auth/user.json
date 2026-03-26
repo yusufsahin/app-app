@@ -2,19 +2,27 @@
   "cookies": [],
   "origins": [
     {
-      "origin": "http://localhost:3000",
+      "origin": "http://localhost:9001",
       "localStorage": [
         {
-          "name": "refresh_token",
-          "value": "73d95ebb658e4237854079c450f2bf0586348986b0e246e8a50e51d34239558b"
-        },
-        {
-          "name": "current_tenant",
-          "value": "{\"id\":\"87b4b195-8379-443a-8c9b-d99ba73c05cf\",\"name\":\"Demo\",\"slug\":\"demo\",\"tier\":\"free\",\"roles\":[\"admin\"]}"
+          "name": "i18nextLng",
+          "value": "en"
         },
         {
           "name": "access_token",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyYzNkYmY2Yi05ZGZkLTQzZGEtOTRmMi1mYTRhODNjYmVkOGUiLCJ0aWQiOiI4N2I0YjE5NS04Mzc5LTQ0M2EtOGM5Yi1kOTliYTczYzA1Y2YiLCJyb2xlcyI6WyJhZG1pbiJdLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzcxODk5ODE1LCJpYXQiOjE3NzE4OTgwMTV9.8RYOhISQgevhj5CMcY4906UjV1KOeS43uSDT5kxo0oM"
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNjE5MDZlMy1hODZlLTQ5OTctOTkyOS02NWI5Yzg1M2Y3ZTIiLCJ0aWQiOiIzYzdlYjUyMC0yNjQ3LTQwZjctODE3Ni05ZDNlYTVlYzMyNDEiLCJyb2xlcyI6WyJhZG1pbiJdLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc0NDQ2ODA3LCJpYXQiOjE3NzQ0NDUwMDd9.o3REycPiHfmatRgDCzBKW54UcWfTGNVKPkMh7avfrpI"
+        },
+        {
+          "name": "alm-layout-ui",
+          "value": "{\"sidebarCollapsed\":false}"
+        },
+        {
+          "name": "refresh_token",
+          "value": "188f6195aeb1452da863b820df15ddb9c7a83dfd9e1140a6b9599ab58ddbfd46"
+        },
+        {
+          "name": "current_tenant",
+          "value": "{\"id\":\"3c7eb520-2647-40f7-8176-9d3ea5ec3241\",\"name\":\"Demo\",\"slug\":\"demo\",\"tier\":\"free\",\"roles\":[\"admin\"]}"
         }
       ]
     }

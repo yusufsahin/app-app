@@ -6,9 +6,13 @@ Integration tests use PostgreSQL. Either: test container (Docker), ALM_TEST_DATA
 from __future__ import annotations
 
 import os
+
+# Policy/ACL fallback when MPC is not installed (CI / minimal env); production still uses strict via ALM_ENVIRONMENT.
+os.environ.setdefault("ALM_MPC_MODE", "degraded")
 import uuid
 from collections.abc import AsyncGenerator, Generator
-from unittest.mock import patch
+from contextlib import ExitStack
+from unittest.mock import AsyncMock, patch
 from urllib.parse import urlparse
 
 import pytest
@@ -127,7 +131,8 @@ async def test_engine(postgres_url: str):
     except Exception as e:
         await engine.dispose()
         pytest.skip(
-            f"PostgreSQL test database unavailable: {e}. Start Docker (see backend/tests/README.md) or set ALM_TEST_DATABASE_URL."
+            f"PostgreSQL test database unavailable: {e}. "
+            "Start Docker (see backend/tests/README.md) or set ALM_TEST_DATABASE_URL."
         )
 
     # Seed privileges and process templates so provision_tenant and artifact creation work
@@ -179,20 +184,39 @@ async def _noop_subscriber() -> None:
     return
 
 
+# ``from session import async_session_factory`` binds the factory at import time in each module below.
+# Patching only ``alm.shared.infrastructure.db.session`` leaves stale references → requests hit prod URL / wrong DB.
+_ASYNC_SESSION_FACTORY_PATCH_TARGETS: tuple[str, ...] = (
+    "alm.shared.infrastructure.db.session.async_session_factory",
+    "alm.config.dependencies.async_session_factory",
+    "alm.main.async_session_factory",
+    "alm.workflow_rule.infrastructure.workflow_rule_runner.async_session_factory",
+    "alm.realtime.event_handlers.async_session_factory",
+    "alm.admin.infrastructure.access_audit_store.async_session_factory",
+)
+
+
 @pytest.fixture
 async def client(test_engine, test_session_factory) -> AsyncGenerator[AsyncClient, None]:
-    import alm.shared.infrastructure.db.session as session_mod
+    with ExitStack() as stack:
+        for target in _ASYNC_SESSION_FACTORY_PATCH_TARGETS:
+            stack.enter_context(patch(target, test_session_factory))
+        stack.enter_context(
+            patch(
+                "alm.shared.infrastructure.cache.PermissionCache",
+                _FakePermissionCache,
+            )
+        )
+        stack.enter_context(patch("alm.main.run_subscriber", _noop_subscriber))
+        # Rate limit middleware uses Redis; integration tests run without Redis by default.
+        stack.enter_context(
+            patch(
+                "alm.shared.infrastructure.rate_limit_middleware.check_sliding_window",
+                new_callable=AsyncMock,
+                return_value=(True, 0),
+            )
+        )
 
-    original_factory = session_mod.async_session_factory
-    session_mod.async_session_factory = test_session_factory
-
-    with (
-        patch(
-            "alm.shared.infrastructure.cache.PermissionCache",
-            _FakePermissionCache,
-        ),
-        patch("alm.main.run_subscriber", _noop_subscriber),
-    ):
         from alm.main import create_app
 
         app = create_app()
@@ -200,5 +224,3 @@ async def client(test_engine, test_session_factory) -> AsyncGenerator[AsyncClien
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
             yield ac
-
-    session_mod.async_session_factory = original_factory

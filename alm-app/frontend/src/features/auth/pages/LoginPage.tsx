@@ -2,20 +2,9 @@ import { useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useNavigate, Link as RouterLink } from "react-router-dom";
-import {
-  Box,
-  Card,
-  CardContent,
-  Button,
-  Typography,
-  Alert,
-  Link,
-  CircularProgress,
-  InputAdornment,
-  IconButton,
-} from "@mui/material";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { useNavigate, Link } from "react-router-dom";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Card, CardContent, Button } from "../../../shared/components/ui";
 import { RhfTextField } from "../../../shared/components/forms";
 import { useLogin } from "../../../shared/api/authApi";
 import { useAuthStore } from "../../../shared/stores/authStore";
@@ -27,6 +16,9 @@ const loginSchema = z.object({
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
+
+const ERROR_ALERT_ID = "login-error";
+const FORM_ID = "login-form";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -63,64 +55,72 @@ export default function LoginPage() {
     }
   };
 
+  const isPending = login.isPending;
+
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        bgcolor: "background.default",
-        p: 2,
-      }}
-    >
-      <Card sx={{ maxWidth: 440, width: "100%", p: 2 }}>
-        <CardContent>
-          <Box sx={{ textAlign: "center", mb: 4 }}>
-            <Typography component="h1" variant="h4" sx={{ fontWeight: 600, color: "primary.main" }}>
-              ALM Manifest
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Sign in to your account
-            </Typography>
-          </Box>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-[440px] p-6">
+        <CardContent className="space-y-6 pb-6">
+          <div className="text-center" id="login-heading">
+            <h1 className="text-2xl font-semibold text-primary">ALM Manifest</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Sign in to your account</p>
+          </div>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {error}
-            </Alert>
+            <div
+              id={ERROR_ALERT_ID}
+              role="alert"
+              className="flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              <span>{error}</span>
+              <button
+                type="button"
+                onClick={() => setError(null)}
+                className="shrink-0 rounded p-1 hover:bg-destructive/20"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
           )}
 
           <FormProvider {...form}>
-            <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <form
+              id={FORM_ID}
+              onSubmit={handleSubmit(onSubmit)}
+              noValidate
+              aria-labelledby="login-heading"
+              aria-describedby={error ? ERROR_ALERT_ID : undefined}
+              className="space-y-4"
+            >
               <RhfTextField<LoginFormData>
                 name="email"
                 label="Email"
                 type="email"
                 fullWidth
-                sx={{ mb: 2.5 }}
                 autoComplete="email"
+                autoFocus // eslint-disable-line jsx-a11y/no-autofocus -- primary field focus
+                disabled={isPending}
               />
               <RhfTextField<LoginFormData>
                 name="password"
                 label="Password"
                 type={showPassword ? "text" : "password"}
                 fullWidth
-                sx={{ mb: 3 }}
                 autoComplete="current-password"
+                disabled={isPending}
                 slotProps={{
                   input: {
                     endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          onClick={() => setShowPassword((v) => !v)}
-                          edge="end"
-                          size="small"
-                          aria-label="toggle password visibility"
-                        >
-                          {showPassword ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="rounded p-1.5 text-muted-foreground hover:bg-muted"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        disabled={isPending}
+                      >
+                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
                     ),
                   },
                 }}
@@ -128,29 +128,29 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                variant="contained"
-                fullWidth
-                size="large"
-                disabled={login.isPending}
-                sx={{ mb: 2, py: 1.5 }}
+                className="w-full py-6"
+                disabled={isPending}
+                aria-busy={isPending}
               >
-                {login.isPending ? (
-                  <CircularProgress size={24} color="inherit" />
+                {isPending ? (
+                  <Loader2 className="size-5 animate-spin" aria-hidden />
                 ) : (
                   "Sign In"
                 )}
               </Button>
-            </Box>
+            </form>
           </FormProvider>
 
-          <Typography variant="body2" align="center" color="text.secondary">
-            Don&apos;t have an account?{" "}
-            <Link component={RouterLink} to="/register" underline="hover">
-              Register
-            </Link>
-          </Typography>
+          <div className="border-t border-border pt-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Don&apos;t have an account?{" "}
+              <Link to="/register" className="text-primary underline-offset-4 hover:underline">
+                Register
+              </Link>
+            </p>
+          </div>
         </CardContent>
       </Card>
-    </Box>
+    </div>
   );
 }

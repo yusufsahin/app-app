@@ -52,6 +52,49 @@ describe("buildArtifactListParams", () => {
     ).toEqual({});
   });
 
+  it("prefers release_cycle_node_id when releaseCycleNodeId is set", () => {
+    expect(
+      buildArtifactListParams({ releaseCycleNodeId: "r1", cycleNodeId: "c1", areaNodeId: "a1" }),
+    ).toEqual({ release_cycle_node_id: "r1", area_node_id: "a1" });
+  });
+
+  it("includes tree for any non-empty slug (manifest-driven tree_roots)", () => {
+    expect(buildArtifactListParams({ tree: "requirement" })).toEqual({ tree: "requirement" });
+    expect(buildArtifactListParams({ tree: "quality" })).toEqual({ tree: "quality" });
+    expect(buildArtifactListParams({ tree: "defect" })).toEqual({ tree: "defect" });
+    expect(buildArtifactListParams({ tree: "" })).toEqual({});
+    expect(buildArtifactListParams({ tree: "  " })).toEqual({});
+    expect(buildArtifactListParams({ tree: "custom_tree" })).toEqual({ tree: "custom_tree" });
+  });
+
+  it("sets include_system_roots when includeSystemRoots is true", () => {
+    expect(buildArtifactListParams({ includeSystemRoots: true })).toEqual({
+      include_system_roots: true,
+    });
+    expect(buildArtifactListParams({ includeSystemRoots: false })).toEqual({});
+  });
+
+  it("maps parent_id when parentId is non-empty", () => {
+    expect(buildArtifactListParams({ parentId: "  " })).toEqual({});
+    expect(buildArtifactListParams({ parentId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890" })).toEqual({
+      parent_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    });
+  });
+
+  it("combines parent_id with tree and include_system_roots", () => {
+    expect(
+      buildArtifactListParams({
+        tree: "quality",
+        includeSystemRoots: true,
+        parentId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      }),
+    ).toEqual({
+      tree: "quality",
+      include_system_roots: true,
+      parent_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    });
+  });
+
   it("combines all params", () => {
     expect(
       buildArtifactListParams({

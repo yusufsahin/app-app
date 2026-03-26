@@ -3,7 +3,8 @@
  * Form value: number (not string). Use z.number().min().max() in Zod.
  */
 import { Controller } from "react-hook-form";
-import { TextField, type TextFieldProps } from "@mui/material";
+import { Input, Label } from "../ui";
+import { FormItem, FormControl, FormMessage } from "../ui/form";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
 
@@ -13,7 +14,6 @@ type RhfNumberInputProps<TFieldValues extends import("react-hook-form").FieldVal
     min?: number;
     max?: number;
     step?: number;
-    textFieldProps?: Omit<TextFieldProps, "value" | "onChange" | "onBlur" | "error" | "helperText" | "type">;
   };
 
 export function RhfNumberInput<TFieldValues extends import("react-hook-form").FieldValues>({
@@ -25,7 +25,6 @@ export function RhfNumberInput<TFieldValues extends import("react-hook-form").Fi
   step,
   error,
   helperText,
-  textFieldProps,
 }: RhfNumberInputProps<TFieldValues>) {
   const { control, errorMessage, displayText } = useRhfField<TFieldValues>(name, {
     control: controlProp,
@@ -38,27 +37,28 @@ export function RhfNumberInput<TFieldValues extends import("react-hook-form").Fi
       name={name}
       control={control}
       render={({ field: { value, onChange, onBlur, ref } }) => (
-        <TextField
-          {...textFieldProps}
-          type="number"
-          label={label}
-          value={value === undefined || value === null ? "" : value}
-          onChange={(e) => {
-            const v = e.target.value;
-            onChange(v === "" ? undefined : Number(v));
-          }}
-          onBlur={onBlur}
-          inputRef={ref}
-          error={!!errorMessage}
-          helperText={displayText}
-          InputProps={textFieldProps?.InputProps}
-          inputProps={{
-            ...textFieldProps?.inputProps,
-            min,
-            max,
-            step,
-          }}
-        />
+        <FormItem>
+          {label != null && label !== "" && <Label>{label}</Label>}
+          <FormControl>
+            <Input
+              type="number"
+              value={value === undefined || value === null ? "" : value}
+              onChange={(e) => {
+                const v = e.target.value;
+                onChange(v === "" ? undefined : Number(v));
+              }}
+              onBlur={onBlur}
+              ref={ref}
+              min={min}
+              max={max}
+              step={step}
+              aria-invalid={!!errorMessage}
+            />
+          </FormControl>
+          {(displayText != null && displayText !== "") || errorMessage ? (
+            <FormMessage>{errorMessage ?? displayText}</FormMessage>
+          ) : null}
+        </FormItem>
       )}
     />
   );

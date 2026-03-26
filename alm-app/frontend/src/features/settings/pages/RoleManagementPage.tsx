@@ -1,61 +1,54 @@
-import {
-  Box,
-  Chip,
-  Skeleton,
-  Typography,
-  Alert,
-} from "@mui/material";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { Badge, Skeleton } from "../../../shared/components/ui";
 import { useParams } from "react-router-dom";
 import { useOrgRoles, type TenantRoleDetail } from "../../../shared/api/orgApi";
 import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
 import { OrgSettingsBreadcrumbs } from "../../../shared/components/Layout";
 
-const columns: GridColDef<TenantRoleDetail>[] = [
+const columns: Array<{
+  field: keyof TenantRoleDetail | "privileges";
+  headerName: string;
+  minWidth?: number;
+  align?: "left" | "center" | "right";
+  render?: (row: TenantRoleDetail) => React.ReactNode;
+  valueGetter?: (row: TenantRoleDetail) => string | number;
+}> = [
   {
     field: "name",
     headerName: "Role Name",
-    flex: 1,
     minWidth: 160,
-    renderCell: (params) => (
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        <Typography variant="body2" fontWeight={500}>
-          {params.row.name}
-        </Typography>
-      </Box>
+    render: (row) => (
+      <span className="font-medium">{row.name}</span>
     ),
   },
   {
     field: "description",
     headerName: "Description",
-    flex: 1.5,
     minWidth: 200,
   },
   {
     field: "is_system",
     headerName: "Type",
-    width: 120,
-    renderCell: (params) =>
-      params.row.is_system ? (
-        <Chip label="System" size="small" color="warning" variant="filled" />
+    minWidth: 120,
+    render: (row) =>
+      row.is_system ? (
+        <Badge variant="secondary" className="text-xs">System</Badge>
       ) : (
-        <Chip label="Custom" size="small" color="default" variant="outlined" />
+        <Badge variant="outline" className="text-xs">Custom</Badge>
       ),
   },
   {
     field: "hierarchy_level",
     headerName: "Hierarchy",
-    width: 120,
+    minWidth: 120,
     align: "center",
-    headerAlign: "center",
+    valueGetter: (row) => row.hierarchy_level ?? "—",
   },
   {
     field: "privileges",
     headerName: "Privileges",
-    width: 130,
+    minWidth: 130,
     align: "center",
-    headerAlign: "center",
-    valueGetter: (_value: string[], row: TenantRoleDetail) => row.privileges?.length ?? 0,
+    valueGetter: (row) => row.privileges?.length ?? 0,
   },
 ];
 
@@ -66,8 +59,8 @@ export default function RoleManagementPage() {
   if (isLoading) {
     return (
       <SettingsPageWrapper>
-        <Skeleton variant="text" width={160} height={40} sx={{ mb: 2 }} />
-        <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 1 }} />
+        <Skeleton className="mb-4 h-10 w-40" />
+        <Skeleton className="h-[400px] rounded-md" />
       </SettingsPageWrapper>
     );
   }
@@ -75,37 +68,69 @@ export default function RoleManagementPage() {
   return (
     <SettingsPageWrapper>
       <OrgSettingsBreadcrumbs currentPageLabel="Roles" />
-      <Box sx={{ mb: 3 }}>
-        <Typography component="h1" variant="h4" sx={{ fontWeight: 600 }}>
-          Roles
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold">Roles</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Manage roles and their associated privileges
-        </Typography>
-      </Box>
+        </p>
+      </div>
 
       {isError && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-destructive">
           Failed to load roles. Please try again.
-        </Alert>
+        </div>
       )}
 
-      <DataGrid
-        rows={roles ?? []}
-        columns={columns}
-        autoHeight
-        pageSizeOptions={[10, 25]}
-        initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-        disableRowSelectionOnClick
-        sx={{
-          bgcolor: "background.paper",
-          borderRadius: 2,
-          "& .MuiDataGrid-columnHeaders": {
-            bgcolor: "grey.50",
-            fontWeight: 600,
-          },
-        }}
-      />
+      <div className="overflow-hidden rounded-lg border bg-card">
+        <table className="w-full table-auto border-collapse text-left text-sm">
+          <thead className="bg-muted/50 font-semibold">
+            <tr>
+              {columns.map((col) => (
+                <th
+                  key={col.field}
+                  className="border-b px-4 py-3"
+                  style={{ minWidth: col.minWidth, textAlign: col.align ?? "left" }}
+                >
+                  {col.headerName}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(roles ?? []).map((row) => (
+              <tr key={row.id} className="border-b last:border-0 hover:bg-muted/30">
+                {columns.map((col) => {
+                  if (col.render) {
+                    return (
+                      <td
+                        key={col.field}
+                        className="px-4 py-2"
+                        style={{ minWidth: col.minWidth, textAlign: col.align ?? "left" }}
+                      >
+                        {col.render(row)}
+                      </td>
+                    );
+                  }
+                  const value = col.valueGetter
+                    ? col.valueGetter(row)
+                    : row[col.field as keyof TenantRoleDetail] != null
+                      ? String(row[col.field as keyof TenantRoleDetail])
+                      : "—";
+                  return (
+                    <td
+                      key={col.field}
+                      className="px-4 py-2"
+                      style={{ minWidth: col.minWidth, textAlign: col.align ?? "left" }}
+                    >
+                      {value}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </SettingsPageWrapper>
   );
 }

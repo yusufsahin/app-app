@@ -69,6 +69,7 @@ describe("filterParamsToListStatePatch", () => {
     ).toEqual({
       stateFilter: "active",
       typeFilter: "task",
+      treeFilter: "",
       searchQuery: "search",
       searchInput: "search",
       cycleNodeFilter: "c1",
@@ -83,6 +84,7 @@ describe("filterParamsToListStatePatch", () => {
     expect(filterParamsToListStatePatch({})).toEqual({
       stateFilter: "",
       typeFilter: "",
+      treeFilter: "",
       searchQuery: "",
       searchInput: "",
       cycleNodeFilter: "",

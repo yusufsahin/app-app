@@ -1,19 +1,23 @@
 /**
  * Metadata-driven form — renders form fields from FormSchemaDto.
  */
-import {
-  Box,
-  Button,
-  FormControl,
-  FormHelperText,
-  InputLabel,
-  MenuItem,
-  Select,
-  TextField,
-} from "@mui/material";
+import dayjs from "dayjs";
 import { useMemo } from "react";
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui";
+import { cn } from "../ui/utils";
 import type { DescriptionInputMode, FormFieldSchema, FormSchemaDto } from "../../types/formSchema";
 import { DescriptionField } from "./DescriptionField";
+import { TestStepsEditor } from "../../../features/quality/components/TestStepsEditor";
+import type { TestStep } from "../../../features/quality/types";
 
 export interface ParentArtifactOption {
   id: string;
@@ -33,20 +37,14 @@ export interface MetadataDrivenFormProps {
   onSubmit: () => void;
   submitLabel?: string;
   disabled?: boolean;
-  /** When true, form does not render submit button (parent provides it in DialogActions) */
   submitExternally?: boolean;
-  /** Artifacts for parent_id entity_ref */
   parentArtifacts?: ParentArtifactOption[];
-  /** Map artifactType -> allowed parent types (from manifest). When set, parent list is filtered. */
   artifactTypeParentMap?: Record<string, string[]>;
-  /** Users for assignee_id entity_ref */
   userOptions?: UserOption[];
-  /** Cycle nodes for cycle_node_id entity_ref (planning) */
   cycleOptions?: Array<{ id: string; label: string }>;
-  /** Area nodes for area_node_id entity_ref (planning) */
   areaOptions?: Array<{ id: string; label: string }>;
-  /** Field-level validation errors (key -> message) */
   errors?: Record<string, string>;
+  disableNativeRequired?: boolean;
 }
 
 function evaluateVisibleWhen(
@@ -70,6 +68,39 @@ function getVisibleFields(
   );
 }
 
+function FieldSelect({
+  id,
+  label,
+  value,
+  onChange,
+  required,
+  error,
+  children,
+}: {
+  id: string;
+  label?: string;
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="w-full space-y-1.5">
+      {label != null && label !== "" && (
+        <Label htmlFor={id}>{label}</Label>
+      )}
+      <Select value={value === "" || value == null ? "__empty__" : value} onValueChange={(v) => onChange(v === "__empty__" ? "" : v)}>
+        <SelectTrigger id={id} aria-required={required} aria-invalid={!!error} className="w-full">
+          <SelectValue placeholder="Select…" />
+        </SelectTrigger>
+        <SelectContent>{children}</SelectContent>
+      </Select>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 export function MetadataDrivenForm({
   schema,
   values,
@@ -84,6 +115,7 @@ export function MetadataDrivenForm({
   cycleOptions = [],
   areaOptions = [],
   errors = {},
+  disableNativeRequired = false,
 }: MetadataDrivenFormProps) {
   const visibleFields = useMemo(
     () => getVisibleFields(schema, values).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
@@ -110,6 +142,8 @@ export function MetadataDrivenForm({
     return false;
   };
 
+  const useNativeRequired = !disableNativeRequired;
+
   const parentOptions = useMemo(() => {
     if (!artifactTypeParentMap) return parentArtifacts;
     const selectedType = values.artifact_type as string | undefined;
@@ -121,150 +155,185 @@ export function MetadataDrivenForm({
 
   return (
     <form onSubmit={handleSubmit}>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <div className="flex flex-col gap-4">
         {visibleFields.map((field) => {
           const val = values[field.key];
           const required = isRequired(field);
 
           if (field.type === "choice") {
             const err = errors[field.key];
+            const value = (val ?? field.default_value ?? "") as string;
             return (
-              <FormControl key={field.key} fullWidth required={required} error={!!err}>
-                <InputLabel>{field.label_key}</InputLabel>
-                <Select
-                  value={val ?? field.default_value ?? ""}
-                  label={field.label_key}
-                  onChange={(e) => updateField(field.key, e.target.value)}
-                >
-                  {field.options?.map((opt) => (
-                    <MenuItem key={opt.id} value={opt.id}>
-                      {opt.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {err && <FormHelperText>{err}</FormHelperText>}
-              </FormControl>
+              <FieldSelect
+                key={field.key}
+                id={field.key}
+                label={field.label_key}
+                value={value}
+                onChange={(v) => updateField(field.key, v)}
+                required={useNativeRequired && required}
+                error={err}
+              >
+                <SelectItem value="__empty__">Select…</SelectItem>
+                {field.options?.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </FieldSelect>
             );
           }
 
           if (field.type === "entity_ref" && field.entity_ref === "artifact") {
             const err = errors[field.key];
+            const value = (val ?? "") as string;
             return (
-              <FormControl key={field.key} fullWidth required={required} error={!!err}>
-                <InputLabel>{field.label_key}</InputLabel>
-                <Select
-                  value={val ?? ""}
-                  label={field.label_key}
-                  onChange={(e) =>
-                    updateField(field.key, (e.target.value as string) || null)
-                  }
-                >
-                  <MenuItem value="">None (root)</MenuItem>
-                  {parentOptions.map((a) => (
-                    <MenuItem key={a.id} value={a.id}>
-                      {a.title} ({a.artifact_type})
-                    </MenuItem>
-                  ))}
-                </Select>
-                {err && <FormHelperText>{err}</FormHelperText>}
-              </FormControl>
+              <FieldSelect
+                key={field.key}
+                id={field.key}
+                label={field.label_key}
+                value={value}
+                onChange={(v) => updateField(field.key, v || null)}
+                required={useNativeRequired && required}
+                error={err}
+              >
+                <SelectItem value="__empty__">None (root)</SelectItem>
+                {parentOptions.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.title} ({a.artifact_type})
+                  </SelectItem>
+                ))}
+              </FieldSelect>
             );
           }
 
           if (field.type === "entity_ref" && field.entity_ref === "user") {
             const err = errors[field.key];
+            const value = (val ?? "") as string;
             return (
-              <FormControl key={field.key} fullWidth required={required} error={!!err}>
-                <InputLabel>{field.label_key}</InputLabel>
-                <Select
-                  value={val ?? ""}
-                  label={field.label_key}
-                  onChange={(e) =>
-                    updateField(field.key, (e.target.value as string) || null)
-                  }
-                >
-                  <MenuItem value="">None</MenuItem>
-                  {userOptions.map((u) => (
-                    <MenuItem key={u.id} value={u.id}>
-                      {u.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {err && <FormHelperText>{err}</FormHelperText>}
-              </FormControl>
+              <FieldSelect
+                key={field.key}
+                id={field.key}
+                label={field.label_key}
+                value={value}
+                onChange={(v) => updateField(field.key, v || null)}
+                required={useNativeRequired && required}
+                error={err}
+              >
+                <SelectItem value="__empty__">None</SelectItem>
+                {userOptions.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.label}
+                  </SelectItem>
+                ))}
+              </FieldSelect>
             );
           }
 
           if ((field.type === "entity_ref" && field.entity_ref === "cycle") || field.key === "cycle_node_id") {
             const err = errors[field.key];
-            const options = cycleOptions;
+            const value = (val ?? "") as string;
             return (
-              <FormControl key={field.key} fullWidth required={required} error={!!err}>
-                <InputLabel>{field.label_key}</InputLabel>
-                <Select
-                  value={val ?? ""}
-                  label={field.label_key}
-                  onChange={(e) =>
-                    updateField(field.key, (e.target.value as string) || null)
-                  }
-                >
-                  <MenuItem value="">None</MenuItem>
-                  {options.map((o) => (
-                    <MenuItem key={o.id} value={o.id}>
-                      {o.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {err && <FormHelperText>{err}</FormHelperText>}
-              </FormControl>
+              <FieldSelect
+                key={field.key}
+                id={field.key}
+                label={field.label_key}
+                value={value}
+                onChange={(v) => updateField(field.key, v || null)}
+                required={useNativeRequired && required}
+                error={err}
+              >
+                <SelectItem value="__empty__">None</SelectItem>
+                {cycleOptions.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </FieldSelect>
             );
           }
 
           if ((field.type === "entity_ref" && field.entity_ref === "area") || field.key === "area_node_id") {
             const err = errors[field.key];
-            const options = areaOptions;
+            const value = (val ?? "") as string;
             return (
-              <FormControl key={field.key} fullWidth required={required} error={!!err}>
-                <InputLabel>{field.label_key}</InputLabel>
-                <Select
-                  value={val ?? ""}
-                  label={field.label_key}
-                  onChange={(e) =>
-                    updateField(field.key, (e.target.value as string) || null)
-                  }
-                >
-                  <MenuItem value="">None</MenuItem>
-                  {options.map((o) => (
-                    <MenuItem key={o.id} value={o.id}>
-                      {o.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {err && <FormHelperText>{err}</FormHelperText>}
-              </FormControl>
+              <FieldSelect
+                key={field.key}
+                id={field.key}
+                label={field.label_key}
+                value={value}
+                onChange={(v) => updateField(field.key, v || null)}
+                required={useNativeRequired && required}
+                error={err}
+              >
+                <SelectItem value="__empty__">None</SelectItem>
+                {areaOptions.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </FieldSelect>
             );
           }
 
           if (field.type === "number") {
             const err = errors[field.key];
             return (
-              <TextField
-                key={field.key}
-                fullWidth
-                label={field.label_key}
-                type="number"
-                value={val ?? field.default_value ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  updateField(
-                    field.key,
-                    v === "" ? undefined : Number(v),
-                  );
-                }}
-                required={required}
-                error={!!err}
-                helperText={err}
-              />
+              <div key={field.key} className="w-full space-y-1.5">
+                {field.label_key && (
+                  <Label htmlFor={field.key}>{field.label_key}</Label>
+                )}
+                <Input
+                  id={field.key}
+                  type="number"
+                  value={(val ?? field.default_value ?? "") as string | number}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    updateField(field.key, v === "" ? undefined : Number(v));
+                  }}
+                  required={useNativeRequired && required}
+                  aria-invalid={!!err}
+                  className="w-full"
+                />
+                {err && <p className="text-sm text-destructive">{err}</p>}
+              </div>
+            );
+          }
+
+          if (field.type === "date" || field.type === "datetime") {
+            const err = errors[field.key];
+            const raw = (val ?? field.default_value ?? "") as string;
+            const d = raw && dayjs(raw).isValid() ? dayjs(raw) : null;
+            const inputValue =
+              field.type === "datetime"
+                ? d?.format("YYYY-MM-DDTHH:mm") ?? ""
+                : d?.format("YYYY-MM-DD") ?? "";
+            const inputType = field.type === "datetime" ? "datetime-local" : "date";
+            return (
+              <div key={field.key} className="w-full space-y-1.5">
+                {field.label_key && (
+                  <Label htmlFor={field.key}>{field.label_key}</Label>
+                )}
+                <Input
+                  id={field.key}
+                  type={inputType}
+                  value={inputValue}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v || v.trim() === "") {
+                      updateField(field.key, "");
+                      return;
+                    }
+                    const parsed = dayjs(v);
+                    updateField(field.key, parsed.isValid() ? parsed.toISOString() : "");
+                  }}
+                  required={useNativeRequired && required}
+                  aria-invalid={!!err}
+                  className="w-full"
+                />
+                {err && (
+                  <p className={cn("text-sm", "text-destructive")}>{err}</p>
+                )}
+              </div>
             );
           }
 
@@ -286,27 +355,51 @@ export function MetadataDrivenForm({
             );
           }
 
+          if (field.key === "test_steps_json") {
+            const err = errors[field.key];
+            let steps: TestStep[] = [];
+            try {
+              steps = typeof val === "string" ? JSON.parse(val) : (val as TestStep[]) || [];
+            } catch {
+              steps = [];
+            }
+            return (
+              <div key={field.key} className="w-full space-y-1.5">
+                <TestStepsEditor
+                  steps={steps}
+                  onChange={(newSteps) => updateField(field.key, JSON.stringify(newSteps))}
+                  readOnly={disabled}
+                />
+                {err && <p className="text-sm text-destructive">{err}</p>}
+              </div>
+            );
+          }
+
           const err = errors[field.key];
           return (
-            <TextField
-              key={field.key}
-              fullWidth
-              label={field.label_key}
-              value={val ?? field.default_value ?? ""}
-              onChange={(e) => updateField(field.key, e.target.value)}
-              required={required}
-              error={!!err}
-              helperText={err}
-            />
+            <div key={field.key} className="w-full space-y-1.5">
+              {field.label_key && (
+                <Label htmlFor={field.key}>{field.label_key}</Label>
+              )}
+              <Input
+                id={field.key}
+                value={(val ?? field.default_value ?? "") as string}
+                onChange={(e) => updateField(field.key, e.target.value)}
+                required={useNativeRequired && required}
+                aria-invalid={!!err}
+                className="w-full"
+              />
+              {err && <p className="text-sm text-destructive">{err}</p>}
+            </div>
           );
         })}
-      </Box>
+      </div>
       {!submitExternally && (
-        <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-          <Button type="submit" variant="contained" disabled={disabled}>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="submit" disabled={disabled}>
             {submitLabel}
           </Button>
-        </Box>
+        </div>
       )}
     </form>
   );

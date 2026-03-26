@@ -21,7 +21,8 @@ export type CreateArtifactModalProps = {
   formErrors: Record<string, string>;
   onFormChange: (v: Record<string, unknown>) => void;
   onFormErrors: (e: Record<string, string>) => void;
-  onCreate: () => void;
+  /** Called on Save; parent may pass no args and read state, or modal may call with current form values to avoid stale state. */
+  onCreate: (currentValues?: Record<string, unknown>) => void;
   isPending: boolean;
   parentArtifacts: Array<{ id: string; title: string; artifact_type: string }>;
   userOptions: Array<{ id: string; label: string }>;
@@ -55,6 +56,8 @@ export type EditTaskModalProps = {
 export type AddLinkModalProps = {
   sourceArtifactId: string;
   artifactOptions: Array<{ value: string; label: string }>;
+  /** When set (non-empty), replaces built-in link type presets (from project manifest link_types). */
+  linkTypeOptions?: Array<{ value: string; label: string }>;
   onCreateLink: (linkType: string, targetArtifactId: string) => void;
 };
 
@@ -133,6 +136,40 @@ export type ConflictModalProps = {
   onCancel: () => void;
 };
 
+/** Quality create/edit artifact modal */
+export type QualityArtifactModalProps = {
+  mode: "create" | "edit";
+  artifactType: string;
+  initialTitle?: string;
+  initialDescription?: string;
+  initialSteps?: Array<{
+    id: string;
+    stepNumber: number;
+    name: string;
+    description: string;
+    expectedResult: string;
+    status: "passed" | "failed" | "blocked" | "not-executed";
+    actualResult?: string;
+    notes?: string;
+  }>;
+  enableStepsEditor?: boolean;
+  isPending: boolean;
+  onSubmit: (payload: {
+    title: string;
+    description: string;
+    steps: Array<{
+      id: string;
+      stepNumber: number;
+      name: string;
+      description: string;
+      expectedResult: string;
+      status: "passed" | "failed" | "blocked" | "not-executed";
+      actualResult?: string;
+      notes?: string;
+    }>;
+  }) => Promise<void> | void;
+};
+
 export interface ModalPropsMap {
   ConfirmModal: ConfirmModalProps;
   DeleteArtifactModal: DeleteArtifactModalProps;
@@ -146,6 +183,7 @@ export interface ModalPropsMap {
   BulkDeleteModal: BulkDeleteModalProps;
   TransitionArtifactModal: TransitionArtifactModalProps;
   ConflictModal: ConflictModalProps;
+  QualityArtifactModal: QualityArtifactModalProps;
 }
 
 export type OpenModalOptions = {

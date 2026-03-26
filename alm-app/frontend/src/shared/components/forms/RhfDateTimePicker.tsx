@@ -1,31 +1,37 @@
 /**
- * Reusable DateTimePicker wired to React Hook Form via Controller.
- * Form value: Date | null (use z.date().nullable() or z.coerce.date().nullable() in Zod).
- * Requires LocalizationProvider (e.g. in app providers) with AdapterDayjs.
+ * DateTimePicker wired to React Hook Form via Controller.
+ * Form value: Date | string | null. Uses native input type="datetime-local" + dayjs.
  */
 import { Controller } from "react-hook-form";
-import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
+import dayjs from "dayjs";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
-import dayjs, { type Dayjs } from "dayjs";
+import { Input } from "../ui";
+import { Label } from "../ui";
+import { cn } from "../ui/utils";
 
-function toDayjs(v: Date | string | null): Dayjs | null {
-  if (v == null) return null;
-  return dayjs(typeof v === "string" ? v : v);
+function formatForInput(v: Date | string | null): string {
+  if (v == null) return "";
+  const d = typeof v === "string" ? dayjs(v) : dayjs(v);
+  return d.isValid() ? d.format("YYYY-MM-DDTHH:mm") : "";
 }
 
-function fromDayjs(v: Dayjs | null, asString: boolean): Date | string | null {
-  if (v == null) return null;
-  return asString ? v.toISOString() : v.toDate();
+function parseFromInput(
+  value: string,
+  valueAsString: boolean,
+): Date | string | null {
+  if (!value || value.trim() === "") return null;
+  const d = dayjs(value);
+  if (!d.isValid()) return null;
+  return valueAsString ? d.toISOString() : d.toDate();
 }
 
 type RhfDateTimePickerProps<TFieldValues extends import("react-hook-form").FieldValues> =
   RhfControllerFieldProps<TFieldValues> & {
     label?: string;
     valueAsString?: boolean;
-    slotProps?: {
-      textField?: { error?: boolean; helperText?: string; onBlur?: () => void; inputRef?: React.Ref<unknown> };
-    };
+    slotProps?: { textField?: Record<string, unknown> };
+    disabled?: boolean;
   };
 
 export function RhfDateTimePicker<TFieldValues extends import("react-hook-form").FieldValues>({
@@ -35,7 +41,7 @@ export function RhfDateTimePicker<TFieldValues extends import("react-hook-form")
   error,
   helperText,
   valueAsString = false,
-  slotProps,
+  disabled,
 }: RhfDateTimePickerProps<TFieldValues>) {
   const { control, errorMessage, displayText } = useRhfField<TFieldValues>(name, {
     control: controlProp,
@@ -47,27 +53,38 @@ export function RhfDateTimePicker<TFieldValues extends import("react-hook-form")
     <Controller
       name={name}
       control={control}
-      render={({ field: { value, onChange, onBlur, ref } }) => {
-        const dayjsVal = toDayjs(value as Date | string | null);
-        return (
-          <DateTimePicker
-            label={label}
-            value={dayjsVal}
-            onChange={(v) => onChange(fromDayjs(v, valueAsString))}
-            onClose={onBlur}
-            slotProps={{
-              ...slotProps,
-              textField: {
-                ...(slotProps?.textField ?? {}),
-                error: !!errorMessage,
-                helperText: displayText,
-                onBlur,
-                inputRef: ref,
-              } as Record<string, unknown>,
-            }}
+      render={({ field: { value, onChange, onBlur, ref } }) => (
+        <div className="w-full space-y-1.5">
+          {label != null && label !== "" && (
+            <Label htmlFor={String(name)}>{label}</Label>
+          )}
+          <Input
+            id={String(name)}
+            ref={ref}
+            type="datetime-local"
+            value={formatForInput(value as Date | string | null)}
+            onChange={(e) =>
+              onChange(parseFromInput(e.target.value, valueAsString))
+            }
+            onBlur={onBlur}
+            disabled={disabled}
+            aria-invalid={!!errorMessage}
+            aria-describedby={displayText ? `${String(name)}-helper` : undefined}
+            className="w-full"
           />
-        );
-      }}
+          {displayText != null && displayText !== "" && (
+            <p
+              id={`${String(name)}-helper`}
+              className={cn(
+                "text-sm",
+                errorMessage ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {displayText}
+            </p>
+          )}
+        </div>
+      )}
     />
   );
 }

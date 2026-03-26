@@ -1,50 +1,22 @@
 import { useParams, Link } from "react-router-dom";
-import {
-  Container,
-  Typography,
-  Button,
-  Box,
-  Paper,
-  Skeleton,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  IconButton,
-  Collapse,
-  Tabs,
-  Tab,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Link as MuiLink,
-} from "@mui/material";
-import {
-  AccountTree,
-  ExpandLess,
-  ExpandMore,
-  Add,
-  Folder,
-  Edit,
-  Delete,
-  ViewList,
-} from "@mui/icons-material";
+import { Button, Tabs, TabsList, TabsTrigger, TabsContent, Dialog, DialogContent, DialogTitle, DialogFooter, Skeleton } from "../../../shared/components/ui";
+import { GitBranch, ChevronDown, ChevronRight, Plus, Folder, Pencil, Trash2, List, Package, IterationCw } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
+import { useProjectStore } from "../../../shared/stores/projectStore";
 import {
-  useCycleNodes,
+  useIncrements,
   useAreaNodes,
-  useCreateCycleNode,
+  useCreateIncrement,
   useCreateAreaNode,
-  useUpdateCycleNode,
+  useUpdateIncrement,
   useUpdateAreaNode,
-  useDeleteCycleNode,
+  useDeleteIncrement,
   useDeleteAreaNode,
-  cycleNodeDisplayLabel,
-  type CycleNode,
+  incrementDisplayLabelWithType,
+  type Increment,
   type AreaNode,
 } from "../../../shared/api/planningApi";
 import { useArtifacts, useUpdateArtifact } from "../../../shared/api/artifactApi";
@@ -60,63 +32,95 @@ function CycleTreeItem({
   onDelete,
   onAddChild,
 }: {
-  node: CycleNode;
+  node: Increment;
   level: number;
-  onRename: (n: CycleNode) => void;
-  onDelete: (n: CycleNode) => void;
-  onAddChild: (n: CycleNode) => void;
+  onRename: (n: Increment) => void;
+  onDelete: (n: Increment) => void;
+  onAddChild: (n: Increment) => void;
 }) {
   const [open, setOpen] = useState(true);
   const hasChildren = node.children?.length > 0;
   return (
     <>
-      <ListItem
-        sx={{ pl: 2 + level * 2 }}
-        secondaryAction={
-          <Box sx={{ display: "flex", gap: 0.5 }}>
-            <IconButton size="small" aria-label="Add child" onClick={() => onAddChild(node)}>
-              <Add fontSize="small" />
-            </IconButton>
-            <IconButton size="small" aria-label="Rename" onClick={() => onRename(node)}>
-              <Edit fontSize="small" />
-            </IconButton>
-            <IconButton size="small" aria-label="Delete" onClick={() => onDelete(node)}>
-              <Delete fontSize="small" />
-            </IconButton>
-          </Box>
-        }
+      <div
+        className="flex items-center gap-1 py-1 pl-2"
+        style={{ paddingLeft: 8 + level * 16 }}
       >
-        <ListItemIcon sx={{ minWidth: 36 }} onClick={() => setOpen((o) => !o)}>
+        <button
+          type="button"
+          className="flex min-w-[36px] items-center justify-center rounded p-1 hover:bg-muted"
+          onClick={() => setOpen((o) => !o)}
+          aria-label={open ? "Collapse" : "Expand"}
+        >
           {hasChildren ? (
             open ? (
-              <ExpandLess fontSize="small" />
+              <ChevronDown className="size-4" />
             ) : (
-              <ExpandMore fontSize="small" />
+              <ChevronRight className="size-4" />
             )
           ) : (
-            <Box sx={{ width: 24 }} />
+            <span className="w-6" />
           )}
-        </ListItemIcon>
-        <ListItemText
-          primary={node.name}
-          secondary={node.path ? `${node.path} · ${node.state}` : node.state}
-        />
-      </ListItem>
-      {hasChildren && (
-        <Collapse in={open} timeout="auto" unmountOnExit>
-          <List disablePadding>
-            {node.children!.map((child) => (
-              <CycleTreeItem
-                key={child.id}
-                node={child}
-                level={level + 1}
-                onRename={onRename}
-                onDelete={onDelete}
-                onAddChild={onAddChild}
-              />
-            ))}
-          </List>
-        </Collapse>
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{node.name}</p>
+            <span
+              className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium ${
+                node.type === "release" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+              }`}
+              title={node.type === "release" ? "Release" : "Iteration"}
+            >
+              {node.type === "release" ? <Package className="size-3" /> : <IterationCw className="size-3" />}
+              {node.type === "release" ? "Release" : "Iteration"}
+            </span>
+          </div>
+          {node.path || node.state ? (
+            <p className="text-xs text-muted-foreground">
+              {node.path ? `${node.path} · ${node.state}` : node.state}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex gap-0.5">
+          <button
+            type="button"
+            className="rounded p-1.5 hover:bg-muted"
+            aria-label="Add iteration"
+            onClick={() => onAddChild(node)}
+          >
+            <Plus className="size-4" />
+          </button>
+          <button
+            type="button"
+            className="rounded p-1.5 hover:bg-muted"
+            aria-label="Rename"
+            onClick={() => onRename(node)}
+          >
+            <Pencil className="size-4" />
+          </button>
+          <button
+            type="button"
+            className="rounded p-1.5 hover:bg-muted text-destructive"
+            aria-label="Delete"
+            onClick={() => onDelete(node)}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
+      </div>
+      {hasChildren && open && (
+        <div className="pl-0">
+          {node.children!.map((child) => (
+            <CycleTreeItem
+              key={child.id}
+              node={child}
+              level={level + 1}
+              onRename={onRename}
+              onDelete={onDelete}
+              onAddChild={onAddChild}
+            />
+          ))}
+        </div>
       )}
     </>
   );
@@ -139,58 +143,75 @@ function AreaTreeItem({
   const hasChildren = node.children?.length > 0;
   return (
     <>
-      <ListItem
-        sx={{ pl: 2 + level * 2 }}
-        secondaryAction={
-          <Box sx={{ display: "flex", gap: 0.5 }}>
-            <IconButton size="small" aria-label="Add child" onClick={() => onAddChild(node)}>
-              <Add fontSize="small" />
-            </IconButton>
-            <IconButton size="small" aria-label="Rename" onClick={() => onRename(node)}>
-              <Edit fontSize="small" />
-            </IconButton>
-            <IconButton size="small" aria-label="Delete" onClick={() => onDelete(node)}>
-              <Delete fontSize="small" />
-            </IconButton>
-          </Box>
-        }
+      <div
+        className="flex items-center gap-1 py-1 pl-2"
+        style={{ paddingLeft: 8 + level * 16 }}
       >
-        <ListItemIcon sx={{ minWidth: 36 }} onClick={() => setOpen((o) => !o)}>
+        <button
+          type="button"
+          className="flex min-w-[36px] items-center justify-center rounded p-1 hover:bg-muted"
+          onClick={() => setOpen((o) => !o)}
+          aria-label={open ? "Collapse" : "Expand"}
+        >
           {hasChildren ? (
             open ? (
-              <ExpandLess fontSize="small" />
+              <ChevronDown className="size-4" />
             ) : (
-              <ExpandMore fontSize="small" />
+              <ChevronRight className="size-4" />
             )
           ) : (
-            <Box sx={{ width: 24 }} />
+            <span className="w-6" />
           )}
-        </ListItemIcon>
-        <ListItemText
-          primary={node.name}
-          secondary={node.path}
-        />
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">{node.name}</p>
+          {node.path ? (
+            <p className="text-xs text-muted-foreground">{node.path}</p>
+          ) : null}
+        </div>
         {!node.is_active && (
-          <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-            (inactive)
-          </Typography>
+          <span className="ml-1 text-xs text-muted-foreground">(inactive)</span>
         )}
-      </ListItem>
-      {hasChildren && (
-        <Collapse in={open} timeout="auto" unmountOnExit>
-          <List disablePadding>
-            {node.children!.map((child) => (
-              <AreaTreeItem
-                key={child.id}
-                node={child}
-                level={level + 1}
-                onRename={onRename}
-                onDelete={onDelete}
-                onAddChild={onAddChild}
-              />
-            ))}
-          </List>
-        </Collapse>
+        <div className="flex gap-0.5">
+          <button
+            type="button"
+            className="rounded p-1.5 hover:bg-muted"
+            aria-label="Add child"
+            onClick={() => onAddChild(node)}
+          >
+            <Plus className="size-4" />
+          </button>
+          <button
+            type="button"
+            className="rounded p-1.5 hover:bg-muted"
+            aria-label="Rename"
+            onClick={() => onRename(node)}
+          >
+            <Pencil className="size-4" />
+          </button>
+          <button
+            type="button"
+            className="rounded p-1.5 hover:bg-muted text-destructive"
+            aria-label="Delete"
+            onClick={() => onDelete(node)}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
+      </div>
+      {hasChildren && open && (
+        <div className="pl-0">
+          {node.children!.map((child) => (
+            <AreaTreeItem
+              key={child.id}
+              node={child}
+              level={level + 1}
+              onRename={onRename}
+              onDelete={onDelete}
+              onAddChild={onAddChild}
+            />
+          ))}
+        </div>
       )}
     </>
   );
@@ -220,9 +241,10 @@ function BacklogArtifactRow({
   useEffect(() => {
     rowForm.reset({ cycleId: currentCycleId });
     justResetRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rowForm stable, reset only when currentCycleId changes
   }, [currentCycleId]);
 
-  const watchedCycleId = rowForm.watch("cycleId");
+  const watchedCycleId = useWatch({ control: rowForm.control, name: "cycleId" }) ?? "";
   useEffect(() => {
     if (justResetRef.current) {
       justResetRef.current = false;
@@ -238,88 +260,98 @@ function BacklogArtifactRow({
         },
       );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when watchedCycleId changes; currentCycleId/showNotification/updateArtifact omitted
   }, [watchedCycleId]);
 
   return (
-    <ListItem
-      disablePadding
-      sx={{ py: 0.5, display: "flex", alignItems: "center", gap: 1 }}
-      secondaryAction={
-        <Box onClick={(e) => e.stopPropagation()}>
-          <FormProvider {...rowForm}>
-            <RhfSelect<RowCycleValues>
-              name="cycleId"
-              control={rowForm.control}
-              label=""
-              options={[
-                { value: "", label: "Unassigned" },
-                ...cycleNodesFlat.map((c) => ({ value: c.id, label: c.name })),
-              ]}
-              selectProps={{
-                size: "small",
-                sx: { minWidth: 160, height: 32, fontSize: "0.875rem" },
-                disabled: updateArtifact.isPending,
-              }}
-            />
-          </FormProvider>
-        </Box>
-      }
-    >
-      <ListItemText
-        primary={
-          <MuiLink
-            component={Link}
-            to={orgSlug && projectSlug ? artifactDetailPath(orgSlug, projectSlug, artifact.id) : "#"}
-            underline="hover"
-            color="inherit"
-          >
-            {artifact.artifact_key ?? artifact.id} — {artifact.title || "(no title)"}
-          </MuiLink>
-        }
-        secondary={artifact.state}
-      />
-    </ListItem>
+    <div className="flex items-center gap-2 py-1">
+      <div className="min-w-0 flex-1" onPointerDownCapture={(e) => e.stopPropagation()}>
+        <Link
+          to={orgSlug && projectSlug ? artifactDetailPath(orgSlug, projectSlug, artifact.id) : "#"}
+          className="font-medium text-foreground hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {artifact.artifact_key ?? artifact.id} — {artifact.title || "(no title)"}
+        </Link>
+        {artifact.state ? (
+          <p className="text-xs text-muted-foreground">{artifact.state}</p>
+        ) : null}
+      </div>
+      <FormProvider {...rowForm}>
+        <div onPointerDownCapture={(e) => e.stopPropagation()}>
+        <RhfSelect<RowCycleValues>
+          name="cycleId"
+          control={rowForm.control}
+          label=""
+          options={[
+            { value: "", label: "Unassigned" },
+            ...cycleNodesFlat.map((c) => ({ value: c.id, label: c.name })),
+          ]}
+          selectProps={{
+            disabled: updateArtifact.isPending,
+            className: "min-w-[160px] h-8 text-sm",
+          }}
+        />
+        </div>
+      </FormProvider>
+    </div>
   );
 }
 
 export default function PlanningPage() {
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
-  const { data: projects } = useOrgProjects(orgSlug);
-  const project = projects?.find((p) => p.slug === projectSlug);
+  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
+  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
+  const project =
+    projects?.find((p) => p.slug === projectSlug) ??
+    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
 
   const [activeTab, setActiveTab] = useState<"cycles" | "areas" | "backlog">("cycles");
-  const backlogForm = useForm<{ cycleId: string }>({ defaultValues: { cycleId: "" } });
-  const selectedBacklogCycleId = backlogForm.watch("cycleId");
+  const backlogForm = useForm<{ releaseId: string; cycleId: string }>({ defaultValues: { releaseId: "", cycleId: "" } });
+  const backlogReleaseCycle = useWatch({
+    control: backlogForm.control,
+    name: ["releaseId", "cycleId"],
+  });
+  const selectedBacklogReleaseId = backlogReleaseCycle?.[0] ?? "";
+  const selectedBacklogCycleId = backlogReleaseCycle?.[1] ?? "";
+  const effectiveBacklogFilter = selectedBacklogReleaseId || selectedBacklogCycleId;
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addMode, setAddMode] = useState<"cycles" | "areas">("cycles");
   const [addParentId, setAddParentId] = useState<string | null>(null);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
-  const [renameNode, setRenameNode] = useState<CycleNode | AreaNode | null>(null);
+  const [renameNode, setRenameNode] = useState<Increment | AreaNode | null>(null);
 
   const addForm = useForm<{ name: string }>({ defaultValues: { name: "" } });
-  const renameForm = useForm<{ name: string }>({ defaultValues: { name: "" } });
+  const renameForm = useForm<{ name: string; type?: "release" | "iteration" }>({ defaultValues: { name: "", type: "iteration" } });
   const { reset: resetAddForm, handleSubmit: handleAddSubmit } = addForm;
   const { reset: resetRenameForm, handleSubmit: handleRenameSubmit } = renameForm;
   useEffect(() => {
-    if (renameNode) resetRenameForm({ name: renameNode.name });
+    if (renameNode) {
+      const isCycle = "goal" in renameNode;
+      resetRenameForm({
+        name: renameNode.name,
+        ...(isCycle && { type: (renameNode as Increment).type }),
+      });
+    }
   }, [renameNode, resetRenameForm]);
 
-  const { data: cycleNodes = [], isLoading: cyclesLoading } = useCycleNodes(
+  const { data: increments = [], isLoading: incrementsLoading } = useIncrements(
     orgSlug,
     project?.id,
     false,
   );
-  const { data: cycleNodesFlat = [] } = useCycleNodes(orgSlug, project?.id, true);
+  const { data: incrementsFlatIterations = [] } = useIncrements(orgSlug, project?.id, true, "iteration");
+  const { data: incrementsFlatReleases = [] } = useIncrements(orgSlug, project?.id, true, "release");
   const { data: areaNodes = [], isLoading: areasLoading } = useAreaNodes(
     orgSlug,
     project?.id,
     false,
   );
-  const createCycle = useCreateCycleNode(orgSlug, project?.id);
+  const createIncrement = useCreateIncrement(orgSlug, project?.id);
   const createArea = useCreateAreaNode(orgSlug, project?.id);
-  const updateCycle = useUpdateCycleNode(orgSlug, project?.id);
+  const updateIncrement = useUpdateIncrement(orgSlug, project?.id);
   const updateArea = useUpdateAreaNode(orgSlug, project?.id);
-  const deleteCycle = useDeleteCycleNode(orgSlug, project?.id);
+  const deleteIncrement = useDeleteIncrement(orgSlug, project?.id);
   const deleteArea = useDeleteAreaNode(orgSlug, project?.id);
   const showNotification = useNotificationStore((s) => s.showNotification);
   const setListState = useArtifactStore((s) => s.setListState);
@@ -334,7 +366,8 @@ export default function PlanningPage() {
     25,
     0,
     false,
-    activeTab === "backlog" && selectedBacklogCycleId ? selectedBacklogCycleId : undefined,
+    activeTab === "backlog" && effectiveBacklogFilter && !selectedBacklogReleaseId ? selectedBacklogCycleId : undefined,
+    activeTab === "backlog" && selectedBacklogReleaseId ? selectedBacklogReleaseId : undefined,
     undefined,
   );
   const backlogArtifacts = backlogData?.items ?? [];
@@ -346,7 +379,7 @@ export default function PlanningPage() {
     resetAddForm({ name: "" });
     setAddDialogOpen(true);
   };
-  const handleAddChildCycle = (parent: CycleNode) => {
+  const handleAddChildCycle = (parent: Increment) => {
     setAddMode("cycles");
     setAddParentId(parent.id);
     resetAddForm({ name: "" });
@@ -356,14 +389,15 @@ export default function PlanningPage() {
     const name = data.name.trim();
     if (!name) return;
     if (addMode === "cycles") {
-      createCycle.mutate(
-        { name, parent_id: addParentId || undefined },
+      const type = addParentId ? "iteration" : "release";
+      createIncrement.mutate(
+        { name, parent_id: addParentId || undefined, type },
         {
           onSuccess: () => {
             setAddDialogOpen(false);
-            showNotification("Cycle added", "success");
+            showNotification(addParentId ? "Iteration added" : "Release added", "success");
           },
-          onError: (e: Error) => showNotification(e?.message ?? "Failed to add cycle", "error"),
+          onError: (e: Error) => showNotification(e?.message ?? "Failed to add", "error"),
         },
       );
     } else {
@@ -393,7 +427,7 @@ export default function PlanningPage() {
     setAddDialogOpen(true);
   };
 
-  const handleRenameCycle = (node: CycleNode) => {
+  const handleRenameCycle = (node: Increment) => {
     setRenameNode(node);
     setRenameDialogOpen(true);
   };
@@ -401,12 +435,12 @@ export default function PlanningPage() {
     setRenameNode(node);
     setRenameDialogOpen(true);
   };
-  const onSubmitRename = (data: { name: string }) => {
+  const onSubmitRename = (data: { name: string; type?: "release" | "iteration" }) => {
     const name = data.name.trim();
     if (!name || !renameNode) return;
     if ("goal" in renameNode) {
-      updateCycle.mutate(
-        { cycleNodeId: renameNode.id, body: { name } },
+      updateIncrement.mutate(
+        { incrementId: renameNode.id, body: { name, ...(data.type && { type: data.type }) } },
         {
           onSuccess: () => {
             setRenameDialogOpen(false);
@@ -431,10 +465,14 @@ export default function PlanningPage() {
     }
   };
 
-  const handleDeleteCycle = (node: CycleNode) => {
-    if (!window.confirm(`Delete cycle "${node.name}"?`)) return;
-    deleteCycle.mutate(node.id, {
-      onSuccess: () => showNotification("Cycle deleted", "success"),
+  const handleDeleteCycle = (node: Increment) => {
+    const isRelease = node.type === "release";
+    const message = isRelease
+      ? `Delete release "${node.name}"? If it has iterations, delete those first.`
+      : `Delete iteration "${node.name}"?`;
+    if (!window.confirm(message)) return;
+    deleteIncrement.mutate(node.id, {
+      onSuccess: () => showNotification(isRelease ? "Release deleted" : "Iteration deleted", "success"),
       onError: (e: Error) => showNotification(e?.message ?? "Failed to delete", "error"),
     });
   };
@@ -447,45 +485,59 @@ export default function PlanningPage() {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <div className="mx-auto max-w-5xl py-6">
       <ProjectBreadcrumbs currentPageLabel="Planning" projectName={project?.name} />
 
-      {!project && projectSlug && orgSlug ? (
+      {projectSlug && orgSlug && !projectsLoading && !project ? (
         <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />
+      ) : projectSlug && orgSlug && projectsLoading ? (
+        <div className="text-muted-foreground">Loading project…</div>
       ) : (
         <>
-          <Typography component="h1" variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-            Planning
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Cycles (iterations) and Areas for backlog and assignment.
-          </Typography>
+          <div className="mb-1 flex items-center gap-2">
+            <GitBranch className="size-6 text-primary" />
+            <h1 className="text-2xl font-bold">Planning</h1>
+          </div>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Releases and iterations (cycles) and Areas for backlog and assignment.
+          </p>
 
-          <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
-            <Tab value="cycles" label="Cycles (iterations)" icon={<AccountTree fontSize="small" />} iconPosition="start" />
-            <Tab value="areas" label="Areas" icon={<Folder fontSize="small" />} iconPosition="start" />
-            <Tab value="backlog" label="Cycle backlog" icon={<ViewList fontSize="small" />} iconPosition="start" />
-          </Tabs>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "cycles" | "areas" | "backlog")} className="mb-4 border-b">
+            <TabsList className="w-full justify-start rounded-none border-b-0 bg-transparent p-0">
+              <TabsTrigger value="cycles" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
+                <GitBranch className="size-4" />
+                Releases & iterations{!incrementsLoading ? ` (${increments.length})` : ""}
+              </TabsTrigger>
+              <TabsTrigger value="areas" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
+                <Folder className="size-4" />
+                Areas{!areasLoading ? ` (${areaNodes.length})` : ""}
+              </TabsTrigger>
+              <TabsTrigger value="backlog" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
+                <List className="size-4" />
+                Cycle backlog
+              </TabsTrigger>
+            </TabsList>
 
-          {activeTab === "cycles" && (
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                <Typography component="h2" variant="h6">
-                  Cycle tree
-                </Typography>
-                <Button size="small" startIcon={<Add />} onClick={handleAddCycle} disabled={cyclesLoading}>
-                  Add cycle
+            <TabsContent value="cycles" className="rounded-lg border p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-primary" />
+                  <h2 className="text-lg font-semibold">Release & iteration tree</h2>
+                </div>
+                <Button size="sm" onClick={handleAddCycle} disabled={incrementsLoading}>
+                  <Plus className="size-4" />
+                  Add release
                 </Button>
-              </Box>
-              {cyclesLoading ? (
-                <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} />
-              ) : cycleNodes.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">
-                  No cycles. Add a cycle to represent iterations or sprints.
-                </Typography>
+              </div>
+              {incrementsLoading ? (
+                <Skeleton className="h-28 rounded-md" />
+              ) : increments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No releases. Add a release, then add iterations (sprints) under it.
+                </p>
               ) : (
-                <List dense disablePadding>
-                  {cycleNodes.map((node) => (
+                <div>
+                  {increments.map((node) => (
                     <CycleTreeItem
                       key={node.id}
                       node={node}
@@ -495,29 +547,29 @@ export default function PlanningPage() {
                       onAddChild={handleAddChildCycle}
                     />
                   ))}
-                </List>
+                </div>
               )}
-            </Paper>
-          )}
+            </TabsContent>
 
-          {activeTab === "areas" && (
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                <Typography component="h2" variant="h6">
-                  Area tree
-                </Typography>
-                <Button size="small" startIcon={<Add />} onClick={handleAddArea} disabled={areasLoading}>
+            <TabsContent value="areas" className="rounded-lg border p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-secondary" />
+                  <h2 className="text-lg font-semibold">Area tree</h2>
+                </div>
+                <Button size="sm" onClick={handleAddArea} disabled={areasLoading}>
+                  <Plus className="size-4" />
                   Add area
                 </Button>
-              </Box>
+              </div>
               {areasLoading ? (
-                <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} />
+                <Skeleton className="h-28 rounded-md" />
               ) : areaNodes.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">
+                <p className="text-sm text-muted-foreground">
                   No areas. Add an area path for assignment.
-                </Typography>
+                </p>
               ) : (
-                <List dense disablePadding>
+                <div>
                   {areaNodes.map((node) => (
                     <AreaTreeItem
                       key={node.id}
@@ -528,49 +580,58 @@ export default function PlanningPage() {
                       onAddChild={handleAddChildArea}
                     />
                   ))}
-                </List>
+                </div>
               )}
-            </Paper>
-          )}
+            </TabsContent>
 
-          {activeTab === "backlog" && (
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
-                Cycle backlog
-              </Typography>
+            <TabsContent value="backlog" className="rounded-lg border p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <span className="size-2 rounded-full bg-green-500" />
+                <h2 className="text-lg font-semibold">Cycle backlog</h2>
+              </div>
               <FormProvider {...backlogForm}>
-                <Box sx={{ minWidth: 220, mb: 2 }}>
-                  <RhfSelect<{ cycleId: string }>
-                    name="cycleId"
-                    control={backlogForm.control}
-                    label="Cycle"
-                    placeholder="Select a cycle"
-                    options={cycleNodesFlat.map((c) => ({ value: c.id, label: cycleNodeDisplayLabel(c) }))}
-                    selectProps={{ size: "small" }}
-                  />
-                </Box>
+                <div className="mb-4 flex flex-wrap gap-4">
+                  <div className="min-w-[220px]">
+                    <RhfSelect<{ releaseId: string; cycleId: string }>
+                      name="releaseId"
+                      control={backlogForm.control}
+                      label="Release"
+                      placeholder="All releases"
+                      options={[{ value: "", label: "All releases" }, ...incrementsFlatReleases.map((c) => ({ value: c.id, label: incrementDisplayLabelWithType(c) }))]}
+                    />
+                  </div>
+                  <div className="min-w-[220px]">
+                    <RhfSelect<{ releaseId: string; cycleId: string }>
+                      name="cycleId"
+                      control={backlogForm.control}
+                      label="Iteration"
+                      placeholder="Select iteration"
+                      options={[{ value: "", label: "All iterations" }, ...incrementsFlatIterations.map((c) => ({ value: c.id, label: incrementDisplayLabelWithType(c) }))]}
+                    />
+                  </div>
+                </div>
               </FormProvider>
-              {selectedBacklogCycleId ? (
+              {effectiveBacklogFilter ? (
                 <>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      {backlogTotal} artifact(s) in this cycle
-                    </Typography>
-                    <Button
-                      size="small"
-                      component={Link}
-                      to={orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}/artifacts` : "#"}
-                      onClick={() => setListState({ cycleNodeFilter: selectedBacklogCycleId })}
-                    >
-                      View all in Artifacts
+                  <div className="mb-2 flex items-center gap-2">
+                    <p className="text-sm text-muted-foreground">
+                      {backlogTotal} artifact(s){selectedBacklogReleaseId ? " in this release" : " in this iteration"}
+                    </p>
+                    <Button size="sm" variant="ghost" asChild>
+                      <Link
+                        to={orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}/artifacts` : "#"}
+                        onClick={() => setListState({ cycleNodeFilter: selectedBacklogCycleId || "", releaseCycleNodeFilter: selectedBacklogReleaseId || "" })}
+                      >
+                        View all in Artifacts
+                      </Link>
                     </Button>
-                  </Box>
+                  </div>
                   {backlogArtifacts.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">
-                      No artifacts assigned to this cycle.
-                    </Typography>
+                    <p className="text-sm text-muted-foreground">
+                      No artifacts in this {selectedBacklogReleaseId ? "release" : "iteration"}.
+                    </p>
                   ) : (
-                    <List dense disablePadding>
+                    <div className="space-y-0">
                       {backlogArtifacts.map((a) => (
                         <BacklogArtifactRow
                           key={a.id}
@@ -578,79 +639,112 @@ export default function PlanningPage() {
                           orgSlug={orgSlug}
                           projectId={project?.id}
                           projectSlug={projectSlug}
-                          cycleNodesFlat={cycleNodesFlat}
+                          cycleNodesFlat={incrementsFlatIterations}
                           showNotification={showNotification}
                         />
                       ))}
-                    </List>
+                    </div>
                   )}
                 </>
               ) : (
-                <Typography variant="body2" color="text.secondary">
-                  Select a cycle to view its backlog (artifacts assigned to that cycle).
-                </Typography>
+                <p className="text-sm text-muted-foreground">
+                  Select a release or iteration to view its backlog.
+                </p>
               )}
-            </Paper>
-          )}
+            </TabsContent>
+          </Tabs>
         </>
       )}
 
-      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{addMode === "cycles" ? "Add cycle" : "Add area"}</DialogTitle>
-        <FormProvider {...addForm}>
-          <Box component="form" onSubmit={handleAddSubmit(onSubmitAdd)} noValidate>
-            <DialogContent>
-              <RhfTextField<{ name: string }>
-                name="name"
-                label="Name"
-                fullWidth
-                size="small"
-                autoFocus
-                sx={{ mt: 1 }}
-              />
-              {addParentId && (
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                  Will be created as child of selected node.
-                </Typography>
-              )}
-            </DialogContent>
-            <DialogActions>
-              <Button type="button" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={addMode === "cycles" ? createCycle.isPending : createArea.isPending}
-              >
-                Add
-              </Button>
-            </DialogActions>
-          </Box>
-        </FormProvider>
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="sm:max-w-xs" aria-describedby={undefined}>
+          <DialogTitle>
+            {addMode === "cycles"
+              ? addParentId
+                ? "Add iteration"
+                : "Add release"
+              : "Add area"}
+          </DialogTitle>
+          <FormProvider {...addForm}>
+            <form onSubmit={handleAddSubmit(onSubmitAdd)} noValidate>
+              <div className="grid gap-4 py-4">
+                <RhfTextField<{ name: string }>
+                  name="name"
+                  label="Name"
+                  // eslint-disable-next-line jsx-a11y/no-autofocus -- dialog first field
+                  autoFocus
+                />
+                {addParentId && (
+                  <p className="text-xs text-muted-foreground">
+                    Will be created as child of selected node.
+                  </p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={addMode === "cycles" ? createIncrement.isPending : createArea.isPending}
+                >
+                  Add
+                </Button>
+              </DialogFooter>
+            </form>
+          </FormProvider>
+        </DialogContent>
       </Dialog>
 
-      <Dialog open={renameDialogOpen} onClose={() => { setRenameDialogOpen(false); setRenameNode(null); }} maxWidth="xs" fullWidth>
+      <Dialog
+        open={renameDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameDialogOpen(false);
+            setRenameNode(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xs" aria-describedby={undefined}>
         <DialogTitle>Rename</DialogTitle>
         <FormProvider {...renameForm}>
-          <Box component="form" onSubmit={handleRenameSubmit(onSubmitRename)} noValidate>
-            <DialogContent>
-              <RhfTextField<{ name: string }>
+          <form onSubmit={handleRenameSubmit(onSubmitRename)} noValidate>
+            <div className="grid gap-4 py-4">
+              <RhfTextField<{ name: string; type?: "release" | "iteration" }>
                 name="name"
                 label="Name"
-                fullWidth
-                size="small"
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialog first field
                 autoFocus
-                sx={{ mt: 1 }}
               />
-            </DialogContent>
-            <DialogActions>
-              <Button type="button" onClick={() => { setRenameDialogOpen(false); setRenameNode(null); }}>Cancel</Button>
-              <Button type="submit" variant="contained">
-                Save
+              {renameNode && "goal" in renameNode && (
+                <RhfSelect<{ name: string; type?: "release" | "iteration" }>
+                  name="type"
+                  control={renameForm.control}
+                  label="Type"
+                  options={[
+                    { value: "release", label: "Release" },
+                    { value: "iteration", label: "Iteration" },
+                  ]}
+                />
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setRenameDialogOpen(false);
+                  setRenameNode(null);
+                }}
+              >
+                Cancel
               </Button>
-            </DialogActions>
-          </Box>
+              <Button type="submit">Save</Button>
+            </DialogFooter>
+          </form>
         </FormProvider>
+        </DialogContent>
       </Dialog>
-    </Container>
+    </div>
   );
 }

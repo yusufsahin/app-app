@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Navigate, Outlet } from "react-router-dom";
-import { Box, CircularProgress } from "@mui/material";
+import { Loader2 } from "lucide-react";
 import { useCurrentUser } from "../../api/authApi";
 import { useMyTenants } from "../../api/tenantApi";
 import { useAuthStore } from "../../stores/authStore";
@@ -8,16 +8,9 @@ import { useTenantStore } from "../../stores/tenantStore";
 
 function Loading() {
   return (
-    <Box
-      sx={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-      }}
-    >
-      <CircularProgress />
-    </Box>
+    <div className="flex h-screen items-center justify-center">
+      <Loader2 className="size-8 animate-spin text-muted-foreground" />
+    </div>
   );
 }
 

@@ -31,6 +31,57 @@ export interface DashboardActivityItem {
   updated_at: string | null;
 }
 
+export interface VelocityPoint {
+  cycle_node_id: string;
+  cycle_name: string;
+  total_effort: number;
+}
+
+export interface BurndownPoint {
+  cycle_node_id: string;
+  cycle_name: string;
+  total_effort: number;
+  completed_effort: number;
+  remaining_effort: number;
+}
+
+interface MetricsOptionsBase {
+  cycleNodeIds?: string[];
+  lastN?: number;
+  effortField?: string;
+}
+
+interface VelocityOptions extends MetricsOptionsBase {
+  releaseCycleNodeId?: string;
+}
+
+export function buildVelocityParams(options?: VelocityOptions): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const id of options?.cycleNodeIds ?? []) {
+    params.append("cycle_node_id", id);
+  }
+  if (options?.releaseCycleNodeId) {
+    params.set("release_cycle_node_id", options.releaseCycleNodeId);
+  }
+  if (options?.lastN != null) {
+    params.set("last_n", String(options.lastN));
+  }
+  params.set("effort_field", options?.effortField ?? "story_points");
+  return params;
+}
+
+export function buildBurndownParams(options?: MetricsOptionsBase): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const id of options?.cycleNodeIds ?? []) {
+    params.append("cycle_node_id", id);
+  }
+  if (options?.lastN != null) {
+    params.set("last_n", String(options.lastN));
+  }
+  params.set("effort_field", options?.effortField ?? "story_points");
+  return params;
+}
+
 export interface CreateProjectRequest {
   code: string;
   name: string;
@@ -120,6 +171,63 @@ export function useOrgDashboardActivity(
       return data;
     },
     enabled: !!orgSlug,
+  });
+}
+
+export function useProjectVelocity(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+  options?: VelocityOptions,
+) {
+  return useQuery({
+    queryKey: [
+      "orgs",
+      orgSlug,
+      "projects",
+      projectId,
+      "velocity",
+      options?.cycleNodeIds,
+      options?.releaseCycleNodeId,
+      options?.lastN,
+      options?.effortField,
+    ],
+    queryFn: async (): Promise<VelocityPoint[]> => {
+      const params = buildVelocityParams(options);
+      const queryString = params.toString();
+      const { data } = await apiClient.get<VelocityPoint[]>(
+        `/orgs/${orgSlug}/projects/${projectId}/velocity${queryString ? `?${queryString}` : ""}`,
+      );
+      return data;
+    },
+    enabled: !!orgSlug && !!projectId,
+  });
+}
+
+export function useProjectBurndown(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+  options?: MetricsOptionsBase,
+) {
+  return useQuery({
+    queryKey: [
+      "orgs",
+      orgSlug,
+      "projects",
+      projectId,
+      "burndown",
+      options?.cycleNodeIds,
+      options?.lastN,
+      options?.effortField,
+    ],
+    queryFn: async (): Promise<BurndownPoint[]> => {
+      const params = buildBurndownParams(options);
+      const queryString = params.toString();
+      const { data } = await apiClient.get<BurndownPoint[]>(
+        `/orgs/${orgSlug}/projects/${projectId}/burndown${queryString ? `?${queryString}` : ""}`,
+      );
+      return data;
+    },
+    enabled: !!orgSlug && !!projectId,
   });
 }
 

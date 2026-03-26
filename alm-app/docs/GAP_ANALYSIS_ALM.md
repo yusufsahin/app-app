@@ -12,7 +12,7 @@ Bu doküman ALM uygulamasının **mevcut durum** ile **hedef** arasındaki boşl
 | **Artifact** | CRUD, transition, FTS, task, comment, attachment, cycle/area, links | Work items, links, attachments | — |
 | **Tenant/Project** | Org, proje, RBAC, project member | Project, teams, permissions | Proje bazlı izin detayı (D1); Team context yok |
 | **Task** | Entity, CRUD, Linked Tasks panel | Sub-tasks, linked tasks | Task form/list schema manifest’ten (opsiyonel) |
-| **Planning** | Cycle (CycleNode), Area (AreaNode), artifact atama; Planning sayfası, Cycle backlog | Iteration, area, backlog | Capacity/velocity yok (uzun vadeli) |
+| **Planning** | Cycle (CycleNode) kind=release|iteration, Area (AreaNode), artifact atama; Planning sayfası, Cycle backlog, release'e göre filtre; velocity/burndown release bazlı | Iteration, area, backlog, release | Capacity/velocity yok (uzun vadeli) |
 | **Traceability** | ArtifactLink entity, API, artifact detayda Links paneli | ArtifactLink, LinkType | LinkType manifest’ten (opsiyonel) |
 | **Board** | Kanban board (state kolonları, sürükle-bırak; type + cycle filtresi) | Kanban/Scrum board | — |
 | **Real-time** | WebSocket + Redis PubSub; transition sonrası toast | Live updates, presence | C1/C2 tamamlandı |

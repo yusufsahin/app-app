@@ -1,12 +1,10 @@
-import { type ReactNode } from "react";
-import { ThemeProvider } from "@mui/material/styles";
+import { type ReactNode, useEffect, useRef } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Snackbar, Alert } from "@mui/material";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { theme } from "./theme";
+import { ThemeProvider } from "next-themes";
+import { toast } from "sonner";
 import { LayoutUIProvider } from "../shared/contexts/LayoutUIContext";
 import { useNotificationStore } from "../shared/stores/notificationStore";
+import { Toaster } from "../shared/components/ui/sonner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,41 +23,39 @@ interface ProvidersProps {
   children: ReactNode;
 }
 
-function GlobalSnackbar() {
+/** Bridges Zustand notification store to Sonner (top-right, 3s). */
+function ToastBridge() {
   const notification = useNotificationStore((s) => s.notification);
   const clearNotification = useNotificationStore((s) => s.clearNotification);
+  const prevRef = useRef<typeof notification>(null);
 
-  return (
-    <Snackbar
-      open={!!notification}
-      autoHideDuration={4000}
-      onClose={clearNotification}
-      anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-    >
-      {notification ? (
-        <Alert
-          onClose={clearNotification}
-          severity={notification.severity}
-          variant="filled"
-          sx={{ width: "100%" }}
-        >
-          {notification.message}
-        </Alert>
-      ) : undefined}
-    </Snackbar>
-  );
+  useEffect(() => {
+    if (!notification || notification === prevRef.current) return;
+    prevRef.current = notification;
+    const fn =
+      notification.severity === "error"
+        ? toast.error
+        : notification.severity === "warning"
+          ? toast.warning
+          : notification.severity === "info"
+            ? toast.info
+            : toast.success;
+    fn(notification.message, { duration: 3000 });
+    clearNotification();
+  }, [notification, clearNotification]);
+
+  return null;
 }
 
 export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <LayoutUIProvider>
-            {children}
-            <GlobalSnackbar />
-          </LayoutUIProvider>
-        </LocalizationProvider>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <LayoutUIProvider>
+          {children}
+          <ToastBridge />
+          <Toaster />
+        </LayoutUIProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

@@ -1,0 +1,40 @@
+tests:
+  - test_id: "schema_required_fields"
+    suite_type: "schema"
+    artifact_refs:
+      - "schema.cycle.v1"
+    criticality: "critical"
+    risk_level: "critical"
+    dsl_version: "1.0.0"
+    rule_pack_version: "1.0.0"
+    automation: true
+    pytest_node_id: "test_passthrough_when_has_sensitive_permission"
+    pytest_classname: "tests.unit.test_field_masking.TestMaskArtifactResponse"
+    pytest_test_name: "test_passthrough_when_has_sensitive_permission"
+
+  - test_id: "semantic_cycle_rules"
+    suite_type: "semantic"
+    artifact_refs:
+      - "rule_pack.cycle.v1"
+    criticality: "high"
+    risk_level: "high"
+    dsl_version: "1.0.0"
+    rule_pack_version: "1.0.0"
+    automation: true
+    pytest_node_id: "test_workflow_initial_state"
+    pytest_classname: "tests.unit.test_mpc_resolver.TestWorkflowResolver"
+    pytest_test_name: "test_workflow_initial_state"
+
+  - test_id: "compat_cycle_v1_to_v2"
+    suite_type: "compat"
+    artifact_refs:
+      - "schema.cycle.v1"
+      - "migration_spec.cycle.v1_to_v2"
+    criticality: "high"
+    risk_level: "high"
+    dsl_version: "1.0.0"
+    rule_pack_version: "1.0.0"
+    automation: true
+    pytest_node_id: "test_is_valid_transition"
+    pytest_classname: "tests.unit.test_mpc_resolver.TestWorkflowResolver"
+    pytest_test_name: "test_is_valid_transition"

@@ -1,24 +1,24 @@
-"""Get cycle node by id."""
+"""Get increment by id."""
 
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.cycle.application.dtos import CycleNodeDTO
+from alm.cycle.application.dtos import IncrementDTO
 from alm.cycle.domain.ports import CycleRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.query import Query, QueryHandler
 
 
 @dataclass(frozen=True)
-class GetCycleNode(Query):
+class GetIncrement(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     cycle_node_id: uuid.UUID
 
 
-class GetCycleNodeHandler(QueryHandler[CycleNodeDTO | None]):
+class GetIncrementHandler(QueryHandler[IncrementDTO | None]):
     def __init__(
         self,
         cycle_repo: CycleRepository,
@@ -27,8 +27,8 @@ class GetCycleNodeHandler(QueryHandler[CycleNodeDTO | None]):
         self._cycle_repo = cycle_repo
         self._project_repo = project_repo
 
-    async def handle(self, query: Query) -> CycleNodeDTO | None:
-        assert isinstance(query, GetCycleNode)
+    async def handle(self, query: Query) -> IncrementDTO | None:
+        assert isinstance(query, GetIncrement)
 
         project = await self._project_repo.find_by_id(query.project_id)
         if project is None or project.tenant_id != query.tenant_id:
@@ -38,7 +38,7 @@ class GetCycleNodeHandler(QueryHandler[CycleNodeDTO | None]):
         if node is None or node.project_id != query.project_id:
             return None
 
-        return CycleNodeDTO(
+        return IncrementDTO(
             id=node.id,
             project_id=node.project_id,
             name=node.name,
@@ -50,6 +50,7 @@ class GetCycleNodeHandler(QueryHandler[CycleNodeDTO | None]):
             start_date=node.start_date,
             end_date=node.end_date,
             state=node.state,
+            type=getattr(node, "type", "iteration") or "iteration",
             created_at=node.created_at.isoformat() if node.created_at else None,
             updated_at=node.updated_at.isoformat() if node.updated_at else None,
         )

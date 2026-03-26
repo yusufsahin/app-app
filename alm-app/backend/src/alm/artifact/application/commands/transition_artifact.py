@@ -3,71 +3,37 @@
 from __future__ import annotations
 
 import time
-import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING
 
 import structlog
 
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.action_runner import run_actions
-from alm.artifact.domain.guard_evaluator import evaluate_guard
+from alm.artifact.domain.guard_evaluator import evaluate_guard, guard_user_message_for_failure
+from alm.artifact.domain.manifest_workflow_metadata import get_resolution_target_state_ids
 from alm.artifact.domain.mpc_resolver import (
-    check_transition_policies,
+    build_artifact_transition_policy_event,
     evaluate_transition_policy,
     get_artifact_type_def,
     get_manifest_ast,
     get_transition_actions,
     get_workflow_transition_options,
 )
-from alm.artifact.domain.ports import ArtifactRepository, IArtifactTransitionMetrics
-from alm.artifact.domain.workflow_sm import (
-    get_permitted_triggers,
-    get_transition_guard,
-)
+from alm.artifact.domain.workflow_sm import get_permitted_triggers, get_transition_guard
 from alm.artifact.domain.workflow_sm import (
     is_valid_transition as workflow_is_valid_transition,
 )
-from alm.process_template.domain.ports import ProcessTemplateRepository
-from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
-from alm.shared.domain.exceptions import ConflictError, PolicyDeniedError, ValidationError
+from alm.shared.domain.exceptions import ConflictError, GuardDeniedError, PolicyDeniedError, ValidationError
 
+if TYPE_CHECKING:
+    import uuid
 
-def _build_transition_event(
-    artifact: Any,
-    command: TransitionArtifact,
-    *,
-    resolved_new_state: str | None = None,
-) -> dict[str, Any]:
-    """Build event dict for MPC PolicyEngine (D1)."""
-    to_state = resolved_new_state if resolved_new_state is not None else (command.new_state or "")
-    snapshot = artifact.to_snapshot_dict()
-    return {
-        "kind": "transition",
-        "name": "artifact.transition",
-        "object": {
-            "id": str(artifact.id),
-            "type": "artifact",
-            "artifact_type": artifact.artifact_type,
-            "state": snapshot.get("state"),
-            "assignee_id": snapshot.get("assignee_id"),
-            "custom_fields": snapshot.get("custom_fields") or {},
-        },
-        "actor": {
-            "id": str(command.updated_by) if command.updated_by else "",
-            "type": "user",
-            "tenant_id": str(command.tenant_id),
-            "roles": list(command.actor_roles) if command.actor_roles else [],
-        },
-        "context": {
-            "from_state": artifact.state,
-            "to_state": to_state,
-            "project_id": str(command.project_id),
-        },
-        "timestamp": datetime.now(UTC).isoformat(),
-    }
+    from alm.artifact.domain.ports import ArtifactRepository, IArtifactTransitionMetrics
+    from alm.process_template.domain.ports import ProcessTemplateRepository
+    from alm.project.domain.ports import ProjectRepository
 
 
 @dataclass(frozen=True)
@@ -107,6 +73,10 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         except PolicyDeniedError:
             self._metrics.record_duration_seconds(time.monotonic() - start)
             self._metrics.record_result("policy_denied")
+            raise
+        except GuardDeniedError:
+            self._metrics.record_duration_seconds(time.monotonic() - start)
+            self._metrics.record_result("guard_denied")
             raise
         except ValidationError:
             self._metrics.record_duration_seconds(time.monotonic() - start)
@@ -175,6 +145,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         ):
             raise ValidationError(f"Transition from '{artifact.state}' to '{new_state}' not allowed")
 
+        snapshot = artifact.to_snapshot_dict()
         guard = get_transition_guard(
             manifest,
             artifact.artifact_type,
@@ -182,47 +153,57 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
             new_state,
             ast=ast,
         )
-        if guard is not None and not evaluate_guard(guard, artifact.to_snapshot_dict()):
-            raise ValidationError("Transition guard not satisfied")
+        if not evaluate_guard(guard, snapshot):
+            raise GuardDeniedError(guard_user_message_for_failure(guard))
 
-        # Manifest-based transition policies (e.g. assignee required when entering state)
-        policy_violations = list(
-            check_transition_policies(
-                manifest,
-                new_state,
-                artifact.to_snapshot_dict(),
-                type_id=artifact.artifact_type,
-                ast=ast,
-            )
+        event = build_artifact_transition_policy_event(
+            artifact_id=artifact.id,
+            artifact_type=artifact.artifact_type,
+            from_state=artifact.state,
+            to_state=new_state,
+            assignee_id=snapshot.get("assignee_id"),
+            custom_fields=snapshot.get("custom_fields") if isinstance(snapshot.get("custom_fields"), dict) else None,
+            project_id=command.project_id,
+            tenant_id=command.tenant_id,
+            updated_by=command.updated_by,
+            actor_roles=command.actor_roles,
         )
-        # D1: MPC PolicyEngine — event-based policy evaluation; merge violations
-        event = _build_transition_event(artifact, command, resolved_new_state=new_state)
-        allow, mpc_violations = evaluate_transition_policy(
+        allow, policy_violations = evaluate_transition_policy(
             ast, event, list(command.actor_roles) if command.actor_roles else None
         )
-        if not allow and mpc_violations:
-            policy_violations.extend(mpc_violations)
-        if policy_violations:
-            raise PolicyDeniedError("; ".join(policy_violations))
+        if not allow:
+            raise PolicyDeniedError("; ".join(policy_violations) or "Policy check failed")
 
         at_def = get_artifact_type_def(manifest, artifact.artifact_type, ast=ast)
         workflow_id = (at_def or {}).get("workflow_id") or ""
         allowed_reasons, allowed_resolutions = get_workflow_transition_options(manifest, workflow_id)
-        if allowed_reasons and command.state_reason is not None and command.state_reason != "":
-            if command.state_reason not in allowed_reasons:
-                raise ValidationError(f"state_reason must be one of: {', '.join(allowed_reasons)}")
-        if allowed_resolutions and command.resolution is not None and command.resolution != "":
-            if command.resolution not in allowed_resolutions:
-                raise ValidationError(f"resolution must be one of: {', '.join(allowed_resolutions)}")
-
-        # Require resolution when transitioning to a resolved/closed/done state
-        _RESOLVED_STATES = ("resolved", "closed", "done")
         if (
-            new_state in _RESOLVED_STATES
-            and allowed_resolutions
-            and (not command.resolution or command.resolution.strip() == "")
+            allowed_reasons
+            and command.state_reason is not None
+            and command.state_reason != ""
+            and command.state_reason not in allowed_reasons
         ):
-            raise ValidationError("resolution is required when transitioning to a resolved, closed, or done state")
+            raise ValidationError(f"state_reason must be one of: {', '.join(allowed_reasons)}")
+
+        resolution_targets = get_resolution_target_state_ids(manifest, workflow_id)
+        # When target state requires resolution (per manifest) and workflow has resolution_options
+        effective_resolution = (command.resolution or "").strip()
+        if (
+            allowed_resolutions
+            and command.resolution is not None
+            and command.resolution != ""
+            and command.resolution not in allowed_resolutions
+        ):
+            raise ValidationError(f"resolution must be one of: {', '.join(allowed_resolutions)}")
+        if new_state in resolution_targets and allowed_resolutions:
+            if not effective_resolution:
+                non_empty = [r for r in allowed_resolutions if r and str(r).strip()]
+                effective_resolution = (non_empty[0] if non_empty else allowed_resolutions[0]) or ""
+            if not effective_resolution:
+                raise ValidationError(
+                    "resolution is required when transitioning to a state that requires resolution "
+                    "(see manifest workflow)"
+                )
 
         from_state = artifact.state
         to_state = new_state
@@ -239,7 +220,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         artifact.transition(
             to_state,
             state_reason=command.state_reason,
-            resolution=command.resolution,
+            resolution=effective_resolution or command.resolution,
         )
         artifact.updated_by = command.updated_by
         await self._artifact_repo.update(artifact)

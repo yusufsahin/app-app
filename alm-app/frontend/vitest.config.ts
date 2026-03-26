@@ -8,5 +8,6 @@ export default defineConfig({
     exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     passWithNoTests: true,
+    setupFiles: ["./src/test/setupTests.ts"],
   },
 });

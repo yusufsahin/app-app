@@ -3,7 +3,9 @@
  * Form value: number (e.g. 0–5). Use z.number().min(0).max(5) in Zod.
  */
 import { Controller } from "react-hook-form";
-import { FormControl, FormHelperText, FormLabel, Rating, type RatingProps } from "@mui/material";
+import { Star } from "lucide-react";
+import { Label } from "../ui";
+import { FormItem, FormControl, FormMessage } from "../ui/form";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
 
@@ -11,9 +13,6 @@ type RhfRatingProps<TFieldValues extends import("react-hook-form").FieldValues> 
   RhfControllerFieldProps<TFieldValues> & {
     label?: React.ReactNode;
     max?: number;
-    precision?: 0.5 | 1;
-    size?: "small" | "medium" | "large";
-    ratingProps?: Omit<RatingProps, "value" | "onChange" | "onBlur" | "max" | "precision" | "size">;
   };
 
 export function RhfRating<TFieldValues extends import("react-hook-form").FieldValues>({
@@ -21,11 +20,8 @@ export function RhfRating<TFieldValues extends import("react-hook-form").FieldVa
   control: controlProp,
   label,
   max = 5,
-  precision = 1,
-  size = "medium",
   error,
   helperText,
-  ratingProps,
 }: RhfRatingProps<TFieldValues>) {
   const { control, errorMessage, displayText } = useRhfField<TFieldValues>(name, {
     control: controlProp,
@@ -37,25 +33,32 @@ export function RhfRating<TFieldValues extends import("react-hook-form").FieldVa
     <Controller
       name={name}
       control={control}
-      render={({ field: { value, onChange, onBlur, ref } }) => (
-        <FormControl error={!!errorMessage} component="fieldset" variant="standard">
-          {label != null && label !== "" && <FormLabel component="legend" sx={{ mb: 0.5 }}>{label}</FormLabel>}
-          <Rating
-            {...ratingProps}
-            name={String(name)}
-            value={typeof value === "number" ? value : 0}
-            onChange={(_, newValue) => onChange(newValue ?? 0)}
-            onBlur={onBlur}
-            ref={ref}
-            max={max}
-            precision={precision}
-            size={size}
-          />
-          {displayText != null && displayText !== "" && (
-            <FormHelperText>{displayText}</FormHelperText>
-          )}
-        </FormControl>
-      )}
+      render={({ field: { value, onChange, onBlur, ref } }) => {
+        const v = typeof value === "number" ? value : 0;
+        return (
+          <FormItem>
+            {label != null && label !== "" && <Label>{label}</Label>}
+            <FormControl>
+              <div className="flex gap-0.5" ref={ref} onBlur={onBlur} role="group" aria-label={typeof label === "string" ? label : "Rating"}>
+                {Array.from({ length: max }, (_, i) => i + 1).map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => onChange(star)}
+                    className="rounded p-0.5 text-muted-foreground hover:text-amber-500 focus:outline-none focus:ring-2 focus:ring-ring"
+                    aria-label={`${star} star${star === 1 ? "" : "s"}`}
+                  >
+                    <Star className={`size-6 ${v >= star ? "fill-amber-500 text-amber-500" : ""}`} />
+                  </button>
+                ))}
+              </div>
+            </FormControl>
+            {(displayText != null && displayText !== "") || errorMessage ? (
+              <FormMessage>{errorMessage ?? displayText}</FormMessage>
+            ) : null}
+          </FormItem>
+        );
+      }}
     />
   );
 }

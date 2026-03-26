@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from alm.artifact.application.dtos import ArtifactDTO
+from alm.artifact.domain.mpc_resolver import get_manifest_ast, redact_data
 from alm.artifact.domain.ports import ArtifactRepository
+from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.query import Query, QueryHandler
 
@@ -16,6 +18,7 @@ class GetArtifact(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     artifact_id: uuid.UUID
+    actor_roles: list[str] | None = None
 
 
 class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
@@ -23,9 +26,11 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
         self,
         artifact_repo: ArtifactRepository,
         project_repo: ProjectRepository,
+        process_template_repo: ProcessTemplateRepository,
     ) -> None:
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
+        self._process_template_repo = process_template_repo
 
     async def handle(self, query: Query) -> ArtifactDTO | None:
         assert isinstance(query, GetArtifact)
@@ -38,7 +43,7 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
         if artifact is None or artifact.project_id != query.project_id:
             return None
 
-        return ArtifactDTO(
+        dto = ArtifactDTO(
             id=artifact.id,
             project_id=artifact.project_id,
             artifact_type=artifact.artifact_type,
@@ -58,3 +63,19 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
             created_at=getattr(artifact, "created_at", None),
             updated_at=getattr(artifact, "updated_at", None),
         )
+
+        if project.process_template_version_id:
+            version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+            if version and version.manifest_bundle:
+                ast = get_manifest_ast(version.id, version.manifest_bundle)
+                redacted_snapshot = redact_data(
+                    ast,
+                    dto.__dict__,  # Redactor can handle dicts
+                    query.actor_roles or [],
+                )
+                dto_fields = dto.__dataclass_fields__
+                updates = {k: v for k, v in redacted_snapshot.items() if k in dto_fields}
+                if updates:
+                    dto = replace(dto, **updates)
+
+        return dto

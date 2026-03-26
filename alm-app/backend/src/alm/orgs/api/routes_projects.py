@@ -1,0 +1,647 @@
+"""Org API routes: Projects."""
+
+from fastapi import APIRouter
+
+from alm.orgs.api._router_deps import *  # noqa: F403
+
+router = APIRouter()
+
+# ── Projects ──
+
+
+@router.post("/projects", response_model=ProjectResponse, status_code=201)
+async def create_project(
+    body: ProjectCreateRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("project:create"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ProjectResponse:
+    dto = await mediator.send(
+        CreateProject(
+            tenant_id=org.tenant_id,
+            code=body.code,
+            name=body.name,
+            description=body.description,
+            process_template_slug=body.process_template_slug,
+            created_by=user.id,
+        )
+    )
+    return ProjectResponse(
+        id=dto.id,
+        code=dto.code,
+        name=dto.name,
+        slug=dto.slug,
+        description=dto.description,
+        status=dto.status,
+        settings=dto.settings,
+        metadata=dto.metadata_,
+    )
+
+
+@router.get("/projects", response_model=list[ProjectResponse])
+async def list_projects(
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("project:read"),
+    mediator: Mediator = Depends(get_mediator),
+) -> list[ProjectResponse]:
+    dtos = await mediator.query(ListProjects(tenant_id=org.tenant_id))
+    return [
+        ProjectResponse(
+            id=d.id,
+            code=d.code,
+            name=d.name,
+            slug=d.slug,
+            description=d.description,
+            status=d.status,
+            settings=d.settings,
+            metadata=d.metadata_,
+        )
+        for d in dtos
+    ]
+
+
+@router.get("/projects/{project_id}", response_model=ProjectResponse)
+async def get_project(
+    project_id: uuid.UUID,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("project:read"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ProjectResponse:
+    dto = await mediator.query(GetProject(tenant_id=org.tenant_id, project_id=project_id))
+    if dto is None:
+        raise EntityNotFound("Project", project_id)
+    return ProjectResponse(
+        id=dto.id,
+        code=dto.code,
+        name=dto.name,
+        slug=dto.slug,
+        description=dto.description,
+        status=dto.status,
+        settings=dto.settings,
+        metadata=dto.metadata_,
+    )
+
+
+@router.patch("/projects/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: uuid.UUID,
+    body: UpdateProjectRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user=require_permission("project:update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ProjectResponse:
+    data = body.model_dump(exclude_unset=True)
+    if "metadata" in data:
+        data["metadata_"] = data.pop("metadata")
+    dto = await mediator.send(
+        UpdateProject(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            **data,
+        )
+    )
+    return ProjectResponse(
+        id=dto.id,
+        code=dto.code,
+        name=dto.name,
+        slug=dto.slug,
+        description=dto.description,
+        status=dto.status,
+        settings=dto.settings,
+        metadata=dto.metadata_,
+    )
+
+
+@router.get("/projects/{project_id}/members", response_model=list[ProjectMemberResponse])
+async def list_project_members(
+    project_id: uuid.UUID,
+    org: ResolvedOrg = Depends(resolve_org),
+    user=require_permission("project:read"),
+    mediator: Mediator = Depends(get_mediator),
+) -> list[ProjectMemberResponse]:
+    members = await mediator.query(ListProjectMembers(tenant_id=org.tenant_id, project_id=project_id))
+    return [ProjectMemberResponse(id=m.id, project_id=m.project_id, user_id=m.user_id, role=m.role) for m in members]
+
+
+@router.post(
+    "/projects/{project_id}/members",
+    response_model=ProjectMemberResponse,
+    status_code=201,
+)
+async def add_project_member(
+    project_id: uuid.UUID,
+    body: AddProjectMemberRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user=require_permission("project:update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ProjectMemberResponse:
+    member = await mediator.send(
+        AddProjectMember(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            user_id=body.user_id,
+            role=body.role,
+        )
+    )
+    return ProjectMemberResponse(
+        id=member.id,
+        project_id=member.project_id,
+        user_id=member.user_id,
+        role=member.role,
+    )
+
+
+@router.delete("/projects/{project_id}/members/{user_id}", status_code=204)
+async def remove_project_member(
+    project_id: uuid.UUID,
+    user_id: uuid.UUID,
+    org: ResolvedOrg = Depends(resolve_org),
+    user=require_permission("project:update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> None:
+    deleted = await mediator.send(
+        RemoveProjectMember(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            user_id=user_id,
+        )
+    )
+    if not deleted:
+        raise EntityNotFound("ProjectMember", f"{project_id}:{user_id}")
+
+
+@router.patch(
+    "/projects/{project_id}/members/{user_id}",
+    response_model=ProjectMemberResponse,
+)
+async def update_project_member(
+    project_id: uuid.UUID,
+    user_id: uuid.UUID,
+    body: UpdateProjectMemberRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user=require_permission("project:update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ProjectMemberResponse:
+    member = await mediator.send(
+        UpdateProjectMember(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            user_id=user_id,
+            role=body.role,
+        )
+    )
+    return ProjectMemberResponse(
+        id=member.id,
+        project_id=member.project_id,
+        user_id=member.user_id,
+        role=member.role,
+    )
+
+
+@router.get("/projects/{project_id}/artifacts", response_model=ArtifactListResponse)
+async def list_artifacts(
+    project_id: uuid.UUID,
+    state: str | None = None,
+    type: str | None = None,
+    q: str | None = None,
+    cycle_node_id: uuid.UUID | None = None,
+    release_cycle_node_id: uuid.UUID | None = Query(
+        None, description="Filter by release (all iterations under this node)"
+    ),
+    area_node_id: uuid.UUID | None = None,
+    sort_by: str | None = None,
+    sort_order: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+    include_deleted: bool = False,
+    include_system_roots: bool = False,
+    tree: str | None = None,
+    parent_id: uuid.UUID | None = Query(
+        None,
+        description="When set, return only artifacts whose parent_id equals this id (still scoped by tree subtree when tree is set).",
+    ),
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:read"),
+    _acl: None = require_manifest_acl("artifact", "read"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ArtifactListResponse:
+    result = await mediator.query(
+        ListArtifacts(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            state_filter=state,
+            type_filter=type,
+            search_query=q,
+            cycle_node_id=cycle_node_id,
+            release_cycle_node_id=release_cycle_node_id,
+            area_node_id=area_node_id,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            limit=limit,
+            offset=offset,
+            include_deleted=include_deleted,
+            include_system_roots=include_system_roots,
+            tree=tree,
+            parent_id=parent_id,
+            actor_roles=list(user.roles or []),
+        )
+    )
+    items = [
+        ArtifactResponse(
+            id=d.id,
+            project_id=d.project_id,
+            artifact_type=d.artifact_type,
+            title=d.title,
+            description=d.description,
+            state=d.state,
+            assignee_id=d.assignee_id,
+            parent_id=d.parent_id,
+            custom_fields=d.custom_fields,
+            artifact_key=d.artifact_key,
+            state_reason=d.state_reason,
+            resolution=d.resolution,
+            rank_order=d.rank_order,
+            cycle_node_id=getattr(d, "cycle_node_id", None),
+            area_node_id=getattr(d, "area_node_id", None),
+            area_path_snapshot=getattr(d, "area_path_snapshot", None),
+            created_at=getattr(d, "created_at", None),
+            updated_at=getattr(d, "updated_at", None),
+        )
+        for d in result.items
+    ]
+    items = await mask_artifact_list_for_user(items, user)
+    list_actions = (
+        items[0].allowed_actions
+        if items
+        else allowed_actions_for_artifact(await get_user_privileges(user.tenant_id, user.id))
+    )
+    return ArtifactListResponse(items=items, total=result.total, allowed_actions=list_actions)
+
+
+@router.post(
+    "/projects/{project_id}/artifacts/batch-transition",
+    response_model=BatchResultResponse,
+)
+async def batch_transition_artifacts(
+    project_id: uuid.UUID,
+    body: BatchTransitionRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:transition"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> BatchResultResponse:
+    success_count = 0
+    errors: list[str] = []
+    results: dict[str, str] = {}
+    for artifact_id in body.artifact_ids:
+        aid = str(artifact_id)
+        try:
+            await mediator.send(
+                TransitionArtifact(
+                    tenant_id=org.tenant_id,
+                    project_id=project_id,
+                    artifact_id=artifact_id,
+                    new_state=body.new_state,
+                    trigger=body.trigger,
+                    state_reason=body.state_reason,
+                    resolution=body.resolution,
+                    updated_by=user.id,
+                    actor_roles=tuple(user.roles) if user.roles else None,
+                )
+            )
+            success_count += 1
+            results[aid] = "ok"
+        except GuardDeniedError as e:
+            results[aid] = "guard_denied"
+            errors.append(f"{artifact_id}: {e!s}")
+        except PolicyDeniedError as e:
+            results[aid] = "policy_denied"
+            errors.append(f"{artifact_id}: {e!s}")
+        except ConflictError as e:
+            results[aid] = "conflict_error"
+            errors.append(f"{artifact_id}: {e!s}")
+        except ValidationError as e:
+            results[aid] = "validation_error"
+            errors.append(f"{artifact_id}: {e!s}")
+        except Exception as e:  # noqa: BLE001
+            results[aid] = "validation_error"
+            errors.append(f"{artifact_id}: {e!s}")
+    return BatchResultResponse(
+        success_count=success_count,
+        error_count=len(errors),
+        errors=errors[:20],
+        results=results,
+    )
+
+
+@router.post(
+    "/projects/{project_id}/artifacts/batch-delete",
+    response_model=BatchResultResponse,
+)
+async def batch_delete_artifacts(
+    project_id: uuid.UUID,
+    body: BatchDeleteRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:delete"),
+    mediator: Mediator = Depends(get_mediator),
+) -> BatchResultResponse:
+    success_count = 0
+    errors: list[str] = []
+    for artifact_id in body.artifact_ids:
+        try:
+            await mediator.send(
+                DeleteArtifact(
+                    tenant_id=org.tenant_id,
+                    project_id=project_id,
+                    artifact_id=artifact_id,
+                    deleted_by=user.id,
+                )
+            )
+            success_count += 1
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"{artifact_id}: {e!s}")
+    return BatchResultResponse(
+        success_count=success_count,
+        error_count=len(errors),
+        errors=errors[:20],
+    )
+
+
+@router.post(
+    "/projects/{project_id}/artifacts",
+    response_model=ArtifactResponse,
+    status_code=201,
+)
+async def create_artifact(
+    project_id: uuid.UUID,
+    body: ArtifactCreateRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:create"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ArtifactResponse:
+    dto = await mediator.send(
+        CreateArtifact(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            artifact_type=body.artifact_type,
+            title=body.title,
+            description=body.description,
+            parent_id=body.parent_id,
+            assignee_id=body.assignee_id,
+            custom_fields=body.custom_fields,
+            artifact_key=body.artifact_key,
+            rank_order=body.rank_order,
+            cycle_node_id=body.cycle_node_id,
+            area_node_id=body.area_node_id,
+            created_by=user.id,
+        )
+    )
+    resp = ArtifactResponse(
+        id=dto.id,
+        project_id=dto.project_id,
+        artifact_type=dto.artifact_type,
+        title=dto.title,
+        description=dto.description,
+        state=dto.state,
+        assignee_id=dto.assignee_id,
+        parent_id=dto.parent_id,
+        custom_fields=dto.custom_fields,
+        artifact_key=dto.artifact_key,
+        state_reason=dto.state_reason,
+        resolution=dto.resolution,
+        rank_order=dto.rank_order,
+        cycle_node_id=getattr(dto, "cycle_node_id", None),
+        area_node_id=getattr(dto, "area_node_id", None),
+        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
+        created_at=dto.created_at,
+        updated_at=dto.updated_at,
+    )
+    return await mask_artifact_for_user(resp, user)
+
+
+@router.get("/projects/{project_id}/artifacts/{artifact_id}", response_model=ArtifactResponse)
+async def get_artifact(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:read"),
+    _acl: None = require_manifest_acl("artifact", "read"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ArtifactResponse:
+    dto = await mediator.query(
+        GetArtifact(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            artifact_id=artifact_id,
+            actor_roles=list(user.roles or []),
+        )
+    )
+    if dto is None:
+        raise EntityNotFound("Artifact", artifact_id)
+    resp = ArtifactResponse(
+        id=dto.id,
+        project_id=dto.project_id,
+        artifact_type=dto.artifact_type,
+        title=dto.title,
+        description=dto.description,
+        state=dto.state,
+        assignee_id=dto.assignee_id,
+        parent_id=dto.parent_id,
+        custom_fields=dto.custom_fields,
+        artifact_key=dto.artifact_key,
+        state_reason=dto.state_reason,
+        resolution=dto.resolution,
+        rank_order=dto.rank_order,
+        cycle_node_id=getattr(dto, "cycle_node_id", None),
+        area_node_id=getattr(dto, "area_node_id", None),
+        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
+        created_at=dto.created_at,
+        updated_at=dto.updated_at,
+    )
+    return await mask_artifact_for_user(resp, user)
+
+
+@router.patch(
+    "/projects/{project_id}/artifacts/{artifact_id}",
+    response_model=ArtifactResponse,
+)
+async def update_artifact(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    body: ArtifactUpdateRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:update"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ArtifactResponse:
+    updates = body.model_dump(exclude_unset=True)
+    dto = await mediator.send(
+        UpdateArtifact(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            artifact_id=artifact_id,
+            updates=updates,
+            updated_by=user.id,
+        )
+    )
+    resp = ArtifactResponse(
+        id=dto.id,
+        project_id=dto.project_id,
+        artifact_type=dto.artifact_type,
+        title=dto.title,
+        description=dto.description,
+        state=dto.state,
+        assignee_id=dto.assignee_id,
+        parent_id=dto.parent_id,
+        custom_fields=dto.custom_fields,
+        artifact_key=dto.artifact_key,
+        state_reason=dto.state_reason,
+        resolution=dto.resolution,
+        rank_order=dto.rank_order,
+        cycle_node_id=getattr(dto, "cycle_node_id", None),
+        area_node_id=getattr(dto, "area_node_id", None),
+        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
+        created_at=dto.created_at,
+        updated_at=dto.updated_at,
+    )
+    return await mask_artifact_for_user(resp, user)
+
+
+@router.get(
+    "/projects/{project_id}/artifacts/{artifact_id}/permitted-transitions",
+    response_model=PermittedTransitionsResponse,
+)
+async def get_permitted_transitions(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:read"),
+    _acl: None = require_manifest_acl("artifact", "read"),
+    mediator: Mediator = Depends(get_mediator),
+) -> PermittedTransitionsResponse:
+    rows = await mediator.query(
+        GetPermittedTransitions(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            artifact_id=artifact_id,
+        )
+    )
+    return PermittedTransitionsResponse(
+        items=[PermittedTransitionItem(trigger=r.trigger, to_state=r.to_state, label=r.label) for r in rows],
+    )
+
+
+@router.patch(
+    "/projects/{project_id}/artifacts/{artifact_id}/transition",
+    response_model=ArtifactResponse,
+)
+async def transition_artifact(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    body: ArtifactTransitionRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:transition"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ArtifactResponse:
+    dto = await mediator.send(
+        TransitionArtifact(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            artifact_id=artifact_id,
+            new_state=body.new_state,
+            state_reason=body.state_reason,
+            resolution=body.resolution,
+            updated_by=user.id,
+            expected_updated_at=body.expected_updated_at,
+            actor_roles=tuple(user.roles) if user.roles else None,
+        )
+    )
+    resp = ArtifactResponse(
+        id=dto.id,
+        project_id=dto.project_id,
+        artifact_type=dto.artifact_type,
+        title=dto.title,
+        description=dto.description,
+        state=dto.state,
+        assignee_id=dto.assignee_id,
+        parent_id=dto.parent_id,
+        custom_fields=dto.custom_fields,
+        artifact_key=dto.artifact_key,
+        state_reason=dto.state_reason,
+        resolution=dto.resolution,
+        rank_order=dto.rank_order,
+        cycle_node_id=getattr(dto, "cycle_node_id", None),
+        area_node_id=getattr(dto, "area_node_id", None),
+        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
+        created_at=dto.created_at,
+        updated_at=dto.updated_at,
+    )
+    return await mask_artifact_for_user(resp, user)
+
+
+@router.delete(
+    "/projects/{project_id}/artifacts/{artifact_id}",
+    status_code=204,
+)
+async def delete_artifact(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:delete"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> None:
+    await mediator.send(
+        DeleteArtifact(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            artifact_id=artifact_id,
+            deleted_by=user.id,
+        )
+    )
+    return None
+
+
+@router.post(
+    "/projects/{project_id}/artifacts/{artifact_id}/restore",
+    response_model=ArtifactResponse,
+)
+async def restore_artifact(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:update"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> ArtifactResponse:
+    dto = await mediator.send(
+        RestoreArtifact(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            artifact_id=artifact_id,
+            restored_by=user.id,
+        )
+    )
+    resp = ArtifactResponse(
+        id=dto.id,
+        project_id=dto.project_id,
+        artifact_type=dto.artifact_type,
+        title=dto.title,
+        description=dto.description,
+        state=dto.state,
+        assignee_id=dto.assignee_id,
+        parent_id=dto.parent_id,
+        custom_fields=dto.custom_fields,
+        artifact_key=dto.artifact_key,
+        state_reason=dto.state_reason,
+        resolution=dto.resolution,
+        rank_order=dto.rank_order,
+        cycle_node_id=getattr(dto, "cycle_node_id", None),
+        area_node_id=getattr(dto, "area_node_id", None),
+        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
+        created_at=dto.created_at,
+        updated_at=dto.updated_at,
+    )
+    return await mask_artifact_for_user(resp, user)

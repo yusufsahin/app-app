@@ -34,3 +34,57 @@ export function artifactsPath(
 export function artifactDetailPath(orgSlug: string, projectSlug: string, artifactId: string): string {
   return artifactsPath(orgSlug, projectSlug, { artifact: artifactId });
 }
+
+/**
+ * Path to Quality suite (list + hub), optionally with artifact drawer and tree filter.
+ */
+export function qualityPath(
+  orgSlug: string,
+  projectSlug: string,
+  params?: {
+    artifact?: string;
+    tree?: string;
+  },
+): string {
+  const base = `/${orgSlug}/${projectSlug}/quality`;
+  if (!params || Object.keys(params).length === 0) return base;
+  const search = new URLSearchParams();
+  if (params.artifact) search.set("artifact", params.artifact);
+  if (params.tree) search.set("tree", params.tree);
+  const q = search.toString();
+  return q ? `${base}?${q}` : base;
+}
+
+/** Path to Quality traceability table (artifact list for link context). */
+export function qualityTraceabilityPath(
+  orgSlug: string,
+  projectSlug: string,
+  params?: { page?: number; q?: string },
+): string {
+  const base = `/${orgSlug}/${projectSlug}/quality/traceability`;
+  if (!params || (params.page == null || params.page <= 1) && !params.q?.trim()) {
+    return base;
+  }
+  const search = new URLSearchParams();
+  if (params.page != null && params.page > 1) search.set("page", String(params.page));
+  const q = params.q?.trim();
+  if (q) search.set("q", q);
+  const qs = search.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+
+export function qualityTestsPath(orgSlug: string, projectSlug: string): string {
+  return `/${orgSlug}/${projectSlug}/quality/tests`;
+}
+
+export function qualitySuitesPath(orgSlug: string, projectSlug: string): string {
+  return `/${orgSlug}/${projectSlug}/quality/suites`;
+}
+
+export function qualityRunsPath(orgSlug: string, projectSlug: string): string {
+  return `/${orgSlug}/${projectSlug}/quality/runs`;
+}
+
+export function qualityCampaignsPath(orgSlug: string, projectSlug: string): string {
+  return `/${orgSlug}/${projectSlug}/quality/campaigns`;
+}

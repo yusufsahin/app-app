@@ -1,0 +1,5 @@
+# Release gate: burada listelenen test_id değerleri seçili kritik testlerle çakışırsa gate fail.
+# SLA: quarantine'deki maddeler için hedef çözüm süresi (gün).
+version: "1"
+sla_days_to_fix: 14
+quarantined_test_ids: []

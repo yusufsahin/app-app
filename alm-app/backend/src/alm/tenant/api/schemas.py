@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CreateTenantRequest(BaseModel):
@@ -12,7 +12,14 @@ class CreateTenantRequest(BaseModel):
 
 class UpdateTenantRequest(BaseModel):
     name: str | None = None
-    settings: dict[str, object] | None = None
+    settings: dict[str, object] | None = Field(
+        default=None,
+        description=(
+            "Arbitrary tenant JSON. Recognized keys include "
+            "`default_process_template_slug` (process template slug when creating a project without "
+            "`process_template_slug`; falls back to ALM_DEFAULT_PROCESS_TEMPLATE_SLUG)."
+        ),
+    )
 
 
 class TenantResponse(BaseModel):

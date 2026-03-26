@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import uuid
 from dataclasses import dataclass
 
@@ -57,10 +58,8 @@ class SetRolePrivilegesHandler(CommandHandler[RoleDetailDTO]):
                     )
                 )
 
-        try:
+        with contextlib.suppress(Exception):
             await self._permission_cache.invalidate_tenant(role.tenant_id)
-        except Exception:
-            pass
 
         return RoleDetailDTO(
             id=role.id,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from alm.artifact.domain.manifest_merge_defaults import merge_manifest_metadata_defaults
 from alm.form_schema.application.builders.manifest_form_schema_builder import (
     build_form_schema,
 )
@@ -21,6 +22,7 @@ class GetFormSchema(Query):
     project_id: uuid.UUID
     entity_type: str = "artifact"
     context: str = "create"
+    artifact_type: str | None = None
 
 
 class GetFormSchemaHandler(QueryHandler[FormSchema | None]):
@@ -41,28 +43,32 @@ class GetFormSchemaHandler(QueryHandler[FormSchema | None]):
         if project is None or project.tenant_id != query.tenant_id:
             return None
 
-        # Task schema is fixed; no manifest required (P3)
         if query.entity_type == "task":
+            task_bundle: dict = {}
+            if project.process_template_version_id:
+                tv = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+                if tv and tv.manifest_bundle:
+                    task_bundle = merge_manifest_metadata_defaults(tv.manifest_bundle)
             return build_form_schema(
-                {}, entity_type="task", context=query.context, flattener=self._manifest_flattener
+                task_bundle,
+                entity_type="task",
+                context=query.context,
+                flattener=self._manifest_flattener,
             )
-        # Artifact edit schema does not need full manifest (title, description, assignee only)
-        if query.entity_type == "artifact" and query.context == "edit":
-            return build_form_schema(
-                {}, entity_type="artifact", context="edit", flattener=self._manifest_flattener
-            )
-
         if project.process_template_version_id is None:
+            if query.entity_type == "artifact" and query.context == "edit":
+                return build_form_schema({}, entity_type="artifact", context="edit", flattener=self._manifest_flattener)
             return None
 
         version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
         if version is None:
             return None
 
-        manifest_bundle = version.manifest_bundle or {}
+        manifest_bundle = merge_manifest_metadata_defaults(version.manifest_bundle or {})
         return build_form_schema(
             manifest_bundle,
             entity_type=query.entity_type,
             context=query.context,
             flattener=self._manifest_flattener,
+            artifact_type=query.artifact_type,
         )

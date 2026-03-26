@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings
 
 
@@ -6,7 +8,7 @@ class Settings(BaseSettings):
 
     app_name: str = "ALM"
     app_version: str = ""  # G4: optional, set via ALM_APP_VERSION
-    environment: str = ""  # G4: optional, e.g. development, staging, production
+    environment: str = "development"  # development, staging, production (ALM_ENVIRONMENT)
     debug: bool = False
 
     database_url: str = "postgresql+asyncpg://alm:alm_dev_password@localhost:5432/alm"
@@ -35,7 +37,25 @@ class Settings(BaseSettings):
 
     upload_dir: str = "uploads"  # Local directory for artifact attachments (ALM_UPLOAD_DIR)
 
-    seed_demo_data: bool = True  # Create demo tenant, admin user, sample projects when DB is empty
+    seed_demo_data: bool = True  # Create demo tenant/admin when DB is empty (ALM_SEED_DEMO_DATA)
+
+    # PostgreSQL text search config for artifact FTS (whitelist enforced in repository). ALM_FULLTEXT_SEARCH_CONFIG
+    fulltext_search_config: str = "english"
+
+    # Default process template slug when creating a project without template. ALM_DEFAULT_PROCESS_TEMPLATE_SLUG
+    # Org override: tenant.settings["default_process_template_slug"] (see CreateProjectHandler).
+    default_process_template_slug: str = "basic"
+
+    # strict: deny policy/ACL when MPC missing; degraded|disabled: permissive fallback + audit (non-prod only)
+    mpc_mode: Literal["strict", "degraded", "disabled"] = "degraded"
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.lower() == "production"
+
+    @property
+    def is_dev(self) -> bool:
+        return self.environment.lower() == "development"
 
 
 settings = Settings()

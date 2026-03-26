@@ -1,5 +1,5 @@
 import { useForm, FormProvider } from "react-hook-form";
-import { Button, Box } from "@mui/material";
+import { Button } from "../../components/ui";
 import { RhfTextField, RhfSelect } from "../../components/forms";
 import type { SaveQueryModalProps } from "../modalTypes";
 
@@ -26,7 +26,7 @@ export function SaveQueryModal({
 
   return (
     <FormProvider {...form}>
-      <Box component="form" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
         <RhfTextField<FormValues>
           name="name"
           label="Query name"
@@ -42,15 +42,15 @@ export function SaveQueryModal({
             { value: "project", label: "Project (all members)" },
           ]}
         />
-        <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end", mt: 2 }}>
-          <Button type="button" onClick={onClose}>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" variant="contained">
+          <Button type="submit">
             Save
           </Button>
-        </Box>
-      </Box>
+        </div>
+      </form>
     </FormProvider>
   );
 }

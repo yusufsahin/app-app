@@ -9,14 +9,25 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alm.artifact.domain.entities import Artifact
+from alm.artifact.domain.fulltext_config import normalize_fulltext_regconfig
+from alm.artifact.domain.manifest_workflow_metadata import DEFAULT_SYSTEM_ROOT_TYPES
 from alm.artifact.domain.ports import ArtifactRepository
+from alm.config.settings import settings
 
 if TYPE_CHECKING:
     from alm.shared.domain.specification import Specification
+import contextlib
+
 from alm.artifact.infrastructure.models import ArtifactModel
 from alm.shared.application.mediator import buffer_events
 from alm.shared.audit.core import ChangeType
 from alm.shared.audit.interceptor import buffer_audit
+
+
+def _effective_fts_regconfig(explicit: str | None) -> str:
+    if explicit is not None:
+        return normalize_fulltext_regconfig(explicit)
+    return normalize_fulltext_regconfig(settings.fulltext_search_config)
 
 
 class SqlAlchemyArtifactRepository(ArtifactRepository):
@@ -47,6 +58,12 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         "updated_at": "updated_at",
     }
 
+    def _subtree_cte(self, root_artifact_id: uuid.UUID) -> Any:
+        """Recursive CTE: ids of root and all descendants. Use with .where(ArtifactModel.id.in_(select(cte.c.id)))."""
+        subtree = select(ArtifactModel.id).where(ArtifactModel.id == root_artifact_id).cte("subtree", recursive=True)
+        subtree = subtree.union_all(select(ArtifactModel.id).where(ArtifactModel.parent_id == subtree.c.id))
+        return subtree
+
     def _list_by_project_filters(
         self,
         q: Any,
@@ -54,22 +71,35 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         type_filter: str | None,
         search_query: str | None,
         cycle_node_id: uuid.UUID | None = None,
+        cycle_node_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
+        parent_id: uuid.UUID | None = None,
+        root_artifact_id: uuid.UUID | None = None,
+        fts_regconfig: str | None = None,
     ) -> Any:
         """Apply common filters for list and count."""
+        if root_artifact_id is not None:
+            subtree = self._subtree_cte(root_artifact_id)
+            q = q.where(ArtifactModel.id.in_(select(subtree.c.id)))
+        if parent_id is not None:
+            q = q.where(ArtifactModel.parent_id == parent_id)
         if state_filter:
             q = q.where(ArtifactModel.state == state_filter)
         if type_filter:
             q = q.where(ArtifactModel.artifact_type == type_filter)
-        if cycle_node_id is not None:
+        if cycle_node_ids:
+            q = q.where(ArtifactModel.cycle_node_id.in_(cycle_node_ids))
+        elif cycle_node_id is not None:
             q = q.where(ArtifactModel.cycle_node_id == cycle_node_id)
         if area_node_id is not None:
             q = q.where(ArtifactModel.area_node_id == area_node_id)
         if search_query and search_query.strip():
             term = search_query.strip()
-            # Full-text search on search_vector (tsvector); fallback to ILIKE if no FTS match
+            cfg = _effective_fts_regconfig(fts_regconfig)
             q = q.where(
-                text("artifacts.search_vector @@ plainto_tsquery('english', :search_fts)").bindparams(search_fts=term)
+                text(f"artifacts.search_vector @@ plainto_tsquery('{cfg}'::regconfig, :search_fts)").bindparams(
+                    search_fts=term
+                )
             )
         return q
 
@@ -80,16 +110,46 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         type_filter: str | None = None,
         search_query: str | None = None,
         cycle_node_id: uuid.UUID | None = None,
+        cycle_node_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
+        parent_id: uuid.UUID | None = None,
         include_deleted: bool = False,
+        root_artifact_id: uuid.UUID | None = None,
+        exclude_root_artifact_types: bool = False,
+        root_type_ids_exclude: frozenset[str] | None = None,
+        fts_regconfig: str | None = None,
     ) -> int:
         q = select(func.count(ArtifactModel.id)).where(
             ArtifactModel.project_id == project_id,
             ArtifactModel.deleted_at.is_(None) if not include_deleted else ArtifactModel.deleted_at.isnot(None),
         )
-        q = self._list_by_project_filters(q, state_filter, type_filter, search_query, cycle_node_id, area_node_id)
+        q = self._list_by_project_filters(
+            q,
+            state_filter,
+            type_filter,
+            search_query,
+            cycle_node_id=cycle_node_id,
+            cycle_node_ids=cycle_node_ids,
+            area_node_id=area_node_id,
+            parent_id=parent_id,
+            root_artifact_id=root_artifact_id,
+            fts_regconfig=fts_regconfig,
+        )
+        to_ex = self._root_types_to_exclude(exclude_root_artifact_types, root_type_ids_exclude)
+        if to_ex:
+            q = q.where(ArtifactModel.artifact_type.notin_(to_ex))
         result = await self._session.execute(q)
         return result.scalar_one() or 0
+
+    @staticmethod
+    def _root_types_to_exclude(
+        exclude_root_artifact_types: bool,
+        root_type_ids_exclude: frozenset[str] | None,
+    ) -> tuple[str, ...] | None:
+        if not exclude_root_artifact_types:
+            return None
+        to_ex = tuple(root_type_ids_exclude) if root_type_ids_exclude is not None else tuple(DEFAULT_SYSTEM_ROOT_TYPES)
+        return to_ex if to_ex else None
 
     async def list_by_project(
         self,
@@ -98,18 +158,38 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         type_filter: str | None = None,
         search_query: str | None = None,
         cycle_node_id: uuid.UUID | None = None,
+        cycle_node_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
+        parent_id: uuid.UUID | None = None,
         sort_by: str | None = None,
         sort_order: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
         include_deleted: bool = False,
+        root_artifact_id: uuid.UUID | None = None,
+        exclude_root_artifact_types: bool = False,
+        root_type_ids_exclude: frozenset[str] | None = None,
+        fts_regconfig: str | None = None,
     ) -> list[Artifact]:
         q = select(ArtifactModel).where(
             ArtifactModel.project_id == project_id,
             ArtifactModel.deleted_at.is_(None) if not include_deleted else ArtifactModel.deleted_at.isnot(None),
         )
-        q = self._list_by_project_filters(q, state_filter, type_filter, search_query, cycle_node_id, area_node_id)
+        q = self._list_by_project_filters(
+            q,
+            state_filter,
+            type_filter,
+            search_query,
+            cycle_node_id=cycle_node_id,
+            cycle_node_ids=cycle_node_ids,
+            area_node_id=area_node_id,
+            parent_id=parent_id,
+            root_artifact_id=root_artifact_id,
+            fts_regconfig=fts_regconfig,
+        )
+        to_ex = self._root_types_to_exclude(exclude_root_artifact_types, root_type_ids_exclude)
+        if to_ex:
+            q = q.where(ArtifactModel.artifact_type.notin_(to_ex))
         column_name = self._SORT_COLUMNS.get(sort_by) if sort_by else "created_at"
         order_asc = (sort_order or "desc").lower() == "asc"
         column = getattr(ArtifactModel, column_name or "created_at", None)
@@ -123,17 +203,6 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             q = q.limit(limit)
         result = await self._session.execute(q)
         return [self._to_entity(m) for m in result.scalars().all()]
-
-    async def count_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
-        if not project_ids:
-            return 0
-        result = await self._session.execute(
-            select(func.count(ArtifactModel.id)).where(
-                ArtifactModel.project_id.in_(project_ids),
-                ArtifactModel.deleted_at.is_(None),
-            )
-        )
-        return result.scalar_one() or 0
 
     async def count_open_defects_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
         if not project_ids:
@@ -313,10 +382,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
                 cf = a.custom_fields or {}
                 val = cf.get(effort_field)
                 if val is not None:
-                    try:
+                    with contextlib.suppress(TypeError, ValueError):
                         totals[cid] += float(val)
-                    except (TypeError, ValueError):
-                        pass
         return [(cid, totals[cid]) for cid in cycle_node_ids]
 
     async def sum_total_effort_by_cycles(
@@ -341,8 +408,6 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
                 cf = a.custom_fields or {}
                 val = cf.get(effort_field)
                 if val is not None:
-                    try:
+                    with contextlib.suppress(TypeError, ValueError):
                         totals[cid] += float(val)
-                    except (TypeError, ValueError):
-                        pass
         return [(cid, totals[cid]) for cid in cycle_node_ids]

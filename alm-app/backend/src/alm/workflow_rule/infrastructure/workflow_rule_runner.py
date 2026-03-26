@@ -41,9 +41,7 @@ def _evaluate_condition(condition_expression: str | None, context: dict[str, Any
     return True
 
 
-def _execute_actions(
-    rule_id: str, rule_name: str, actions: list[dict[str, Any]], context: dict[str, Any]
-) -> None:
+def _execute_actions(rule_id: str, rule_name: str, actions: list[dict[str, Any]], context: dict[str, Any]) -> None:
     for _, action in enumerate(actions):
         if not isinstance(action, dict):
             continue

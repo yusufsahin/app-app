@@ -1,22 +1,29 @@
 /**
- * Reusable DatePicker (date only) wired to React Hook Form via Controller.
- * Form value: Date | null (use z.date().nullable() or z.coerce.date().nullable() in Zod).
- * Requires LocalizationProvider with AdapterDayjs.
+ * DatePicker (date only) wired to React Hook Form via Controller.
+ * Form value: Date | string | null. Uses native input type="date" + dayjs for formatting.
  */
 import { Controller } from "react-hook-form";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import dayjs, { type Dayjs } from "dayjs";
+import dayjs from "dayjs";
 import type { RhfControllerFieldProps } from "./rhf-types";
 import { useRhfField } from "./useRhfField";
+import { Input } from "../ui";
+import { Label } from "../ui";
+import { cn } from "../ui/utils";
 
-function toDayjs(v: Date | string | null): Dayjs | null {
-  if (v == null) return null;
-  return dayjs(typeof v === "string" ? v : v);
+function formatForInput(v: Date | string | null): string {
+  if (v == null) return "";
+  const d = typeof v === "string" ? dayjs(v) : dayjs(v);
+  return d.isValid() ? d.format("YYYY-MM-DD") : "";
 }
 
-function fromDayjs(v: Dayjs | null, asString: boolean): Date | string | null {
-  if (v == null) return null;
-  return asString ? v.toISOString() : v.toDate();
+function parseFromInput(
+  value: string,
+  valueAsString: boolean,
+): Date | string | null {
+  if (!value || value.trim() === "") return null;
+  const d = dayjs(value, "YYYY-MM-DD");
+  if (!d.isValid()) return null;
+  return valueAsString ? d.toISOString() : d.toDate();
 }
 
 type RhfDatePickerProps<TFieldValues extends import("react-hook-form").FieldValues> =
@@ -24,6 +31,7 @@ type RhfDatePickerProps<TFieldValues extends import("react-hook-form").FieldValu
     label?: string;
     valueAsString?: boolean;
     slotProps?: { textField?: Record<string, unknown> };
+    disabled?: boolean;
   };
 
 export function RhfDatePicker<TFieldValues extends import("react-hook-form").FieldValues>({
@@ -33,7 +41,7 @@ export function RhfDatePicker<TFieldValues extends import("react-hook-form").Fie
   error,
   helperText,
   valueAsString = false,
-  slotProps,
+  disabled,
 }: RhfDatePickerProps<TFieldValues>) {
   const { control, errorMessage, displayText } = useRhfField<TFieldValues>(name, {
     control: controlProp,
@@ -45,27 +53,38 @@ export function RhfDatePicker<TFieldValues extends import("react-hook-form").Fie
     <Controller
       name={name}
       control={control}
-      render={({ field: { value, onChange, onBlur, ref } }) => {
-        const dayjsVal = toDayjs(value as Date | string | null);
-        return (
-          <DatePicker
-            label={label}
-            value={dayjsVal}
-            onChange={(v) => onChange(fromDayjs(v, valueAsString))}
-            onClose={onBlur}
-            slotProps={{
-              ...slotProps,
-              textField: {
-                ...(slotProps?.textField ?? {}),
-                error: !!errorMessage,
-                helperText: displayText,
-                onBlur,
-                inputRef: ref,
-              } as Record<string, unknown>,
-            }}
+      render={({ field: { value, onChange, onBlur, ref } }) => (
+        <div className="w-full space-y-1.5">
+          {label != null && label !== "" && (
+            <Label htmlFor={String(name)}>{label}</Label>
+          )}
+          <Input
+            id={String(name)}
+            ref={ref}
+            type="date"
+            value={formatForInput(value as Date | string | null)}
+            onChange={(e) =>
+              onChange(parseFromInput(e.target.value, valueAsString))
+            }
+            onBlur={onBlur}
+            disabled={disabled}
+            aria-invalid={!!errorMessage}
+            aria-describedby={displayText ? `${String(name)}-helper` : undefined}
+            className="w-full"
           />
-        );
-      }}
+          {displayText != null && displayText !== "" && (
+            <p
+              id={`${String(name)}-helper`}
+              className={cn(
+                "text-sm",
+                errorMessage ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {displayText}
+            </p>
+          )}
+        </div>
+      )}
     />
   );
 }

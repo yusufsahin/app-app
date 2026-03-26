@@ -39,8 +39,11 @@ class TestGetOrgDashboardStatsHandler:
         project_repo = AsyncMock()
         project_repo.list_by_tenant = AsyncMock(return_value=projects)
 
+        process_template_repo = AsyncMock()
+        process_template_repo.find_version_by_id = AsyncMock(return_value=None)
+
         artifact_repo = AsyncMock()
-        artifact_repo.count_by_project_ids = AsyncMock(return_value=5)
+        artifact_repo.count_by_project = AsyncMock(return_value=5)
         artifact_repo.count_open_defects_by_project_ids = AsyncMock(return_value=1)
 
         task_repo = AsyncMock()
@@ -50,6 +53,7 @@ class TestGetOrgDashboardStatsHandler:
             project_repo=project_repo,
             artifact_repo=artifact_repo,
             task_repo=task_repo,
+            process_template_repo=process_template_repo,
         )
         result = await handler.handle(GetOrgDashboardStats(tenant_id=tenant_id))
 
@@ -58,15 +62,21 @@ class TestGetOrgDashboardStatsHandler:
         assert result.tasks == 10
         assert result.open_defects == 1
         project_repo.list_by_tenant.assert_awaited_once_with(tenant_id)
-        artifact_repo.count_by_project_ids.assert_awaited_once_with([proj_id])
+        process_template_repo.find_version_by_id.assert_not_called()
+        artifact_repo.count_by_project.assert_awaited_once()
+        args, kwargs = artifact_repo.count_by_project.call_args
+        assert args[0] == proj_id
+        assert kwargs.get("exclude_root_artifact_types") is True
+        assert kwargs.get("root_type_ids_exclude") == frozenset({"root-requirement", "root-quality", "root-defect"})
         task_repo.count_by_project_ids.assert_awaited_once_with([proj_id])
 
     async def test_empty_projects_returns_zeros(self) -> None:
         project_repo = AsyncMock()
         project_repo.list_by_tenant = AsyncMock(return_value=[])
 
+        process_template_repo = AsyncMock()
+
         artifact_repo = AsyncMock()
-        artifact_repo.count_by_project_ids = AsyncMock(return_value=0)
         artifact_repo.count_open_defects_by_project_ids = AsyncMock(return_value=0)
 
         task_repo = AsyncMock()
@@ -76,6 +86,7 @@ class TestGetOrgDashboardStatsHandler:
             project_repo=project_repo,
             artifact_repo=artifact_repo,
             task_repo=task_repo,
+            process_template_repo=process_template_repo,
         )
         result = await handler.handle(GetOrgDashboardStats(tenant_id=uuid.uuid4()))
 
@@ -83,7 +94,8 @@ class TestGetOrgDashboardStatsHandler:
         assert result.artifacts == 0
         assert result.tasks == 0
         assert result.open_defects == 0
-        artifact_repo.count_by_project_ids.assert_awaited_once_with([])
+        artifact_repo.count_by_project.assert_not_called()
+        task_repo.count_by_project_ids.assert_awaited_once_with([])
 
 
 @pytest.mark.asyncio
@@ -119,9 +131,7 @@ class TestGetOrgDashboardActivityHandler:
         assert result[0].state == "active"
         assert result[0].artifact_type == "requirement"
         project_repo.list_by_tenant.assert_awaited_once_with(tenant_id)
-        artifact_repo.list_recent_by_project_ids.assert_awaited_once_with(
-            [proj_id], limit=10
-        )
+        artifact_repo.list_recent_by_project_ids.assert_awaited_once_with([proj_id], limit=10)
 
     async def test_empty_projects_returns_empty_list(self) -> None:
         project_repo = AsyncMock()

@@ -12,6 +12,7 @@ import type {
   BulkDeleteModalProps,
   TransitionArtifactModalProps,
   ConflictModalProps,
+  QualityArtifactModalProps,
   OpenModalOptions,
 } from "./modalTypes";
 
@@ -57,6 +58,9 @@ export const modalApi = {
 
   openConflict: (props: ConflictModalProps, options?: OpenModalOptions) =>
     useModalStore.getState().openModal("ConflictModal", props, options),
+
+  openQualityArtifact: (props: QualityArtifactModalProps, options?: OpenModalOptions) =>
+    useModalStore.getState().openModal("QualityArtifactModal", props, options),
 
   closeModal: () => useModalStore.getState().closeModal(),
 };

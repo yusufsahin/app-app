@@ -34,9 +34,7 @@ async def _register_and_get_token(client: AsyncClient, email: str, org: str) -> 
 class TestDashboardFlow:
     async def test_dashboard_stats_shape(self, client: AsyncClient) -> None:
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         assert isinstance(tenants, list) and len(tenants) >= 1
         org_slug = tenants[0]["slug"]
 
@@ -58,9 +56,7 @@ class TestDashboardFlow:
 
     async def test_dashboard_activity_shape(self, client: AsyncClient) -> None:
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
-        tenants = (
-            await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})
-        ).json()
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         assert isinstance(tenants, list) and len(tenants) >= 1
         org_slug = tenants[0]["slug"]
 

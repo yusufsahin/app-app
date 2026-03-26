@@ -13,8 +13,8 @@ export const MODALS = {
   },
   CreateArtifactModal: {
     component: lazy(() => import("./modals/CreateArtifactModal").then((m) => ({ default: m.CreateArtifactModal }))),
-    options: { maxWidth: "sm", destroyOnClose: true },
-    title: "Create artifact",
+    options: { maxWidth: "lg", destroyOnClose: true },
+    title: "New artifact",
   },
   AddTaskModal: {
     component: lazy(() => import("./modals/AddTaskModal").then((m) => ({ default: m.AddTaskModal }))),
@@ -60,6 +60,13 @@ export const MODALS = {
     component: lazy(() => import("./modals/ConflictModal").then((m) => ({ default: m.ConflictModal }))),
     options: { maxWidth: "sm", destroyOnClose: true },
     title: "Conflict",
+  },
+  QualityArtifactModal: {
+    component: lazy(() =>
+      import("./modals/QualityArtifactModal").then((m) => ({ default: m.QualityArtifactModal })),
+    ),
+    options: { maxWidth: "lg", destroyOnClose: true },
+    title: "Quality item",
   },
 } as const;
 

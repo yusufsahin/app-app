@@ -2,11 +2,20 @@
  * Reusable Description field: plain text, rich text (WYSIWYG), or markdown.
  * Controlled component (value + onChange). Use in metadata-driven forms or wrap with Controller for RHF.
  */
-import { useRef, useState } from "react";
-import { Box, TextField, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { Suspense, lazy, useCallback, useRef, useState } from "react";
 import type { DescriptionInputMode } from "../../types/formSchema";
-import { MarkdownFieldInner } from "./RhfMarkdownField";
-import { RichTextEditorInner } from "./RhfRichTextField";
+import { Button, Label } from "../ui";
+import { cn } from "../ui/utils";
+
+const RichTextEditorInner = lazy(async () => {
+  const mod = await import("./RhfRichTextField");
+  return { default: mod.RichTextEditorInner };
+});
+
+const MarkdownFieldInner = lazy(async () => {
+  const mod = await import("./RhfMarkdownField");
+  return { default: mod.MarkdownFieldInner };
+});
 
 export interface DescriptionFieldProps {
   value: string;
@@ -20,13 +29,16 @@ export interface DescriptionFieldProps {
   disabled?: boolean;
   minHeight?: number;
   rows?: number;
-  /** Show toolbar for markdown/richtext. Default true. */
   showToolbar?: boolean;
-  /** Show preview tabs for markdown. Default true when mode is markdown. */
   showPreview?: boolean;
-  /** When true, show Text | Rich text | Markdown switcher so user can change mode. Default false. */
   allowModeSwitch?: boolean;
 }
+
+const textareaClassName = cn(
+  "placeholder:text-muted-foreground border-input flex w-full min-w-0 rounded-md border px-3 py-2 text-base bg-input-background transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm resize-y",
+  "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+  "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+);
 
 export function DescriptionField({
   value,
@@ -45,95 +57,119 @@ export function DescriptionField({
   allowModeSwitch = false,
 }: DescriptionFieldProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const registerTextareaRef = useCallback((el: HTMLTextAreaElement | null) => {
+    textareaRef.current = el;
+  }, []);
   const lastExternalValueRef = useRef<string | undefined>(undefined);
   const [localMode, setLocalMode] = useState<DescriptionInputMode>(modeProp);
   const mode = allowModeSwitch ? localMode : modeProp;
 
   const modeSelector = allowModeSwitch && (
-    <Box sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
-      {label && (
-        <Typography component="span" variant="body2" color="text.secondary">
-          {label}
-        </Typography>
+    <div className="mb-2 flex items-center gap-2">
+      {label != null && label !== "" && (
+        <span className="text-sm text-muted-foreground">{label}</span>
       )}
-      <ToggleButtonGroup
-        size="small"
-        value={mode}
-        exclusive
-        onChange={(_, v) => v != null && setLocalMode(v)}
+      <div
+        className="inline-flex rounded-md border border-border [&>button]:rounded-none [&>button:first-child]:rounded-l-md [&>button:last-child]:rounded-r-md [&>button:not(:first-child)]:border-l-0"
+        role="group"
         aria-label="Description format"
       >
-        <ToggleButton value="text" aria-label="Plain text">Text</ToggleButton>
-        <ToggleButton value="richtext" aria-label="Rich text">Rich text</ToggleButton>
-        <ToggleButton value="markdown" aria-label="Markdown">Markdown</ToggleButton>
-      </ToggleButtonGroup>
-    </Box>
+        {(["text", "richtext", "markdown"] as const).map((m) => (
+          <Button
+            key={m}
+            type="button"
+            variant={mode === m ? "default" : "ghost"}
+            size="sm"
+            className="rounded-none first:rounded-l-md last:rounded-r-md"
+            onClick={() => setLocalMode(m)}
+            aria-label={m === "text" ? "Plain text" : m === "richtext" ? "Rich text" : "Markdown"}
+          >
+            {m === "text" ? "Text" : m === "richtext" ? "Rich text" : "Markdown"}
+          </Button>
+        ))}
+      </div>
+    </div>
   );
 
   if (mode === "richtext") {
     return (
-      <Box>
+      <div>
         {modeSelector}
-        <RichTextEditorInner
-          value={value ?? ""}
-          onChange={onChange}
-          onBlur={onBlur ?? (() => {})}
-          inputRef={() => {}}
-          label={allowModeSwitch ? undefined : label}
-          placeholder={placeholder ?? "Write something…"}
-          minHeight={minHeight}
-          showToolbar={showToolbar}
-          disabled={disabled}
-          error={error}
-          helperText={helperText}
-          lastExternalValueRef={lastExternalValueRef}
-        />
-      </Box>
+        <Suspense fallback={<div className="text-sm text-muted-foreground">Loading editor...</div>}>
+          <RichTextEditorInner
+            value={value ?? ""}
+            onChange={onChange}
+            onBlur={onBlur ?? (() => {})}
+            inputRef={() => {}}
+            label={allowModeSwitch ? undefined : label}
+            placeholder={placeholder ?? "Write something..."}
+            minHeight={minHeight}
+            showToolbar={showToolbar}
+            disabled={disabled}
+            error={error}
+            helperText={helperText}
+            lastExternalValueRef={lastExternalValueRef}
+          />
+        </Suspense>
+      </div>
     );
   }
 
   if (mode === "markdown") {
     return (
-      <Box>
+      <div>
         {modeSelector}
-        <MarkdownFieldInner
-          value={value ?? ""}
-          onChange={onChange}
-          onBlur={onBlur ?? (() => {})}
-          ref={() => {}}
-          textareaRef={textareaRef}
-          label={allowModeSwitch ? undefined : label}
-          placeholder={placeholder ?? "Write markdown…"}
-          minHeight={minHeight}
-          rows={rows}
-          showToolbar={showToolbar}
-          showPreview={showPreview}
-          defaultView="edit"
-          disabled={disabled}
-          error={error}
-          helperText={helperText}
-        />
-      </Box>
+        <Suspense fallback={<div className="text-sm text-muted-foreground">Loading editor...</div>}>
+          <MarkdownFieldInner
+            value={value ?? ""}
+            onChange={onChange}
+            onBlur={onBlur ?? (() => {})}
+            ref={() => {}}
+            registerTextareaRef={registerTextareaRef}
+            textareaRef={textareaRef}
+            label={allowModeSwitch ? undefined : label}
+            placeholder={placeholder ?? "Write markdown..."}
+            minHeight={minHeight}
+            rows={rows}
+            showToolbar={showToolbar}
+            showPreview={showPreview}
+            defaultView="edit"
+            disabled={disabled}
+            error={error}
+            helperText={helperText}
+          />
+        </Suspense>
+      </div>
     );
   }
 
   return (
-    <Box>
+    <div className="space-y-1.5">
       {modeSelector}
-      <TextField
-        fullWidth
-        label={allowModeSwitch ? undefined : label}
+      {!allowModeSwitch && label != null && label !== "" && (
+        <Label htmlFor="description-text">{label}</Label>
+      )}
+      <textarea
+        id="description-text"
+        className={textareaClassName}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
         placeholder={placeholder}
-        error={error}
-        helperText={helperText}
         disabled={disabled}
-        multiline
-        minRows={rows}
-        variant="outlined"
+        rows={rows}
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={helperText ? "description-helper" : undefined}
+        style={{ minHeight: minHeight ? `${minHeight}px` : undefined }}
       />
-    </Box>
+      {helperText != null && helperText !== "" && (
+        <p
+          id="description-helper"
+          className={cn("text-sm", error ? "text-destructive" : "text-muted-foreground")}
+        >
+          {helperText}
+        </p>
+      )}
+    </div>
   );
 }

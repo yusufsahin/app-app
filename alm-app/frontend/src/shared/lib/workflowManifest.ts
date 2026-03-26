@@ -19,7 +19,8 @@ export interface ManifestBundleShape {
 }
 
 /**
- * Returns ordered workflow state ids for the given artifact type (or default workflow if no type).
+ * Returns workflow state ids for the given artifact type (or default workflow).
+ * Order is from the API (backend guarantees def order or canonical order for flat manifests).
  */
 export function getWorkflowStatesForType(
   bundle: ManifestBundleShape | null,

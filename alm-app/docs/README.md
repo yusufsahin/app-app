@@ -21,6 +21,8 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 | [REMAINING_PLAN.md](./REMAINING_PLAN.md) | Kalan işler (Faz A–E), önerilen sıra | Cycle planlama, ilerleme takibi |
 | [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) | Mevcut vs hedef gap analizi | Durum özeti, eksik özellik listesi |
 | [CONTEXTS_AND_PROGRESSION.md](./CONTEXTS_AND_PROGRESSION.md) | Bounded context’ler, ilerleyiş, roadmap | Domain/context anlayışı, sıradaki adımlar |
+| [MANIFEST_METADATA_MASTER_PLAN.md](../../docs/MANIFEST_METADATA_MASTER_PLAN.md) | Manifest/metadata tam yol haritası (tamamlananlar + kalan + tüm context’ler) | Metadata-driven borç listesi, öncelik, backfill; kök `docs/` ile aynı yerde |
+| [QUALITY_SUITE.md](./QUALITY_SUITE.md) | Quality suite (hub, traceability route, manifest `tree=quality` / `link_types`) | Kalite girişi, özet sayı, izlenebilirlik listesi |
 | [BOARD_CONTEXT.md](./BOARD_CONTEXT.md) | Board context taslağı (Kanban/Scrum) | Board özelliği kapsam ve veri/API özeti |
 ### Manifest ve workflow
 
