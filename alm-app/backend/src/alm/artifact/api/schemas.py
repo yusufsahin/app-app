@@ -4,9 +4,24 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from alm.artifact.api.quality_test_params import validate_and_normalize_test_params_json
+
+
+def _normalize_test_params_in_custom_fields(cf: dict[str, Any]) -> None:
+    if "test_params_json" not in cf:
+        return
+    raw = cf["test_params_json"]
+    if raw is None:
+        return
+    normalized = validate_and_normalize_test_params_json(raw)
+    if normalized is None:
+        del cf["test_params_json"]
+    else:
+        cf["test_params_json"] = normalized
 
 
 class ArtifactCreateRequest(BaseModel):
@@ -32,6 +47,11 @@ class ArtifactCreateRequest(BaseModel):
         if not s:
             return None
         return uuid.UUID(s)
+
+    @model_validator(mode="after")
+    def normalize_test_params(self) -> Self:
+        _normalize_test_params_in_custom_fields(self.custom_fields)
+        return self
 
 
 class ArtifactResponse(BaseModel):
@@ -84,6 +104,12 @@ class ArtifactUpdateRequest(BaseModel):
         if not s:
             return None
         return uuid.UUID(s)
+
+    @model_validator(mode="after")
+    def normalize_test_params(self) -> Self:
+        if self.custom_fields is not None:
+            _normalize_test_params_in_custom_fields(self.custom_fields)
+        return self
 
 
 class PermittedTransitionItem(BaseModel):

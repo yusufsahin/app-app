@@ -11,8 +11,9 @@ Maps concepts from [Metadatadriventestmanagement](../../Metadatadriventestmanage
 | Suite ↔ test membership | **`suite_includes_test`** link: `from` = `test-suite`, `to` = `test-case`. |
 | Run ↔ suite | **`run_for_suite`** link: `from` = `test-run`, `to` = `test-suite`. |
 | Campaign ↔ suite | **`campaign_includes_suite`** link: `from` = `test-campaign`, `to` = `test-suite`. |
-| Test steps | **`test_steps_json`** string field on `test-case` (JSON array, prototype-compatible shape). |
-| Run/campaign structured extras | **`run_metrics_json`**, **`campaign_config_json`** string fields (JSON). |
+| Test steps | **`test_steps_json`** on `test-case`: JSON array of rows. **Inline step:** `kind: "step"` (optional for legacy), `id`, `name` / `action`, `description`, `expectedResult`, … **Call to test (reuse):** `kind: "call"`, `id`, `calledTestCaseId`, optional `calledTitle`, optional **`paramOverrides`** (object: string values) merged into execution param map (preorder); root dataset still wins on key clash. |
+| Test parameters | **`test_params_json`**: `{ defs: [{ name, label?, default? }], rows?: [{ label?, values: Record<string,string> }] }` for `${name}` substitution in step text during manual runs. |
+| Run/campaign structured extras | **`run_metrics_json`** (`v` + `results`): each result may include **`expandedStepsSnapshot`** (flattened steps after resolving calls and parameter substitution), optional **`paramRowIndex`** / **`paramValuesUsed`**. **`campaign_config_json`** string field (JSON). |
 | Workflows | **`quality_run`**, **`quality_campaign`** for run/campaign states; suite uses the same workflow as `test-case` per template (`basic`, `scrum`, `kanban`, `ado_basic`). |
 
 ## Artifact types (built-in templates)

@@ -65,8 +65,8 @@ export const MODALS = {
     component: lazy(() =>
       import("./modals/QualityArtifactModal").then((m) => ({ default: m.QualityArtifactModal })),
     ),
-    options: { maxWidth: "lg", destroyOnClose: true },
-    title: "Quality item",
+    options: { maxWidth: "xl", destroyOnClose: true },
+    title: "Test case",
   },
 } as const;
 

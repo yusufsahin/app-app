@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ChevronLeft,
   ChevronRight,
@@ -20,18 +21,83 @@ import {
   CardTitle,
   Badge,
 } from "../../../shared/components/ui";
-import { useArtifact, useUpdateArtifact, useArtifacts } from "../../../shared/api/artifactApi";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../../shared/components/ui/select";
+import { useArtifact, useUpdateArtifact, useArtifacts, type Artifact } from "../../../shared/api/artifactApi";
 import { useArtifactLinks } from "../../../shared/api/artifactLinkApi";
+import { apiClient } from "../../../shared/api/client";
 import { ExecutionStepList } from "./ExecutionStepList";
 import type { TestStep, StepResult } from "../types";
-import { parseRunMetricsPayload, stringifyRunMetricsPayload } from "../lib/runMetrics";
+import {
+  parseRunMetricsPayload,
+  stringifyRunMetricsPayload,
+  type TestExecutionResultRow,
+} from "../lib/runMetrics";
 import { parseTestSteps } from "../lib/testSteps";
+import { parseTestPlan, expandTestPlan, collectCallParamOverridesPreorder } from "../lib/testPlan";
+import {
+  parseTestParams,
+  buildParamValuesMap,
+  applyTestParamsToSteps,
+  listUnresolvedInSteps,
+  defaultsFromDefs,
+  rowLabelForIndex,
+} from "../lib/testParams";
 import { toast } from "sonner";
 
-interface TestExecutionState {
-  testId: string;
-  status: "passed" | "failed" | "blocked" | "not-executed";
-  stepResults: StepResult[];
+function mergeSavedExecution(
+  saved: TestExecutionResultRow | undefined,
+  testId: string,
+  expanded: TestStep[],
+): TestExecutionResultRow {
+  const carryParams = (base: TestExecutionResultRow): TestExecutionResultRow => ({
+    ...base,
+    paramRowIndex: saved?.paramRowIndex,
+    paramValuesUsed: saved?.paramValuesUsed,
+  });
+
+  if (expanded.length === 0 && saved) {
+    return saved;
+  }
+  if (!saved) {
+    return {
+      testId,
+      status: "not-executed",
+      stepResults: expanded.map((step) => ({
+        stepId: String(step.id),
+        status: "not-executed" as const,
+      })),
+      expandedStepsSnapshot: expanded,
+    };
+  }
+  if (
+    saved.stepResults.length === expanded.length &&
+    saved.stepResults.every((r, i) => r.stepId === String(expanded[i]?.id))
+  ) {
+    return carryParams({ ...saved, expandedStepsSnapshot: expanded });
+  }
+  const snap = saved.expandedStepsSnapshot;
+  if (
+    snap &&
+    saved.stepResults.length === snap.length &&
+    saved.stepResults.every((r, i) => r.stepId === snap[i]?.id)
+  ) {
+    return carryParams({ ...saved, expandedStepsSnapshot: snap });
+  }
+  return carryParams({
+    testId,
+    status: "not-executed",
+    stepResults: expanded.map((step) => ({
+      stepId: String(step.id),
+      status: "not-executed" as const,
+    })),
+    expandedStepsSnapshot: expanded,
+  });
 }
 
 interface ManualExecutionPlayerCoreProps {
@@ -51,6 +117,7 @@ export function ManualExecutionPlayerCore({
   onSave,
   fullScreen = false,
 }: ManualExecutionPlayerCoreProps) {
+  const { t } = useTranslation("quality");
   // Data fetching
   const { data: run, isLoading: runLoading } = useArtifact(orgSlug, projectSlug, runId);
   const { data: runLinks = [], isLoading: linksLoading } = useArtifactLinks(
@@ -99,7 +166,18 @@ export function ManualExecutionPlayerCore({
 
   // Local state for the execution session
   const [currentTestIndex, setCurrentTestIndex] = useState(0);
-  const [testExecutionResults, setTestExecutionResults] = useState<TestExecutionState[]>([]);
+  const [testExecutionResults, setTestExecutionResults] = useState<TestExecutionResultRow[]>([]);
+  /** Expanded plan (Call-to-Test) without ${} substitution. */
+  const [templateStepsByTestId, setTemplateStepsByTestId] = useState<Record<string, TestStep[]>>({});
+  /** Callee `defs[].default` merged during expand (per root test). */
+  const [calleeDefaultParamsByTestId, setCalleeDefaultParamsByTestId] = useState<
+    Record<string, Record<string, string>>
+  >({});
+  /** Preorder-merged `paramOverrides` from all `call` rows in the plan (and nested callees). */
+  const [callParamOverridesByTestId, setCallParamOverridesByTestId] = useState<
+    Record<string, Record<string, string>>
+  >({});
+  const [selectedParamRowByTestId, setSelectedParamRowByTestId] = useState<Record<string, number | null>>({});
   const [isInitialized, setIsInitialized] = useState(false);
 
   const testsById = useMemo(
@@ -113,36 +191,136 @@ export function ManualExecutionPlayerCore({
       .filter((t): t is NonNullable<typeof t> => t !== undefined);
   }, [linkedTestIds, testsById]);
 
-  // Initialize results from run or create new ones
+  const getMergedParamMapForTest = useCallback(
+    (test: Artifact) => {
+      const doc = parseTestParams(test.custom_fields?.test_params_json);
+      const idx = selectedParamRowByTestId[test.id] ?? null;
+      const rootMap = buildParamValuesMap(doc, idx);
+      const callee = calleeDefaultParamsByTestId[test.id] ?? {};
+      const callOv = callParamOverridesByTestId[test.id] ?? {};
+      return { ...callee, ...callOv, ...rootMap };
+    },
+    [selectedParamRowByTestId, calleeDefaultParamsByTestId, callParamOverridesByTestId],
+  );
+
+  const getResolvedStepsForTest = useCallback(
+    (test: Artifact) => {
+      const tid = test.id;
+      const tmpl = templateStepsByTestId[tid] ?? [];
+      if (!tmpl.length) return parseTestSteps(test.custom_fields?.test_steps_json);
+      const doc = parseTestParams(test.custom_fields?.test_params_json);
+      if (!doc?.defs?.length) return tmpl;
+      return applyTestParamsToSteps(tmpl, getMergedParamMapForTest(test));
+    },
+    [templateStepsByTestId, getMergedParamMapForTest],
+  );
+
+  // Initialize results from run (expand Call-to-Test, merge saved metrics)
   useEffect(() => {
     if (!run || isInitialized) return;
     if (runLoading || linksLoading || testsLoading) return;
     if (suiteId && suiteLinksLoading) return;
 
-    const saved = parseRunMetricsPayload(run.custom_fields?.run_metrics_json);
-    let initialResults: TestExecutionState[] = [];
+    let cancelled = false;
 
-    if (saved && saved.length > 0) {
-      initialResults = saved;
-    } else if (activeTests.length > 0) {
-      initialResults = activeTests.map((test) => {
-        let steps: TestStep[] = [];
-        steps = parseTestSteps(test.custom_fields?.test_steps_json);
+    (async () => {
+      const rawCalleeCache = new Map<string, Artifact | null>();
+      const calleeAccumByRoot: Record<string, Record<string, string>> = {};
 
-        return {
-          testId: test.id,
-          status: "not-executed" as const,
-          stepResults: steps.map((step) => ({
-            stepId: String(step.id),
-            status: "not-executed" as const,
-          })),
-        };
-      });
-    }
+      const loadCalleeSteps = async (testCaseId: string, rootId: string): Promise<unknown | null> => {
+        const cacheKey = `${rootId}:${testCaseId}`;
+        if (rawCalleeCache.has(cacheKey)) {
+          const art = rawCalleeCache.get(cacheKey);
+          return art
+            ? ((art.custom_fields as Record<string, unknown> | undefined)?.test_steps_json ?? [])
+            : null;
+        }
+        try {
+          const { data } = await apiClient.get<Artifact>(
+            `/orgs/${orgSlug}/projects/${projectSlug}/artifacts/${testCaseId}`,
+          );
+          rawCalleeCache.set(cacheKey, data);
+          const tp = parseTestParams(
+            (data.custom_fields as Record<string, unknown> | undefined)?.test_params_json,
+          );
+          if (tp?.defs?.length) {
+            calleeAccumByRoot[rootId] = {
+              ...(calleeAccumByRoot[rootId] ?? {}),
+              ...defaultsFromDefs(tp.defs),
+            };
+          }
+          return (data.custom_fields as Record<string, unknown> | undefined)?.test_steps_json ?? [];
+        } catch {
+          rawCalleeCache.set(cacheKey, null);
+          return null;
+        }
+      };
 
-    setTestExecutionResults(initialResults);
-    setCurrentTestIndex(0);
-    setIsInitialized(true);
+      const expandedMap: Record<string, TestStep[]> = {};
+      const callOverridesMap: Record<string, Record<string, string>> = {};
+      const rowSelection: Record<string, number | null> = {};
+
+      for (const test of activeTests) {
+        calleeAccumByRoot[test.id] = { ...(calleeAccumByRoot[test.id] ?? {}) };
+        const plan = parseTestPlan(test.custom_fields?.test_steps_json);
+        const loadForRoot = (id: string) => loadCalleeSteps(id, test.id);
+        const { steps, error } = await expandTestPlan(plan, loadForRoot, { rootTestId: test.id });
+        if (cancelled) return;
+        if (error) {
+          toast.error(`${test.title ?? "Test"}: ${error}`);
+          expandedMap[test.id] = parseTestSteps(test.custom_fields?.test_steps_json);
+          callOverridesMap[test.id] = {};
+        } else {
+          expandedMap[test.id] = steps;
+          callOverridesMap[test.id] = await collectCallParamOverridesPreorder(plan, loadForRoot, {
+            rootTestId: test.id,
+          });
+        }
+      }
+
+      if (cancelled) return;
+
+      const saved = parseRunMetricsPayload(run.custom_fields?.run_metrics_json);
+      let initialResults: TestExecutionResultRow[] = [];
+
+      if (activeTests.length > 0) {
+        initialResults = activeTests.map((test) => {
+          const expanded = expandedMap[test.id] ?? [];
+          const savedRow = saved?.find((s) => s.testId === test.id);
+          const doc = parseTestParams(test.custom_fields?.test_params_json);
+          if (doc?.rows && doc.rows.length > 0) {
+            const rawIdx = savedRow?.paramRowIndex;
+            const idx =
+              typeof rawIdx === "number" && rawIdx >= 0 && rawIdx < doc.rows.length
+                ? rawIdx
+                : 0;
+            rowSelection[test.id] = idx;
+          } else {
+            rowSelection[test.id] = null;
+          }
+          return mergeSavedExecution(savedRow, test.id, expanded);
+        });
+      } else if (saved && saved.length > 0) {
+        initialResults = saved;
+      }
+
+      const calleeMap: Record<string, Record<string, string>> = {};
+      for (const test of activeTests) {
+        calleeMap[test.id] = calleeAccumByRoot[test.id] ?? {};
+      }
+
+      setCalleeDefaultParamsByTestId(calleeMap);
+      setCallParamOverridesByTestId(callOverridesMap);
+      setSelectedParamRowByTestId(rowSelection);
+      setTemplateStepsByTestId(expandedMap);
+      setTestExecutionResults(initialResults);
+      setCurrentTestIndex(0);
+      setIsInitialized(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     run,
     runLoading,
@@ -152,17 +330,25 @@ export function ManualExecutionPlayerCore({
     suiteLinksLoading,
     activeTests,
     isInitialized,
+    orgSlug,
+    projectSlug,
   ]);
 
-  const currentResult = testExecutionResults[currentTestIndex];
+  const resolvedTestIndex = useMemo(() => {
+    const len = testExecutionResults.length;
+    if (len === 0) return 0;
+    if (currentTestIndex < 0 || currentTestIndex >= len) return 0;
+    return currentTestIndex;
+  }, [testExecutionResults.length, currentTestIndex]);
+
+  const currentResult = testExecutionResults[resolvedTestIndex];
   const currentTest = activeTests.find((t) => t.id === currentResult?.testId);
 
-  useEffect(() => {
-    if (testExecutionResults.length === 0) return;
-    if (currentTestIndex >= testExecutionResults.length) {
-      setCurrentTestIndex(0);
-    }
-  }, [testExecutionResults.length, currentTestIndex]);
+  const currentTestSteps = currentTest ? getResolvedStepsForTest(currentTest) : [];
+
+  const currentParamDoc = currentTest
+    ? parseTestParams(currentTest.custom_fields?.test_params_json)
+    : null;
 
   // Handlers
   const handleStepUpdate = (
@@ -172,7 +358,7 @@ export function ManualExecutionPlayerCore({
     notes?: string,
   ) => {
     const newResults = [...testExecutionResults];
-    const testResult = newResults[currentTestIndex];
+    const testResult = newResults[resolvedTestIndex];
     if (!testResult) return;
 
     const stepResultIndex = testResult.stepResults.findIndex((r) => r.stepId === stepId);
@@ -238,7 +424,7 @@ export function ManualExecutionPlayerCore({
       return;
     }
 
-    const steps = parseTestSteps(currentTest.custom_fields?.test_steps_json);
+    const steps = getResolvedStepsForTest(currentTest);
 
     const updatedStepResults = steps.map((step) => {
       const existing = currentResult.stepResults.find((r) => r.stepId === String(step.id));
@@ -251,7 +437,7 @@ export function ManualExecutionPlayerCore({
     });
 
     const newResults = [...testExecutionResults];
-    newResults[currentTestIndex] = {
+    newResults[resolvedTestIndex] = {
       ...currentResult,
       stepResults: updatedStepResults,
       status: "passed",
@@ -263,11 +449,43 @@ export function ManualExecutionPlayerCore({
   const handleSaveAndExit = async () => {
     if (!run) return;
 
+    for (const r of testExecutionResults) {
+      const test = activeTests.find((x) => x.id === r.testId);
+      if (!test) continue;
+      const doc = parseTestParams(test.custom_fields?.test_params_json);
+      if (!doc?.defs?.length) continue;
+      const tmpl = templateStepsByTestId[test.id] ?? [];
+      const merged = getMergedParamMapForTest(test);
+      const unresolved = listUnresolvedInSteps(tmpl, merged);
+      if (unresolved.length > 0) {
+        toast.error(t("execution.unresolvedParams", { names: unresolved.join(", ") }));
+        return;
+      }
+    }
+
     try {
+      const resultsWithSnapshots = testExecutionResults.map((r) => {
+        const test = activeTests.find((x) => x.id === r.testId);
+        const tmpl = templateStepsByTestId[r.testId] ?? [];
+        const doc = parseTestParams(test?.custom_fields?.test_params_json);
+        if (test && doc?.defs?.length) {
+          const merged = getMergedParamMapForTest(test);
+          return {
+            ...r,
+            expandedStepsSnapshot: applyTestParamsToSteps(tmpl, merged),
+            paramRowIndex: selectedParamRowByTestId[r.testId] ?? null,
+            paramValuesUsed: merged,
+          };
+        }
+        return {
+          ...r,
+          expandedStepsSnapshot: tmpl.length > 0 ? tmpl : r.expandedStepsSnapshot,
+        };
+      });
       await updateRunMutation.mutateAsync({
         custom_fields: {
           ...run.custom_fields,
-          run_metrics_json: stringifyRunMetricsPayload(testExecutionResults),
+          run_metrics_json: stringifyRunMetricsPayload(resultsWithSnapshots),
         },
       });
 
@@ -280,14 +498,14 @@ export function ManualExecutionPlayerCore({
   };
 
   const handleNext = () => {
-    if (currentTestIndex < testExecutionResults.length - 1) {
-      setCurrentTestIndex(currentTestIndex + 1);
+    if (resolvedTestIndex < testExecutionResults.length - 1) {
+      setCurrentTestIndex(resolvedTestIndex + 1);
     }
   };
 
   const handlePrev = () => {
-    if (currentTestIndex > 0) {
-      setCurrentTestIndex(currentTestIndex - 1);
+    if (resolvedTestIndex > 0) {
+      setCurrentTestIndex(resolvedTestIndex - 1);
     }
   };
 
@@ -368,13 +586,6 @@ export function ManualExecutionPlayerCore({
     ? (testExecutionResults.filter((r) => r.status !== "not-executed").length / testExecutionResults.length) * 100
     : 0;
 
-  let currentTestSteps: TestStep[] = [];
-  try {
-    currentTestSteps = parseTestSteps(currentTest?.custom_fields?.test_steps_json);
-  } catch (e) {
-    console.error("Failed to parse test steps", e);
-  }
-
   return (
     <div
       className={`flex h-full flex-col overflow-hidden bg-[#F8FAFC] ${fullScreen ? "fixed inset-0 z-50" : "relative"}`}
@@ -445,7 +656,7 @@ export function ManualExecutionPlayerCore({
             <div className="space-y-1">
               {testExecutionResults.map((result, index) => {
                 const test = activeTests.find((t) => t.id === result.testId);
-                const isActive = index === currentTestIndex;
+                const isActive = index === resolvedTestIndex;
 
                 return (
                   <button
@@ -501,6 +712,33 @@ export function ManualExecutionPlayerCore({
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#64748B]">
                     {currentTest?.description ?? ""}
                   </p>
+                  {currentTest && currentParamDoc?.rows && currentParamDoc.rows.length > 0 ? (
+                    <div className="flex flex-col gap-1.5 rounded-md border border-[#E2E8F0] bg-white p-3">
+                      <span className="text-xs font-semibold text-[#475569]">{t("execution.dataRow")}</span>
+                      <Select
+                        value={String(selectedParamRowByTestId[currentTest.id] ?? 0)}
+                        onValueChange={(v) => {
+                          const idx = Number.parseInt(v, 10);
+                          setSelectedParamRowByTestId((prev) => ({ ...prev, [currentTest.id]: idx }));
+                        }}
+                      >
+                        <SelectTrigger
+                          className="h-9 w-full max-w-md border-[#E2E8F0] text-sm"
+                          data-testid="quality-exec-param-row-select"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {currentParamDoc.rows.map((_, i) => (
+                            <SelectItem key={i} value={String(i)}>
+                              {rowLabelForIndex(currentParamDoc, i)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-[#94A3B8]">{t("execution.dataRowHint")}</p>
+                    </div>
+                  ) : null}
                 </div>
 
                 <Card className="overflow-hidden border-[#E2E8F0] bg-white shadow-sm">
@@ -531,7 +769,7 @@ export function ManualExecutionPlayerCore({
           variant="outline"
           size="sm"
           onClick={handlePrev}
-          disabled={currentTestIndex === 0}
+          disabled={resolvedTestIndex === 0}
           className="h-8 border-[#E2E8F0] text-xs text-[#64748B] hover:bg-slate-50"
         >
           <ChevronLeft className="mr-1 h-3.5 w-3.5" />
@@ -539,10 +777,10 @@ export function ManualExecutionPlayerCore({
         </Button>
 
         <div className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#64748B]">
-          {currentTestIndex + 1} / {testExecutionResults.length}
+          {resolvedTestIndex + 1} / {testExecutionResults.length}
         </div>
 
-        {currentTestIndex === testExecutionResults.length - 1 ? (
+        {resolvedTestIndex === testExecutionResults.length - 1 ? (
           <Button
             size="sm"
             onClick={handleSaveAndExit}

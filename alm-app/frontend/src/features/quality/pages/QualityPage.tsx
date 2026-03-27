@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../..
 import {
   qualityRunsPath,
   qualitySuitesPath,
-  qualityTestsPath,
+  qualityCatalogPath,
   qualityTraceabilityPath,
 } from "../../../shared/utils/appPaths";
 
@@ -61,7 +61,9 @@ export default function QualityPage() {
         <Card>
           <CardHeader>
             <CardTitle>Quality Test Management</CardTitle>
-            <CardDescription>Tree-first workspace for tests, suites, runs and traceability.</CardDescription>
+            <CardDescription>
+              Tree-first workspace: catalog (groups and test cases), suites, runs and traceability.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             {hasQualityTree ? (
@@ -77,7 +79,7 @@ export default function QualityPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           {orgSlug && projectSlug ? (
             <>
-              <Link className="rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted/40" to={qualityTestsPath(orgSlug, projectSlug)}>Tests</Link>
+              <Link className="rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted/40" to={qualityCatalogPath(orgSlug, projectSlug)}>Catalog</Link>
               <Link className="rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted/40" to={qualitySuitesPath(orgSlug, projectSlug)}>Suites</Link>
               <Link className="rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted/40" to={qualityRunsPath(orgSlug, projectSlug)}>Runs</Link>
               <Link className="rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted/40" to={qualityTraceabilityPath(orgSlug, projectSlug)}>Traceability</Link>

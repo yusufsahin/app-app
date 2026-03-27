@@ -1,4 +1,4 @@
-import type { StepResult } from "../types";
+import type { StepResult, TestStep } from "../types";
 
 export const RUN_METRICS_VERSION = 1 as const;
 
@@ -6,6 +6,12 @@ export type TestExecutionResultRow = {
   testId: string;
   status: "passed" | "failed" | "blocked" | "not-executed";
   stepResults: StepResult[];
+  /** Flattened steps at save time (Call-to-Test expanded) for historical accuracy. */
+  expandedStepsSnapshot?: TestStep[];
+  /** Selected dataset row index when `test_params_json.rows` exists; null = defaults only. */
+  paramRowIndex?: number | null;
+  /** Final merged map (caller row + callee defaults) used for ${} substitution at save time. */
+  paramValuesUsed?: Record<string, string>;
 };
 
 export interface RunMetricsDocumentV1 {

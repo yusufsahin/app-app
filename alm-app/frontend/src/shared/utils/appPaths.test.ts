@@ -7,7 +7,8 @@ import {
   artifactDetailPath,
   qualityPath,
   qualityTraceabilityPath,
-  qualityTestsPath,
+  qualityCatalogPath,
+  qualityCatalogArtifactPath,
   qualitySuitesPath,
 } from "./appPaths";
 
@@ -100,8 +101,18 @@ describe("qualityTraceabilityPath", () => {
 });
 
 describe("quality section paths", () => {
-  it("returns tests and suites paths", () => {
-    expect(qualityTestsPath("o", "p")).toBe("/o/p/quality/tests");
+  it("returns catalog (tests) and suites paths", () => {
+    expect(qualityCatalogPath("o", "p")).toBe("/o/p/quality/tests");
     expect(qualitySuitesPath("o", "p")).toBe("/o/p/quality/suites");
+  });
+
+  it("builds catalog artifact URL with under and artifact", () => {
+    expect(qualityCatalogArtifactPath("o", "p", "tc-1", "folder-2")).toBe(
+      "/o/p/quality/tests?under=folder-2&artifact=tc-1",
+    );
+  });
+
+  it("builds catalog artifact URL with artifact only when under omitted", () => {
+    expect(qualityCatalogArtifactPath("o", "p", "tc-1")).toBe("/o/p/quality/tests?artifact=tc-1");
   });
 });

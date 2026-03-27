@@ -444,6 +444,7 @@ export function QualityFolderTreeNav({
       (prev) => {
         const p = new URLSearchParams(prev);
         p.delete("under");
+        p.delete("artifact");
         p.delete("page");
         return p;
       },
@@ -456,6 +457,7 @@ export function QualityFolderTreeNav({
       (prev) => {
         const p = new URLSearchParams(prev);
         p.set("under", id);
+        p.delete("artifact");
         p.delete("page");
         return p;
       },

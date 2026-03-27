@@ -93,6 +93,16 @@ describe("parseTestSteps", () => {
     expect(parseTestSteps("{not json")).toEqual([]);
   });
 
+  it("drops call rows for inline-only parseTestSteps", () => {
+    const raw = JSON.stringify([
+      { name: "Keep", id: "k" },
+      { kind: "call", id: "c", calledTestCaseId: "550e8400-e29b-41d4-a716-446655440000" },
+    ]);
+    const out = parseTestSteps(raw);
+    expect(out).toHaveLength(1);
+    expect(out[0]?.name).toBe("Keep");
+  });
+
   it("parses array passed directly", () => {
     const out = parseTestSteps([{ id: "p", name: "Step", expectedResult: "OK" }]);
     expect(out).toHaveLength(1);

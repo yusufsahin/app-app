@@ -73,8 +73,25 @@ export function qualityTraceabilityPath(
   return qs ? `${base}?${qs}` : base;
 }
 
-export function qualityTestsPath(orgSlug: string, projectSlug: string): string {
+/**
+ * Path to the Catalog workspace (test cases under groups). The URL segment stays `quality/tests` for stable bookmarks and proxies.
+ */
+export function qualityCatalogPath(orgSlug: string, projectSlug: string): string {
   return `/${orgSlug}/${projectSlug}/quality/tests`;
+}
+
+/** Catalog deep link: optional `under` folder + `artifact` test case (tree-detail workspace). */
+export function qualityCatalogArtifactPath(
+  orgSlug: string,
+  projectSlug: string,
+  artifactId: string,
+  underFolderId?: string | null,
+): string {
+  const search = new URLSearchParams();
+  const under = underFolderId?.trim();
+  if (under) search.set("under", under);
+  search.set("artifact", artifactId);
+  return `${qualityCatalogPath(orgSlug, projectSlug)}?${search.toString()}`;
 }
 
 export function qualitySuitesPath(orgSlug: string, projectSlug: string): string {

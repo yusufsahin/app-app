@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useState, type MouseEvent, type ReactElement } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactElement,
+} from "react";
 import {
   Badge,
   Button,
@@ -51,6 +59,8 @@ function FolderTree({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    // Keep folder rows expanded when the tree data updates.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync expanded ids with fetched nodes
     setExpanded((prev) => {
       const next = new Set(prev);
       for (const n of nodes) next.add(n.id);
@@ -124,6 +134,7 @@ export function SuiteTestLinkModal({
   const [selectedInSuiteIds, setSelectedInSuiteIds] = useState<Set<string>>(new Set());
   const [pendingRemoveLinkIds, setPendingRemoveLinkIds] = useState<string[] | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
+  const includeSubfoldersSwitchId = useId();
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -134,10 +145,12 @@ export function SuiteTestLinkModal({
   }, [searchInput]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset confirm-remove when selection changes
     setPendingRemoveLinkIds(null);
   }, [selectedInSuiteIds]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging when scope changes
     setLoadedCount(100);
   }, [scopeMode, includeSubfolders, selectedFolderId]);
 
@@ -189,9 +202,18 @@ export function SuiteTestLinkModal({
     return map;
   }, [filteredLinks]);
 
-  const allCases = allTreeArtifacts.data?.items?.filter((a) => a.artifact_type === "test-case") ?? [];
-  const linkedArtifacts: Artifact[] = allCases.filter((a) => linkByTargetId.has(a.id));
-  const folderArtifacts = allTreeArtifacts.data?.items?.filter((a) => a.artifact_type === "quality-folder") ?? [];
+  const allCases = useMemo(
+    () => allTreeArtifacts.data?.items?.filter((a) => a.artifact_type === "test-case") ?? [],
+    [allTreeArtifacts.data?.items],
+  );
+  const linkedArtifacts: Artifact[] = useMemo(
+    () => allCases.filter((a) => linkByTargetId.has(a.id)),
+    [allCases, linkByTargetId],
+  );
+  const folderArtifacts = useMemo(
+    () => allTreeArtifacts.data?.items?.filter((a) => a.artifact_type === "quality-folder") ?? [],
+    [allTreeArtifacts.data?.items],
+  );
   const descendantFolderIds = useMemo(() => {
     if (!selectedFolderId) return new Set<string>();
     const childrenByParent = new Map<string, string[]>();
@@ -343,10 +365,25 @@ export function SuiteTestLinkModal({
     toggleInSuiteSelected(id);
   };
 
+  const handleAvailableRowKeyDown = (id: string) => (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    const target = event.target as HTMLElement;
+    if (target.closest("button") || target.closest("input")) return;
+    toggleAvailableSelected(id);
+  };
+  const handleInSuiteRowKeyDown = (id: string) => (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    const target = event.target as HTMLElement;
+    if (target.closest("button") || target.closest("input")) return;
+    toggleInSuiteSelected(id);
+  };
+
   return (
     <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : undefined)}>
       <DialogContent
-        className="flex h-[76vh] w-[95vw] !max-w-none flex-col overflow-hidden p-4 sm:!max-w-none"
+        className="flex h-[86vh] min-h-[620px] w-[95vw] max-h-[900px] !max-w-none flex-col overflow-hidden p-4 sm:!max-w-none"
         aria-describedby={undefined}
       >
         <DialogHeader>
@@ -359,14 +396,14 @@ export function SuiteTestLinkModal({
           {liveMessage}
         </p>
         <div className="sticky top-0 z-10 rounded border bg-background px-3 py-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2">
             <div className="text-xs text-muted-foreground sm:text-sm">
               <span className="font-medium text-foreground">Suite:</span> {suiteArtifact?.title ?? "Current test suite"}{" "}
               · <span className="font-medium text-foreground">Selected:</span>{" "}
               {selectedAvailableCount + selectedInSuiteCount} ·{" "}
               <span className="font-medium text-foreground">In suite:</span> {linkedArtifacts.length}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <Button
                 size="sm"
                 className="h-8 px-2.5 text-xs sm:text-sm"
@@ -386,9 +423,9 @@ export function SuiteTestLinkModal({
               </Button>
             </div>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+          <div className="mt-2 flex items-center gap-1.5 text-xs sm:text-sm">
             <Badge variant="outline">
-              Scope: {scopeMode === "all" ? "All test plan" : selectedFolderId ? "Selected folder" : "No folder selected"}
+              Scope: {scopeMode === "all" ? "All test plan" : selectedFolderId ? "Selected group" : "No group selected"}
             </Badge>
             {scopeMode === "folder" ? (
               <Badge variant="outline">Mode: {includeSubfolders ? "Include subfolders" : "Direct children"}</Badge>
@@ -424,15 +461,15 @@ export function SuiteTestLinkModal({
             </div>
           ) : null}
         </div>
-        <div className="grid h-full min-h-0 gap-3 grid-cols-2 overflow-hidden">
+        <div className="grid min-h-0 flex-1 gap-3 grid-cols-2 overflow-hidden">
           <section className="flex min-w-0 min-h-0 flex-col rounded border p-3">
             <div className="mb-1.5 flex items-center justify-between">
               <h3 className="text-sm font-semibold">Available test cases</h3>
               <Badge variant="outline">{candidates.length}</Badge>
             </div>
-            <div className="mb-1.5 flex items-center gap-2">
+            <div className="mb-1.5 flex shrink-0 items-center gap-2">
               <Button size="sm" variant="ghost" onClick={() => setSelectedFolderId(null)}>
-                All folders
+                All groups
               </Button>
               <Button
                 size="sm"
@@ -446,10 +483,14 @@ export function SuiteTestLinkModal({
                 variant={scopeMode === "folder" ? "default" : "outline"}
                 onClick={() => setScopeMode("folder")}
               >
-                Only selected folder
+                Only selected group
               </Button>
-              <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+              <label
+                htmlFor={includeSubfoldersSwitchId}
+                className="ml-auto flex cursor-pointer items-center gap-2 text-xs text-muted-foreground sm:text-sm"
+              >
                 <Switch
+                  id={includeSubfoldersSwitchId}
                   checked={includeSubfolders}
                   onCheckedChange={setIncludeSubfolders}
                   disabled={scopeMode !== "folder" || !selectedFolderId}
@@ -458,11 +499,11 @@ export function SuiteTestLinkModal({
               </label>
               {selectedFolderId ? (
                 <Badge variant="secondary" className="px-2 py-0.5 text-[11px]">
-                  Filtered by folder
+                  Filtered by group
                 </Badge>
               ) : null}
             </div>
-            <div className="mb-1.5 min-h-[96px] max-h-[18vh] overflow-auto rounded border p-2">
+            <div className="mb-1.5 min-h-[84px] max-h-[14vh] shrink-0 overflow-auto rounded border p-2">
               <FolderTree
                 nodes={folderTree}
                 selectedFolderId={selectedFolderId}
@@ -477,14 +518,14 @@ export function SuiteTestLinkModal({
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search test case title/key"
               aria-label="Search test cases"
-              className="mb-1.5 h-8 text-sm"
+              className="mb-1.5 h-8 shrink-0 text-sm"
             />
-            <div className="mb-1.5">
+            <div className="mb-1.5 shrink-0">
               <Button size="sm" variant="outline" className="h-8 w-full text-xs sm:text-sm" onClick={selectAllVisible}>
                 Select all on this page
               </Button>
             </div>
-            <div className="min-h-0 flex-1 space-y-0.5 overflow-auto rounded border p-1">
+            <div className="min-h-[220px] flex-1 space-y-0.5 overflow-auto rounded border p-1">
               {candidates.length === 0 ? (
                 <p className="px-2 py-1 text-sm text-muted-foreground">No test cases found.</p>
               ) : (
@@ -493,8 +534,11 @@ export function SuiteTestLinkModal({
                 return (
                   <div
                     key={c.id}
+                    role="button"
+                    tabIndex={0}
                     className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/60"
                     onClick={handleAvailableRowClick(c.id)}
+                    onKeyDown={handleAvailableRowKeyDown(c.id)}
                   >
                     <input
                       type="checkbox"
@@ -533,7 +577,7 @@ export function SuiteTestLinkModal({
               <h3 className="text-sm font-semibold">In this suite</h3>
               <Badge variant="outline">{linkedArtifacts.length}</Badge>
             </div>
-            <div className="mb-1.5">
+            <div className="mb-1.5 shrink-0">
               <Button
                 size="sm"
                 variant="outline"
@@ -543,15 +587,18 @@ export function SuiteTestLinkModal({
                 Select all in suite
               </Button>
             </div>
-            <div className="min-h-0 flex-1 space-y-0.5 overflow-auto rounded border p-1">
+            <div className="min-h-[220px] flex-1 space-y-0.5 overflow-auto rounded border p-1">
               {linkedArtifacts.length === 0 ? (
                 <p className="px-2 py-1 text-sm text-muted-foreground">No test cases in this suite yet.</p>
               ) : (
                 linkedArtifacts.map((a) => (
                   <div
                     key={a.id}
+                    role="button"
+                    tabIndex={0}
                     className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/60"
                     onClick={handleInSuiteRowClick(a.id)}
+                    onKeyDown={handleInSuiteRowKeyDown(a.id)}
                   >
                     <input
                       type="checkbox"

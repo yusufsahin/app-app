@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { screen } from "@testing-library/react";
 import { TestStepsEditor } from "./TestStepsEditor";
 import { renderWithQualityI18n } from "../../../test/renderWithQualityI18n";
-import type { TestStep } from "../types";
+import type { TestPlanEntry, TestStep } from "../types";
 
 const baseStep = (over: Partial<TestStep> & Pick<TestStep, "id">): TestStep => ({
   stepNumber: 1,
@@ -23,16 +23,15 @@ describe("TestStepsEditor", () => {
     renderWithQualityI18n(<TestStepsEditor steps={[]} onChange={onChange} />);
     await user.click(screen.getByTestId("step-add-button"));
     expect(onChange).toHaveBeenCalledTimes(1);
-    const arg = onChange.mock.calls[0]?.[0] as TestStep[];
+    const arg = onChange.mock.calls[0]?.[0] as TestPlanEntry[];
     expect(arg).toHaveLength(1);
-    expect(arg[0]?.name).toBe("");
-    expect(arg[0]?.stepNumber).toBe(1);
+    expect(arg[0]).toMatchObject({ name: "", stepNumber: 1 });
   });
 
   it("updates action field via onChange", async () => {
     const user = userEvent.setup();
     function Stateful() {
-      const [steps, setSteps] = useState([baseStep({ id: "step-a", stepNumber: 1 })]);
+      const [steps, setSteps] = useState<TestPlanEntry[]>([baseStep({ id: "step-a", stepNumber: 1 })]);
       return <TestStepsEditor steps={steps} onChange={setSteps} />;
     }
     renderWithQualityI18n(<Stateful />);
@@ -48,11 +47,9 @@ describe("TestStepsEditor", () => {
       baseStep({ id: "s2", stepNumber: 2, name: "B" }),
     ];
     renderWithQualityI18n(<TestStepsEditor steps={steps} onChange={onChange} />);
-    const card = screen.getByTestId("quality-step-card-s1");
-    await user.hover(card);
     await user.click(screen.getByTestId("quality-step-delete-s1"));
     expect(onChange).toHaveBeenCalled();
-    const arg = onChange.mock.calls.at(-1)?.[0] as TestStep[];
+    const arg = onChange.mock.calls.at(-1)?.[0] as TestPlanEntry[];
     expect(arg).toHaveLength(1);
     expect(arg[0]?.id).toBe("s2");
     expect(arg[0]?.stepNumber).toBe(1);
@@ -66,22 +63,42 @@ describe("TestStepsEditor", () => {
       baseStep({ id: "s2", stepNumber: 2, name: "Second" }),
     ];
     const { container } = renderWithQualityI18n(<TestStepsEditor steps={steps} onChange={onChange} />);
-    const card = container.querySelector('[data-testid="quality-step-card-s1"]');
-    expect(card).toBeTruthy();
-    await user.hover(card as HTMLElement);
     const down = container.querySelector('[data-testid="quality-step-move-down-s1"]') as HTMLElement;
+    expect(down).toBeTruthy();
     await user.click(down);
-    const arg = onChange.mock.calls.at(-1)?.[0] as TestStep[];
+    const arg = onChange.mock.calls.at(-1)?.[0] as TestPlanEntry[];
     expect(arg?.[0]?.id).toBe("s2");
     expect(arg?.[1]?.id).toBe("s1");
     expect(arg?.[0]?.stepNumber).toBe(1);
     expect(arg?.[1]?.stepNumber).toBe(2);
   });
 
-  it("hides Add Step when readOnly", () => {
+  it("hides Add Step and Add Call when readOnly", () => {
     const { container } = renderWithQualityI18n(
       <TestStepsEditor steps={[baseStep({ id: "x", name: "N" })]} onChange={vi.fn()} readOnly />,
     );
     expect(container.querySelector('[data-testid="step-add-button"]')).toBeNull();
+    expect(container.querySelector('[data-testid="step-add-call-button"]')).toBeNull();
+  });
+
+  it("pastes TSV into multiple step rows", async () => {
+    const user = userEvent.setup();
+    function Stateful() {
+      const [st, setSt] = useState<TestPlanEntry[]>([
+        baseStep({ id: "r0", stepNumber: 1, name: "" }),
+        baseStep({ id: "r1", stepNumber: 2, name: "" }),
+      ]);
+      return <TestStepsEditor steps={st} onChange={setSt} />;
+    }
+    renderWithQualityI18n(<Stateful />);
+    const firstAction = screen.getByLabelText(/action 1/i);
+    firstAction.focus();
+    await user.paste("A\tB\tC\nD\tE\tF");
+    expect(screen.getByLabelText(/action 1/i)).toHaveValue("A");
+    expect(screen.getByLabelText(/description 1/i)).toHaveValue("B");
+    expect(screen.getByLabelText(/expected result 1/i)).toHaveValue("C");
+    expect(screen.getByLabelText(/action 2/i)).toHaveValue("D");
+    expect(screen.getByLabelText(/description 2/i)).toHaveValue("E");
+    expect(screen.getByLabelText(/expected result 2/i)).toHaveValue("F");
   });
 });

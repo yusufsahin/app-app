@@ -315,7 +315,7 @@ export default function MemberManagementPage() {
       />
 
       <Dialog open={!!removeDialogUser} onOpenChange={(open) => !open && !deleteUser.isPending && setRemoveDialogUser(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogTitle>Remove user?</DialogTitle>
           <DialogDescription>
             Remove {removeDialogUser?.email}? They will no longer be able to sign in. This can be

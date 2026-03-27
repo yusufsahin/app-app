@@ -29,7 +29,7 @@ Liste ve API **Artifacts ile aynıdır**; kalite altındaki test sayfaları mani
 - URL yardımcıları: [frontend/src/shared/utils/appPaths.ts](../frontend/src/shared/utils/appPaths.ts) — `qualityPath`, `qualityTraceabilityPath` (birim test: `appPaths.test.ts`).
 - Route: [frontend/src/app/router.tsx](../frontend/src/app/router.tsx) — `QualityPage`, `QualityTraceabilityPage` lazy; `quality/traceability` route’u `quality`’den önce tanımlıdır.
 - Hub: [frontend/src/features/quality/pages/QualityPage.tsx](../frontend/src/features/quality/pages/QualityPage.tsx), [QualityHubHeader.tsx](../frontend/src/features/quality/components/QualityHubHeader.tsx).
-- Tip sayfaları: [QualityArtifactsByTypePage.tsx](../frontend/src/features/quality/pages/QualityArtifactsByTypePage.tsx) + `QualityTestsPage` / `QualitySuitesPage` / `QualityRunsPage` / `QualityCampaignsPage`.
+- Tip sayfaları: `QualityCatalogPage` / `QualitySuitesPage` / `QualityRunsPage` / `QualityCampaignsPage` ([frontend/src/features/quality/pages](../frontend/src/features/quality/pages)).
 - Liste: [ArtifactsPage.tsx](../frontend/src/features/artifacts/pages/ArtifactsPage.tsx) — `variant="quality"`.
 - Traceability: [QualityTraceabilityPage.tsx](../frontend/src/features/quality/pages/QualityTraceabilityPage.tsx).
 

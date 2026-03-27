@@ -176,6 +176,59 @@ export function useArtifacts(
   });
 }
 
+const ARTIFACT_LIST_PAGE_SIZE = 500;
+
+/** Fetches every page for the given list filters until all items are loaded (for large catalogs). */
+export async function fetchAllArtifactsPages(
+  orgSlug: string,
+  projectId: string,
+  baseParams: Omit<ArtifactListParams, "limit" | "offset">,
+  pageSize = ARTIFACT_LIST_PAGE_SIZE,
+): Promise<ArtifactsListResult> {
+  let offset = 0;
+  const items: Artifact[] = [];
+  let total = 0;
+  let allowed_actions: string[] | undefined;
+  for (;;) {
+    const params: ArtifactListParams = { ...baseParams, limit: pageSize, offset };
+    const { data } = await apiClient.get<ArtifactsListResult>(
+      `/orgs/${orgSlug}/projects/${projectId}/artifacts`,
+      { params: Object.keys(params).length ? params : undefined },
+    );
+    items.push(...data.items);
+    total = data.total;
+    allowed_actions ??= data.allowed_actions;
+    if (data.items.length === 0 || data.items.length < pageSize || items.length >= total) break;
+    offset += pageSize;
+  }
+  return { items, total, allowed_actions };
+}
+
+/** All test cases in the quality tree (paginated on the client until `total` is reached). */
+export function useAllQualityTestCases(orgSlug: string | undefined, projectId: string | undefined) {
+  const baseParams = buildArtifactListParams({
+    typeFilter: "test-case",
+    sortBy: "title",
+    sortOrder: "asc",
+    tree: "quality",
+    includeSystemRoots: false,
+  });
+  return useQuery({
+    queryKey: [
+      "orgs",
+      orgSlug,
+      "projects",
+      projectId,
+      "artifacts",
+      "all-pages",
+      "quality",
+      "test-case",
+    ],
+    queryFn: () => fetchAllArtifactsPages(orgSlug!, projectId!, baseParams),
+    enabled: !!orgSlug && !!projectId,
+  });
+}
+
 export function useArtifact(
   orgSlug: string | undefined,
   projectId: string | undefined,

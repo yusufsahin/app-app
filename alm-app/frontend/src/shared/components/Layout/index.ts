@@ -1,6 +1,6 @@
 export { default as AppLayout } from "./AppLayout";
 export { ProjectBreadcrumbs } from "./ProjectBreadcrumbs";
-export type { ProjectBreadcrumbsProps } from "./ProjectBreadcrumbs";
+export type { ProjectBreadcrumbsProps, BreadcrumbSegment } from "./ProjectBreadcrumbs";
 export { OrgSettingsBreadcrumbs } from "./OrgSettingsBreadcrumbs";
 export type { OrgSettingsBreadcrumbsProps } from "./OrgSettingsBreadcrumbs";
 export { StandardPageLayout } from "./StandardPageLayout";

@@ -75,7 +75,7 @@ const QualityPage = lazy(
 const QualityTraceabilityPage = lazy(
   () => import("../features/quality/pages/QualityTraceabilityPage"),
 );
-const QualityTestsPage = lazy(() => import("../features/quality/pages/QualityTestsPage"));
+const QualityCatalogPage = lazy(() => import("../features/quality/pages/QualityCatalogPage"));
 const QualitySuitesPage = lazy(() => import("../features/quality/pages/QualitySuitesPage"));
 const QualityRunsPage = lazy(() => import("../features/quality/pages/QualityRunsPage"));
 const QualityCampaignsPage = lazy(() => import("../features/quality/pages/QualityCampaignsPage"));
@@ -205,7 +205,7 @@ export const router = createBrowserRouter([
           },
           {
             path: ":projectSlug/quality/tests",
-            element: withPermission("artifact:read", QualityTestsPage),
+            element: withPermission("artifact:read", QualityCatalogPage),
           },
           {
             path: ":projectSlug/quality/suites",
