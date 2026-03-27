@@ -92,8 +92,8 @@ export default defineConfig({
       dependencies: ["setup"],
     },
     {
-      name: "quality-suite",
-      testMatch: /quality-(suite|steps-editor)\.spec\.ts/,
+      name: "quality-campaign",
+      testMatch: /quality-(campaign|steps-editor)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: "e2e/.auth/user.json",

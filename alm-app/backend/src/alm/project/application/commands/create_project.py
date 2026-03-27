@@ -112,7 +112,7 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
         )
 
     async def _create_project_roots(self, project: Project) -> None:
-        """Create project roots from manifest tree_roots (requirements/tests/testsuites/defects)."""
+        """Create project roots from manifest tree_roots (requirements / tests / Campaign tree testsuites / defects)."""
         from alm.artifact.domain.mpc_resolver import get_manifest_ast
 
         version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)

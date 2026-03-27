@@ -1,4 +1,11 @@
-import { createBrowserRouter, useRouteError, isRouteErrorResponse, Link } from "react-router-dom";
+import {
+  createBrowserRouter,
+  useRouteError,
+  isRouteErrorResponse,
+  Link,
+  Navigate,
+  useParams,
+} from "react-router-dom";
 import { lazy, Suspense, type ComponentType } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "../shared/components/ui";
@@ -76,7 +83,7 @@ const QualityTraceabilityPage = lazy(
   () => import("../features/quality/pages/QualityTraceabilityPage"),
 );
 const QualityCatalogPage = lazy(() => import("../features/quality/pages/QualityCatalogPage"));
-const QualitySuitesPage = lazy(() => import("../features/quality/pages/QualitySuitesPage"));
+const QualityCampaignPage = lazy(() => import("../features/quality/pages/QualityCampaignPage"));
 const QualityRunsPage = lazy(() => import("../features/quality/pages/QualityRunsPage"));
 const QualityCampaignsPage = lazy(() => import("../features/quality/pages/QualityCampaignsPage"));
 const ManualExecutionPlayerPage = lazy(() => import("../features/quality/pages/ManualExecutionPlayer"));
@@ -134,6 +141,20 @@ function withAnyPermission(
       {withSuspense(Component)}
     </RequireAnyPermission>
   );
+}
+
+/** Bookmark compatibility: `/quality/suites` → canonical `/quality/campaign`. */
+function LegacyQualitySuitesUrlRedirect() {
+  const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
+  if (!orgSlug || !projectSlug) return <Navigate to="/" replace />;
+  return <Navigate to={`/${orgSlug}/${projectSlug}/quality/campaign`} replace />;
+}
+
+/** Bookmark compatibility: `/quality/tests` → canonical `/quality/catalog`. */
+function LegacyQualityTestsUrlRedirect() {
+  const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
+  if (!orgSlug || !projectSlug) return <Navigate to="/" replace />;
+  return <Navigate to={`/${orgSlug}/${projectSlug}/quality/catalog`} replace />;
 }
 
 export const router = createBrowserRouter([
@@ -205,11 +226,19 @@ export const router = createBrowserRouter([
           },
           {
             path: ":projectSlug/quality/tests",
+            element: <LegacyQualityTestsUrlRedirect />,
+          },
+          {
+            path: ":projectSlug/quality/catalog",
             element: withPermission("artifact:read", QualityCatalogPage),
           },
           {
             path: ":projectSlug/quality/suites",
-            element: withPermission("artifact:read", QualitySuitesPage),
+            element: <LegacyQualitySuitesUrlRedirect />,
+          },
+          {
+            path: ":projectSlug/quality/campaign",
+            element: withPermission("artifact:read", QualityCampaignPage),
           },
           {
             path: ":projectSlug/quality/runs/:runId/execute",

@@ -36,6 +36,8 @@ interface QualityFolderTreeNavProps {
   treeId?: string;
   rootArtifactType?: string;
   folderArtifactType?: string;
+  /** Collection wording for manifest Campaign tree (`tree_id: testsuites`); default is Catalog groups. */
+  explorerLabels?: "quality" | "campaign";
 }
 
 function folderNavNodes(nodes: ArtifactNode[], rootArtifactType: string, folderArtifactType: string): ArtifactNode[] {
@@ -396,9 +398,12 @@ export function QualityFolderTreeNav({
   treeId = "quality",
   rootArtifactType = "root-quality",
   folderArtifactType = "quality-folder",
+  explorerLabels = "quality",
 }: QualityFolderTreeNavProps) {
   const { t } = useTranslation("quality");
   const newLeafLabel = newLeafLabelProp ?? t("tree.newItem");
+  const tx = (qualityKey: string, campaignKey: string) =>
+    explorerLabels === "campaign" ? t(campaignKey) : t(qualityKey);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedUnder = searchParams.get("under")?.trim() || null;
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
@@ -470,13 +475,13 @@ export function QualityFolderTreeNav({
   return (
     <div className="flex h-full min-h-[280px] max-h-[calc(100vh-220px)] flex-col rounded-lg border border-border bg-card">
       <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("tree.folders")}
+        {tx("tree.folders", "campaignExplorer.folders")}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {isLoading ? (
           <p className="px-2 text-xs text-muted-foreground">{t("tree.loading")}</p>
         ) : explorerTree.length === 0 ? (
-          <p className="px-2 text-xs text-muted-foreground">{t("tree.empty")}</p>
+          <p className="px-2 text-xs text-muted-foreground">{tx("tree.empty", "campaignExplorer.empty")}</p>
         ) : (
           <FolderTreeRows
             nodes={explorerTree}
@@ -488,10 +493,10 @@ export function QualityFolderTreeNav({
             onCreateFolderUnder={onCreateFolderUnder}
             onRenameFolder={onRenameFolder}
             onDeleteFolder={onDeleteFolder}
-            newSubfolderLabel={t("tree.newSubfolder")}
+            newSubfolderLabel={tx("tree.newSubfolder", "campaignExplorer.newSubfolder")}
             renameLabel={t("tree.rename")}
             deleteLabel={t("tree.delete")}
-            folderActionsLabel={t("tree.folderActions")}
+            folderActionsLabel={tx("tree.folderActions", "campaignExplorer.folderActions")}
             leafArtifactType={leafArtifactType}
             selectedArtifactId={selectedArtifactId ?? null}
             onNewLeafInFolder={onNewLeafInFolder}
@@ -519,7 +524,7 @@ export function QualityFolderTreeNav({
             onClick={onSelectRoot}
             data-testid="quality-tree-clear-filter"
           >
-            {t("tree.clearFilter")}
+            {tx("tree.clearFilter", "campaignExplorer.clearFilter")}
           </Button>
         </div>
       ) : null}

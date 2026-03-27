@@ -9,8 +9,8 @@ export type ManifestTreeRoot = {
 
 const DEFAULT_TREE_ROOTS: ManifestTreeRoot[] = [
   { tree_id: "requirement", root_artifact_type: "root-requirement", label: "Requirements" },
-  { tree_id: "quality", root_artifact_type: "root-quality", label: "Quality" },
-  { tree_id: "testsuites", root_artifact_type: "root-testsuites", label: "Test suites" },
+  { tree_id: "quality", root_artifact_type: "root-quality", label: "Catalog" },
+  { tree_id: "testsuites", root_artifact_type: "root-testsuites", label: "Campaign" },
   { tree_id: "defect", root_artifact_type: "root-defect", label: "Defects" },
 ];
 

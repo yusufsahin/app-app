@@ -2,7 +2,7 @@
 
 ## Overview
 
-Her projede **dört kök artifact** vardır: **Root-Requirement** (Requirements ağacı), **Root-Tests** (test-case ağacı), **Root-TestSuites** (test-suite/run/campaign ağacı) ve **Root-Defect** (Defects ağacı). Proje oluşturulduğunda bu root’lar manifest `tree_roots` tanımına göre otomatik yaratılır.
+Her projede **dört kök artifact** vardır: **Root-Requirement** (Requirements ağacı), **Root-Tests** (Catalog / test-case ağacı), **Root-TestSuites** — manifest `tree_id: testsuites`, ürün dilinde **Campaign** ağacı (koleksiyonlar + suite/run/execution campaign) — ve **Root-Defect** (Defects ağacı). Proje oluşturulduğunda bu root’lar manifest `tree_roots` tanımına göre otomatik yaratılır.
 
 ## Davranış
 
@@ -19,7 +19,7 @@ Her projede **dört kök artifact** vardır: **Root-Requirement** (Requirements 
 
 - **Requirement artifact:** Root-Requirement altındaki iş öğeleri (epic, feature, requirement vb.).
 - **Test artifact:** Root-Tests altındaki iş öğeleri (`test-folder`, `test-case`).
-- **TestSuite artifact:** Root-TestSuites altındaki iş öğeleri (`testsuite-folder`, `test-suite`, `test-run`, `test-campaign`).
+- **Campaign tree artifacts:** Root-TestSuites altındaki iş öğeleri (`testsuite-folder` = koleksiyon, `test-suite`, `test-run`, `test-campaign`).
 - **Defect artifact:** Root-Defect altındaki hata/defect tipleri (defect, bug vb.).
 - **Trace (artifact link):** İki artifact arasındaki ilişki; `link_type` örn. `verifies`, `tests`, `blocks`. Requirement–quality ve defect–test izlenebilirliği için kullanılır.
 

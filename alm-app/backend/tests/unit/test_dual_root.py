@@ -77,7 +77,7 @@ async def test_update_root_raises_validation_error() -> None:
     root = Artifact(
         project_id=project_id,
         artifact_type="root-testsuites",
-        title="Suites Root",
+        title="Campaign root",
         state="Active",
         id=root_id,
         artifact_key="PRJ-TS0",

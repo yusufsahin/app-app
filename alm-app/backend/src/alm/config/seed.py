@@ -1035,8 +1035,8 @@ async def seed_demo_data(
                     suites_folder = ArtifactEntity(
                         project_id=first_project[0].id,
                         artifact_type="testsuite-folder",
-                        title="Sprint 24 - Suites",
-                        description="Seeded suite folder to demonstrate test-suite hierarchy.",
+                        title="Sprint 24 — Collections",
+                        description="Seeded campaign collection (testsuite-folder) for suite/run/campaign hierarchy.",
                         state="Active",
                         parent_id=parent_suites_id,
                         artifact_key=f"{first_project[0].code}-{seq_sf}",

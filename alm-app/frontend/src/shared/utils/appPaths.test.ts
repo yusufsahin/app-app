@@ -9,7 +9,7 @@ import {
   qualityTraceabilityPath,
   qualityCatalogPath,
   qualityCatalogArtifactPath,
-  qualitySuitesPath,
+  qualityCampaignPath,
 } from "./appPaths";
 
 describe("artifactsPath", () => {
@@ -101,18 +101,18 @@ describe("qualityTraceabilityPath", () => {
 });
 
 describe("quality section paths", () => {
-  it("returns catalog (tests) and suites paths", () => {
-    expect(qualityCatalogPath("o", "p")).toBe("/o/p/quality/tests");
-    expect(qualitySuitesPath("o", "p")).toBe("/o/p/quality/suites");
+  it("returns catalog (tests) and campaign workspace paths", () => {
+    expect(qualityCatalogPath("o", "p")).toBe("/o/p/quality/catalog");
+    expect(qualityCampaignPath("o", "p")).toBe("/o/p/quality/campaign");
   });
 
   it("builds catalog artifact URL with under and artifact", () => {
     expect(qualityCatalogArtifactPath("o", "p", "tc-1", "folder-2")).toBe(
-      "/o/p/quality/tests?under=folder-2&artifact=tc-1",
+      "/o/p/quality/catalog?under=folder-2&artifact=tc-1",
     );
   });
 
   it("builds catalog artifact URL with artifact only when under omitted", () => {
-    expect(qualityCatalogArtifactPath("o", "p", "tc-1")).toBe("/o/p/quality/tests?artifact=tc-1");
+    expect(qualityCatalogArtifactPath("o", "p", "tc-1")).toBe("/o/p/quality/catalog?artifact=tc-1");
   });
 });

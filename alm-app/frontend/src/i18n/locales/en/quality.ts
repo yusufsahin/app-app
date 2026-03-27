@@ -2,7 +2,7 @@ export const qualityEn = {
   pages: {
     catalog: "Catalog",
     catalogDescription:
-      "Browse and organize test cases in groups. Suites and runs are managed separately from this catalog.",
+      "Browse and organize test cases in groups. Test suites and runs are managed under Quality → Campaign.",
     breadcrumbQuality: "Quality",
     testCase: "Test case",
   },
@@ -30,6 +30,43 @@ export const qualityEn = {
     editLeaf: "Edit",
     moveLeaf: "Move to group…",
     leafActions: "Item actions",
+  },
+  /**
+   * Campaign explorer copy: manifest `tree_id: testsuites` (collections + suite/run/campaign items).
+   * Technical ids stay `testsuite-folder`, `root-testsuites`; product language is Campaign / collection.
+   */
+  campaignExplorer: {
+    folders: "Collections",
+    empty: "No collections yet.",
+    clearFilter: "Clear collection filter",
+    newSubfolder: "New subcollection",
+    folderActions: "Collection actions",
+  },
+  campaignWorkspace: {
+    selectFolderFirst: "Select a collection from the left first.",
+    selectedFolderChildren: "Items in the selected collection",
+    selectFolderToList: "Select a collection to list items",
+    createFolder: "Create collection",
+    groupBadge: "Collection",
+    scopeSelectedGroup: "Selected collection",
+    scopeNoGroup: "No collection selected",
+    groupDetailTitle: "Collection",
+    groupDetailDescription: "Details for the selected collection.",
+    groupDirectChildrenSummary: "{{groups}} subcollections · {{cases}} items",
+    unknownGroupTitle: "Collection",
+    groupNotFound: "This collection could not be found. It may have been deleted.",
+  },
+  campaignModals: {
+    createFolderTitle: "Create collection",
+    renameFolderTitle: "Rename collection",
+    deleteFolderTitle: "Delete collection",
+    moveToFolderTitle: "Move to collection",
+    moveToFolderDescription: "Choose the collection for this item.",
+    moveToFolderPlaceholder: "Select collection",
+  },
+  errors: {
+    selectFolderBeforeCreate: "Please select a folder before creating this item.",
+    selectCollectionBeforeCreate: "Please select a collection before creating this item.",
   },
   workspace: {
     noQualityTree: "Quality tree is not defined in the manifest.",
@@ -124,7 +161,8 @@ export const qualityEn = {
       attachments: "Attachments",
       comments: "Comments",
     },
-    traceabilityEmpty: "No linked artifacts yet. Use Quality → Traceability or suite links to add relationships.",
+    traceabilityEmpty:
+      "No linked artifacts yet. Use Quality → Traceability or Campaign suite links to add relationships.",
     traceabilityLoading: "Loading links…",
     traceabilityOpenFull: "Open traceability",
     attachmentsPlaceholder: "Attachments are not available yet. They will be added in a future update.",

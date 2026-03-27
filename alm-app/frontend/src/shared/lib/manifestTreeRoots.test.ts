@@ -1,5 +1,5 @@
 /**
- * Unit tests for manifest tree root resolution (Quality / TestSuites / Requirements / Defects slugs).
+ * Unit tests for manifest tree root resolution (Quality Catalog / Campaign `testsuites` / Requirements / Defects).
  */
 import { describe, it, expect } from "vitest";
 import { getDeclaredTreeRootsFromManifestBundle, getTreeRootsFromManifestBundle } from "./manifestTreeRoots";
@@ -18,12 +18,12 @@ describe("getTreeRootsFromManifestBundle", () => {
     expect(quality).toEqual({
       tree_id: "quality",
       root_artifact_type: "root-quality",
-      label: "Quality",
+      label: "Catalog",
     });
     expect(suites).toEqual({
       tree_id: "testsuites",
       root_artifact_type: "root-testsuites",
-      label: "Test suites",
+      label: "Campaign",
     });
   });
 

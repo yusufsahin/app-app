@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import QualityArtifactWorkspace from "../components/QualityArtifactWorkspace";
 
-/** Catalog workspace: test cases organized under groups (`/quality/tests` route). */
+/** Catalog workspace: test cases under groups (`/quality/catalog`; legacy `/quality/tests` redirects). */
 export default function QualityCatalogPage() {
   const { t } = useTranslation("quality");
   return (

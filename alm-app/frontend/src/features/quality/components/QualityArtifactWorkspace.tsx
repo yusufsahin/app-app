@@ -118,6 +118,15 @@ export default function QualityArtifactWorkspace({
   );
   const hasTargetTree = treeRoots.some((t) => t.tree_id === treeId);
   const showExplorerLeaves = QUALITY_EXPLORER_LEAF_TYPES.has(artifactType);
+  /** Manifest `tree_id: testsuites` — product: Campaign; technical ids unchanged (`root-testsuites`, `testsuite-folder`). */
+  const isCampaignTree = treeId === "testsuites";
+  /** Catalog groups vs Campaign collections. */
+  const tws = (key: string, options?: Record<string, unknown>) =>
+    isCampaignTree ? t(`campaignWorkspace.${key}`, options) : t(`workspace.${key}`, options);
+  const tmFolder = (key: "createFolderTitle" | "renameFolderTitle" | "deleteFolderTitle") =>
+    isCampaignTree ? t(`campaignModals.${key}`) : t(`modals.${key}`);
+  const tmMove = (key: "moveToFolderTitle" | "moveToFolderDescription" | "moveToFolderPlaceholder") =>
+    isCampaignTree ? t(`campaignModals.${key}`) : t(`modals.${key}`);
 
   const newLeafMenuLabel = useMemo(() => {
     switch (artifactType) {
@@ -429,7 +438,9 @@ export default function QualityArtifactWorkspace({
           let parentId = resolvedParent;
           if (artifactType === folderArtifactType && !parentId) parentId = rootQualityId;
           if (!parentId && artifactType !== folderArtifactType) {
-            throw new Error("Please select a folder before creating this item.");
+            throw new Error(
+              isCampaignTree ? t("errors.selectCollectionBeforeCreate") : t("errors.selectFolderBeforeCreate"),
+            );
           }
           const payload: {
             artifact_type: string;
@@ -498,7 +509,7 @@ export default function QualityArtifactWorkspace({
           );
         },
       },
-      { title: t("modals.createFolderTitle") },
+      { title: tmFolder("createFolderTitle") },
     );
   };
 
@@ -524,7 +535,7 @@ export default function QualityArtifactWorkspace({
           modalApi.closeModal();
         },
       },
-      { title: t("modals.renameFolderTitle") },
+      { title: tmFolder("renameFolderTitle") },
     );
   };
 
@@ -551,7 +562,7 @@ export default function QualityArtifactWorkspace({
           });
         },
       },
-      { title: t("modals.deleteFolderTitle") },
+      { title: tmFolder("deleteFolderTitle") },
     );
   };
 
@@ -721,6 +732,7 @@ export default function QualityArtifactWorkspace({
           treeId={treeId}
           rootArtifactType={rootArtifactType}
           folderArtifactType={folderArtifactType}
+          explorerLabels={isCampaignTree ? "campaign" : "quality"}
           newLeafLabel={newLeafMenuLabel}
           selectedArtifactId={selectedArtifactId}
           onNewLeafInFolder={showExplorerLeaves ? (fid) => openCreateModal(fid) : undefined}
@@ -762,7 +774,7 @@ export default function QualityArtifactWorkspace({
                 </p>
               ) : null}
               {!selectedUnder && artifactType !== folderArtifactType ? (
-                <p className="text-sm text-muted-foreground">{t("workspace.selectFolderFirst")}</p>
+                <p className="text-sm text-muted-foreground">{tws("selectFolderFirst")}</p>
               ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
@@ -781,7 +793,7 @@ export default function QualityArtifactWorkspace({
                     data-testid="quality-create-folder-button"
                     disabled={createArtifact.isPending || !rootQualityId}
                   >
-                    {t("workspace.createFolder")}
+                    {tws("createFolder")}
                   </Button>
                 ) : null}
               </div>
@@ -803,14 +815,14 @@ export default function QualityArtifactWorkspace({
                       ? t("workspace.testCaseDetailTitle")
                       : !selectedUnder
                         ? t("workspace.catalogRootDetailTitle")
-                        : t("workspace.groupDetailTitle")}
+                        : tws("groupDetailTitle")}
                   </CardTitle>
                   <CardDescription>
                     {selectedArtifactId
                       ? t("workspace.selectedItem")
                       : !selectedUnder
                         ? t("workspace.catalogRootDetailHint")
-                        : t("workspace.groupDetailDescription")}
+                        : tws("groupDetailDescription")}
                   </CardDescription>
                 </div>
                 {selectedArtifactId &&
@@ -905,15 +917,15 @@ export default function QualityArtifactWorkspace({
               ) : !selectedUnder ? (
                 <p className="text-sm text-muted-foreground">{t("workspace.catalogRootDetailHint")}</p>
               ) : !selectedScopeRow ? (
-                <p className="text-sm text-muted-foreground">{t("workspace.groupNotFound")}</p>
+                <p className="text-sm text-muted-foreground">{tws("groupNotFound")}</p>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-sm font-medium">{selectedScopeRow.title ?? t("workspace.unknownGroupTitle")}</p>
+                  <p className="text-sm font-medium">{selectedScopeRow.title ?? tws("unknownGroupTitle")}</p>
                   <p className="whitespace-pre-wrap text-sm text-muted-foreground">
                     {selectedScopeRow.description || "—"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {t("workspace.groupDirectChildrenSummary", {
+                    {tws("groupDirectChildrenSummary", {
                       groups: directChildStats.groups,
                       cases: directChildStats.cases,
                     })}
@@ -928,14 +940,14 @@ export default function QualityArtifactWorkspace({
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Items</CardTitle>
                 <CardDescription>
-                  {selectedUnder ? t("workspace.selectedFolderChildren") : t("workspace.selectFolderToList")}
+                  {selectedUnder ? tws("selectedFolderChildren") : tws("selectFolderToList")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 {artifactType === "test-case" ? (
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <Badge variant="outline">
-                      Scope: {selectedUnder ? t("workspace.scopeSelectedGroup") : t("workspace.scopeNoGroup")}
+                      Scope: {selectedUnder ? tws("scopeSelectedGroup") : tws("scopeNoGroup")}
                     </Badge>
                     <Badge variant="outline">
                       Mode: {workspaceIncludeSubfolders ? "Include subfolders" : "Direct children"}
@@ -989,7 +1001,7 @@ export default function QualityArtifactWorkspace({
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="font-medium">{item.title}</div>
-                          {isFolderRow ? <Badge variant="secondary">{t("workspace.groupBadge")}</Badge> : null}
+                          {isFolderRow ? <Badge variant="secondary">{tws("groupBadge")}</Badge> : null}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {isFolderRow ? item.artifact_type : item.artifact_key ?? item.artifact_type}
@@ -1170,16 +1182,16 @@ export default function QualityArtifactWorkspace({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("modals.moveToFolderTitle")}</DialogTitle>
-          <DialogDescription>{t("modals.moveToFolderDescription")}</DialogDescription>
+          <DialogTitle>{tmMove("moveToFolderTitle")}</DialogTitle>
+          <DialogDescription>{tmMove("moveToFolderDescription")}</DialogDescription>
         </DialogHeader>
         <div className="py-2">
           <Select
             value={moveTargetFolderId || undefined}
             onValueChange={setMoveTargetFolderId}
           >
-            <SelectTrigger aria-label={t("modals.moveToFolderPlaceholder")}>
-              <SelectValue placeholder={t("modals.moveToFolderPlaceholder")} />
+            <SelectTrigger aria-label={tmMove("moveToFolderPlaceholder")}>
+              <SelectValue placeholder={tmMove("moveToFolderPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
               {qualityFolderOptions.map((f) => (

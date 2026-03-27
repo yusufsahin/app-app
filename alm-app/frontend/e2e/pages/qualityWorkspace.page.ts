@@ -13,12 +13,13 @@ export class QualityWorkspacePage {
 
   async openCatalog() {
     await this.page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Catalog" }).click();
-    await this.page.waitForURL(/\/quality\/tests/, { timeout: 10000 });
+    await this.page.waitForURL(/\/quality\/catalog/, { timeout: 10000 });
   }
 
-  async openSuites() {
-    await this.page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Suites" }).click();
-    await this.page.waitForURL(/\/quality\/suites/, { timeout: 10000 });
+  /** Quality → Campaign workspace (`/quality/campaign`; legacy `/quality/suites` redirects). */
+  async openCampaign() {
+    await this.page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Campaign" }).click();
+    await this.page.waitForURL(/\/quality\/campaign/, { timeout: 10000 });
   }
 
   async openRuns() {
@@ -30,6 +31,14 @@ export class QualityWorkspacePage {
     // Scope to the catalog tree (Groups); avoid the root row’s ⋮ menu button (was nth(1) fallback).
     const treeAside = this.page.locator("aside").filter({ has: this.page.getByText("Groups", { exact: true }) });
     const folderRow = treeAside.locator('[data-artifact-type="quality-folder"]').first();
+    await folderRow.click({ timeout: 15000, force: true });
+    await expect(this.page).toHaveURL(/under=[0-9a-f-]{36}/i, { timeout: 10000 });
+  }
+
+  /** First campaign collection (`testsuite-folder`) in the Collections panel. */
+  async selectFirstCampaignCollection() {
+    const treeAside = this.page.locator("aside").filter({ has: this.page.getByText("Collections", { exact: true }) });
+    const folderRow = treeAside.locator('[data-artifact-type="testsuite-folder"]').first();
     await folderRow.click({ timeout: 15000, force: true });
     await expect(this.page).toHaveURL(/under=[0-9a-f-]{36}/i, { timeout: 10000 });
   }
@@ -171,7 +180,7 @@ export class QualityWorkspacePage {
     if (await clearByTestId.isVisible().catch(() => false)) {
       await clearByTestId.click({ timeout: 10000 });
     } else {
-      await this.page.getByRole("button", { name: /Clear group filter/i }).click({ timeout: 10000 });
+      await this.page.getByRole("button", { name: /Clear (group|collection) filter/i }).click({ timeout: 10000 });
     }
     await expect(this.page).not.toHaveURL(/under=/i, { timeout: 10000 });
   }

@@ -286,7 +286,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
       hasActiveArtifactFilters
         ? "Try clearing filters or changing the tree."
         : variant === "quality"
-          ? "Create test cases, suites, runs, campaigns, or folders under the Quality tree."
+          ? "Create test cases in catalog groups, or suites, runs, and campaigns in campaign collections."
           : "Create a requirement, defect, or bug to get started.",
     [hasActiveArtifactFilters, variant],
   );

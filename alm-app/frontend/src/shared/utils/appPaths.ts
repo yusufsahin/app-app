@@ -36,7 +36,7 @@ export function artifactDetailPath(orgSlug: string, projectSlug: string, artifac
 }
 
 /**
- * Path to Quality suite (list + hub), optionally with artifact drawer and tree filter.
+ * Path to Quality hub, optionally with artifact drawer and tree filter.
  */
 export function qualityPath(
   orgSlug: string,
@@ -74,10 +74,11 @@ export function qualityTraceabilityPath(
 }
 
 /**
- * Path to the Catalog workspace (test cases under groups). The URL segment stays `quality/tests` for stable bookmarks and proxies.
+ * Catalog workspace (test cases under groups; manifest `tree_id: quality`).
+ * Canonical segment is `quality/catalog`; `/quality/tests` redirects for old bookmarks.
  */
 export function qualityCatalogPath(orgSlug: string, projectSlug: string): string {
-  return `/${orgSlug}/${projectSlug}/quality/tests`;
+  return `/${orgSlug}/${projectSlug}/quality/catalog`;
 }
 
 /** Catalog deep link: optional `under` folder + `artifact` test case (tree-detail workspace). */
@@ -94,8 +95,12 @@ export function qualityCatalogArtifactPath(
   return `${qualityCatalogPath(orgSlug, projectSlug)}?${search.toString()}`;
 }
 
-export function qualitySuitesPath(orgSlug: string, projectSlug: string): string {
-  return `/${orgSlug}/${projectSlug}/quality/suites`;
+/**
+ * Campaign workspace: collections + test suites (manifest `tree_id: testsuites`).
+ * Canonical segment is `quality/campaign`; `/quality/suites` redirects here for old bookmarks.
+ */
+export function qualityCampaignPath(orgSlug: string, projectSlug: string): string {
+  return `/${orgSlug}/${projectSlug}/quality/campaign`;
 }
 
 export function qualityRunsPath(orgSlug: string, projectSlug: string): string {

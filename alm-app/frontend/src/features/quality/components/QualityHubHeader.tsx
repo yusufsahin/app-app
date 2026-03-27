@@ -6,7 +6,7 @@ import {
   qualityPath,
   qualityTraceabilityPath,
   qualityCatalogPath,
-  qualitySuitesPath,
+  qualityCampaignPath,
   qualityRunsPath,
   qualityCampaignsPath,
 } from "../../../shared/utils/appPaths";
@@ -66,12 +66,12 @@ export function QualityHubHeader({
             Catalog
           </Link>
           <Link
-            to={qualitySuitesPath(orgSlug, projectSlug)}
+            to={qualityCampaignPath(orgSlug, projectSlug)}
             className={navClass}
-            data-testid="quality-nav-suites"
+            data-testid="quality-nav-campaign"
           >
             <Layers className="size-3.5 shrink-0 opacity-70" />
-            Suites
+            Campaign
           </Link>
           <Link
             to={qualityRunsPath(orgSlug, projectSlug)}

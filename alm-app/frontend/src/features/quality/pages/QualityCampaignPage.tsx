@@ -1,6 +1,7 @@
 import QualityArtifactWorkspace from "../components/QualityArtifactWorkspace";
 
-export default function QualitySuitesPage() {
+/** Quality → Campaign: test suites under collections (`tree_id` **testsuites** in manifest). */
+export default function QualityCampaignPage() {
   return (
     <QualityArtifactWorkspace
       artifactType="test-suite"
@@ -8,10 +9,10 @@ export default function QualitySuitesPage() {
       linkTargetTreeId="quality"
       rootArtifactType="root-testsuites"
       folderArtifactType="testsuite-folder"
-      pageLabel="Test suites"
-      description="Group test cases with suite links."
+      pageLabel="Campaign"
+      description="Organize test suites in collections and link test cases."
       createCta="Create suite"
-      emptyLabel="No suites in this folder."
+      emptyLabel="No suites in this collection."
       linkConfig={{
         linkType: "suite_includes_test",
         targetType: "test-case",

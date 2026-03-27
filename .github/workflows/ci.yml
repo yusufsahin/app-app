@@ -266,4 +266,4 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:5173
           PLAYWRIGHT_SKIP_BACKEND: "1"
-        run: npx playwright test e2e/quality-suite.spec.ts --project=quality-suite --grep "renames and deletes a subfolder from tree menu"
+        run: npx playwright test e2e/quality-campaign.spec.ts --project=quality-campaign --grep "renames and deletes a subfolder from tree menu"

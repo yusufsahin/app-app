@@ -1,6 +1,11 @@
-"""Inject Quality domain (test-suite, test-run, test-campaign, folders, links) into manifest defs.
+"""Inject Quality / Campaign domain into manifest defs (metadata-driven artifact types).
 
-Used by process template seed and by merge_manifest_metadata_defaults (idempotent).
+Merges test execution types used under manifest ``tree_id: testsuites`` (product: **Campaign**):
+``root-testsuites``, ``testsuite-folder`` (**collection** container), ``test-suite``, ``test-run``,
+``test-campaign``, plus link types. Technical ids stay stable for stored data; display ``name`` fields
+match the Campaign / collection metaphor.
+
+Used by process template seed and by ``merge_manifest_metadata_defaults`` (idempotent).
 """
 
 from __future__ import annotations
@@ -39,6 +44,7 @@ _QUALITY_EXTRA_LINK_TYPES: list[dict[str, Any]] = [
     {"kind": "LinkType", "id": "campaign_includes_suite", "name": "Campaign includes suite"},
 ]
 
+# Stable manifest slug ``testsuites``; UI labels it "Campaign" (see frontend ``manifestTreeRoots``).
 _TESTSUITES_TREE_ROOT: dict[str, str] = {"tree_id": "testsuites", "root_artifact_type": "root-testsuites"}
 
 
@@ -47,7 +53,7 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
         {
             "kind": "ArtifactType",
             "id": "root-testsuites",
-            "name": "Project root (Test suites)",
+            "name": "Project root (Campaign)",
             "workflow_id": "root",
             "child_types": ["testsuite-folder", "test-suite", "test-run", "test-campaign"],
             "fields": [],
@@ -55,7 +61,7 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
         {
             "kind": "ArtifactType",
             "id": "quality-folder",
-            "name": "Quality folder",
+            "name": "Catalog group",
             "workflow_id": "root",
             "parent_types": ["root-quality", "quality-folder"],
             "child_types": ["quality-folder", "test-case"],
@@ -64,7 +70,7 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
         {
             "kind": "ArtifactType",
             "id": "testsuite-folder",
-            "name": "Testsuite folder",
+            "name": "Campaign collection",
             "workflow_id": "root",
             "parent_types": ["root-testsuites", "testsuite-folder"],
             "child_types": ["testsuite-folder", "test-suite", "test-run", "test-campaign"],
@@ -200,13 +206,13 @@ def _merge_test_tree_roots(bundle: dict[str, Any]) -> dict[str, Any]:
     raw_roots = bundle.get("tree_roots")
     roots = [r for r in raw_roots if isinstance(r, dict)] if isinstance(raw_roots, list) else []
     cleaned: list[dict[str, Any]] = []
-    has_suites = False
+    has_campaign_tree = False
     for root in roots:
         tree_id = str(root.get("tree_id") or root.get("id") or "").strip().lower()
         if tree_id == "testsuites":
-            has_suites = True
+            has_campaign_tree = True
         cleaned.append(root)
-    if not has_suites:
+    if not has_campaign_tree:
         cleaned.append(dict(_TESTSUITES_TREE_ROOT))
     return {**bundle, "tree_roots": cleaned}
 

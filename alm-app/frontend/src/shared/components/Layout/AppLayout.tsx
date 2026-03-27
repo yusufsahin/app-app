@@ -86,10 +86,10 @@ const PROJECT_NAV_ITEMS: NavItem[] = [
 const QUALITY_SUBNAV_ITEMS: NestedNavItem[] = [
   {
     label: "Catalog",
-    path: "quality/tests",
+    path: "quality/catalog",
     icon: <ListChecks className="size-4" />,
   },
-  { label: "Suites", path: "quality/suites", icon: <Layers className="size-4" /> },
+  { label: "Campaign", path: "quality/campaign", icon: <Layers className="size-4" /> },
   { label: "Runs", path: "quality/runs", icon: <PlayCircle className="size-4" /> },
   { label: "Traceability", path: "quality/traceability", icon: <GitBranch className="size-4" /> },
 ];
@@ -197,15 +197,15 @@ export default function AppLayout() {
           icon: <GitBranch className="size-4" />,
         });
         quickLinks.push({
-          id: "goto-quality-tests",
+          id: "goto-quality-catalog",
           label: "Quality — Catalog",
-          path: `/${orgSlug}/${projectSlug}/quality/tests`,
+          path: `/${orgSlug}/${projectSlug}/quality/catalog`,
           icon: <ListChecks className="size-4" />,
         });
         quickLinks.push({
-          id: "goto-quality-suites",
-          label: "Quality — Test suites",
-          path: `/${orgSlug}/${projectSlug}/quality/suites`,
+          id: "goto-quality-campaign",
+          label: "Quality — Campaign",
+          path: `/${orgSlug}/${projectSlug}/quality/campaign`,
           icon: <Layers className="size-4" />,
         });
         quickLinks.push({

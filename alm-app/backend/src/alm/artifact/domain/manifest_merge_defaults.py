@@ -1,7 +1,8 @@
 """Merge optional manifest metadata defaults (idempotent) for backfill and upgrades.
 
-Also merges Quality domain defs (test-suite, test-run, test-campaign, quality-folder, link types)
-when not already present — see ``quality_manifest_extension.merge_quality_domain_into_defs``.
+Also merges Quality / Campaign domain defs (``tree_id: testsuites``: collections, test-suite,
+test-run, test-campaign; catalog quality-folder; link types) when not already present — see
+``quality_manifest_extension.merge_quality_domain_into_defs``.
 """
 
 from __future__ import annotations

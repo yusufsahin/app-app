@@ -2,13 +2,14 @@ import { test, expect } from "@playwright/test";
 import { ProjectNavigationPage } from "./pages/projectNavigation.page";
 import { QualityWorkspacePage } from "./pages/qualityWorkspace.page";
 
-test.describe("Quality suite", () => {
+test.describe("Quality — Campaign workspace", () => {
   test("keeps suite link modal usable across laptop viewport heights", async ({ page }) => {
     test.setTimeout(120000);
     const nav = new ProjectNavigationPage(page);
     const quality = new QualityWorkspacePage(page);
     await nav.openProjectQuality();
-    await quality.openSuites();
+    await quality.openCampaign();
+    await quality.selectFirstCampaignCollection();
     await page.locator('[data-testid^="quality-item-row-"]').first().click();
     const manageLinksButton = page.getByTestId("quality-link-manage-modal");
     await expect(manageLinksButton).toBeVisible({ timeout: 15000 });
@@ -60,7 +61,7 @@ test.describe("Quality suite", () => {
 
     const sidebar = page.locator('[data-sidebar="sidebar"]');
     await expect(sidebar.getByRole("link", { name: "Catalog" })).toBeVisible();
-    await expect(sidebar.getByRole("link", { name: "Suites" })).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: "Campaign" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Runs" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Traceability" })).toBeVisible();
 
@@ -72,7 +73,7 @@ test.describe("Quality suite", () => {
     await page.waitForURL(new RegExp(`/${orgSlug}/[^/]+/quality`), { timeout: 10000 });
     await expect(page.getByRole("heading", { name: "Quality Test Management" })).toBeVisible({ timeout: 10000 });
     await sidebar.getByRole("link", { name: "Catalog" }).click();
-    await page.waitForURL(/\/quality\/tests/, { timeout: 10000 });
+    await page.waitForURL(/\/quality\/catalog/, { timeout: 10000 });
     await expect(page.getByText("Catalog", { exact: true }).first()).toBeVisible({ timeout: 10000 });
   });
 
@@ -128,8 +129,8 @@ test.describe("Quality suite", () => {
 
     await quality.createItemFromModal(tcTitle);
 
-    await quality.openSuites();
-    await quality.selectFirstQualityFolder();
+    await quality.openCampaign();
+    await quality.selectFirstCampaignCollection();
     await quality.createItemFromModal(suiteTitle);
 
     await page.getByRole("button", { name: suiteTitle }).click();
@@ -137,7 +138,7 @@ test.describe("Quality suite", () => {
     await page.getByRole("button", { name: "Add link" }).click();
 
     await quality.openRuns();
-    await quality.selectFirstQualityFolder();
+    await quality.selectFirstCampaignCollection();
     await quality.createItemFromModal(runTitle);
 
     await page.getByRole("button", { name: runTitle }).click();

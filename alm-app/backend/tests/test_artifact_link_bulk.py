@@ -218,7 +218,12 @@ async def test_bulk_link_returns_partial_failure_for_missing_target(client: Asyn
     suite_folder_resp = await client.post(
         f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
         headers={"Authorization": f"Bearer {token}"},
-        json={"artifact_type": "testsuite-folder", "title": "Suites", "description": "", "parent_id": root_suites["id"]},
+        json={
+            "artifact_type": "testsuite-folder",
+            "title": "Campaign collection (bulk test)",
+            "description": "",
+            "parent_id": root_suites["id"],
+        },
     )
     suite_folder_resp.raise_for_status()
     suite_folder = suite_folder_resp.json()

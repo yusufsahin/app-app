@@ -34,7 +34,7 @@ npm run test:e2e:headed
 - **login-and-projects.spec.ts** – Login, org home, navigate to Artifacts.
 - **artifact-flow.spec.ts** – New Epic/Issue → create artifact → transition → delete.
 - **manifest-and-demo.spec.ts** – Demo manifest page (`/demo/sample-project/manifest`), project not-found after load, unknown project shows "Back to projects".
-- **quality-suite.spec.ts** – Sidebar Quality → hub → Traceability → back.
+- **quality-campaign.spec.ts** – Quality → Campaign workspace, collections, Traceability (Playwright project `quality-campaign`).
 - **planning-release-iteration.spec.ts** – `demo/sample-project` planning: add release and iteration.
 
 ## Config
