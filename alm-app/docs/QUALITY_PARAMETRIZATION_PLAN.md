@@ -1,5 +1,7 @@
 # Quality: Test case parametrizasyonu — ürün ve teknik plan
 
+**Kullanım (adımlarda `${...}` nasıl yazılır):** [QUALITY_TEST_PARAMS_USER_GUIDE.md](./QUALITY_TEST_PARAMS_USER_GUIDE.md)
+
 Bu doküman, test case adımlarında **veri odaklı tekrar** (aynı prosedür, farklı değerler) için planı tanımlar. Mevcut **Call to Test** (`kind: "call"`) prosedür yeniden kullanımıdır; parametrizasyon ise **metin içinde yer tutucular + çalıştırma zamanı değerleri** ile tamamlanır.
 
 ## 1. Hedefler

@@ -4,6 +4,8 @@
 
 Proje içinde kalite çalışması için ayrı giriş noktaları:
 
+**Test case parametreleri (`test_params_json`, adımlarda `${name}`):** [QUALITY_TEST_PARAMS_USER_GUIDE.md](./QUALITY_TEST_PARAMS_USER_GUIDE.md)
+
 | Route | Açıklama |
 |-------|----------|
 | `/:orgSlug/:projectSlug/quality` | Hub + artifact listesi (Artifacts ile aynı API) |
