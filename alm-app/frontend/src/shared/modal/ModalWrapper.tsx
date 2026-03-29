@@ -59,7 +59,7 @@ export function ModalWrapper({ children, title, options, onClose }: ModalWrapper
         aria-describedby={undefined}
       >
         <DialogHeader className="shrink-0">
-          <DialogTitle id="modal-title">{title ?? "Modal"}</DialogTitle>
+          <DialogTitle>{title ?? "Modal"}</DialogTitle>
         </DialogHeader>
         <div className="max-h-[calc(100vh-7rem)] min-h-0 shrink overflow-y-auto overscroll-contain -mx-6 px-6">
           {children}

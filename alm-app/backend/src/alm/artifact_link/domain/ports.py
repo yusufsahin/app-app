@@ -38,3 +38,31 @@ class ArtifactLinkRepository:
     ) -> bool:
         """True if a link with the same from, to and type already exists."""
         ...
+
+    @abstractmethod
+    async def max_sort_order_for_outgoing(
+        self,
+        project_id: uuid.UUID,
+        from_artifact_id: uuid.UUID,
+        link_type: str,
+    ) -> int | None:
+        """Max sort_order for links with this from_artifact and link_type, or None if none."""
+
+    @abstractmethod
+    async def list_outgoing_link_ids(
+        self,
+        project_id: uuid.UUID,
+        from_artifact_id: uuid.UUID,
+        link_type: str,
+    ) -> list[uuid.UUID]:
+        """Stable order: sort_order ASC NULLS LAST, then created_at ASC."""
+
+    @abstractmethod
+    async def set_sort_orders_for_outgoing(
+        self,
+        project_id: uuid.UUID,
+        from_artifact_id: uuid.UUID,
+        link_type: str,
+        ordered_link_ids: list[uuid.UUID],
+    ) -> None:
+        """Set sort_order to index for each link id; all must match from+type."""

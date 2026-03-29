@@ -19,6 +19,12 @@ class ArtifactLinkResponse(BaseModel):
     to_artifact_id: uuid.UUID
     link_type: str
     created_at: str | None
+    sort_order: int | None = None
+
+
+class ArtifactLinkReorderRequest(BaseModel):
+    link_type: str = Field(min_length=1, max_length=100)
+    ordered_link_ids: list[uuid.UUID] = Field(default_factory=list, max_length=500)
 
 
 class ArtifactLinkBulkCreateRequest(BaseModel):

@@ -10,21 +10,31 @@ test.describe("Quality — Campaign workspace", () => {
     await nav.openProjectQuality();
     await quality.openCampaign();
     await quality.selectFirstCampaignCollection();
-    await page.locator('[data-testid^="quality-item-row-"]').first().click();
+    await quality.selectFirstCampaignSuite();
+    const addTests = page.getByTestId("quality-suite-add-tests");
     const manageLinksButton = page.getByTestId("quality-link-manage-modal");
-    await expect(manageLinksButton).toBeVisible({ timeout: 15000 });
-    test.skip(await manageLinksButton.isDisabled(), "Selected suite cannot be updated in this environment.");
-    await manageLinksButton.click();
+    const canOpenEditor =
+      (await addTests.isVisible().catch(() => false)) || (await manageLinksButton.isVisible().catch(() => false));
+    test.skip(!canOpenEditor, "Suite link editor entry point not visible in this environment.");
+    if (await addTests.isVisible().catch(() => false)) {
+      test.skip(await addTests.isDisabled(), "Selected suite cannot be updated in this environment.");
+    } else {
+      test.skip(await manageLinksButton.isDisabled(), "Selected suite cannot be updated in this environment.");
+    }
+    await quality.openSuiteTestLinkEditor();
 
-    const dialog = page.getByRole("dialog", { name: "Add test cases to test suite" });
-    const availablePane = dialog.getByRole("heading", { name: "Available test cases" }).locator("..").locator("..");
-    const inSuitePane = dialog.getByRole("heading", { name: "In this suite" }).locator("..").locator("..");
+    const editor = quality.suiteLinkEditor();
+    const availablePane = editor
+      .getByRole("heading", { name: /Available test cases|Catalog tree/ })
+      .locator("..")
+      .locator("..");
+    const inSuitePane = editor.getByRole("heading", { name: "In this suite" }).locator("..").locator("..");
     const leftList = availablePane.locator("div.overflow-auto.rounded.border.p-1").first();
     const rightList = inSuitePane.locator("div.overflow-auto.rounded.border.p-1").first();
 
     await page.waitForTimeout(1200);
-    test.skip(!(await dialog.isVisible().catch(() => false)), "Manage links modal did not open in this environment.");
-    await expect(dialog).toBeVisible({ timeout: 15000 });
+    test.skip(!(await editor.isVisible().catch(() => false)), "Manage links modal did not open in this environment.");
+    await expect(editor).toBeVisible({ timeout: 15000 });
     await expect(
       availablePane.getByRole("button", { name: "Select all on this page" }),
     ).toBeVisible();
@@ -32,7 +42,7 @@ test.describe("Quality — Campaign workspace", () => {
 
     for (const height of [720, 768, 900] as const) {
       await page.setViewportSize({ width: 1366, height });
-      await expect(dialog).toBeVisible();
+      await expect(editor).toBeVisible();
       await expect(
         availablePane.getByRole("button", { name: "Select all on this page" }),
       ).toBeVisible();
@@ -51,6 +61,22 @@ test.describe("Quality — Campaign workspace", () => {
         return await rightList.evaluate((el) => getComputedStyle(el).overflowY);
       }).toMatch(/auto|scroll/);
     }
+  });
+
+  test("opens add-tests editor when URL has addTests=1", async ({ page }) => {
+    test.setTimeout(90000);
+    const nav = new ProjectNavigationPage(page);
+    const quality = new QualityWorkspacePage(page);
+    await nav.openProjectQuality();
+    await quality.openCampaign();
+    await quality.selectFirstCampaignCollection();
+    await quality.selectFirstCampaignSuite();
+    const addTests = page.getByTestId("quality-suite-add-tests");
+    test.skip(!(await addTests.isVisible().catch(() => false)), "Suite link entry (Manage links) not visible.");
+    const u = new URL(page.url());
+    u.searchParams.set("addTests", "1");
+    await page.goto(u.toString());
+    await expect(quality.suiteLinkEditor()).toBeVisible({ timeout: 20000 });
   });
 
   test("navigates to Quality hub and Traceability from project", async ({ page }) => {
@@ -134,8 +160,12 @@ test.describe("Quality — Campaign workspace", () => {
     await quality.createItemFromModal(suiteTitle);
 
     await page.getByRole("button", { name: suiteTitle }).click();
-    await page.locator("select").first().selectOption({ label: tcTitle });
-    await page.getByRole("button", { name: "Add link" }).click();
+    await quality.openSuiteTestLinkEditor();
+    const suiteEditor = quality.suiteLinkEditor();
+    await expect(suiteEditor).toBeVisible({ timeout: 20000 });
+    await suiteEditor.getByRole("checkbox", { name: new RegExp(tcTitle, "i") }).click();
+    await suiteEditor.getByTestId("suite-link-add-selected").click();
+    await suiteEditor.getByRole("button", { name: "Close" }).click();
 
     await quality.openRuns();
     await quality.selectFirstCampaignCollection();

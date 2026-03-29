@@ -21,6 +21,7 @@ class ArtifactLink(AggregateRoot):
         *,
         id: uuid.UUID | None = None,
         created_at: datetime | None = None,
+        sort_order: int | None = None,
     ) -> None:
         super().__init__(id=id)
         self.project_id = project_id
@@ -28,6 +29,7 @@ class ArtifactLink(AggregateRoot):
         self.to_artifact_id = to_artifact_id
         self.link_type = link_type
         self.created_at = created_at
+        self.sort_order = sort_order
 
     @classmethod
     def create(
@@ -38,6 +40,7 @@ class ArtifactLink(AggregateRoot):
         link_type: str,
         *,
         id: uuid.UUID | None = None,
+        sort_order: int | None = None,
     ) -> ArtifactLink:
         return cls(
             project_id=project_id,
@@ -45,6 +48,7 @@ class ArtifactLink(AggregateRoot):
             to_artifact_id=to_artifact_id,
             link_type=link_type,
             id=id,
+            sort_order=sort_order,
         )
 
     def to_snapshot_dict(self) -> dict[str, Any]:
@@ -55,4 +59,5 @@ class ArtifactLink(AggregateRoot):
             "to_artifact_id": str(self.to_artifact_id),
             "link_type": self.link_type,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "sort_order": self.sort_order,
         }

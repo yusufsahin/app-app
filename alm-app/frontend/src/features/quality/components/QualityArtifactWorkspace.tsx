@@ -1,5 +1,6 @@
-import { useEffect, useId, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useId, useMemo, useState, useCallback } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import dayjs from "dayjs";
 import { Pencil, PlayCircle, Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
@@ -12,6 +13,7 @@ import {
   type Artifact,
 } from "../../../shared/api/artifactApi";
 import {
+  sortOutgoingSuiteLinks,
   useArtifactLinks,
   useCreateArtifactLink,
   useDeleteArtifactLink,
@@ -42,6 +44,8 @@ import {
 import { QualityFolderTreeNav } from "./QualityFolderTreeNav";
 import { QualityTestCaseDetailPanels } from "./QualityTestCaseDetailPanels";
 import { SuiteTestLinkModal } from "./SuiteTestLinkModal";
+import { StartSuiteRunDialog } from "./StartSuiteRunDialog";
+import { CampaignSuiteCommandDialog } from "./CampaignSuiteCommandDialog";
 import { qualityPath, qualityCatalogPath } from "../../../shared/utils/appPaths";
 import type { BreadcrumbSegment } from "../../../shared/components/Layout";
 import type { TestPlanEntry } from "../types";
@@ -50,6 +54,7 @@ import { parseTestParams, serializeTestParams, normalizeTestParams } from "../li
 import { modalApi } from "../../../shared/modal/modalApi";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "../../../shared/api/client";
+import { useNotificationStore } from "../../../shared/stores/notificationStore";
 
 interface LinkConfig {
   linkType: string;
@@ -105,10 +110,14 @@ export default function QualityArtifactWorkspace({
   explorerMode = "list-and-detail",
 }: QualityArtifactWorkspaceProps) {
   const { t } = useTranslation("quality");
+  const navigate = useNavigate();
+  const showNotification = useNotificationStore((s) => s.showNotification);
   const workspaceSubfoldersSwitchId = useId();
   const queryClient = useQueryClient();
   const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [runDialogOpen, setRunDialogOpen] = useState(false);
+  const [suiteCommandOpen, setSuiteCommandOpen] = useState(false);
   const { data: manifest } = useProjectManifest(orgSlug, project?.id);
   const selectedUnder = isUuid(searchParams.get("under")) ? searchParams.get("under") : null;
   const selectedArtifactId = isUuid(searchParams.get("artifact")) ? searchParams.get("artifact") : null;
@@ -215,6 +224,17 @@ export default function QualityArtifactWorkspace({
   const [suiteLinkModalOpen, setSuiteLinkModalOpen] = useState(false);
   const [workspaceIncludeSubfolders, setWorkspaceIncludeSubfolders] = useState(false);
   const selectedArtifact = selectedArtifactQuery.data;
+
+  const showSuiteExecution = Boolean(
+    isCampaignTree &&
+      artifactType === "test-suite" &&
+      linkConfig?.linkType === "suite_includes_test" &&
+      selectedArtifact?.artifact_type === "test-suite",
+  );
+
+  /** Campaign + execution flag: main content is only the centered suite link card (no grid / execution table). */
+  const suiteLinkOnlyCentered = Boolean(showSuiteExecution);
+
   const canUpdateSelectedArtifact = !!(
     (selectedArtifact as Artifact & { allowed_actions?: string[] } | undefined)?.allowed_actions?.includes("update")
   );
@@ -322,6 +342,19 @@ export default function QualityArtifactWorkspace({
     return { groups, cases };
   }, [selectedUnder, folderItems, folderArtifactType, artifactType]);
 
+  /** Collections tree: folder summary line matches leaf type (suite vs run vs batch campaign). */
+  const testsuitesCollectionSummaryKey = useMemo(() => {
+    if (artifactType === "test-run") return "groupDirectChildrenSummaryRuns" as const;
+    if (artifactType === "test-campaign") return "groupDirectChildrenSummaryCampaigns" as const;
+    return "groupDirectChildrenSummarySuites" as const;
+  }, [artifactType]);
+
+  const testsuitesCollectionNextStepsKey = useMemo(() => {
+    if (artifactType === "test-run") return "collectionNextStepsRun" as const;
+    if (artifactType === "test-campaign") return "collectionNextStepsBatchCampaign" as const;
+    return "collectionNextStepsSuite" as const;
+  }, [artifactType]);
+
   const patchArtifactMutation = useMutation({
     mutationFn: async ({ artifactId, body }: { artifactId: string; body: Record<string, unknown> }) => {
       if (!orgSlug || !project?.id) throw new Error("Missing project");
@@ -357,9 +390,16 @@ export default function QualityArtifactWorkspace({
   }, [linkTargetsQuery.data?.items, selectedArtifactId]);
 
   const selectedLinks = useMemo(() => {
-    if (!linkConfig) return [];
-    return (linksQuery.data ?? []).filter((l) => l.link_type === linkConfig.linkType);
-  }, [linkConfig, linksQuery.data]);
+    if (!linkConfig || !selectedArtifactId) return [];
+    return (linksQuery.data ?? []).filter(
+      (l) => l.link_type === linkConfig.linkType && l.from_artifact_id === selectedArtifactId,
+    );
+  }, [linkConfig, linksQuery.data, selectedArtifactId]);
+
+  const orderedSuiteLinks = useMemo(() => {
+    if (!linkConfig || !selectedArtifactId) return [];
+    return sortOutgoingSuiteLinks(linksQuery.data ?? [], selectedArtifactId, linkConfig.linkType);
+  }, [linkConfig, linksQuery.data, selectedArtifactId]);
 
   const linkedTargetIds = useMemo(() => new Set(selectedLinks.map((l) => l.to_artifact_id)), [selectedLinks]);
   const linkedTargets = linkTargets.filter((a) => linkedTargetIds.has(a.id));
@@ -391,14 +431,94 @@ export default function QualityArtifactWorkspace({
     return trail;
   }, [artifactType, orgSlug, projectSlug, selectedUnder, selectedArtifactId, selectedArtifact, folderItems, t]);
 
+  const isTestsuitesExplorerLeaf =
+    isCampaignTree &&
+    (artifactType === "test-suite" || artifactType === "test-run" || artifactType === "test-campaign");
+
   const breadcrumbCurrentLabel =
-    artifactType !== "test-case"
-      ? pageLabel
-      : selectedArtifactId && selectedArtifact?.artifact_type === "test-case"
+    artifactType === "test-case"
+      ? selectedArtifactId && selectedArtifact?.artifact_type === "test-case"
         ? (selectedArtifact.title ?? t("pages.testCase"))
         : selectedUnder
           ? (folderItems.find((x) => x.id === selectedUnder)?.title ?? t("pages.catalog"))
-          : t("pages.catalog");
+          : t("pages.catalog")
+      : isTestsuitesExplorerLeaf
+        ? selectedArtifactId && selectedArtifact?.artifact_type === artifactType
+          ? (selectedArtifact.title ?? pageLabel)
+          : selectedUnder
+            ? (folderItems.find((x) => x.id === selectedUnder)?.title ?? pageLabel)
+            : pageLabel
+        : pageLabel;
+
+  const defaultRunTitle =
+    selectedArtifact?.title != null && selectedArtifact.title !== ""
+      ? `${selectedArtifact.title} — ${dayjs().format("YYYY-MM-DD HH:mm")}`
+      : dayjs().format("YYYY-MM-DD HH:mm");
+
+  useEffect(() => {
+    if (searchParams.get("addTests") === "1" && showSuiteExecution && selectedArtifactId) {
+      setSuiteLinkModalOpen(true);
+    }
+  }, [searchParams, showSuiteExecution, selectedArtifactId]);
+
+  useEffect(() => {
+    if (!showSuiteExecution || !selectedArtifactId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === ".") {
+        e.preventDefault();
+        setSuiteCommandOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showSuiteExecution, selectedArtifactId]);
+
+  const closeSuiteLinkModal = useCallback(() => {
+    setSuiteLinkModalOpen(false);
+    setSearchParams(
+      (prev) => {
+        if (!prev.get("addTests")) return prev;
+        const next = new URLSearchParams(prev);
+        next.delete("addTests");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
+
+  const confirmStartRun = useCallback(
+    async ({ title, description }: { title: string; description: string }) => {
+      if (!orgSlug || !project?.id || !projectSlug || !selectedArtifact?.parent_id) return;
+      try {
+        const run = await createArtifact.mutateAsync({
+          artifact_type: "test-run",
+          title,
+          description,
+          parent_id: selectedArtifact.parent_id,
+        });
+        await apiClient.post(`/orgs/${orgSlug}/projects/${project.id}/artifacts/${run.id}/links`, {
+          to_artifact_id: selectedArtifact.id,
+          link_type: "run_for_suite",
+        });
+        setRunDialogOpen(false);
+        void queryClient.invalidateQueries({ queryKey: ["orgs", orgSlug, "projects", project.id, "artifacts"] });
+        navigate(`/${orgSlug}/${projectSlug}/quality/runs/${run.id}/execute`);
+      } catch {
+        showNotification(t("campaignExecution.startRunError"), "error");
+      }
+    },
+    [
+      orgSlug,
+      project?.id,
+      projectSlug,
+      selectedArtifact,
+      createArtifact,
+      queryClient,
+      navigate,
+      showNotification,
+      t,
+    ],
+  );
 
   if (projectSlug && orgSlug && !projectsLoading && !project) {
     return (
@@ -717,9 +837,69 @@ export default function QualityArtifactWorkspace({
     setTargetArtifactId("");
   };
 
+  const suiteIncludesTestCard =
+    linkConfig && selectedArtifact && artifactType === "test-suite" && linkConfig.linkType === "suite_includes_test" ? (
+      <Card className="w-full rounded-xl border-border/80 bg-card/80 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">{linkConfig.title}</CardTitle>
+          <CardDescription>Link type: {linkConfig.linkType}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={() => setSuiteLinkModalOpen(true)}
+              data-testid={showSuiteExecution ? "quality-suite-add-tests" : "quality-link-manage-modal"}
+              disabled={!canUpdateSelectedArtifact}
+              title={!canUpdateSelectedArtifact ? "You do not have permission to update links." : undefined}
+            >
+              Manage links
+            </Button>
+            {showSuiteExecution ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setRunDialogOpen(true)}
+                disabled={orderedSuiteLinks.length === 0 || !canUpdateSelectedArtifact}
+                title={
+                  orderedSuiteLinks.length === 0 ? t("campaignExecution.emptySuiteHint") : undefined
+                }
+              >
+                <PlayCircle className="mr-2 size-4" />
+                {t("campaignExecution.runSuite")}
+              </Button>
+            ) : null}
+          </div>
+          {linkedTargets.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No linked items yet.</p>
+          ) : (
+            linkedTargets.map((target) => {
+              const link = selectedLinks.find((l) => l.to_artifact_id === target.id);
+              if (!link) return null;
+              return (
+                <div
+                  key={link.id}
+                  className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                >
+                  <span>{target.title}</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => deleteLink.mutate(link.id)}>
+                    Remove
+                  </Button>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+    ) : null;
+
   return (
     <>
-    <div className="mx-auto flex max-w-6xl min-h-0 flex-col gap-4 px-4 pb-6 pt-6 lg:flex-row lg:items-start">
+    <div
+      className={`mx-auto flex min-h-0 flex-col gap-4 px-4 pb-6 pt-6 lg:flex-row ${
+        showSuiteExecution ? "lg:items-stretch lg:min-h-[min(70vh,720px)]" : "lg:items-start"
+      } ${isCampaignTree ? "w-full max-w-[min(1600px,100%)]" : "max-w-6xl"}`}
+    >
       <aside className="w-full shrink-0 lg:w-64">
         <QualityFolderTreeNav
           orgSlug={orgSlug}
@@ -754,14 +934,14 @@ export default function QualityArtifactWorkspace({
         />
       </aside>
 
-      <div className="min-w-0 flex-1 space-y-4">
+      <div className="min-h-0 min-w-0 flex-1 space-y-4">
         <ProjectBreadcrumbs
           currentPageLabel={breadcrumbCurrentLabel}
           projectName={project?.name}
           trailBeforeCurrent={catalogBreadcrumbTrail}
-          showBackToProject={!isTreeDetail}
+          showBackToProject={false}
         />
-        {!isTreeDetail ? (
+        {!isTreeDetail && !isCampaignTree ? (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle>{pageLabel}</CardTitle>
@@ -799,29 +979,60 @@ export default function QualityArtifactWorkspace({
               </div>
             </CardContent>
           </Card>
-        ) : !hasTargetTree ? (
+        ) : !isTreeDetail && isCampaignTree && !hasTargetTree ? (
+          <p className="text-sm text-muted-foreground">
+            {t("workspace.noQualityTree")} <code>tree_id: {treeId}</code>.
+          </p>
+        ) : !isTreeDetail && isCampaignTree && hasTargetTree && !selectedUnder && artifactType !== folderArtifactType ? (
+          <p className="text-sm text-muted-foreground">{tws("selectFolderFirst")}</p>
+        ) : null}
+        {isTreeDetail && !hasTargetTree ? (
           <p className="text-sm text-muted-foreground">
             {t("workspace.noQualityTree")} <code>tree_id: {treeId}</code>.
           </p>
         ) : null}
 
         {isTreeDetail ? (
+          suiteLinkOnlyCentered &&
+          selectedArtifactId &&
+          selectedArtifact?.artifact_type === artifactType &&
+          suiteIncludesTestCard ? (
+            <div className="w-full max-w-3xl pb-2 xl:max-w-4xl" data-testid="quality-tree-detail-panel">
+              {suiteIncludesTestCard}
+            </div>
+          ) : (
           <Card data-testid="quality-tree-detail-panel">
             <CardHeader className="pb-2">
               <div className="flex flex-row items-start justify-between gap-4">
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <CardTitle className="text-base">
                     {selectedArtifactId
-                      ? t("workspace.testCaseDetailTitle")
+                      ? artifactType === "test-suite" && isCampaignTree
+                        ? t("campaignWorkspace.suiteDetailTitle")
+                        : artifactType === "test-run" && isCampaignTree
+                          ? t("campaignWorkspace.runDetailTitle")
+                          : artifactType === "test-campaign" && isCampaignTree
+                            ? t("campaignWorkspace.executionCampaignDetailTitle")
+                            : t("workspace.testCaseDetailTitle")
                       : !selectedUnder
-                        ? t("workspace.catalogRootDetailTitle")
+                        ? isCampaignTree
+                          ? pageLabel
+                          : t("workspace.catalogRootDetailTitle")
                         : tws("groupDetailTitle")}
                   </CardTitle>
                   <CardDescription>
                     {selectedArtifactId
-                      ? t("workspace.selectedItem")
+                      ? artifactType === "test-suite" && isCampaignTree
+                        ? t("campaignWorkspace.suiteDetailDescription")
+                        : artifactType === "test-run" && isCampaignTree
+                          ? t("campaignWorkspace.runDetailDescription")
+                          : artifactType === "test-campaign" && isCampaignTree
+                            ? t("campaignWorkspace.executionCampaignDetailDescription")
+                            : t("workspace.selectedItem")
                       : !selectedUnder
-                        ? t("workspace.catalogRootDetailHint")
+                        ? isCampaignTree
+                          ? t("campaignWorkspace.campaignRootDetailHint")
+                          : t("workspace.catalogRootDetailHint")
                         : tws("groupDetailDescription")}
                   </CardDescription>
                 </div>
@@ -915,7 +1126,11 @@ export default function QualityArtifactWorkspace({
                   </div>
                 )
               ) : !selectedUnder ? (
-                <p className="text-sm text-muted-foreground">{t("workspace.catalogRootDetailHint")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {isCampaignTree
+                    ? t("campaignWorkspace.campaignRootDetailHint")
+                    : t("workspace.catalogRootDetailHint")}
+                </p>
               ) : !selectedScopeRow ? (
                 <p className="text-sm text-muted-foreground">{tws("groupNotFound")}</p>
               ) : (
@@ -925,15 +1140,43 @@ export default function QualityArtifactWorkspace({
                     {selectedScopeRow.description || "—"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {tws("groupDirectChildrenSummary", {
-                      groups: directChildStats.groups,
-                      cases: directChildStats.cases,
-                    })}
+                    {isCampaignTree
+                      ? tws(testsuitesCollectionSummaryKey, {
+                          groups: directChildStats.groups,
+                          cases: directChildStats.cases,
+                        })
+                      : t("workspace.groupDirectChildrenSummary", {
+                          groups: directChildStats.groups,
+                          cases: directChildStats.cases,
+                        })}
                   </p>
+                  {isCampaignTree && showExplorerLeaves ? (
+                    <>
+                      <p className="text-sm text-muted-foreground">{tws(testsuitesCollectionNextStepsKey)}</p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button
+                          type="button"
+                          onClick={() => openCreateModal(selectedUnder)}
+                          disabled={createArtifact.isPending}
+                          data-testid="quality-testsuites-collection-create-cta"
+                        >
+                          {createCta}
+                        </Button>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               )}
             </CardContent>
           </Card>
+          )
+        ) : suiteLinkOnlyCentered &&
+          selectedArtifactId &&
+          selectedArtifact?.artifact_type === artifactType &&
+          suiteIncludesTestCard ? (
+          <div className="w-full max-w-3xl pb-2 xl:max-w-4xl" data-testid="quality-suite-detail-panel">
+            {suiteIncludesTestCard}
+          </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
             <Card>
@@ -1079,24 +1322,16 @@ export default function QualityArtifactWorkspace({
           </div>
         )}
 
-        {linkConfig && selectedArtifact ? (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">{linkConfig.title}</CardTitle>
-              <CardDescription>Link type: {linkConfig.linkType}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {artifactType === "test-suite" && linkConfig.linkType === "suite_includes_test" ? (
-                <Button
-                  type="button"
-                  onClick={() => setSuiteLinkModalOpen(true)}
-                  data-testid="quality-link-manage-modal"
-                  disabled={!canUpdateSelectedArtifact}
-                  title={!canUpdateSelectedArtifact ? "You do not have permission to update links." : undefined}
-                >
-                  Manage links
-                </Button>
-              ) : (
+        {linkConfig && selectedArtifact && !suiteLinkOnlyCentered ? (
+          artifactType === "test-suite" && linkConfig.linkType === "suite_includes_test" ? (
+            suiteIncludesTestCard
+          ) : (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">{linkConfig.title}</CardTitle>
+                <CardDescription>Link type: {linkConfig.linkType}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
                 <div className="flex gap-2">
                   <select
                     aria-label={`${linkConfig.targetType} selection`}
@@ -1116,36 +1351,57 @@ export default function QualityArtifactWorkspace({
                     Add link
                   </Button>
                 </div>
-              )}
-              {linkedTargets.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No linked items yet.</p>
-              ) : (
-                linkedTargets.map((target) => {
-                  const link = selectedLinks.find((l) => l.to_artifact_id === target.id);
-                  if (!link) return null;
-                  return (
-                    <div key={link.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                      <span>{target.title}</span>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => deleteLink.mutate(link.id)}>
-                        Remove
-                      </Button>
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
+                {linkedTargets.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No linked items yet.</p>
+                ) : (
+                  linkedTargets.map((target) => {
+                    const link = selectedLinks.find((l) => l.to_artifact_id === target.id);
+                    if (!link) return null;
+                    return (
+                      <div key={link.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                        <span>{target.title}</span>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => deleteLink.mutate(link.id)}>
+                          Remove
+                        </Button>
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          )
         ) : null}
-        {project?.id && orgSlug && selectedArtifact && linkConfig && artifactType === "test-suite" ? (
+        {project?.id && orgSlug && selectedArtifact && linkConfig && artifactType === "test-suite" && !showSuiteExecution ? (
           <SuiteTestLinkModal
             open={suiteLinkModalOpen}
-            onClose={() => setSuiteLinkModalOpen(false)}
+            onClose={closeSuiteLinkModal}
             orgSlug={orgSlug}
             projectId={project.id}
             suiteArtifactId={selectedArtifact.id}
             linkType={linkConfig.linkType}
             manifestBundle={manifest?.manifest_bundle}
+            presentation="dialog"
           />
+        ) : null}
+
+        {showSuiteExecution && selectedArtifact && orgSlug && project?.id ? (
+          <>
+            <StartSuiteRunDialog
+              open={runDialogOpen}
+              onClose={() => setRunDialogOpen(false)}
+              suiteTitle={selectedArtifact.title ?? ""}
+              defaultTitle={defaultRunTitle}
+              isSubmitting={createArtifact.isPending}
+              onConfirm={(values) => void confirmStartRun(values)}
+            />
+            <CampaignSuiteCommandDialog
+              open={suiteCommandOpen}
+              onClose={() => setSuiteCommandOpen(false)}
+              onAddTests={() => setSuiteLinkModalOpen(true)}
+              onRun={() => setRunDialogOpen(true)}
+              runDisabled={orderedSuiteLinks.length === 0}
+            />
+          </>
         ) : null}
 
         {runExecute && selectedArtifactId && orgSlug && projectSlug ? (
@@ -1169,6 +1425,30 @@ export default function QualityArtifactWorkspace({
           </div>
         ) : null}
       </div>
+
+      {project?.id && orgSlug && selectedArtifact && linkConfig && artifactType === "test-suite" && showSuiteExecution && suiteLinkModalOpen ? (
+        <div
+          className="fixed inset-0 z-40 flex flex-row lg:static lg:z-auto lg:inset-auto lg:contents"
+          data-testid="quality-suite-catalog-dock-layer"
+        >
+          <button
+            type="button"
+            className="min-h-0 flex-1 cursor-default border-0 bg-black/40 lg:hidden"
+            aria-label={t("common.close")}
+            onClick={closeSuiteLinkModal}
+          />
+          <SuiteTestLinkModal
+            presentation="dock"
+            open
+            onClose={closeSuiteLinkModal}
+            orgSlug={orgSlug}
+            projectId={project.id}
+            suiteArtifactId={selectedArtifact.id}
+            linkType={linkConfig.linkType}
+            manifestBundle={manifest?.manifest_bundle}
+          />
+        </div>
+      ) : null}
     </div>
 
     <Dialog

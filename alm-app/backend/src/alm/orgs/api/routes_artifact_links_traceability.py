@@ -36,6 +36,7 @@ async def list_artifact_links(
             to_artifact_id=d.to_artifact_id,
             link_type=d.link_type,
             created_at=d.created_at,
+            sort_order=d.sort_order,
         )
         for d in dtos
     ]
@@ -84,7 +85,35 @@ async def create_artifact_link(
         to_artifact_id=dto.to_artifact_id,
         link_type=dto.link_type,
         created_at=dto.created_at,
+        sort_order=dto.sort_order,
     )
+
+
+@router.patch(
+    "/projects/{project_id}/artifacts/{artifact_id}/links/reorder",
+    status_code=204,
+)
+async def reorder_artifact_links(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    body: ArtifactLinkReorderRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:update"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> None:
+    try:
+        await mediator.send(
+            ReorderOutgoingArtifactLinks(
+                tenant_id=org.tenant_id,
+                project_id=project_id,
+                from_artifact_id=artifact_id,
+                link_type=body.link_type,
+                ordered_link_ids=body.ordered_link_ids,
+            )
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.delete(

@@ -51,3 +51,42 @@ export function parseRunMetricsPayload(raw: unknown): TestExecutionResultRow[] |
 export function stringifyRunMetricsPayload(results: TestExecutionResultRow[]): string {
   return JSON.stringify({ v: RUN_METRICS_VERSION, results } satisfies RunMetricsDocumentV1);
 }
+
+export type RunMetricsSummary = {
+  passed: number;
+  failed: number;
+  blocked: number;
+  notExecuted: number;
+  total: number;
+};
+
+/** Count result statuses for table summaries and badges. */
+export function summarizeRunMetrics(results: TestExecutionResultRow[] | null | undefined): RunMetricsSummary {
+  const empty: RunMetricsSummary = { passed: 0, failed: 0, blocked: 0, notExecuted: 0, total: 0 };
+  if (!results?.length) return empty;
+  let passed = 0;
+  let failed = 0;
+  let blocked = 0;
+  let notExecuted = 0;
+  for (const r of results) {
+    switch (r.status) {
+      case "passed":
+        passed += 1;
+        break;
+      case "failed":
+        failed += 1;
+        break;
+      case "blocked":
+        blocked += 1;
+        break;
+      default:
+        notExecuted += 1;
+        break;
+    }
+  }
+  return { passed, failed, blocked, notExecuted, total: results.length };
+}
+
+export function summarizeRunMetricsFromCustomFields(customFields: Record<string, unknown> | undefined): RunMetricsSummary {
+  return summarizeRunMetrics(parseRunMetricsPayload(customFields?.run_metrics_json));
+}

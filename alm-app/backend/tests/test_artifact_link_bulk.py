@@ -258,3 +258,132 @@ async def test_bulk_link_returns_partial_failure_for_missing_target(client: Asyn
     data = bulk_link.json()
     assert tc["id"] in data["succeeded"]
     assert any(item["id"] == missing_id for item in data["failed"])
+
+
+@pytest.mark.asyncio
+async def test_reorder_suite_includes_test_links(client: AsyncClient):
+    token = await _register_and_get_token(client, _unique_email(), _unique_org())
+    tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+    tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+    project_id = await _ensure_project(client, token, tenant_id)
+
+    quality_roots = await client.get(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"include_system_roots": "true", "tree": "quality", "limit": 200, "offset": 0},
+    )
+    quality_roots.raise_for_status()
+    root_quality = next((a for a in quality_roots.json()["items"] if a["artifact_type"] == "root-quality"), None)
+    assert root_quality is not None
+
+    suites_roots = await client.get(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"include_system_roots": "true", "tree": "testsuites", "limit": 200, "offset": 0},
+    )
+    suites_roots.raise_for_status()
+    root_suites = next((a for a in suites_roots.json()["items"] if a["artifact_type"] == "root-testsuites"), None)
+    assert root_suites is not None
+
+    qa_folder = (
+        await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "artifact_type": "quality-folder",
+                "title": "QA",
+                "description": "",
+                "parent_id": root_quality["id"],
+            },
+        )
+    ).json()
+
+    suite_folder = (
+        await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "artifact_type": "testsuite-folder",
+                "title": "SF",
+                "description": "",
+                "parent_id": root_suites["id"],
+            },
+        )
+    ).json()
+
+    tc1 = (
+        await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "artifact_type": "test-case",
+                "title": "TC-A",
+                "description": "",
+                "parent_id": qa_folder["id"],
+            },
+        )
+    ).json()
+    tc2 = (
+        await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "artifact_type": "test-case",
+                "title": "TC-B",
+                "description": "",
+                "parent_id": qa_folder["id"],
+            },
+        )
+    ).json()
+
+    suite = (
+        await client.post(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "artifact_type": "test-suite",
+                "title": "S",
+                "description": "",
+                "parent_id": suite_folder["id"],
+            },
+        )
+    ).json()
+
+    await client.post(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{suite['id']}/links/bulk",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"to_artifact_ids": [tc1["id"], tc2["id"]], "link_type": "suite_includes_test"},
+    )
+
+    links_resp = await client.get(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{suite['id']}/links",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    links_resp.raise_for_status()
+    slinks = [l for l in links_resp.json() if l["link_type"] == "suite_includes_test"]
+    assert len(slinks) == 2
+    assert {l["sort_order"] for l in slinks} == {0, 1}
+    id_a = next(l["id"] for l in slinks if l["to_artifact_id"] == tc1["id"])
+    id_b = next(l["id"] for l in slinks if l["to_artifact_id"] == tc2["id"])
+
+    reorder = await client.patch(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{suite['id']}/links/reorder",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"link_type": "suite_includes_test", "ordered_link_ids": [id_b, id_a]},
+    )
+    reorder.raise_for_status()
+    assert reorder.status_code == 204
+
+    links2 = await client.get(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{suite['id']}/links",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    slinks2 = [l for l in links2.json() if l["link_type"] == "suite_includes_test"]
+    assert [l["to_artifact_id"] for l in slinks2] == [tc2["id"], tc1["id"]]
+
+    bad = await client.patch(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{suite['id']}/links/reorder",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"link_type": "suite_includes_test", "ordered_link_ids": [id_b]},
+    )
+    assert bad.status_code == 400

@@ -51,10 +51,12 @@ from alm.artifact_link.api.schemas import (
     ArtifactLinkBulkResultItem,
     ArtifactLinkBulkResultResponse,
     ArtifactLinkCreateRequest,
+    ArtifactLinkReorderRequest,
     ArtifactLinkResponse,
 )
 from alm.artifact_link.application.commands.create_artifact_link import CreateArtifactLink
 from alm.artifact_link.application.commands.delete_artifact_link import DeleteArtifactLink
+from alm.artifact_link.application.commands.reorder_artifact_links import ReorderOutgoingArtifactLinks
 from alm.artifact_link.application.queries.list_artifact_links import ListArtifactLinks
 from alm.attachment.api.schemas import AttachmentResponse
 from alm.attachment.application.commands.create_attachment import CreateAttachment
@@ -127,6 +129,7 @@ from alm.shared.infrastructure.org_resolver import ResolvedOrg, resolve_org
 from alm.shared.infrastructure.security.dependencies import (
     CurrentUser,
     get_user_privileges,
+    require_list_schema_read_permission,
     require_permission,
 )
 from alm.shared.infrastructure.security.field_masking import (

@@ -43,6 +43,33 @@ export class QualityWorkspacePage {
     await expect(this.page).toHaveURL(/under=[0-9a-f-]{36}/i, { timeout: 10000 });
   }
 
+  /** First test suite leaf in the Campaign tree (tree-detail: no center Items list). */
+  async selectFirstCampaignSuite() {
+    const treeAside = this.page.locator("aside").filter({ has: this.page.getByText("Collections", { exact: true }) });
+    const suiteRow = treeAside.locator('[data-artifact-type="test-suite"]').first();
+    await suiteRow.click({ timeout: 15000, force: true });
+    await expect(this.page).toHaveURL(/artifact=[0-9a-f-]{36}/i, { timeout: 10000 });
+  }
+
+  /** Opens the suite catalog (dock or dialog: “Add tests from Catalog”). */
+  async openSuiteTestLinkEditor() {
+    const addTests = this.page.getByTestId("quality-suite-add-tests");
+    const manageLinks = this.page.getByTestId("quality-link-manage-modal");
+    if (await addTests.isVisible().catch(() => false)) {
+      await addTests.click();
+      return;
+    }
+    await expect(manageLinks).toBeVisible({ timeout: 15000 });
+    await manageLinks.click();
+  }
+
+  /** Campaign: dock panel (`quality-suite-catalog-panel`). Other contexts: modal dialog. */
+  suiteLinkEditor() {
+    const dock = this.page.getByTestId("quality-suite-catalog-panel");
+    const dialog = this.page.getByRole("dialog", { name: "Add tests from Catalog" });
+    return dock.or(dialog);
+  }
+
   private async ensureUnderParam() {
     const current = new URL(this.page.url());
     if (current.searchParams.get("under")) return;
@@ -87,11 +114,16 @@ export class QualityWorkspacePage {
   async createItemFromModal(title: string) {
     const createButtonByRole = this.page.getByRole("button", { name: /Create (test case|suite|run|campaign)/i });
     const headerCreate = this.page.getByTestId("quality-create-button");
+    const campaignSuiteCta = this.page
+      .getByTestId("quality-testsuites-collection-create-cta")
+      .or(this.page.getByTestId("quality-campaign-create-suite-cta"));
     const headerReady =
       (await headerCreate.isVisible().catch(() => false)) &&
       (await headerCreate.isEnabled().catch(() => false));
     if (headerReady) {
       await headerCreate.click();
+    } else if (await campaignSuiteCta.isVisible().catch(() => false)) {
+      await campaignSuiteCta.click();
     } else if (await this.page.getByTestId("quality-tree-detail-panel").isVisible().catch(() => false)) {
       await this.clickCreateInQualityWorkspace();
     } else {

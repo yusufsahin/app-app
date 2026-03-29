@@ -6,8 +6,10 @@ alwaysApply: false
 
 # Dialog and Sheet Accessibility Rule
 
-- Root cause: Radix `DialogContent`/`SheetContent` logs accessibility warnings when no title is rendered in the content tree.
-- Project safeguard: shared UI wrappers inject hidden fallback titles, but feature code must still provide explicit titles.
+- Root cause: Radix `DialogContent`/`SheetContent` logs accessibility warnings when no title is rendered in the content tree. Radix wires `aria-labelledby` to an internal `titleId` and checks `document.getElementById(titleId)`.
+- **Never set a custom `id` on `DialogTitle`.** Radix applies `id: context.titleId` first, then spreads your props; a custom `id` overrides the context id, so the check fails and the console shows a false “requires DialogTitle” warning. Use `data-testid` for tests if needed.
+- Project safeguard: [`alm-app/frontend/src/shared/components/ui/dialog.tsx`](alm-app/frontend/src/shared/components/ui/dialog.tsx) `DialogContent` injects a screen-reader-only `DialogTitle` when the child tree does not already contain one. Detection unwraps `React.memo` / `forwardRef` around `DialogTitle` so the fallback is not skipped incorrectly. Feature code should still pass an explicit visible or `sr-only` title whenever possible.
+- i18next: set `showSupportNotice: false` in [`alm-app/frontend/src/i18n/index.ts`](alm-app/frontend/src/i18n/index.ts) to avoid the default Locize `console.info` on init (unrelated to Radix; often confused with app errors).
 - Every `DialogContent` must include a `DialogTitle` in its rendered tree.
 - Every `SheetContent` must include a `SheetTitle` in its rendered tree.
 - Prefer explicit structure: `DialogHeader` + `DialogTitle` (+ `DialogDescription` when useful).
@@ -21,6 +23,7 @@ alwaysApply: false
 - If title text must be visually hidden, keep it accessible with `className="sr-only"`.
 - Do not merge code that introduces a `DialogContent` without a title; fix it in the same change.
 - Do not import Radix dialog primitives directly in feature code; use shared wrappers from `shared/components/ui`.
+- App-wide modals: see [`.cursor/rules/modal-system.mdc`](modal-system.mdc) (`ModalManager`, `modalApi`, dismiss-on-navigation).
 
 ## Good
 

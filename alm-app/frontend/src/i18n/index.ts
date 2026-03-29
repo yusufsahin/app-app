@@ -14,6 +14,8 @@ void i18n
     },
     lng: "en",
     fallbackLng: "en",
+    /** Suppress default Locize promo line on every load (console.info). */
+    showSupportNotice: false,
     interpolation: {
       escapeValue: false,
     },

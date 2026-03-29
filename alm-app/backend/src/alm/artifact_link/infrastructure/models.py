@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint, Uuid
+from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from alm.shared.infrastructure.db.base_model import Base, TimestampMixin
@@ -42,3 +42,4 @@ class ArtifactLinkModel(Base, TimestampMixin):
         index=True,
     )
     link_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    sort_order: Mapped[int | None] = mapped_column(Integer, nullable=True)

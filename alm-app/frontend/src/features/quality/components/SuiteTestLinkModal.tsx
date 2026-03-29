@@ -29,6 +29,7 @@ import { buildArtifactTree, type ArtifactNode } from "../../artifacts/utils";
 import { getTreeRootsFromManifestBundle } from "../../../shared/lib/manifestTreeRoots";
 import type { ManifestResponse } from "../../../shared/api/manifestApi";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
+import { useTranslation } from "react-i18next";
 
 type Props = {
   open: boolean;
@@ -38,6 +39,8 @@ type Props = {
   suiteArtifactId: string;
   linkType: string;
   manifestBundle: ManifestResponse["manifest_bundle"] | null | undefined;
+  /** `dock` = HP ALM–style side panel with catalog tree (Campaign). `dialog` = modal. */
+  presentation?: "dialog" | "dock";
 };
 
 const INDENT_CLASSES = ["pl-2", "pl-5", "pl-8", "pl-11", "pl-14", "pl-[68px]", "pl-20", "pl-[92px]"] as const;
@@ -56,6 +59,7 @@ function FolderTree({
   selectedFolderId: string | null;
   onSelectFolder: (id: string | null) => void;
 }) {
+  const { t } = useTranslation("quality");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -91,7 +95,7 @@ function FolderTree({
                   return next;
                 })
               }
-              aria-label={isOpen ? "Collapse folder" : "Expand folder"}
+              aria-label={isOpen ? t("suiteLinkUi.collapseFolder") : t("suiteLinkUi.expandFolder")}
             >
               {isOpen ? "▾" : "▸"}
             </button>
@@ -103,7 +107,7 @@ function FolderTree({
             className="flex-1 truncate text-left"
             onClick={() => onSelectFolder(isRoot ? null : node.id)}
           >
-            {node.title || (isRoot ? "Project quality root" : "Folder")}
+            {node.title || (isRoot ? t("suiteLinkUi.projectQualityRoot") : t("suiteLinkUi.folderFallback"))}
           </button>
         </div>
         {isOpen ? children.map((c) => renderNode(c, depth + 1)) : null}
@@ -122,7 +126,9 @@ export function SuiteTestLinkModal({
   suiteArtifactId,
   linkType,
   manifestBundle,
+  presentation = "dialog",
 }: Props) {
+  const { t } = useTranslation("quality");
   const showNotification = useNotificationStore((s) => s.showNotification);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -275,6 +281,11 @@ export function SuiteTestLinkModal({
       candidates.filter((c) => selectedAvailableIds.has(c.id) && !linkByTargetId.has(c.id)).length,
     [candidates, selectedAvailableIds, linkByTargetId],
   );
+  const addableAllInScopeIds = useMemo(
+    () => allCandidates.filter((c) => !linkByTargetId.has(c.id)).map((c) => c.id),
+    [allCandidates, linkByTargetId],
+  );
+  const addableAllInScopeCount = addableAllInScopeIds.length;
 
   const toggleAvailableSelected = (id: string) => {
     setSelectedAvailableIds((prev) => {
@@ -315,6 +326,39 @@ export function SuiteTestLinkModal({
     } else {
       showNotification(`${skippedCount} already in suite`, "info");
     }
+    setSelectedAvailableIds(new Set());
+  };
+
+  const CHUNK = 100;
+  const addAllInScope = async () => {
+    if (addableAllInScopeCount === 0) {
+      showNotification(t("campaignExecution.addAllInScopeEmpty"), "info");
+      return;
+    }
+    if (scopeMode === "all") {
+      const ok = window.confirm(
+        t("campaignExecution.addAllInScopeConfirmAllPlan", { count: addableAllInScopeCount }),
+      );
+      if (!ok) return;
+    }
+    let totalSucceeded = 0;
+    let totalFailed = 0;
+    for (let i = 0; i < addableAllInScopeIds.length; i += CHUNK) {
+      const chunk = addableAllInScopeIds.slice(i, i + CHUNK);
+      const result = await bulkCreate.mutateAsync({
+        to_artifact_ids: chunk,
+        link_type: linkType,
+        idempotency_key: crypto.randomUUID(),
+      });
+      totalSucceeded += result.succeeded.length;
+      totalFailed += result.failed.length;
+    }
+    const doneMsg = t("campaignExecution.addAllInScopeDone", { count: totalSucceeded });
+    setLiveMessage(doneMsg);
+    showNotification(
+      totalFailed > 0 ? `${doneMsg} ${totalFailed} failed.` : doneMsg,
+      totalFailed > 0 ? "error" : "success",
+    );
     setSelectedAvailableIds(new Set());
   };
 
@@ -380,6 +424,332 @@ export function SuiteTestLinkModal({
     toggleInSuiteSelected(id);
   };
 
+  const setScopeEntireCatalog = () => {
+    setScopeMode("all");
+    setSelectedFolderId(null);
+  };
+
+  const setScopeOneFolder = () => {
+    setScopeMode("folder");
+  };
+
+  const toolbarBlock = (
+    <>
+      <p className="sr-only" aria-live="polite">
+        {liveMessage}
+      </p>
+      <div className="sticky top-0 z-10 w-full space-y-2 rounded border bg-background px-3 py-2.5">
+        <p className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{t("suiteLinkUi.suiteSummary")}:</span>{" "}
+          {suiteArtifact?.title ?? "—"} ·{" "}
+          <span className="font-medium text-foreground">{t("suiteLinkUi.selectedSummary")}:</span>{" "}
+          {selectedAvailableCount + selectedInSuiteCount} ·{" "}
+          <span className="font-medium text-foreground">{t("suiteLinkUi.inSuiteSummary")}:</span>{" "}
+          {linkedArtifacts.length}
+        </p>
+        <Button
+          className="h-9 w-full text-sm"
+          data-testid="suite-link-add-selected"
+          onClick={() => void addSelected()}
+          disabled={pending || addableSelectedCount === 0}
+        >
+          {t("suiteLinkUi.addToSuite")}
+        </Button>
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-9 w-full text-sm"
+            data-testid="suite-link-add-all-in-scope"
+            title={t("campaignExecution.addAllInScopeHint")}
+            onClick={() => void addAllInScope()}
+            disabled={pending || addableAllInScopeCount === 0}
+          >
+            {t("suiteLinkUi.addAllInList")}
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            className="h-9 w-full text-sm"
+            data-testid="suite-link-remove-from-suite"
+            onClick={() => void removeSelected()}
+            disabled={pending || selectedInSuiteCount === 0}
+          >
+            {t("suiteLinkUi.removeFromSuite")}
+          </Button>
+        </div>
+        {pendingRemoveLinkIds ? (
+          <div className="flex flex-col gap-2 rounded border border-destructive/30 bg-destructive/5 px-2 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground sm:text-sm">
+              {t("suiteLinkUi.confirmRemoveQuestion", { count: pendingRemoveLinkIds.length })}
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 px-2 text-xs"
+                onClick={() => setPendingRemoveLinkIds(null)}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-8 px-2 text-xs"
+                onClick={() => void removeSelected()}
+                disabled={pending}
+              >
+                {t("suiteLinkUi.confirmRemove")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </>
+  );
+
+  const catalogTreeBoxClass =
+    presentation === "dock"
+      ? "mb-1.5 min-h-[120px] max-h-[min(40vh,360px)] shrink-0 overflow-auto rounded border p-2"
+      : "mb-1.5 min-h-[100px] max-h-[min(32vh,320px)] shrink-0 overflow-auto rounded border p-2";
+
+  const catalogAvailableSection = (
+    <section className="flex min-w-0 min-h-0 flex-col rounded border p-3">
+      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold">{t("campaignExecution.catalogTreeHeading")}</h3>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {candidates.length}/{allCandidates.length}
+        </span>
+      </div>
+      <div
+        className="mb-1.5 flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
+        role="radiogroup"
+        aria-label={t("suiteLinkUi.scopeLabel")}
+      >
+        <div className="flex w-full gap-1 rounded-md border bg-muted/40 p-1 sm:w-auto sm:min-w-0 sm:flex-1">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={scopeMode === "all" ? "true" : "false"}
+            data-testid="suite-link-scope-all"
+            className={`flex-1 rounded-sm px-2 py-1.5 text-center text-xs font-medium transition-colors sm:text-sm ${
+              scopeMode === "all" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={setScopeEntireCatalog}
+          >
+            {t("suiteLinkUi.scopeEntireCatalog")}
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={scopeMode === "folder" ? "true" : "false"}
+            data-testid="suite-link-scope-folder"
+            className={`flex-1 rounded-sm px-2 py-1.5 text-center text-xs font-medium transition-colors sm:text-sm ${
+              scopeMode === "folder" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={setScopeOneFolder}
+          >
+            {t("suiteLinkUi.scopeOneFolder")}
+          </button>
+        </div>
+        <label
+          htmlFor={includeSubfoldersSwitchId}
+          className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground sm:ml-auto sm:text-sm"
+        >
+          <Switch
+            id={includeSubfoldersSwitchId}
+            checked={includeSubfolders}
+            onCheckedChange={setIncludeSubfolders}
+            disabled={scopeMode !== "folder" || !selectedFolderId}
+          />
+          {t("suiteLinkUi.includeSubfolders")}
+        </label>
+      </div>
+      {scopeMode === "folder" && !selectedFolderId ? (
+        <p className="mb-1.5 text-xs text-muted-foreground" data-testid="suite-link-pick-folder-hint">
+          {t("suiteLinkUi.pickFolderHint")}
+        </p>
+      ) : null}
+      <div className={catalogTreeBoxClass}>
+        <FolderTree
+          nodes={folderTree}
+          selectedFolderId={selectedFolderId}
+          onSelectFolder={(id) => {
+            setSelectedFolderId(id);
+            if (id) setScopeMode("folder");
+            else if (scopeMode === "folder") setScopeMode("all");
+          }}
+        />
+      </div>
+      <Input
+        value={searchInput}
+        onChange={(e) => setSearchInput(e.target.value)}
+        placeholder={t("suiteLinkUi.searchPlaceholder")}
+        aria-label={t("suiteLinkUi.searchAriaLabel")}
+        className="mb-1.5 h-8 shrink-0 text-sm"
+      />
+      <div className="mb-1.5 shrink-0">
+        <Button size="sm" variant="outline" className="h-8 w-full text-xs sm:text-sm" onClick={selectAllVisible}>
+          {t("suiteLinkUi.selectAllOnPage")}
+        </Button>
+      </div>
+      <div
+        className={
+          presentation === "dock"
+            ? "min-h-[180px] flex-1 space-y-0.5 overflow-auto rounded border p-1"
+            : "min-h-[220px] flex-1 space-y-0.5 overflow-auto rounded border p-1"
+        }
+      >
+        {candidates.length === 0 ? (
+          <p className="px-2 py-1 text-sm text-muted-foreground">{t("suiteLinkUi.emptyAvailable")}</p>
+        ) : (
+          candidates.map((c) => {
+            const linked = linkByTargetId.has(c.id);
+            return (
+              <div
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/60"
+                onClick={handleAvailableRowClick(c.id)}
+                onKeyDown={handleAvailableRowKeyDown(c.id)}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedAvailableIds.has(c.id)}
+                  onChange={() => toggleAvailableSelected(c.id)}
+                  aria-label={`Select ${c.title}`}
+                />
+                <span className="min-w-0 flex-1 truncate text-sm" title={c.title ?? ""}>
+                  {c.title}
+                </span>
+                {linked ? (
+                  <Badge variant="secondary" className="px-2 py-0.5 text-[11px]">
+                    {t("suiteLinkUi.alreadyInSuite")}
+                  </Badge>
+                ) : null}
+              </div>
+            );
+          })
+        )}
+      </div>
+      {hasMoreCandidates ? (
+        <div className="mt-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 w-full text-xs sm:text-sm"
+            onClick={loadMoreCandidates}
+          >
+            {t("suiteLinkUi.loadMore")} —{" "}
+            {t("suiteLinkUi.loadMoreDetail", {
+              next: Math.min(100, allCandidates.length - candidates.length),
+              remaining: allCandidates.length - candidates.length,
+            })}
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+
+  const inSuiteSection = (
+    <section className="flex min-w-0 min-h-0 flex-col rounded border p-3">
+      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold">{t("suiteLinkUi.inSuiteHeading")}</h3>
+        <span className="text-xs tabular-nums text-muted-foreground">{linkedArtifacts.length}</span>
+      </div>
+      <div className="mb-1.5 shrink-0">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 w-full text-xs sm:text-sm"
+          onClick={() => setSelectedInSuiteIds(new Set(linkedArtifacts.map((a) => a.id)))}
+        >
+          {t("suiteLinkUi.selectAllInSuite")}
+        </Button>
+      </div>
+      <div
+        className={
+          presentation === "dock"
+            ? "min-h-[160px] flex-1 space-y-0.5 overflow-auto rounded border p-1"
+            : "min-h-[220px] flex-1 space-y-0.5 overflow-auto rounded border p-1"
+        }
+      >
+        {linkedArtifacts.length === 0 ? (
+          <p className="px-2 py-1 text-sm text-muted-foreground">{t("suiteLinkUi.emptyInSuite")}</p>
+        ) : (
+          linkedArtifacts.map((a) => (
+            <div
+              key={a.id}
+              role="button"
+              tabIndex={0}
+              className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/60"
+              onClick={handleInSuiteRowClick(a.id)}
+              onKeyDown={handleInSuiteRowKeyDown(a.id)}
+            >
+              <input
+                type="checkbox"
+                checked={selectedInSuiteIds.has(a.id)}
+                onChange={() => toggleInSuiteSelected(a.id)}
+                aria-label={`Select linked ${a.title}`}
+              />
+              <span className="min-w-0 flex-1 truncate text-sm" title={a.title ?? ""}>
+                {a.title}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+
+  const body = (
+    <>
+      {toolbarBlock}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2">
+        {catalogAvailableSection}
+        {inSuiteSection}
+      </div>
+    </>
+  );
+
+  const footer = (
+    <Button type="button" variant="outline" onClick={onClose}>
+      {t("common.close")}
+    </Button>
+  );
+
+  if (presentation === "dock") {
+    if (!open) return null;
+    return (
+      <aside
+        role="complementary"
+        aria-labelledby="suite-link-dock-title"
+        data-testid="quality-suite-catalog-panel"
+        className="flex h-full min-h-0 w-[min(420px,100%)] shrink-0 flex-col overflow-hidden border-l bg-background shadow-xl lg:max-w-[min(420px,36vw)] lg:min-w-[300px] lg:shadow-none"
+      >
+        <div className="flex shrink-0 items-start justify-between gap-2 border-b px-3 py-3">
+          <div className="min-w-0 space-y-1">
+            <h2 id="suite-link-dock-title" className="text-base font-semibold leading-tight">
+              {t("campaignExecution.catalogPanelTitle")}
+            </h2>
+            <p className="text-xs text-muted-foreground">{t("campaignExecution.catalogPanelDescription")}</p>
+          </div>
+          <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={onClose}>
+            {t("common.close")}
+          </Button>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden px-3 pb-3 pt-0">
+          {toolbarBlock}
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pt-3">
+            {catalogAvailableSection}
+            {inSuiteSection}
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : undefined)}>
       <DialogContent
@@ -387,239 +757,13 @@ export function SuiteTestLinkModal({
         aria-describedby={undefined}
       >
         <DialogHeader>
-          <DialogTitle>Add test cases to test suite</DialogTitle>
+          <DialogTitle>{t("campaignExecution.catalogPanelTitle")}</DialogTitle>
           <DialogDescription id="suite-link-modal-description">
-            Select test cases from the repository and add them to this test suite.
+            {t("campaignExecution.catalogPanelDescription")}
           </DialogDescription>
         </DialogHeader>
-        <p className="sr-only" aria-live="polite">
-          {liveMessage}
-        </p>
-        <div className="sticky top-0 z-10 rounded border bg-background px-3 py-2">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs text-muted-foreground sm:text-sm">
-              <span className="font-medium text-foreground">Suite:</span> {suiteArtifact?.title ?? "Current test suite"}{" "}
-              · <span className="font-medium text-foreground">Selected:</span>{" "}
-              {selectedAvailableCount + selectedInSuiteCount} ·{" "}
-              <span className="font-medium text-foreground">In suite:</span> {linkedArtifacts.length}
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              <Button
-                size="sm"
-                className="h-8 px-2.5 text-xs sm:text-sm"
-                onClick={() => void addSelected()}
-                disabled={pending || addableSelectedCount === 0}
-              >
-                Add selected to suite
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                className="h-8 px-2.5 text-xs sm:text-sm"
-                onClick={() => void removeSelected()}
-                disabled={pending || selectedInSuiteCount === 0}
-              >
-                Remove selected from suite
-              </Button>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1.5 text-xs sm:text-sm">
-            <Badge variant="outline">
-              Scope: {scopeMode === "all" ? "All test plan" : selectedFolderId ? "Selected group" : "No group selected"}
-            </Badge>
-            {scopeMode === "folder" ? (
-              <Badge variant="outline">Mode: {includeSubfolders ? "Include subfolders" : "Direct children"}</Badge>
-            ) : null}
-            <Badge variant="outline">
-              Loaded: {candidates.length}/{allCandidates.length}
-            </Badge>
-          </div>
-          {pendingRemoveLinkIds ? (
-            <div className="mt-2 flex items-center justify-between rounded border border-destructive/30 bg-destructive/5 px-2 py-1.5">
-              <p className="text-xs text-muted-foreground sm:text-sm">
-                Remove {pendingRemoveLinkIds.length} test case(s) from this suite?
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => setPendingRemoveLinkIds(null)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => void removeSelected()}
-                  disabled={pending}
-                >
-                  Confirm remove
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-        <div className="grid min-h-0 flex-1 gap-3 grid-cols-2 overflow-hidden">
-          <section className="flex min-w-0 min-h-0 flex-col rounded border p-3">
-            <div className="mb-1.5 flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Available test cases</h3>
-              <Badge variant="outline">{candidates.length}</Badge>
-            </div>
-            <div className="mb-1.5 flex shrink-0 items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setSelectedFolderId(null)}>
-                All groups
-              </Button>
-              <Button
-                size="sm"
-                variant={scopeMode === "all" ? "default" : "outline"}
-                onClick={() => setScopeMode("all")}
-              >
-                All test plan
-              </Button>
-              <Button
-                size="sm"
-                variant={scopeMode === "folder" ? "default" : "outline"}
-                onClick={() => setScopeMode("folder")}
-              >
-                Only selected group
-              </Button>
-              <label
-                htmlFor={includeSubfoldersSwitchId}
-                className="ml-auto flex cursor-pointer items-center gap-2 text-xs text-muted-foreground sm:text-sm"
-              >
-                <Switch
-                  id={includeSubfoldersSwitchId}
-                  checked={includeSubfolders}
-                  onCheckedChange={setIncludeSubfolders}
-                  disabled={scopeMode !== "folder" || !selectedFolderId}
-                />
-                Include subfolders
-              </label>
-              {selectedFolderId ? (
-                <Badge variant="secondary" className="px-2 py-0.5 text-[11px]">
-                  Filtered by group
-                </Badge>
-              ) : null}
-            </div>
-            <div className="mb-1.5 min-h-[84px] max-h-[14vh] shrink-0 overflow-auto rounded border p-2">
-              <FolderTree
-                nodes={folderTree}
-                selectedFolderId={selectedFolderId}
-                onSelectFolder={(id) => {
-                  setSelectedFolderId(id);
-                  if (!id && scopeMode === "folder") setScopeMode("all");
-                }}
-              />
-            </div>
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search test case title/key"
-              aria-label="Search test cases"
-              className="mb-1.5 h-8 shrink-0 text-sm"
-            />
-            <div className="mb-1.5 shrink-0">
-              <Button size="sm" variant="outline" className="h-8 w-full text-xs sm:text-sm" onClick={selectAllVisible}>
-                Select all on this page
-              </Button>
-            </div>
-            <div className="min-h-[220px] flex-1 space-y-0.5 overflow-auto rounded border p-1">
-              {candidates.length === 0 ? (
-                <p className="px-2 py-1 text-sm text-muted-foreground">No test cases found.</p>
-              ) : (
-                candidates.map((c) => {
-                const linked = linkByTargetId.has(c.id);
-                return (
-                  <div
-                    key={c.id}
-                    role="button"
-                    tabIndex={0}
-                    className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/60"
-                    onClick={handleAvailableRowClick(c.id)}
-                    onKeyDown={handleAvailableRowKeyDown(c.id)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedAvailableIds.has(c.id)}
-                      onChange={() => toggleAvailableSelected(c.id)}
-                      aria-label={`Select ${c.title}`}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-sm" title={c.title ?? ""}>
-                      {c.title}
-                    </span>
-                    {linked ? (
-                      <Badge variant="secondary" className="px-2 py-0.5 text-[11px]">
-                        Already in suite
-                      </Badge>
-                    ) : null}
-                  </div>
-                );
-                })
-              )}
-            </div>
-            {hasMoreCandidates ? (
-              <div className="mt-1.5">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 w-full text-xs sm:text-sm"
-                  onClick={loadMoreCandidates}
-                >
-                  Load more ({Math.min(100, allCandidates.length - candidates.length)} remaining on next page)
-                </Button>
-              </div>
-            ) : null}
-          </section>
-          <section className="flex min-w-0 min-h-0 flex-col rounded border p-3">
-            <div className="mb-1.5 flex items-center gap-2">
-              <h3 className="text-sm font-semibold">In this suite</h3>
-              <Badge variant="outline">{linkedArtifacts.length}</Badge>
-            </div>
-            <div className="mb-1.5 shrink-0">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 w-full text-xs sm:text-sm"
-                onClick={() => setSelectedInSuiteIds(new Set(linkedArtifacts.map((a) => a.id)))}
-              >
-                Select all in suite
-              </Button>
-            </div>
-            <div className="min-h-[220px] flex-1 space-y-0.5 overflow-auto rounded border p-1">
-              {linkedArtifacts.length === 0 ? (
-                <p className="px-2 py-1 text-sm text-muted-foreground">No test cases in this suite yet.</p>
-              ) : (
-                linkedArtifacts.map((a) => (
-                  <div
-                    key={a.id}
-                    role="button"
-                    tabIndex={0}
-                    className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/60"
-                    onClick={handleInSuiteRowClick(a.id)}
-                    onKeyDown={handleInSuiteRowKeyDown(a.id)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedInSuiteIds.has(a.id)}
-                      onChange={() => toggleInSuiteSelected(a.id)}
-                      aria-label={`Select linked ${a.title}`}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-sm" title={a.title ?? ""}>
-                      {a.title}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Close
-          </Button>
-        </DialogFooter>
+        {body}
+        <DialogFooter>{footer}</DialogFooter>
       </DialogContent>
     </Dialog>
   );

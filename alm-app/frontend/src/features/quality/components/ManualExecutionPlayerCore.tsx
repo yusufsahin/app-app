@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "../../../shared/components/ui/select";
 import { useArtifact, useUpdateArtifact, useArtifacts, type Artifact } from "../../../shared/api/artifactApi";
-import { useArtifactLinks } from "../../../shared/api/artifactLinkApi";
+import { sortOutgoingSuiteLinks, useArtifactLinks } from "../../../shared/api/artifactLinkApi";
 import { apiClient } from "../../../shared/api/client";
 import { ExecutionStepList } from "./ExecutionStepList";
 import type { TestStep, StepResult } from "../types";
@@ -139,7 +139,7 @@ export function ManualExecutionPlayerCore({
 
   const linkedTestIds = useMemo(() => {
     const fromSuite = suiteId
-      ? suiteLinks.filter((l) => l.link_type === "suite_includes_test").map((l) => l.to_artifact_id)
+      ? sortOutgoingSuiteLinks(suiteLinks, suiteId, "suite_includes_test").map((l) => l.to_artifact_id)
       : [];
     if (fromSuite.length > 0) return fromSuite;
     return runLinks.map((l) => l.to_artifact_id);

@@ -95,10 +95,10 @@ describe("SuiteTestLinkModal", () => {
       />,
     );
 
-    expect(screen.getByText("Add test cases to test suite")).toBeInTheDocument();
-    expect(screen.getAllByText("Already in suite").length).toBeGreaterThan(0);
-    expect(screen.queryAllByRole("button", { name: "Remove from suite" })).toHaveLength(0);
-    expect(screen.getByRole("button", { name: "Remove selected from suite" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Add tests from Catalog" })).toBeInTheDocument();
+    expect(screen.getAllByText("In suite").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("suite-link-add-selected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove from suite" })).toBeInTheDocument();
   });
 
   it("bulk adds selected non-linked testcases", async () => {
@@ -118,7 +118,7 @@ describe("SuiteTestLinkModal", () => {
     const loginCaseCheckbox = screen.getAllByLabelText("Select Login case").at(0);
     expect(loginCaseCheckbox).toBeDefined();
     await user.click(loginCaseCheckbox!);
-    await user.click(screen.getByRole("button", { name: "Add selected to suite" }));
+    await user.click(screen.getByTestId("suite-link-add-selected"));
 
     expect(bulkCreateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -126,6 +126,78 @@ describe("SuiteTestLinkModal", () => {
         link_type: "suite_includes_test",
       }),
     );
+  });
+
+  it("dock presentation renders catalog side panel", () => {
+    renderWithQualityI18n(
+      <SuiteTestLinkModal
+        open
+        onClose={vi.fn()}
+        orgSlug="demo"
+        projectId="project-1"
+        suiteArtifactId="suite-1"
+        linkType="suite_includes_test"
+        manifestBundle={null}
+        presentation="dock"
+      />,
+    );
+
+    expect(screen.getByTestId("quality-suite-catalog-panel")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Add tests from Catalog" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("add all in scope bulk-adds non-linked cases in folder scope without confirm", async () => {
+    const user = userEvent.setup();
+    renderWithQualityI18n(
+      <SuiteTestLinkModal
+        open
+        onClose={vi.fn()}
+        orgSlug="demo"
+        projectId="project-1"
+        suiteArtifactId="suite-1"
+        linkType="suite_includes_test"
+        manifestBundle={null}
+      />,
+    );
+
+    await user.click(screen.getByTestId("suite-link-scope-folder"));
+    await user.click(screen.getByRole("button", { name: "Sprint 1" }));
+    await user.click(screen.getByTestId("suite-link-add-all-in-scope"));
+
+    expect(bulkCreateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to_artifact_ids: ["tc-2"],
+        link_type: "suite_includes_test",
+      }),
+    );
+  });
+
+  it("add all in scope prompts before adding entire catalog", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderWithQualityI18n(
+      <SuiteTestLinkModal
+        open
+        onClose={vi.fn()}
+        orgSlug="demo"
+        projectId="project-1"
+        suiteArtifactId="suite-1"
+        linkType="suite_includes_test"
+        manifestBundle={null}
+      />,
+    );
+
+    await user.click(screen.getByTestId("suite-link-add-all-in-scope"));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(bulkCreateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to_artifact_ids: ["tc-2"],
+        link_type: "suite_includes_test",
+      }),
+    );
+    confirmSpy.mockRestore();
   });
 
   it("bulk removes selected linked testcases", async () => {
@@ -143,7 +215,7 @@ describe("SuiteTestLinkModal", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Select all in suite" }));
-    await user.click(screen.getByRole("button", { name: "Remove selected from suite" }));
+    await user.click(screen.getByRole("button", { name: "Remove from suite" }));
     await user.click(screen.getByRole("button", { name: "Confirm remove" }));
 
     expect(bulkDeleteSpy).toHaveBeenCalledWith(

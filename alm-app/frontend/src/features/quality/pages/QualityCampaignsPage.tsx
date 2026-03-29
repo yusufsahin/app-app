@@ -17,6 +17,7 @@ export default function QualityCampaignsPage() {
         title: "Campaign includes suite",
       }}
       allowFolderCreate
+      explorerMode="tree-detail"
     />
   );
 }

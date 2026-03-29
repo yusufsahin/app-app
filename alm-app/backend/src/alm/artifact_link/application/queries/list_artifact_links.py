@@ -36,6 +36,7 @@ class ListArtifactLinksHandler(QueryHandler[list[ArtifactLinkDTO]]):
                 to_artifact_id=link.to_artifact_id,
                 link_type=link.link_type,
                 created_at=link.created_at.isoformat() if link.created_at else None,
+                sort_order=link.sort_order,
             )
             for link in links
         ]

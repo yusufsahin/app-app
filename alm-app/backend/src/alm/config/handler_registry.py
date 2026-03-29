@@ -74,6 +74,10 @@ from alm.artifact_link.application.commands.delete_artifact_link import (
     DeleteArtifactLink,
     DeleteArtifactLinkHandler,
 )
+from alm.artifact_link.application.commands.reorder_artifact_links import (
+    ReorderOutgoingArtifactLinks,
+    ReorderOutgoingArtifactLinksHandler,
+)
 
 # ── Artifact link queries ──
 from alm.artifact_link.application.queries.list_artifact_links import (
@@ -979,6 +983,13 @@ def register_all_handlers() -> None:
         DeleteArtifactLink,
         lambda s: DeleteArtifactLinkHandler(
             link_repo=SqlAlchemyArtifactLinkRepository(s),
+        ),
+    )
+    register_command_handler(
+        ReorderOutgoingArtifactLinks,
+        lambda s: ReorderOutgoingArtifactLinksHandler(
+            link_repo=SqlAlchemyArtifactLinkRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     register_query_handler(

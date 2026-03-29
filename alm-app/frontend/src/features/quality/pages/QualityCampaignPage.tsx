@@ -19,6 +19,7 @@ export default function QualityCampaignPage() {
         title: "Suite includes test",
       }}
       allowFolderCreate
+      explorerMode="tree-detail"
     />
   );
 }

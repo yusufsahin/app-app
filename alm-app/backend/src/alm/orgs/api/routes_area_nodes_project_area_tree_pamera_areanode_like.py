@@ -284,11 +284,15 @@ async def get_list_schema(
     project_id: uuid.UUID,
     entity_type: str = "artifact",
     org: ResolvedOrg = Depends(resolve_org),
-    user: CurrentUser = require_permission("manifest:read"),
-    _acl: None = require_manifest_acl("manifest", "read"),
+    user: CurrentUser = require_list_schema_read_permission(),
+    _acl: None = require_manifest_acl("artifact", "read"),
     mediator: Mediator = Depends(get_mediator),
 ) -> ListSchemaResponse:
-    """Get list schema (columns + filters) for entity type from project manifest."""
+    """Get list schema (columns + filters) for entity type from project manifest.
+
+    Uses artifact:read (or task:read for entity_type=task) and artifact ACL read — aligned with
+    list artifacts / list tasks so Table view is not blocked by manifest:read alone.
+    """
     schema = await mediator.query(
         GetListSchema(
             tenant_id=org.tenant_id,

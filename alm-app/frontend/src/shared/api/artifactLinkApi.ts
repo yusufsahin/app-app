@@ -11,6 +11,7 @@ export interface ArtifactLink {
   to_artifact_id: string;
   link_type: string;
   created_at: string | null;
+  sort_order?: number | null;
 }
 
 export interface CreateArtifactLinkRequest {
@@ -32,6 +33,35 @@ export interface BulkArtifactUnlinkRequest {
 export interface BulkArtifactLinkResult {
   succeeded: string[];
   failed: Array<{ id: string; reason: string }>;
+}
+
+export interface ReorderArtifactLinksRequest {
+  link_type: string;
+  ordered_link_ids: string[];
+}
+
+/** Links from a test-run artifact to this suite (`from` = run, `to` = suite). */
+export function incomingRunForSuiteLinks(links: ArtifactLink[] | undefined, suiteId: string): ArtifactLink[] {
+  if (!links?.length) return [];
+  return links.filter((l) => l.link_type === "run_for_suite" && l.to_artifact_id === suiteId);
+}
+
+/** Sort outgoing suite links: sort_order asc, nulls last, then created_at. */
+export function sortOutgoingSuiteLinks(links: ArtifactLink[], fromArtifactId: string, linkType: string): ArtifactLink[] {
+  const filtered = links.filter(
+    (l) => l.link_type === linkType && l.from_artifact_id === fromArtifactId,
+  );
+  return [...filtered].sort((a, b) => {
+    const ao = a.sort_order;
+    const bo = b.sort_order;
+    if (ao == null && bo == null) {
+      return (a.created_at ?? "").localeCompare(b.created_at ?? "");
+    }
+    if (ao == null) return 1;
+    if (bo == null) return -1;
+    if (ao !== bo) return ao - bo;
+    return (a.created_at ?? "").localeCompare(b.created_at ?? "");
+  });
 }
 
 export function useArtifactLinks(
@@ -133,6 +163,27 @@ export function useBulkDeleteArtifactLinks(
         payload,
       );
       return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "links"],
+      });
+    },
+  });
+}
+
+export function useReorderArtifactLinks(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+  artifactId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ReorderArtifactLinksRequest): Promise<void> => {
+      await apiClient.patch(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/links/reorder`,
+        payload,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
