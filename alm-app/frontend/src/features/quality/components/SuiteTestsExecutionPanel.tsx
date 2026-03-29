@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { useTranslation } from "react-i18next";
@@ -157,84 +157,81 @@ export function SuiteTestsExecutionPanel({
   const { t } = useTranslation("quality");
   const orderedLinks = sortOutgoingSuiteLinks(links, suiteId, linkType);
   const serverIds = orderedLinks.map((l) => l.id);
-  const [localIds, setLocalIds] = useState<string[] | null>(null);
-  const orderRef = useRef<string[]>(serverIds);
+  const serverOrderKey = serverIds.join(",");
+  const [localOrder, setLocalOrder] = useState<{ baseKey: string; ids: string[] } | null>(null);
+  const orderRef = useRef<{ baseKey: string; ids: string[] }>({ baseKey: serverOrderKey, ids: [...serverIds] });
   const dragSnapshotRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    orderRef.current = serverIds;
-    setLocalIds(null);
-  }, [serverIds.join(",")]);
+  if (orderRef.current.baseKey !== serverOrderKey) {
+    orderRef.current = { baseKey: serverOrderKey, ids: [...serverIds] };
+  }
 
+  const localIds = localOrder?.baseKey === serverOrderKey ? localOrder.ids : null;
   const displayIds = localIds ?? serverIds;
   const displayLinks = displayIds
     .map((id) => orderedLinks.find((l) => l.id === id))
     .filter((l): l is ArtifactLink => !!l);
 
-  const moveRow = useCallback((from: number, to: number) => {
+  function resetToServerOrder() {
+    orderRef.current = { baseKey: serverOrderKey, ids: [...serverIds] };
+    setLocalOrder(null);
+  }
+
+  function moveRow(from: number, to: number) {
     if (from === to) return;
-    setLocalIds((prev) => {
-      const base = prev ?? [...orderRef.current];
-      if (to < 0 || to >= base.length) return prev;
-      const next = [...base];
-      const [removed] = next.splice(from, 1);
-      if (removed === undefined) return prev;
-      next.splice(to, 0, removed);
-      orderRef.current = next;
-      return next;
-    });
-  }, []);
+    const base = [...orderRef.current.ids];
+    if (to < 0 || to >= base.length) return;
+    const [removed] = base.splice(from, 1);
+    if (removed === undefined) return;
+    base.splice(to, 0, removed);
+    orderRef.current = { baseKey: serverOrderKey, ids: base };
+    setLocalOrder({ baseKey: serverOrderKey, ids: base });
+  }
 
   const reorderMutation = useReorderArtifactLinks(orgSlug, projectId, suiteId);
   const deleteLink = useDeleteArtifactLink(orgSlug, projectId, suiteId);
 
-  const persistCurrentOrder = useCallback(async () => {
-    const ids = orderRef.current;
+  async function persistCurrentOrder() {
+    const ids = orderRef.current.ids;
     if (ids.length === 0) return;
     try {
       await reorderMutation.mutateAsync({ link_type: linkType, ordered_link_ids: ids });
-      setLocalIds(null);
+      setLocalOrder(null);
     } catch {
-      setLocalIds(null);
-      orderRef.current = serverIds;
+      resetToServerOrder();
     }
-  }, [linkType, reorderMutation, serverIds]);
+  }
 
-  const onDragStart = useCallback(() => {
-    dragSnapshotRef.current = orderRef.current.join(",");
-  }, []);
+  function onDragStart() {
+    dragSnapshotRef.current = orderRef.current.ids.join(",");
+  }
 
-  const onDragEnd = useCallback(() => {
+  function onDragEnd() {
     const snap = dragSnapshotRef.current;
     dragSnapshotRef.current = null;
-    if (snap != null && snap !== orderRef.current.join(",")) {
+    if (snap != null && snap !== orderRef.current.ids.join(",")) {
       void persistCurrentOrder();
     } else {
-      setLocalIds(null);
+      resetToServerOrder();
     }
-  }, [persistCurrentOrder]);
+  }
 
-  const onReorderByArrow = useCallback(
-    async (from: number, to: number) => {
-      if (!canUpdate || to < 0) return;
-      const base = localIds ?? serverIds;
-      if (to >= base.length) return;
-      const next = [...base];
-      const [removed] = next.splice(from, 1);
-      if (removed === undefined) return;
-      next.splice(to, 0, removed);
-      orderRef.current = next;
-      setLocalIds(next);
-      try {
-        await reorderMutation.mutateAsync({ link_type: linkType, ordered_link_ids: next });
-        setLocalIds(null);
-      } catch {
-        setLocalIds(null);
-        orderRef.current = serverIds;
-      }
-    },
-    [canUpdate, linkType, localIds, reorderMutation, serverIds],
-  );
+  async function onReorderByArrow(from: number, to: number) {
+    if (!canUpdate || to < 0) return;
+    const next = [...orderRef.current.ids];
+    if (to >= next.length) return;
+    const [removed] = next.splice(from, 1);
+    if (removed === undefined) return;
+    next.splice(to, 0, removed);
+    orderRef.current = { baseKey: serverOrderKey, ids: next };
+    setLocalOrder({ baseKey: serverOrderKey, ids: next });
+    try {
+      await reorderMutation.mutateAsync({ link_type: linkType, ordered_link_ids: next });
+      setLocalOrder(null);
+    } catch {
+      resetToServerOrder();
+    }
+  }
 
   return (
     <DndProvider backend={HTML5Backend}>

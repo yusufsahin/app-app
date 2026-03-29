@@ -82,6 +82,7 @@ test.describe("Quality — Campaign workspace", () => {
   test("navigates to Quality hub and Traceability from project", async ({ page }) => {
     test.setTimeout(45000);
     const nav = new ProjectNavigationPage(page);
+    const quality = new QualityWorkspacePage(page);
     const orgSlug = await nav.openProjectQuality();
     await expect(page.getByRole("heading", { name: "Quality Test Management" })).toBeVisible({ timeout: 10000 });
 
@@ -89,6 +90,11 @@ test.describe("Quality — Campaign workspace", () => {
     await expect(sidebar.getByRole("link", { name: "Catalog" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Campaign" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Runs" })).toBeVisible();
+
+    await quality.openRunsAllRunsTab();
+    await expect(page.getByTestId("quality-runs-tab-by-folder")).toBeVisible({ timeout: 15000 });
+    await page.getByTestId("quality-runs-tab-by-folder").click();
+    await expect(page.getByTestId("quality-tree-explorer-heading")).toBeVisible({ timeout: 20000 });
     await expect(sidebar.getByRole("link", { name: "Traceability" })).toBeVisible();
 
     await sidebar.getByRole("link", { name: "Traceability" }).click();

@@ -474,7 +474,10 @@ export function QualityFolderTreeNav({
 
   return (
     <div className="flex h-full min-h-[280px] max-h-[calc(100vh-220px)] flex-col rounded-lg border border-border bg-card">
-      <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <div
+        className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+        data-testid="quality-tree-explorer-heading"
+      >
         {tx("tree.folders", "campaignExplorer.folders")}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">

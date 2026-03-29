@@ -90,3 +90,17 @@ export function summarizeRunMetrics(results: TestExecutionResultRow[] | null | u
 export function summarizeRunMetricsFromCustomFields(customFields: Record<string, unknown> | undefined): RunMetricsSummary {
   return summarizeRunMetrics(parseRunMetricsPayload(customFields?.run_metrics_json));
 }
+
+/** Display value for manifest `environment` / `target_environment` on test-run (and similar) rows. */
+export function formatRunEnvironmentLabel(customFields: Record<string, unknown> | undefined): string {
+  if (!customFields) return "—";
+  const pick = (k: string) => {
+    const v = customFields[k];
+    if (v == null) return "";
+    const s = String(v).trim();
+    return s;
+  };
+  const env =
+    pick("environment") || pick("Environment") || pick("target_environment");
+  return env || "—";
+}

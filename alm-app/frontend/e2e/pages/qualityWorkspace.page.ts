@@ -22,9 +22,27 @@ export class QualityWorkspacePage {
     await this.page.waitForURL(/\/quality\/campaign/, { timeout: 10000 });
   }
 
-  async openRuns() {
+  /** Navigate to Runs; default tab is All runs — switch to By folder for tree + folder-scoped flows. */
+  async goToRunsPage() {
     await this.page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Runs" }).click();
     await this.page.waitForURL(/\/quality\/runs/, { timeout: 10000 });
+  }
+
+  async openRuns() {
+    await this.goToRunsPage();
+    const byFolder = this.page.getByTestId("quality-runs-tab-by-folder");
+    await expect(byFolder).toBeVisible({ timeout: 15000 });
+    await byFolder.click();
+    await expect(this.page.getByTestId("quality-tree-explorer-heading")).toBeVisible({ timeout: 20000 });
+  }
+
+  /** Stays on default “All runs” hub tab (table + new run). */
+  async openRunsAllRunsTab() {
+    await this.goToRunsPage();
+    const allTab = this.page.getByTestId("quality-runs-tab-all");
+    await expect(allTab).toBeVisible({ timeout: 15000 });
+    await allTab.click();
+    await expect(this.page.getByTestId("quality-runs-hub-heading")).toBeVisible({ timeout: 20000 });
   }
 
   async selectFirstQualityFolder() {

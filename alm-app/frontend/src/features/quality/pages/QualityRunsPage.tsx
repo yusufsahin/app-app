@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/components/ui/tabs";
@@ -8,6 +9,7 @@ import { QualityRunsHubPanel } from "../components/QualityRunsHubPanel";
 export default function QualityRunsPage() {
   const { t } = useTranslation("quality");
   const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
+  const [runsTab, setRunsTab] = useState("all");
 
   if (projectSlug && orgSlug && !projectsLoading && !project) {
     return (
@@ -19,7 +21,7 @@ export default function QualityRunsPage() {
 
   return (
     <div className="mx-auto w-full max-w-[min(1600px,100%)] px-4 pb-6 pt-6">
-      {orgSlug && projectSlug ? (
+      {runsTab === "all" && orgSlug && projectSlug ? (
         <ProjectBreadcrumbs
           currentPageLabel={t("runsHub.pageTitle")}
           projectName={project?.name}
@@ -28,7 +30,7 @@ export default function QualityRunsPage() {
         />
       ) : null}
 
-      <Tabs defaultValue="all" className="mt-2">
+      <Tabs value={runsTab} onValueChange={setRunsTab} className="mt-2">
         <TabsList className="h-10 w-full justify-start rounded-none border-b border-border bg-transparent p-0">
           <TabsTrigger
             value="all"
@@ -54,14 +56,14 @@ export default function QualityRunsPage() {
             treeId="testsuites"
             rootArtifactType="root-testsuites"
             folderArtifactType="testsuite-folder"
-            pageLabel="Test runs"
-            description="Execution records linked to suites."
-            createCta="Create run"
-            emptyLabel="No runs in this folder."
+            pageLabel={t("runsHub.workspacePageLabel")}
+            description={t("runsHub.workspaceDescription")}
+            createCta={t("runsHub.workspaceCreateCta")}
+            emptyLabel={t("runsHub.workspaceEmptyFolder")}
             linkConfig={{
               linkType: "run_for_suite",
               targetType: "test-suite",
-              title: "Run for suite",
+              title: t("runsHub.linkRunForSuite"),
             }}
             runExecute
             allowFolderCreate

@@ -18,6 +18,7 @@ import { RhfTextField } from "../../../shared/components/forms";
 const formSchema = z.object({
   title: z.string(),
   description: z.string(),
+  environment: z.string(),
 });
 
 export type StartSuiteRunFormValues = z.infer<typeof formSchema>;
@@ -28,7 +29,7 @@ type Props = {
   suiteTitle: string;
   defaultTitle: string;
   isSubmitting: boolean;
-  onConfirm: (values: { title: string; description: string }) => void;
+  onConfirm: (values: { title: string; description: string; environment?: string }) => void;
 };
 
 export function StartSuiteRunDialog({
@@ -42,13 +43,13 @@ export function StartSuiteRunDialog({
   const { t } = useTranslation("quality");
   const form = useForm<StartSuiteRunFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { title: "", description: "" },
+    defaultValues: { title: "", description: "", environment: "" },
   });
 
   useEffect(() => {
     if (!open) return;
-    form.reset({ title: "", description: "" });
-  }, [open, form, defaultTitle]);
+    form.reset({ title: "", description: "", environment: "" });
+  }, [open, form, suiteTitle, defaultTitle]);
 
   const resolvedDefault = defaultTitle || `${suiteTitle} — ${dayjs().format("YYYY-MM-DD HH:mm")}`;
 
@@ -67,7 +68,12 @@ export function StartSuiteRunDialog({
             className="space-y-3"
             onSubmit={form.handleSubmit((raw) => {
               const title = (raw.title ?? "").trim() || resolvedDefault;
-              onConfirm({ title, description: (raw.description ?? "").trim() });
+              const environment = (raw.environment ?? "").trim();
+              onConfirm({
+                title,
+                description: (raw.description ?? "").trim(),
+                ...(environment ? { environment } : {}),
+              });
             })}
           >
             <RhfTextField<StartSuiteRunFormValues>
@@ -80,6 +86,11 @@ export function StartSuiteRunDialog({
               name="description"
               label={t("campaignExecution.runDescriptionLabel")}
               placeholder={t("campaignExecution.runDescriptionPlaceholder")}
+            />
+            <RhfTextField<StartSuiteRunFormValues>
+              name="environment"
+              label={t("campaignExecution.runEnvironmentLabel")}
+              placeholder={t("campaignExecution.runEnvironmentPlaceholder")}
             />
           </form>
         </FormProvider>

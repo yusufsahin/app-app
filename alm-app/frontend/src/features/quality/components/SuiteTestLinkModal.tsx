@@ -723,7 +723,6 @@ export function SuiteTestLinkModal({
     if (!open) return null;
     return (
       <aside
-        role="complementary"
         aria-labelledby="suite-link-dock-title"
         data-testid="quality-suite-catalog-panel"
         className="flex h-full min-h-0 w-[min(420px,100%)] shrink-0 flex-col overflow-hidden border-l bg-background shadow-xl lg:max-w-[min(420px,36vw)] lg:min-w-[300px] lg:shadow-none"
@@ -768,4 +767,3 @@ export function SuiteTestLinkModal({
     </Dialog>
   );
 }
-

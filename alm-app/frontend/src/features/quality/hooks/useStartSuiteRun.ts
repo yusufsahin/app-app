@@ -10,6 +10,8 @@ export type StartSuiteRunParams = {
   suiteParentId: string;
   title: string;
   description: string;
+  /** Manifest `environment` field on `test-run` when set. */
+  environment?: string;
 };
 
 /**
@@ -28,11 +30,14 @@ export function useStartSuiteRun(
   return useMutation({
     mutationFn: async (params: StartSuiteRunParams): Promise<Artifact> => {
       if (!orgSlug || !projectId) throw new Error("Missing project");
+      const env = params.environment?.trim();
+      const custom_fields: Record<string, unknown> = {};
+      if (env) custom_fields.environment = env;
       const body: Record<string, unknown> = {
         artifact_type: "test-run",
         title: params.title,
         description: params.description ?? "",
-        custom_fields: {},
+        custom_fields,
         parent_id: params.suiteParentId,
       };
       const { data: run } = await apiClient.post<Artifact>(

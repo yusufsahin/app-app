@@ -5,10 +5,10 @@ import { PlayCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "../../../shared/api/client";
 import type { Artifact } from "../../../shared/stores/artifactStore";
-import type { ArtifactLink } from "../../../shared/api/artifactLinkApi";
-import { incomingRunForSuiteLinks } from "../../../shared/api/artifactLinkApi";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../shared/components/ui";
-import { summarizeRunMetricsFromCustomFields } from "../lib/runMetrics";
+import { incomingRunForSuiteLinks, type ArtifactLink } from "../../../shared/api/artifactLinkApi";
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Skeleton } from "../../../shared/components/ui";
+import { formatRunEnvironmentLabel, summarizeRunMetricsFromCustomFields } from "../lib/runMetrics";
+import { qualityRunExecutePath, qualityRunWorkspaceDetailPath } from "../lib/qualityRunPaths";
 
 const MAX_RECENT = 10;
 
@@ -46,8 +46,12 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
       <Card className="mt-4 w-full rounded-xl border-border/80 bg-card/80 shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">{t("runsHub.recentRunsTitle")}</CardTitle>
-          <CardDescription>{t("tree.loading")}</CardDescription>
+          <CardDescription>{t("runsHub.recentRunsLoadingHint")}</CardDescription>
         </CardHeader>
+        <CardContent className="space-y-2" role="status" aria-busy="true">
+          <Skeleton className="h-14 w-full rounded-md" />
+          <Skeleton className="h-14 w-full rounded-md" />
+        </CardContent>
       </Card>
     );
   }
@@ -64,11 +68,16 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
       </CardHeader>
       <CardContent className="space-y-2">
         {loadingArtifacts ? (
-          <p className="text-sm text-muted-foreground">{t("tree.loading")}</p>
+          <div className="space-y-2" role="status" aria-busy="true">
+            <Skeleton className="h-14 w-full rounded-md" />
+            <Skeleton className="h-14 w-full rounded-md" />
+          </div>
         ) : (
           runIds.map((runId, i) => {
             const artifact = runQueries[i]?.data;
-            const summary = summarizeRunMetricsFromCustomFields(artifact?.custom_fields as Record<string, unknown>);
+            const cf = artifact?.custom_fields as Record<string, unknown> | undefined;
+            const env = formatRunEnvironmentLabel(cf);
+            const summary = summarizeRunMetricsFromCustomFields(cf);
             const summaryLabel =
               summary.total === 0
                 ? t("runsHub.summaryEmpty")
@@ -78,11 +87,14 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
                     blocked: summary.blocked,
                     notExecuted: summary.notExecuted,
                   });
-            const parentId = artifact?.parent_id;
-            const detailsTo =
-              parentId && /^[0-9a-f-]{36}$/i.test(parentId)
-                ? `/${orgSlug}/${projectSlug}/quality/runs?under=${encodeURIComponent(parentId)}&artifact=${encodeURIComponent(runId)}`
-                : `/${orgSlug}/${projectSlug}/quality/runs?artifact=${encodeURIComponent(runId)}`;
+            const detailsTo = qualityRunWorkspaceDetailPath(orgSlug, projectSlug, runId, artifact?.parent_id);
+            const executeTo = qualityRunExecutePath(orgSlug, projectSlug, runId);
+            const titleText = artifact?.title ?? runId;
+            const metaParts = [
+              artifact?.updated_at ? dayjs(artifact.updated_at).format("YYYY-MM-DD HH:mm") : null,
+              env !== "—" ? env : null,
+              summaryLabel,
+            ].filter(Boolean);
 
             return (
               <div
@@ -90,18 +102,15 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
                 className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{artifact?.title ?? runId}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {artifact?.updated_at
-                      ? dayjs(artifact.updated_at).format("YYYY-MM-DD HH:mm")
-                      : "—"}{" "}
-                    · {summaryLabel}
+                  <p className="truncate font-medium" title={titleText}>
+                    {titleText}
                   </p>
+                  <p className="text-xs text-muted-foreground">{metaParts.join(" · ")}</p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
                   <Button type="button" variant="secondary" size="sm" asChild>
-                    <Link to={`/${orgSlug}/${projectSlug}/quality/runs/${runId}/execute`}>
-                      <PlayCircle className="mr-1 size-4" />
+                    <Link to={executeTo}>
+                      <PlayCircle className="mr-1 size-4 shrink-0" aria-hidden />
                       {t("runsHub.executeOrContinue")}
                     </Link>
                   </Button>

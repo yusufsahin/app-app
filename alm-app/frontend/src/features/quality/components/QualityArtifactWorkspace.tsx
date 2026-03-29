@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState, useCallback } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { Pencil, PlayCircle, Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -46,6 +46,8 @@ import { QualityTestCaseDetailPanels } from "./QualityTestCaseDetailPanels";
 import { SuiteTestLinkModal } from "./SuiteTestLinkModal";
 import { StartSuiteRunDialog } from "./StartSuiteRunDialog";
 import { CampaignSuiteCommandDialog } from "./CampaignSuiteCommandDialog";
+import { SuiteRecentRunsCard } from "./SuiteRecentRunsCard";
+import { useStartSuiteRun } from "../hooks/useStartSuiteRun";
 import { qualityPath, qualityCatalogPath } from "../../../shared/utils/appPaths";
 import type { BreadcrumbSegment } from "../../../shared/components/Layout";
 import type { TestPlanEntry } from "../types";
@@ -54,7 +56,6 @@ import { parseTestParams, serializeTestParams, normalizeTestParams } from "../li
 import { modalApi } from "../../../shared/modal/modalApi";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "../../../shared/api/client";
-import { useNotificationStore } from "../../../shared/stores/notificationStore";
 
 interface LinkConfig {
   linkType: string;
@@ -110,8 +111,6 @@ export default function QualityArtifactWorkspace({
   explorerMode = "list-and-detail",
 }: QualityArtifactWorkspaceProps) {
   const { t } = useTranslation("quality");
-  const navigate = useNavigate();
-  const showNotification = useNotificationStore((s) => s.showNotification);
   const workspaceSubfoldersSwitchId = useId();
   const queryClient = useQueryClient();
   const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
@@ -195,6 +194,7 @@ export default function QualityArtifactWorkspace({
 
   const createArtifact = useCreateArtifact(orgSlug, project?.id);
   const deleteArtifact = useDeleteArtifact(orgSlug, project?.id);
+  const startSuiteRun = useStartSuiteRun(orgSlug, project?.id, projectSlug);
   const selectedArtifactQuery = useArtifact(orgSlug, project?.id, selectedArtifactId ?? undefined);
   const linksQuery = useArtifactLinks(orgSlug, project?.id, selectedArtifactId ?? undefined);
   const createLink = useCreateArtifactLink(orgSlug, project?.id, selectedArtifactId ?? undefined);
@@ -231,6 +231,8 @@ export default function QualityArtifactWorkspace({
       linkConfig?.linkType === "suite_includes_test" &&
       selectedArtifact?.artifact_type === "test-suite",
   );
+  const suiteLinkModalVisible =
+    suiteLinkModalOpen || (showSuiteExecution && Boolean(selectedArtifactId) && searchParams.get("addTests") === "1");
 
   /** Campaign + execution flag: main content is only the centered suite link card (no grid / execution table). */
   const suiteLinkOnlyCentered = Boolean(showSuiteExecution);
@@ -456,12 +458,6 @@ export default function QualityArtifactWorkspace({
       : dayjs().format("YYYY-MM-DD HH:mm");
 
   useEffect(() => {
-    if (searchParams.get("addTests") === "1" && showSuiteExecution && selectedArtifactId) {
-      setSuiteLinkModalOpen(true);
-    }
-  }, [searchParams, showSuiteExecution, selectedArtifactId]);
-
-  useEffect(() => {
     if (!showSuiteExecution || !selectedArtifactId) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === ".") {
@@ -487,37 +483,18 @@ export default function QualityArtifactWorkspace({
   }, [setSearchParams]);
 
   const confirmStartRun = useCallback(
-    async ({ title, description }: { title: string; description: string }) => {
-      if (!orgSlug || !project?.id || !projectSlug || !selectedArtifact?.parent_id) return;
-      try {
-        const run = await createArtifact.mutateAsync({
-          artifact_type: "test-run",
-          title,
-          description,
-          parent_id: selectedArtifact.parent_id,
-        });
-        await apiClient.post(`/orgs/${orgSlug}/projects/${project.id}/artifacts/${run.id}/links`, {
-          to_artifact_id: selectedArtifact.id,
-          link_type: "run_for_suite",
-        });
-        setRunDialogOpen(false);
-        void queryClient.invalidateQueries({ queryKey: ["orgs", orgSlug, "projects", project.id, "artifacts"] });
-        navigate(`/${orgSlug}/${projectSlug}/quality/runs/${run.id}/execute`);
-      } catch {
-        showNotification(t("campaignExecution.startRunError"), "error");
-      }
+    async ({ title, description, environment }: { title: string; description: string; environment?: string }) => {
+      if (!selectedArtifact?.parent_id) return;
+      await startSuiteRun.mutateAsync({
+        suiteId: selectedArtifact.id,
+        suiteParentId: selectedArtifact.parent_id,
+        title,
+        description,
+        environment,
+      });
+      setRunDialogOpen(false);
     },
-    [
-      orgSlug,
-      project?.id,
-      projectSlug,
-      selectedArtifact,
-      createArtifact,
-      queryClient,
-      navigate,
-      showNotification,
-      t,
-    ],
+    [selectedArtifact, startSuiteRun],
   );
 
   if (projectSlug && orgSlug && !projectsLoading && !project) {
@@ -999,6 +976,16 @@ export default function QualityArtifactWorkspace({
           suiteIncludesTestCard ? (
             <div className="w-full max-w-3xl pb-2 xl:max-w-4xl" data-testid="quality-tree-detail-panel">
               {suiteIncludesTestCard}
+              {showSuiteExecution && selectedArtifact && orgSlug && project?.id && projectSlug ? (
+                <SuiteRecentRunsCard
+                  orgSlug={orgSlug}
+                  projectId={project.id}
+                  projectSlug={projectSlug}
+                  suiteId={selectedArtifact.id}
+                  links={linksQuery.data}
+                  linksLoading={linksQuery.isPending}
+                />
+              ) : null}
             </div>
           ) : (
           <Card data-testid="quality-tree-detail-panel">
@@ -1176,6 +1163,16 @@ export default function QualityArtifactWorkspace({
           suiteIncludesTestCard ? (
           <div className="w-full max-w-3xl pb-2 xl:max-w-4xl" data-testid="quality-suite-detail-panel">
             {suiteIncludesTestCard}
+            {showSuiteExecution && selectedArtifact && orgSlug && project?.id && projectSlug ? (
+              <SuiteRecentRunsCard
+                orgSlug={orgSlug}
+                projectId={project.id}
+                projectSlug={projectSlug}
+                suiteId={selectedArtifact.id}
+                links={linksQuery.data}
+                linksLoading={linksQuery.isPending}
+              />
+            ) : null}
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
@@ -1373,7 +1370,7 @@ export default function QualityArtifactWorkspace({
         ) : null}
         {project?.id && orgSlug && selectedArtifact && linkConfig && artifactType === "test-suite" && !showSuiteExecution ? (
           <SuiteTestLinkModal
-            open={suiteLinkModalOpen}
+            open={suiteLinkModalVisible}
             onClose={closeSuiteLinkModal}
             orgSlug={orgSlug}
             projectId={project.id}
@@ -1391,7 +1388,7 @@ export default function QualityArtifactWorkspace({
               onClose={() => setRunDialogOpen(false)}
               suiteTitle={selectedArtifact.title ?? ""}
               defaultTitle={defaultRunTitle}
-              isSubmitting={createArtifact.isPending}
+              isSubmitting={startSuiteRun.isPending}
               onConfirm={(values) => void confirmStartRun(values)}
             />
             <CampaignSuiteCommandDialog
@@ -1426,7 +1423,13 @@ export default function QualityArtifactWorkspace({
         ) : null}
       </div>
 
-      {project?.id && orgSlug && selectedArtifact && linkConfig && artifactType === "test-suite" && showSuiteExecution && suiteLinkModalOpen ? (
+      {project?.id &&
+      orgSlug &&
+      selectedArtifact &&
+      linkConfig &&
+      artifactType === "test-suite" &&
+      showSuiteExecution &&
+      suiteLinkModalVisible ? (
         <div
           className="fixed inset-0 z-40 flex flex-row lg:static lg:z-auto lg:inset-auto lg:contents"
           data-testid="quality-suite-catalog-dock-layer"
@@ -1511,4 +1514,3 @@ export default function QualityArtifactWorkspace({
     </>
   );
 }
-
