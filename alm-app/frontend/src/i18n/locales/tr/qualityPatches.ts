@@ -170,6 +170,7 @@ export const qualityTrPatches = {
     commentsFailed: "Yorum gönderilemedi",
   },
   execution: {
+    modalTitle: "Manuel test yürütme",
     createDefect: "Kusur oluştur",
     bugReportCopied: "Adım {{step}} için hata raporu kopyalandı",
     copyLink: "Bağlantıyı kopyala",
@@ -287,6 +288,8 @@ export const qualityTrPatches = {
     startRunError: "Test koşusu oluşturulamadı. Yetkileri kontrol edip yeniden deneyin.",
     addTests: "Test ekle",
     runSuite: "Paketi çalıştır",
+    suiteActionsShortcutTitle:
+      "Paket menüsünü açar (Ctrl+Shift+.) — test koşusunu buradan başlatın veya test ekleyin.",
     emptySuiteHint: "Pakette henüz test yok. Katalogdan eklemek için Test ekle’yi kullanın.",
     suitePlanOrderHint:
       "Sürükleyerek veya ok düğmeleriyle paketteki test sırasını ayarlayın. Sıra bağlantı üzerinde saklanır.",

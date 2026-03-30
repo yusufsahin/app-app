@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState, useCallback } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { Pencil, PlayCircle, Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -59,7 +59,7 @@ import { parseTestParams, serializeTestParams, normalizeTestParams } from "../li
 import { modalApi } from "../../../shared/modal/modalApi";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "../../../shared/api/client";
-import { openManualRunnerInNewWindow } from "../lib/qualityOpenManualRunner";
+import { navigateToManualExecution } from "../lib/qualityOpenManualRunner";
 
 interface LinkConfig {
   linkType: string;
@@ -118,6 +118,8 @@ export default function QualityArtifactWorkspace({
   const workspaceSubfoldersSwitchId = useId();
   const queryClient = useQueryClient();
   const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [suiteCommandOpen, setSuiteCommandOpen] = useState(false);
@@ -1446,7 +1448,11 @@ export default function QualityArtifactWorkspace({
             <Button
               type="button"
               title={t("runsHub.executeInNewWindow")}
-              onClick={() => openManualRunnerInNewWindow(orgSlug, projectSlug, selectedArtifactId)}
+              onClick={() =>
+                navigateToManualExecution(navigate, orgSlug, projectSlug, selectedArtifactId, {
+                  location,
+                })
+              }
             >
               <PlayCircle className="mr-2 size-4" />
               {t("runsHub.executeOrContinue")}

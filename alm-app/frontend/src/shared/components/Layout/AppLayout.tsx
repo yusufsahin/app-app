@@ -56,6 +56,7 @@ import { hasPermission } from "../../utils/permissions";
 import { useRealtime } from "../../realtime/useRealtime";
 import { ThemeToggle } from "../../../app/theme/ThemeToggle";
 import CreateProjectModal from "../../../features/projects/components/CreateProjectModal";
+import { ManualExecutionModalHost } from "../../../features/quality/components/ManualExecutionModalHost";
 
 interface NavItem {
   label: string;
@@ -569,6 +570,7 @@ export default function AppLayout() {
         />
       )}
       <ModalManager />
+      {orgSlug && projectSlug ? <ManualExecutionModalHost /> : null}
     </SidebarProvider>
   );
 }

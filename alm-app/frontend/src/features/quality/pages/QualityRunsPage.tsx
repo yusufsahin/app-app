@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/components/ui/tabs";
 import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
@@ -8,8 +9,19 @@ import { QualityRunsHubPanel } from "../components/QualityRunsHubPanel";
 
 export default function QualityRunsPage() {
   const { t } = useTranslation("quality");
+  const [searchParams, setSearchParams] = useSearchParams();
   const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
-  const [runsTab, setRunsTab] = useState("all");
+  const hasWorkspaceSelection = useMemo(
+    () => Boolean(searchParams.get("artifact") || searchParams.get("under")),
+    [searchParams],
+  );
+  const [runsTab, setRunsTab] = useState(hasWorkspaceSelection ? "by-folder" : "all");
+
+  useEffect(() => {
+    if (hasWorkspaceSelection && runsTab !== "by-folder") {
+      setRunsTab("by-folder");
+    }
+  }, [hasWorkspaceSelection, runsTab]);
 
   if (projectSlug && orgSlug && !projectsLoading && !project) {
     return (
@@ -30,7 +42,24 @@ export default function QualityRunsPage() {
         />
       ) : null}
 
-      <Tabs value={runsTab} onValueChange={setRunsTab} className="mt-2">
+      <Tabs
+        value={runsTab}
+        onValueChange={(value) => {
+          setRunsTab(value);
+          if (value === "all") {
+            setSearchParams(
+              (prev) => {
+                const next = new URLSearchParams(prev);
+                next.delete("under");
+                next.delete("artifact");
+                return next;
+              },
+              { replace: true },
+            );
+          }
+        }}
+        className="mt-2"
+      >
         <TabsList className="h-10 w-full justify-start rounded-none border-b border-border bg-transparent p-0">
           <TabsTrigger
             value="all"

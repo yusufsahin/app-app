@@ -47,6 +47,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useForm } from "react-hook-form";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { apiClient } from "../../../shared/api/client";
+import { qualityRunExecutePath } from "../../quality/lib/qualityRunPaths";
 import { useOrgMembers } from "../../../shared/api/orgApi";
 import {
   useProjectMembers,
@@ -2436,20 +2437,20 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                         detailArtifact.assignee_id}
                     </p>
                   )}
-                    {detailArtifact.artifact_type === "test-run" && (
+                    {detailArtifact.artifact_type === "test-run" && orgSlug && projectSlug ? (
                       <div className="mb-4 mt-3">
                         <Button
                           size="sm"
                           className="bg-blue-600 shadow-sm hover:bg-blue-700"
                           asChild
                         >
-                          <Link to={`/${orgSlug}/${projectSlug}/quality/runs/${detailArtifact.id}/execute`}>
+                          <Link to={qualityRunExecutePath(orgSlug, projectSlug, detailArtifact.id)}>
                             <PlayCircle className="mr-2 h-4 w-4" />
                             Execute Run
                           </Link>
                         </Button>
                       </div>
-                    )}
+                    ) : null}
                     {!detailDrawerEditing &&
                       detailArtifact.allowed_actions?.includes("transition") &&
                       getValidTransitions(

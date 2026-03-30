@@ -12,24 +12,29 @@ export type QualityRunExecuteQuery = {
   step?: string;
 };
 
-function appendExecuteQuery(path: string, query?: QualityRunExecuteQuery): string {
-  if (!query) return path;
+/** Search params that open `ManualExecutionModalHost` on the Quality runs page. */
+function appendRunExecuteQuery(
+  runsPath: string,
+  runId: string,
+  query?: QualityRunExecuteQuery,
+): string {
   const sp = new URLSearchParams();
-  if (query.popout) sp.set("popout", "1");
-  if (query.test?.trim()) sp.set("test", query.test.trim());
-  if (query.step?.trim()) sp.set("step", query.step.trim());
+  sp.set("runExecute", runId);
+  if (query?.test?.trim()) sp.set("runTest", query.test.trim());
+  if (query?.step?.trim()) sp.set("runStep", query.step.trim());
   const q = sp.toString();
-  return q ? `${path}?${q}` : path;
+  return q ? `${runsPath}?${q}` : runsPath;
 }
 
+/** Path to open manual execution in-app (modal on `/quality/runs`). */
 export function qualityRunExecutePath(
   orgSlug: string,
   projectSlug: string,
   runId: string,
   query?: QualityRunExecuteQuery,
 ): string {
-  const base = `/${orgSlug}/${projectSlug}/quality/runs/${runId}/execute`;
-  return appendExecuteQuery(base, query);
+  const base = `/${orgSlug}/${projectSlug}/quality/runs`;
+  return appendRunExecuteQuery(base, runId, query);
 }
 
 /** Full URL for sharing (auth required). */

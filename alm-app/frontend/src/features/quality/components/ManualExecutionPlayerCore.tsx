@@ -10,7 +10,7 @@ import {
   Layout,
   ArrowLeft,
   Clock,
-  Play,
+  ListChecks,
   Save,
   Flag,
   Link2,
@@ -748,7 +748,7 @@ export function ManualExecutionPlayerCore({
           </Button>
           <div className="hidden h-6 w-px bg-[#E2E8F0] sm:block" />
           <h1 className="flex min-w-0 items-center gap-2 truncate font-bold text-[#1E293B] max-w-[200px] md:max-w-md">
-            <Play className="h-3.5 w-3.5 shrink-0 fill-blue-600 text-blue-600" />
+            <ListChecks className="h-3.5 w-3.5 shrink-0 text-[#64748B]" aria-hidden />
             <span className="truncate">{run.title}</span>
           </h1>
         </div>

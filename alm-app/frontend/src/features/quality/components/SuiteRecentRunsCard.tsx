@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQueries } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { PlayCircle } from "lucide-react";
@@ -9,7 +9,7 @@ import { incomingRunForSuiteLinks, type ArtifactLink } from "../../../shared/api
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Skeleton } from "../../../shared/components/ui";
 import { formatRunEnvironmentLabel, summarizeRunMetricsFromCustomFields } from "../lib/runMetrics";
 import { qualityRunWorkspaceDetailPath } from "../lib/qualityRunPaths";
-import { openManualRunnerInNewWindow } from "../lib/qualityOpenManualRunner";
+import { navigateToManualExecution } from "../lib/qualityOpenManualRunner";
 
 const MAX_RECENT = 10;
 
@@ -24,6 +24,8 @@ type Props = {
 
 export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, links, linksLoading }: Props) {
   const { t } = useTranslation("quality");
+  const navigate = useNavigate();
+  const location = useLocation();
   const incoming = incomingRunForSuiteLinks(links, suiteId);
   const runIds = incoming.slice(0, MAX_RECENT).map((l) => l.from_artifact_id);
 
@@ -113,7 +115,9 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
                     variant="secondary"
                     size="sm"
                     title={t("runsHub.executeInNewWindow")}
-                    onClick={() => openManualRunnerInNewWindow(orgSlug, projectSlug, runId)}
+                    onClick={() =>
+                      navigateToManualExecution(navigate, orgSlug, projectSlug, runId, { location })
+                    }
                   >
                     <PlayCircle className="mr-1 size-4 shrink-0" aria-hidden />
                     {t("runsHub.executeOrContinue")}

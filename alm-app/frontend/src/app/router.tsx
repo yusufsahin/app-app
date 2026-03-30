@@ -85,7 +85,7 @@ const QualityCatalogPage = lazy(() => import("../features/quality/pages/QualityC
 const QualityCampaignPage = lazy(() => import("../features/quality/pages/QualityCampaignPage"));
 const QualityRunsPage = lazy(() => import("../features/quality/pages/QualityRunsPage"));
 const QualityCampaignsPage = lazy(() => import("../features/quality/pages/QualityCampaignsPage"));
-const ManualExecutionPlayerPage = lazy(() => import("../features/quality/pages/ManualExecutionPlayer"));
+const LegacyExecuteRedirect = lazy(() => import("../features/quality/pages/LegacyExecuteRedirect"));
 
 const OrgRedirect = lazy(() => import("./OrgRedirect"));
 
@@ -223,7 +223,7 @@ export const router = createBrowserRouter([
           },
           {
             path: ":projectSlug/quality/runs/:runId/execute",
-            element: withPermission("artifact:read", ManualExecutionPlayerPage),
+            element: withPermission("artifact:read", LegacyExecuteRedirect),
           },
           {
             path: ":projectSlug/quality/runs",

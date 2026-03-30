@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import { PlayCircle, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -24,7 +24,7 @@ import { StartSuiteRunDialog } from "./StartSuiteRunDialog";
 import { useStartSuiteRun } from "../hooks/useStartSuiteRun";
 import { formatRunEnvironmentLabel, summarizeRunMetricsFromCustomFields } from "../lib/runMetrics";
 import { qualityRunWorkspaceDetailPath } from "../lib/qualityRunPaths";
-import { openManualRunnerInNewWindow } from "../lib/qualityOpenManualRunner";
+import { navigateToManualExecution } from "../lib/qualityOpenManualRunner";
 
 type Props = {
   treeId?: string;
@@ -48,6 +48,8 @@ function RunsTableSkeleton({ rows = 6, label }: { rows?: number; label: string }
 
 export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
   const { t } = useTranslation("quality");
+  const navigate = useNavigate();
+  const location = useLocation();
   const { orgSlug, projectSlug, project } = useArtifactsPageProject();
   const [newRunOpen, setNewRunOpen] = useState(false);
   const [selectedSuiteId, setSelectedSuiteId] = useState("");
@@ -323,7 +325,9 @@ export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
                                 title={t("runsHub.executeInNewWindow")}
                                 onClick={() => {
                                   if (!orgSlug || !projectSlug) return;
-                                  openManualRunnerInNewWindow(orgSlug, projectSlug, run.id);
+                                  navigateToManualExecution(navigate, orgSlug, projectSlug, run.id, {
+                                    location,
+                                  });
                                 }}
                               >
                                 <PlayCircle className="mr-1 size-4 shrink-0" aria-hidden />

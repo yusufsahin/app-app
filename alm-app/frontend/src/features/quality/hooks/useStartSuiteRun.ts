@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { navigateToManualExecution } from "../lib/qualityOpenManualRunner";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "../../../shared/api/client";
 import type { Artifact } from "../../../shared/stores/artifactStore";
@@ -15,7 +16,7 @@ export type StartSuiteRunParams = {
 };
 
 /**
- * Creates a test-run under the suite’s collection, links run → suite (`run_for_suite`), then navigates to execute.
+ * Creates a test-run under the suite’s collection, links run → suite (`run_for_suite`), then opens manual execution modal.
  */
 export function useStartSuiteRun(
   orgSlug: string | undefined,
@@ -53,7 +54,7 @@ export function useStartSuiteRun(
     onSuccess: (run) => {
       void queryClient.invalidateQueries({ queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts"] });
       if (orgSlug && projectSlug) {
-        navigate(`/${orgSlug}/${projectSlug}/quality/runs/${run.id}/execute`);
+        navigateToManualExecution(navigate, orgSlug, projectSlug, run.id, { replace: true });
       }
     },
     onError: () => {

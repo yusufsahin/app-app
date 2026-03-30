@@ -186,19 +186,20 @@ test.describe("Quality — Campaign workspace", () => {
     const current = new URL(page.url());
     const runArtifactId = current.searchParams.get("artifact");
     expect(runArtifactId).toMatch(/^[0-9a-f-]{36}$/i);
-    const executePath = current.pathname.replace(/\/quality\/runs$/, `/quality/runs/${runArtifactId}/execute`);
+    const runsBase = current.pathname;
+    const modalUrl = `${runsBase}?runExecute=${encodeURIComponent(runArtifactId!)}`;
 
-    // Navigate directly to execute route and retry once if backend is still catching up.
-    await page.goto(executePath);
-    await page.waitForURL(/\/quality\/runs\/[^/]+\/execute/, { timeout: 10000 });
-    if (await page.getByText(/Run not found/i).isVisible().catch(() => false)) {
-      await page.goto(current.pathname);
+    // Open manual execution modal (same as in-app navigation to runs + runExecute).
+    await page.goto(modalUrl);
+    await expect(page.getByTestId("quality-manual-execution-modal")).toBeVisible({ timeout: 15000 });
+    if (await page.getByText(/Run not found|Koşu bulunamadı/i).isVisible().catch(() => false)) {
+      await page.goto(runsBase);
       await page.getByRole("button", { name: runTitle }).click();
       const retryId = new URL(page.url()).searchParams.get("artifact");
       expect(retryId).toMatch(/^[0-9a-f-]{36}$/i);
-      const retryPath = current.pathname.replace(/\/quality\/runs$/, `/quality/runs/${retryId}/execute`);
-      await page.goto(retryPath);
-      await page.waitForURL(/\/quality\/runs\/[^/]+\/execute/, { timeout: 10000 });
+      const retryUrl = `${runsBase}?runExecute=${encodeURIComponent(retryId!)}`;
+      await page.goto(retryUrl);
+      await expect(page.getByTestId("quality-manual-execution-modal")).toBeVisible({ timeout: 15000 });
     }
     await expect(page.getByText(/Run not found/i)).toHaveCount(0);
 

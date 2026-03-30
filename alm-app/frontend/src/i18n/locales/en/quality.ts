@@ -289,6 +289,8 @@ export const qualityEn = {
     commandPalettePlaceholder: "Type a command…",
     commandPaletteEmpty: "No matching commands.",
     commandPaletteGroup: "Suite",
+    /** Tooltip on the suite card button that opens the same menu as Ctrl+Shift+. */
+    suiteActionsShortcutTitle: "Open suite menu (Ctrl+Shift+.) to start a test run or add tests.",
     shortcutsHint: "Ctrl+Shift+. opens suite actions",
     catalogPanelTitle: "Add tests from Catalog",
     catalogTreeHeading: "Catalog tree",
@@ -339,6 +341,7 @@ export const qualityEn = {
     folderFallback: "Folder",
   },
   execution: {
+    modalTitle: "Manual test execution",
     dataRow: "Data row",
     dataRowHint: "Choose which dataset row applies to this run.",
     unresolvedParams: "Unresolved parameters: {{names}}. Set values or fix step text before saving.",
