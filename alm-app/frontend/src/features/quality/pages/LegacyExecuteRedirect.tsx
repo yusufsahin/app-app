@@ -17,6 +17,7 @@ export default function LegacyExecuteRedirect() {
 
   const qs = new URLSearchParams();
   qs.set("runExecute", runId);
+  qs.set("runView", "execution");
   const test = sp.get("test")?.trim();
   const step = sp.get("step")?.trim();
   if (test) qs.set("runTest", test);

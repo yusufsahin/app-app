@@ -42,6 +42,7 @@ class GetTaskHandler(QueryHandler[TaskDTO | None]):
             description=task.description,
             assignee_id=task.assignee_id,
             rank_order=task.rank_order,
+            team_id=task.team_id,
             created_at=task.created_at.isoformat() if task.created_at else None,
             updated_at=task.updated_at.isoformat() if task.updated_at else None,
             tags=tags,

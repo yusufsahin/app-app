@@ -44,6 +44,7 @@ class ArtifactRepository(ABC):
         root_type_ids_exclude: frozenset[str] | None = None,
         fts_regconfig: str | None = None,
         tag_id: uuid.UUID | None = None,
+        team_id: uuid.UUID | None = None,
     ) -> list[Artifact]: ...
 
     @abstractmethod
@@ -63,6 +64,7 @@ class ArtifactRepository(ABC):
         root_type_ids_exclude: frozenset[str] | None = None,
         fts_regconfig: str | None = None,
         tag_id: uuid.UUID | None = None,
+        team_id: uuid.UUID | None = None,
     ) -> int:
         """Count artifacts matching the same filters as list_by_project (no limit/offset).
 

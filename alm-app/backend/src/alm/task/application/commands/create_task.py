@@ -31,6 +31,7 @@ class CreateTask(Command):
     state: str = "todo"
     assignee_id: uuid.UUID | None = None
     rank_order: float | None = None
+    team_id: uuid.UUID | None = None
     tag_ids: list[uuid.UUID] | None = None
 
 
@@ -80,6 +81,7 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
             description=command.description or "",
             assignee_id=command.assignee_id,
             rank_order=command.rank_order,
+            team_id=command.team_id,
         )
         await self._task_repo.add(task)
 
@@ -102,6 +104,7 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
             description=task.description,
             assignee_id=task.assignee_id,
             rank_order=task.rank_order,
+            team_id=task.team_id,
             created_at=task.created_at.isoformat() if task.created_at else None,
             updated_at=task.updated_at.isoformat() if task.updated_at else None,
             tags=tags,

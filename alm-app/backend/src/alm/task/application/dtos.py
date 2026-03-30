@@ -20,4 +20,5 @@ class TaskDTO:
     rank_order: float | None
     created_at: str | None
     updated_at: str | None
+    team_id: uuid.UUID | None = None
     tags: tuple[ProjectTagDTO, ...] = ()

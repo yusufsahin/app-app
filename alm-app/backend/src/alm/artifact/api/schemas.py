@@ -43,9 +43,10 @@ class ArtifactCreateRequest(BaseModel):
     rank_order: float | None = None
     cycle_node_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
+    team_id: uuid.UUID | None = None
     tag_ids: list[uuid.UUID] | None = None
 
-    @field_validator("parent_id", "assignee_id", "cycle_node_id", "area_node_id", mode="before")
+    @field_validator("parent_id", "assignee_id", "cycle_node_id", "area_node_id", "team_id", mode="before")
     @classmethod
     def empty_str_to_none_uuid(cls, v: str | uuid.UUID | None) -> uuid.UUID | None:
         if v is None:
@@ -80,6 +81,7 @@ class ArtifactResponse(BaseModel):
     cycle_node_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
     area_path_snapshot: str | None = None
+    team_id: uuid.UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     tags: list[ProjectTagBrief] = Field(default_factory=list)
@@ -100,11 +102,12 @@ class ArtifactUpdateRequest(BaseModel):
     assignee_id: uuid.UUID | None = None
     cycle_node_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
+    team_id: uuid.UUID | None = None
     parent_id: uuid.UUID | None = None
     custom_fields: dict[str, Any] | None = None
     tag_ids: list[uuid.UUID] | None = None
 
-    @field_validator("assignee_id", "cycle_node_id", "area_node_id", "parent_id", mode="before")
+    @field_validator("assignee_id", "cycle_node_id", "area_node_id", "team_id", "parent_id", mode="before")
     @classmethod
     def empty_str_to_none_uuid(cls, v: str | uuid.UUID | None) -> uuid.UUID | None:
         if v is None:
@@ -203,6 +206,7 @@ def artifact_response_from_dto(d: ArtifactDTO) -> ArtifactResponse:
         cycle_node_id=d.cycle_node_id,
         area_node_id=d.area_node_id,
         area_path_snapshot=d.area_path_snapshot,
+        team_id=d.team_id,
         created_at=d.created_at,
         updated_at=d.updated_at,
         tags=[ProjectTagBrief(id=t.id, name=t.name) for t in d.tags],

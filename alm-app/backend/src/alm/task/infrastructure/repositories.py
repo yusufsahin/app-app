@@ -31,10 +31,13 @@ class SqlAlchemyTaskRepository(TaskRepository):
         self,
         artifact_id: uuid.UUID,
         include_deleted: bool = False,
+        team_id: uuid.UUID | None = None,
     ) -> list[Task]:
         q = select(TaskModel).where(TaskModel.artifact_id == artifact_id)
         if not include_deleted:
             q = q.where(TaskModel.deleted_at.is_(None))
+        if team_id is not None:
+            q = q.where(TaskModel.team_id == team_id)
         q = q.order_by(TaskModel.rank_order.asc().nullslast(), TaskModel.created_at.asc())
         result = await self._session.execute(q)
         return [self._to_entity(m) for m in result.scalars().all()]
@@ -43,6 +46,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
         self,
         project_id: uuid.UUID,
         assignee_id: uuid.UUID,
+        team_id: uuid.UUID | None = None,
     ) -> list[Task]:
         q = (
             select(TaskModel)
@@ -53,6 +57,8 @@ class SqlAlchemyTaskRepository(TaskRepository):
             )
             .order_by(TaskModel.rank_order.asc().nullslast(), TaskModel.created_at.asc())
         )
+        if team_id is not None:
+            q = q.where(TaskModel.team_id == team_id)
         result = await self._session.execute(q)
         return [self._to_entity(m) for m in result.scalars().all()]
 
@@ -77,6 +83,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
             description=task.description or "",
             assignee_id=task.assignee_id,
             rank_order=task.rank_order,
+            team_id=task.team_id,
         )
         self._session.add(model)
         await self._session.flush()
@@ -92,6 +99,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
                 description=task.description or "",
                 assignee_id=task.assignee_id,
                 rank_order=task.rank_order,
+                team_id=task.team_id,
             )
         )
         await self._session.flush()
@@ -124,6 +132,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
             description=m.description or "",
             assignee_id=m.assignee_id,
             rank_order=m.rank_order,
+            team_id=m.team_id,
             created_at=m.created_at,
             updated_at=m.updated_at,
         )

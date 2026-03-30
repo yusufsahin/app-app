@@ -92,9 +92,7 @@ test.describe("Quality — Campaign workspace", () => {
     await expect(sidebar.getByRole("link", { name: "Runs" })).toBeVisible();
 
     await quality.openRunsAllRunsTab();
-    await expect(page.getByTestId("quality-runs-tab-by-folder")).toBeVisible({ timeout: 15000 });
-    await page.getByTestId("quality-runs-tab-by-folder").click();
-    await expect(page.getByTestId("quality-tree-explorer-heading")).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId("quality-runs-hub-heading")).toBeVisible({ timeout: 15000 });
     await expect(sidebar.getByRole("link", { name: "Traceability" })).toBeVisible();
 
     await sidebar.getByRole("link", { name: "Traceability" }).click();
@@ -146,7 +144,7 @@ test.describe("Quality — Campaign workspace", () => {
     await quality.deleteFolderById(createdFolderId, renamedTitle);
   });
 
-  test("executes a run via run→suite→tests links and saves progress", async ({ page }) => {
+  test("executes a run from runs hub and saves progress", async ({ page }) => {
     test.setTimeout(120000);
     const nav = new ProjectNavigationPage(page);
     const quality = new QualityWorkspacePage(page);
@@ -173,24 +171,18 @@ test.describe("Quality — Campaign workspace", () => {
     await suiteEditor.getByTestId("suite-link-add-selected").click();
     await suiteEditor.getByRole("button", { name: "Close" }).click();
 
-    await quality.openRuns();
-    await quality.selectFirstCampaignCollection();
-    await quality.createItemFromModal(runTitle);
-
-    await page.getByRole("button", { name: runTitle }).click();
-    await page.locator("select").first().selectOption({ label: suiteTitle });
-    await page.getByRole("button", { name: "Add link" }).click();
-
-    // Ensure the selected run is reflected in URL before executing.
-    await expect(page).toHaveURL(/artifact=[0-9a-f-]{36}/i, { timeout: 10000 });
+    await quality.openRunsAllRunsTab();
+    await page.locator('button[role="combobox"]').filter({ hasText: /Select a test suite|Test paketi seçin/i }).click();
+    await page.getByRole("option", { name: suiteTitle }).click();
+    await page.locator('button:has-text("New run"), button:has-text("Yeni koşu")').first().click();
+    await page.getByLabel(/run name|koşu adı/i).fill(runTitle);
+    await page.getByRole("button", { name: /Start run|Koşuyu başlat/i }).click();
+    await expect(page).toHaveURL(/runExecute=[0-9a-f-]{36}/i, { timeout: 10000 });
     const current = new URL(page.url());
-    const runArtifactId = current.searchParams.get("artifact");
+    const runArtifactId = current.searchParams.get("runExecute");
     expect(runArtifactId).toMatch(/^[0-9a-f-]{36}$/i);
     const runsBase = current.pathname;
-    const modalUrl = `${runsBase}?runExecute=${encodeURIComponent(runArtifactId!)}`;
 
-    // Open manual execution modal (same as in-app navigation to runs + runExecute).
-    await page.goto(modalUrl);
     await expect(page.getByTestId("quality-manual-execution-modal")).toBeVisible({ timeout: 15000 });
     if (await page.getByText(/Run not found|Koşu bulunamadı/i).isVisible().catch(() => false)) {
       await page.goto(runsBase);

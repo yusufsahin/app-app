@@ -8,8 +8,7 @@ import type { Artifact } from "../../../shared/stores/artifactStore";
 import { incomingRunForSuiteLinks, type ArtifactLink } from "../../../shared/api/artifactLinkApi";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Skeleton } from "../../../shared/components/ui";
 import { formatRunEnvironmentLabel, summarizeRunMetricsFromCustomFields } from "../lib/runMetrics";
-import { qualityRunWorkspaceDetailPath } from "../lib/qualityRunPaths";
-import { navigateToManualExecution } from "../lib/qualityOpenManualRunner";
+import { navigateToManualExecution, navigateToRunDetails } from "../lib/qualityOpenManualRunner";
 
 const MAX_RECENT = 10;
 
@@ -90,7 +89,6 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
                     blocked: summary.blocked,
                     notExecuted: summary.notExecuted,
                   });
-            const detailsTo = qualityRunWorkspaceDetailPath(orgSlug, projectSlug, runId, artifact?.parent_id);
             const titleText = artifact?.title ?? runId;
             const metaParts = [
               artifact?.updated_at ? dayjs(artifact.updated_at).format("YYYY-MM-DD HH:mm") : null,
@@ -114,7 +112,7 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
                     type="button"
                     variant="secondary"
                     size="sm"
-                    title={t("runsHub.executeInNewWindow")}
+                    title={t("runsHub.executeInModal")}
                     onClick={() =>
                       navigateToManualExecution(navigate, orgSlug, projectSlug, runId, { location })
                     }
@@ -122,8 +120,15 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
                     <PlayCircle className="mr-1 size-4 shrink-0" aria-hidden />
                     {t("runsHub.executeOrContinue")}
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" asChild>
-                    <Link to={detailsTo}>{t("runsHub.openDetails")}</Link>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      navigateToRunDetails(navigate, orgSlug, projectSlug, runId, { location })
+                    }
+                  >
+                    {t("runsHub.openDetails")}
                   </Button>
                 </div>
               </div>

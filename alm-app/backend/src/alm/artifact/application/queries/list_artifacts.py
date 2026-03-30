@@ -42,6 +42,7 @@ class ListArtifacts(Query):
     actor_roles: list[str] | None = None
     parent_id: uuid.UUID | None = None  # when set, only direct children of this parent (within tree subtree if any)
     tag_id: uuid.UUID | None = None  # filter artifacts that have this project tag
+    team_id: uuid.UUID | None = None  # filter artifacts assigned to this team
 
 
 @dataclass
@@ -128,6 +129,7 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             root_type_ids_exclude=system_roots if exclude_roots else None,
             fts_regconfig=fts_cfg,
             tag_id=query.tag_id,
+            team_id=query.team_id,
         )
         artifacts = await self._artifact_repo.list_by_project(
             query.project_id,
@@ -148,6 +150,7 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             root_type_ids_exclude=system_roots if exclude_roots else None,
             fts_regconfig=fts_cfg,
             tag_id=query.tag_id,
+            team_id=query.team_id,
         )
         tag_map = await self._tag_repo.get_tags_by_artifact_ids([a.id for a in artifacts])
         items = [
@@ -168,6 +171,7 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
                 cycle_node_id=getattr(a, "cycle_node_id", None),
                 area_node_id=getattr(a, "area_node_id", None),
                 area_path_snapshot=getattr(a, "area_path_snapshot", None),
+                team_id=getattr(a, "team_id", None),
                 created_at=getattr(a, "created_at", None),
                 updated_at=getattr(a, "updated_at", None),
                 tags=tag_map.get(a.id, ()),

@@ -36,3 +36,9 @@ class TaskModel(Base, TimestampMixin, SoftDeleteMixin):
         index=True,
     )
     rank_order: Mapped[float | None] = mapped_column(Float, nullable=True)
+    team_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("teams.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )

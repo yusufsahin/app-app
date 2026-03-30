@@ -221,6 +221,7 @@ async def list_artifacts(
         description="When set, return only artifacts whose parent_id equals this id (still scoped by tree subtree when tree is set).",
     ),
     tag_id: uuid.UUID | None = Query(None, description="Filter artifacts that have this project tag"),
+    team_id: uuid.UUID | None = Query(None, description="Filter artifacts assigned to this team"),
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("artifact:read"),
     _acl: None = require_manifest_acl("artifact", "read"),
@@ -246,6 +247,7 @@ async def list_artifacts(
             parent_id=parent_id,
             actor_roles=list(user.roles or []),
             tag_id=tag_id,
+            team_id=team_id,
         )
     )
     items = [artifact_response_from_dto(d) for d in result.items]
@@ -374,6 +376,7 @@ async def create_artifact(
             rank_order=body.rank_order,
             cycle_node_id=body.cycle_node_id,
             area_node_id=body.area_node_id,
+            team_id=body.team_id,
             created_by=user.id,
             tag_ids=body.tag_ids,
         )

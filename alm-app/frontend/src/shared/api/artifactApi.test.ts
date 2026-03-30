@@ -103,6 +103,12 @@ describe("buildArtifactListParams", () => {
     });
   });
 
+  it("maps team_id when teamId is non-empty", () => {
+    expect(buildArtifactListParams({ teamId: "  team-123  " })).toEqual({
+      team_id: "team-123",
+    });
+  });
+
   it("combines parent_id with tree and include_system_roots", () => {
     expect(
       buildArtifactListParams({

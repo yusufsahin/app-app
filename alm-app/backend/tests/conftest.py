@@ -33,6 +33,7 @@ import alm.artifact_link.infrastructure.models  # noqa: F401
 import alm.attachment.infrastructure.models  # noqa: F401
 import alm.auth.infrastructure.models  # noqa: F401
 import alm.comment.infrastructure.models  # noqa: F401
+import alm.capacity.infrastructure.models  # noqa: F401
 import alm.cycle.infrastructure.models  # noqa: F401
 import alm.process_template.infrastructure.models  # noqa: F401
 import alm.project.infrastructure.models  # noqa: F401

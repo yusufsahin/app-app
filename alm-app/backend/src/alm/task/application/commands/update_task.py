@@ -28,6 +28,7 @@ class UpdateTask(Command):
     description: str | None = None
     assignee_id: uuid.UUID | None = None
     rank_order: float | None = None
+    team_id: uuid.UUID | None = None
     tag_ids: Any = _TAG_IDS_OMITTED
 
 
@@ -73,6 +74,8 @@ class UpdateTaskHandler(CommandHandler[TaskDTO]):
             task.assignee_id = command.assignee_id
         if command.rank_order is not None:
             task.rank_order = command.rank_order
+        if command.team_id is not None:
+            task.team_id = command.team_id
 
         if command.tag_ids is not _TAG_IDS_OMITTED:
             raw = command.tag_ids
@@ -101,6 +104,7 @@ class UpdateTaskHandler(CommandHandler[TaskDTO]):
             description=task.description,
             assignee_id=task.assignee_id,
             rank_order=task.rank_order,
+            team_id=task.team_id,
             created_at=task.created_at.isoformat() if task.created_at else None,
             updated_at=task.updated_at.isoformat() if task.updated_at else None,
             tags=tags,

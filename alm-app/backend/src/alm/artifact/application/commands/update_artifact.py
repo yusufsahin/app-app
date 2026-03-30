@@ -154,6 +154,9 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
                 if area_node and area_node.project_id == command.project_id:
                     path_snapshot = area_node.path
             artifact.assign_area(area_node_id, path_snapshot)
+        if "team_id" in updates:
+            val = updates["team_id"]
+            artifact.team_id = uuid.UUID(str(val)) if val is not None and str(val).strip() else None
 
         if "custom_fields" in updates and updates["custom_fields"] is not None:
             merged = dict(artifact.custom_fields or {})
@@ -189,6 +192,7 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
             cycle_node_id=getattr(artifact, "cycle_node_id", None),
             area_node_id=getattr(artifact, "area_node_id", None),
             area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
+            team_id=getattr(artifact, "team_id", None),
             created_at=getattr(artifact, "created_at", None),
             updated_at=getattr(artifact, "updated_at", None),
             tags=tag_map.get(artifact.id, ()),

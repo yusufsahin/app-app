@@ -68,6 +68,16 @@ from alm.attachment.domain.ports import FileStoragePort
 from alm.comment.api.schemas import CommentCreateRequest, CommentResponse
 from alm.comment.application.commands.create_comment import CreateComment
 from alm.comment.application.queries.list_comments_by_artifact import ListCommentsByArtifact
+from alm.capacity.api.schemas import (
+    CapacityCreateRequest,
+    CapacityResponse,
+    CapacityUpdateRequest,
+    capacity_response_from_dto,
+)
+from alm.capacity.application.commands.create_capacity import CreateCapacity
+from alm.capacity.application.commands.delete_capacity import DeleteCapacity
+from alm.capacity.application.commands.update_capacity import UpdateCapacity
+from alm.capacity.application.queries.list_capacity_by_project import ListCapacityByProject
 from alm.config.dependencies import get_file_storage, get_mediator
 from alm.cycle.api.schemas import IncrementCreateRequest, IncrementResponse, IncrementUpdateRequest
 from alm.cycle.application.commands.create_cycle import CreateIncrement

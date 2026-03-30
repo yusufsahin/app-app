@@ -16,6 +16,7 @@ class ListTasksByProjectAndAssignee(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     assignee_id: uuid.UUID
+    team_id: uuid.UUID | None = None
 
 
 class ListTasksByProjectAndAssigneeHandler(QueryHandler[list[TaskDTO]]):
@@ -29,6 +30,7 @@ class ListTasksByProjectAndAssigneeHandler(QueryHandler[list[TaskDTO]]):
         tasks = await self._task_repo.list_by_project_and_assignee(
             query.project_id,
             query.assignee_id,
+            team_id=query.team_id,
         )
         ids = [t.id for t in tasks]
         tag_map = await self._tag_repo.get_tags_by_task_ids(ids)
@@ -42,6 +44,7 @@ class ListTasksByProjectAndAssigneeHandler(QueryHandler[list[TaskDTO]]):
                 description=t.description,
                 assignee_id=t.assignee_id,
                 rank_order=t.rank_order,
+                team_id=t.team_id,
                 created_at=t.created_at.isoformat() if t.created_at else None,
                 updated_at=t.updated_at.isoformat() if t.updated_at else None,
                 tags=tag_map.get(t.id, ()),

@@ -16,6 +16,7 @@ router = APIRouter()
 async def list_tasks_by_project_and_assignee(
     project_id: uuid.UUID,
     assignee_id: str,
+    team_id: uuid.UUID | None = Query(None, description="Optional team filter"),
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("task:read"),
     _acl: None = require_manifest_acl("artifact", "read"),
@@ -28,6 +29,7 @@ async def list_tasks_by_project_and_assignee(
             tenant_id=org.tenant_id,
             project_id=project_id,
             assignee_id=effective_assignee,
+            team_id=team_id,
         )
     )
     return [task_response_from_dto(d) for d in dtos]
@@ -40,6 +42,7 @@ async def list_tasks_by_project_and_assignee(
 async def list_tasks_by_artifact(
     project_id: uuid.UUID,
     artifact_id: uuid.UUID,
+    team_id: uuid.UUID | None = Query(None, description="Optional team filter"),
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("task:read"),
     _acl: None = require_manifest_acl("artifact", "read"),
@@ -50,6 +53,7 @@ async def list_tasks_by_artifact(
             tenant_id=org.tenant_id,
             project_id=project_id,
             artifact_id=artifact_id,
+            team_id=team_id,
         )
     )
     return [task_response_from_dto(d) for d in dtos]
@@ -79,6 +83,7 @@ async def create_task(
             state=body.state,
             assignee_id=body.assignee_id,
             rank_order=body.rank_order,
+            team_id=body.team_id,
             tag_ids=body.tag_ids,
         )
     )
@@ -133,6 +138,7 @@ async def update_task(
         description=updates.get("description"),
         assignee_id=updates.get("assignee_id"),
         rank_order=updates.get("rank_order"),
+        team_id=updates.get("team_id"),
     )
     if "tag_ids" in updates:
         cmd_kwargs["tag_ids"] = updates["tag_ids"]

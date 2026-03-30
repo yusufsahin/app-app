@@ -144,6 +144,18 @@ def build_artifact_create_form_schema(
         )
     )
 
+    # team_id - entity_ref team (optional)
+    fields.append(
+        FormFieldSchema(
+            key="team_id",
+            type="entity_ref",
+            label_key="Team (optional)",
+            required=False,
+            entity_ref="team",
+            order=38,
+        )
+    )
+
     # Custom fields from all artifact types (merged; type-specific via visibleWhen)
     order = 40
     seen_keys: set[str] = set()
@@ -274,6 +286,14 @@ def build_artifact_edit_form_schema(
             entity_ref="user",
             order=30,
         ),
+        FormFieldSchema(
+            key="team_id",
+            type="entity_ref",
+            label_key="Team (optional)",
+            required=False,
+            entity_ref="team",
+            order=35,
+        ),
     ]
     at_key = artifact_type or ""
     if not artifact_type or planning_cycle_field_allowed(manifest_bundle, at_key):
@@ -402,6 +422,14 @@ def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None)
             required=False,
             entity_ref="user",
             order=40,
+        ),
+        FormFieldSchema(
+            key="team_id",
+            type="entity_ref",
+            label_key="Team (optional)",
+            required=False,
+            entity_ref="team",
+            order=42,
         ),
         FormFieldSchema(
             key="tag_ids",

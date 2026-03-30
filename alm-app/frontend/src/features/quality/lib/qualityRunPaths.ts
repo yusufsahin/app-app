@@ -4,8 +4,8 @@ export function isArtifactUuid(id: string | null | undefined): id is string {
 }
 
 export type QualityRunExecuteQuery = {
-  /** Compact layout for side-by-side manual runner + SUT. */
-  popout?: boolean;
+  /** Initial modal view. */
+  view?: "overview" | "execution";
   /** Deep-link: test case artifact id. */
   test?: string;
   /** Deep-link: step id (matches TestStep.id). */
@@ -20,6 +20,7 @@ function appendRunExecuteQuery(
 ): string {
   const sp = new URLSearchParams();
   sp.set("runExecute", runId);
+  if (query?.view) sp.set("runView", query.view);
   if (query?.test?.trim()) sp.set("runTest", query.test.trim());
   if (query?.step?.trim()) sp.set("runStep", query.step.trim());
   const q = sp.toString();
@@ -49,15 +50,11 @@ export function qualityRunExecuteAbsoluteUrl(
   return `${origin.replace(/\/$/, "")}${path}`;
 }
 
-export function qualityRunWorkspaceDetailPath(
+/** Path to open run details in modal (overview tab on `/quality/runs`). */
+export function qualityRunDetailsPath(
   orgSlug: string,
   projectSlug: string,
   runId: string,
-  parentId?: string | null,
 ): string {
-  const base = `/${orgSlug}/${projectSlug}/quality/runs`;
-  if (parentId && isArtifactUuid(parentId)) {
-    return `${base}?under=${encodeURIComponent(parentId)}&artifact=${encodeURIComponent(runId)}`;
-  }
-  return `${base}?artifact=${encodeURIComponent(runId)}`;
+  return qualityRunExecutePath(orgSlug, projectSlug, runId, { view: "overview" });
 }

@@ -6,6 +6,7 @@ from alm.orgs.api.routes_area_nodes_project_area_tree_pamera_areanode_like impor
 from alm.orgs.api.routes_artifact_links_traceability import router as _r4
 from alm.orgs.api.routes_attachments_artifact_file_upload_download import router as _r5
 from alm.orgs.api.routes_comments_artifact_linked import router as _r3
+from alm.orgs.api.routes_capacity_p7 import router as _r17
 from alm.orgs.api.routes_cycle_nodes_planning_tree_pamera_iterationnode_like import router as _r8
 from alm.orgs.api.routes_dashboard import router as _r12
 from alm.orgs.api.routes_members import router as _r13
@@ -43,3 +44,4 @@ router.include_router(_r12)
 router.include_router(_r13)
 router.include_router(_r14)
 router.include_router(_r16)
+router.include_router(_r17)

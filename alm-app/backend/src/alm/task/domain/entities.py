@@ -23,6 +23,7 @@ class Task(AggregateRoot):
         description: str = "",
         assignee_id: uuid.UUID | None = None,
         rank_order: float | None = None,
+        team_id: uuid.UUID | None = None,
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
     ) -> None:
@@ -34,6 +35,7 @@ class Task(AggregateRoot):
         self.description = description
         self.assignee_id = assignee_id
         self.rank_order = rank_order
+        self.team_id = team_id
         self.created_at = created_at
         self.updated_at = updated_at
 
@@ -49,6 +51,7 @@ class Task(AggregateRoot):
         description: str = "",
         assignee_id: uuid.UUID | None = None,
         rank_order: float | None = None,
+        team_id: uuid.UUID | None = None,
     ) -> Task:
         return cls(
             project_id=project_id,
@@ -59,6 +62,7 @@ class Task(AggregateRoot):
             description=description,
             assignee_id=assignee_id,
             rank_order=rank_order,
+            team_id=team_id,
         )
 
     def to_snapshot_dict(self) -> dict[str, Any]:
@@ -71,6 +75,7 @@ class Task(AggregateRoot):
             "description": self.description,
             "assignee_id": str(self.assignee_id) if self.assignee_id else None,
             "rank_order": self.rank_order,
+            "team_id": str(self.team_id) if self.team_id else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

@@ -18,6 +18,7 @@ export interface Task {
   description: string;
   assignee_id: string | null;
   rank_order: number | null;
+  team_id: string | null;
   created_at: string | null;
   updated_at: string | null;
   tags?: TaskTagBrief[];
@@ -28,6 +29,7 @@ export interface CreateTaskRequest {
   description?: string;
   state?: string;
   assignee_id?: string | null;
+  team_id?: string | null;
   rank_order?: number | null;
   tag_ids?: string[];
 }
@@ -37,6 +39,7 @@ export interface UpdateTaskRequest {
   state?: string;
   description?: string | null;
   assignee_id?: string | null;
+  team_id?: string | null;
   rank_order?: number | null;
   tag_ids?: string[];
 }
@@ -45,12 +48,14 @@ export function useTasksByArtifact(
   orgSlug: string | undefined,
   projectId: string | undefined,
   artifactId: string | undefined,
+  teamId?: string | null,
 ) {
   return useQuery({
-    queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "tasks"],
+    queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "tasks", teamId ?? null],
     queryFn: async (): Promise<Task[]> => {
       const { data } = await apiClient.get<Task[]>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/tasks`,
+        { params: teamId ? { team_id: teamId } : undefined },
       );
       return data;
     },
@@ -62,13 +67,14 @@ export function useTasksByArtifact(
 export function useMyTasksInProject(
   orgSlug: string | undefined,
   projectId: string | undefined,
+  teamId?: string | null,
 ) {
   return useQuery({
-    queryKey: ["orgs", orgSlug, "projects", projectId, "tasks", "assignee=me"],
+    queryKey: ["orgs", orgSlug, "projects", projectId, "tasks", "assignee=me", teamId ?? null],
     queryFn: async (): Promise<Task[]> => {
       const { data } = await apiClient.get<Task[]>(
         `/orgs/${orgSlug}/projects/${projectId}/tasks`,
-        { params: { assignee_id: "me" } },
+        { params: { assignee_id: "me", ...(teamId ? { team_id: teamId } : {}) } },
       );
       return data;
     },
@@ -91,6 +97,7 @@ export function useCreateTask(
         state: payload.state ?? "todo",
       };
       if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id;
+      if (payload.team_id !== undefined) body.team_id = payload.team_id;
       if (payload.rank_order !== undefined) body.rank_order = payload.rank_order;
       if (payload.tag_ids !== undefined) body.tag_ids = payload.tag_ids;
       const { data } = await apiClient.post<Task>(
@@ -123,6 +130,7 @@ export function useUpdateTask(
       if (payload.state !== undefined) body.state = payload.state;
       if (payload.description !== undefined) body.description = payload.description;
       if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id;
+      if (payload.team_id !== undefined) body.team_id = payload.team_id;
       if (payload.rank_order !== undefined) body.rank_order = payload.rank_order;
       if (payload.tag_ids !== undefined) body.tag_ids = payload.tag_ids;
       const { data } = await apiClient.patch<Task>(

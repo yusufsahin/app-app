@@ -29,6 +29,7 @@ class ArtifactDTO:
     cycle_node_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
     area_path_snapshot: str | None = None
+    team_id: uuid.UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     tags: tuple[ProjectTagDTO, ...] = ()

@@ -28,6 +28,7 @@ from alm.shared.infrastructure.rate_limit_middleware import RateLimitMiddleware
 from alm.shared.infrastructure.security_headers import SecureHeadersMiddleware
 from alm.shared.infrastructure.tenant_middleware import TenantContextMiddleware
 from alm.tenant.api.router import router as tenant_router
+from alm.team.api.router import router as team_router
 
 logger = structlog.get_logger()
 
@@ -97,6 +98,7 @@ def create_app() -> FastAPI:
     app.include_router(dashboard_router, prefix="/api/v1/tenants")
     app.include_router(process_template_router, prefix="/api/v1")
     app.include_router(audit_router, prefix="/api/v1")
+    app.include_router(team_router, prefix="/api/v1/tenants")
 
     # OpenTelemetry Instrumentation (Faz D4)
     if not settings.debug:

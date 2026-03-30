@@ -5,13 +5,18 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from alm.artifact.domain.manifest_workflow_metadata import (
+    DEFAULT_BURNDOWN_DONE_STATES,
+    resolve_burndown_done_states,
+)
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.cycle.domain.ports import CycleRepository
+from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.query import Query, QueryHandler
 
 # Done states for velocity (terminal workflow states)
-DEFAULT_DONE_STATES = ("done", "closed", "resolved")
+DEFAULT_DONE_STATES = DEFAULT_BURNDOWN_DONE_STATES
 DEFAULT_EFFORT_FIELD = "story_points"
 
 
@@ -39,10 +44,12 @@ class GetVelocityHandler(QueryHandler[list[VelocityPointDTO]]):
         project_repo: ProjectRepository,
         cycle_repo: CycleRepository,
         artifact_repo: ArtifactRepository,
+        process_template_repo: ProcessTemplateRepository,
     ) -> None:
         self._project_repo = project_repo
         self._cycle_repo = cycle_repo
         self._artifact_repo = artifact_repo
+        self._process_template_repo = process_template_repo
 
     async def handle(self, query: Query) -> list[VelocityPointDTO]:
         assert isinstance(query, GetVelocity)
@@ -50,6 +57,14 @@ class GetVelocityHandler(QueryHandler[list[VelocityPointDTO]]):
         project = await self._project_repo.find_by_id(query.project_id)
         if project is None or project.tenant_id != query.tenant_id:
             return []
+
+        manifest: dict = {}
+        if project.process_template_version_id:
+            ver = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+            if ver and ver.manifest_bundle:
+                manifest = ver.manifest_bundle
+        manifest_done = resolve_burndown_done_states(manifest)
+        effective_done = query.done_states if query.done_states != DEFAULT_BURNDOWN_DONE_STATES else manifest_done
 
         cycle_ids = query.cycle_node_ids
         if query.release_cycle_node_id:
@@ -74,7 +89,7 @@ class GetVelocityHandler(QueryHandler[list[VelocityPointDTO]]):
         sums = await self._artifact_repo.sum_effort_by_cycles(
             query.project_id,
             cycle_ids,
-            query.done_states,
+            effective_done,
             query.effort_field,
         )
         sum_by_id = dict(sums)

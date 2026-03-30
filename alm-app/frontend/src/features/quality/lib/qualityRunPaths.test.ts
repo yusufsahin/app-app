@@ -3,7 +3,7 @@ import {
   isArtifactUuid,
   qualityRunExecutePath,
   qualityRunExecuteAbsoluteUrl,
-  qualityRunWorkspaceDetailPath,
+  qualityRunDetailsPath,
 } from "./qualityRunPaths";
 
 describe("qualityRunPaths", () => {
@@ -18,28 +18,28 @@ describe("qualityRunPaths", () => {
     );
   });
 
-  it("builds execute path with test and step (popout flag ignored in URL)", () => {
+  it("builds execute path with test and step", () => {
     const run = "550e8400-e29b-41d4-a716-446655440000";
     const test = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
     const step = "step-1";
     expect(
       qualityRunExecutePath("o", "p", run, {
-        popout: true,
+        view: "execution",
         test,
         step,
       }),
     ).toBe(
-      `/o/p/quality/runs?runExecute=${encodeURIComponent(run)}&runTest=${encodeURIComponent(test)}&runStep=${encodeURIComponent(step)}`,
+      `/o/p/quality/runs?runExecute=${encodeURIComponent(run)}&runView=execution&runTest=${encodeURIComponent(test)}&runStep=${encodeURIComponent(step)}`,
     );
   });
 
   it("builds absolute execute URL", () => {
     expect(
       qualityRunExecuteAbsoluteUrl("https://app.example", "a", "b", "550e8400-e29b-41d4-a716-446655440000", {
-        popout: true,
+        view: "execution",
       }),
     ).toBe(
-      "https://app.example/a/b/quality/runs?runExecute=550e8400-e29b-41d4-a716-446655440000",
+      "https://app.example/a/b/quality/runs?runExecute=550e8400-e29b-41d4-a716-446655440000&runView=execution",
     );
   });
 
@@ -49,13 +49,10 @@ describe("qualityRunPaths", () => {
     ).toBe("https://app.example/a/b/quality/runs?runExecute=550e8400-e29b-41d4-a716-446655440000");
   });
 
-  it("builds detail path with or without parent", () => {
+  it("builds detail path", () => {
     const run = "550e8400-e29b-41d4-a716-446655440000";
-    const parent = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
-    expect(qualityRunWorkspaceDetailPath("o", "p", run, parent)).toBe(
-      `/o/p/quality/runs?under=${encodeURIComponent(parent)}&artifact=${encodeURIComponent(run)}`,
+    expect(qualityRunDetailsPath("o", "p", run)).toBe(
+      `/o/p/quality/runs?runExecute=${encodeURIComponent(run)}&runView=overview`,
     );
-    expect(qualityRunWorkspaceDetailPath("o", "p", run, null)).toBe(`/o/p/quality/runs?artifact=${encodeURIComponent(run)}`);
-    expect(qualityRunWorkspaceDetailPath("o", "p", run, "bad")).toBe(`/o/p/quality/runs?artifact=${encodeURIComponent(run)}`);
   });
 });

@@ -79,4 +79,9 @@ describe('buildArtifactListParams', () => {
         const params = buildArtifactListParams({ tree: '  quality  ', parentId: '  p-1  ' });
         expect(params).toEqual({ tree: 'quality', parent_id: 'p-1' });
         });
+
+    it('should include trimmed teamId', () => {
+        const params = buildArtifactListParams({ teamId: '  team-1  ' });
+        expect(params).toEqual({ team_id: 'team-1' });
+    });
 });

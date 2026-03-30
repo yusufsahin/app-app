@@ -85,10 +85,6 @@ from alm.artifact_link.application.queries.list_artifact_links import (
     ListArtifactLinksHandler,
 )
 from alm.artifact_link.infrastructure.repositories import SqlAlchemyArtifactLinkRepository
-from alm.quality.application.queries.batch_last_test_execution_status import (
-    BatchLastTestExecutionStatus,
-    BatchLastTestExecutionStatusHandler,
-)
 
 # ── Attachment commands ──
 from alm.attachment.application.commands.create_attachment import (
@@ -130,6 +126,14 @@ from alm.auth.infrastructure.repositories import (
     SqlAlchemyUserLookupAdapter,
     SqlAlchemyUserRepository,
 )
+from alm.capacity.application.commands.create_capacity import CreateCapacity, CreateCapacityHandler
+from alm.capacity.application.commands.delete_capacity import DeleteCapacity, DeleteCapacityHandler
+from alm.capacity.application.commands.update_capacity import UpdateCapacity, UpdateCapacityHandler
+from alm.capacity.application.queries.list_capacity_by_project import (
+    ListCapacityByProject,
+    ListCapacityByProjectHandler,
+)
+from alm.capacity.infrastructure.repositories import SqlAlchemyCapacityRepository
 
 # ── Comment commands ──
 from alm.comment.application.commands.create_comment import CreateComment, CreateCommentHandler
@@ -249,6 +253,10 @@ from alm.project_tag.application.queries.list_project_tags import (
     ListProjectTagsHandler,
 )
 from alm.project_tag.infrastructure.repositories import SqlAlchemyProjectTagRepository
+from alm.quality.application.queries.batch_last_test_execution_status import (
+    BatchLastTestExecutionStatus,
+    BatchLastTestExecutionStatusHandler,
+)
 from alm.realtime.event_handlers import on_artifact_state_changed_realtime
 
 # ── Saved query commands ──
@@ -794,6 +802,7 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             cycle_repo=SqlAlchemyCycleRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
 
@@ -1315,6 +1324,36 @@ def register_all_handlers() -> None:
         GetTeam,
         lambda s: GetTeamHandler(
             team_repo=SqlAlchemyTeamRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+
+    # ── Capacity (hybrid team/user ownership) ──
+    register_command_handler(
+        CreateCapacity,
+        lambda s: CreateCapacityHandler(
+            capacity_repo=SqlAlchemyCapacityRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_command_handler(
+        UpdateCapacity,
+        lambda s: UpdateCapacityHandler(
+            capacity_repo=SqlAlchemyCapacityRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_command_handler(
+        DeleteCapacity,
+        lambda s: DeleteCapacityHandler(
+            capacity_repo=SqlAlchemyCapacityRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_query_handler(
+        ListCapacityByProject,
+        lambda s: ListCapacityByProjectHandler(
+            capacity_repo=SqlAlchemyCapacityRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),
     )

@@ -17,6 +17,7 @@ class ListTasksByArtifact(Query):
     project_id: uuid.UUID
     artifact_id: uuid.UUID
     include_deleted: bool = False
+    team_id: uuid.UUID | None = None
 
 
 class ListTasksByArtifactHandler(QueryHandler[list[TaskDTO]]):
@@ -30,6 +31,7 @@ class ListTasksByArtifactHandler(QueryHandler[list[TaskDTO]]):
         tasks = await self._task_repo.list_by_artifact(
             query.artifact_id,
             include_deleted=query.include_deleted,
+            team_id=query.team_id,
         )
         ids = [t.id for t in tasks]
         tag_map = await self._tag_repo.get_tags_by_task_ids(ids)
@@ -43,6 +45,7 @@ class ListTasksByArtifactHandler(QueryHandler[list[TaskDTO]]):
                 description=t.description,
                 assignee_id=t.assignee_id,
                 rank_order=t.rank_order,
+                team_id=t.team_id,
                 created_at=t.created_at.isoformat() if t.created_at else None,
                 updated_at=t.updated_at.isoformat() if t.updated_at else None,
                 tags=tag_map.get(t.id, ()),

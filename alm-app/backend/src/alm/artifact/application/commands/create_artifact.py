@@ -38,6 +38,7 @@ class CreateArtifact(Command):
     rank_order: float | None = None
     cycle_node_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
+    team_id: uuid.UUID | None = None
     created_by: uuid.UUID | None = None
     tag_ids: list[uuid.UUID] | None = None
 
@@ -165,6 +166,7 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
             cycle_node_id=command.cycle_node_id,
             area_node_id=command.area_node_id,
             area_path_snapshot=area_path_snapshot,
+            team_id=command.team_id,
         )
         artifact.created_by = command.created_by
         await self._artifact_repo.add(artifact)
@@ -196,6 +198,7 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
             cycle_node_id=getattr(artifact, "cycle_node_id", None),
             area_node_id=getattr(artifact, "area_node_id", None),
             area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
+            team_id=getattr(artifact, "team_id", None),
             created_at=getattr(artifact, "created_at", None),
             updated_at=getattr(artifact, "updated_at", None),
             tags=tag_map.get(artifact.id, ()),

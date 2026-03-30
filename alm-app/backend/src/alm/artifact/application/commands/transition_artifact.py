@@ -270,6 +270,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
             cycle_node_id=getattr(artifact, "cycle_node_id", None),
             area_node_id=getattr(artifact, "area_node_id", None),
             area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
+            team_id=getattr(artifact, "team_id", None),
             custom_fields=artifact.custom_fields,
             artifact_key=artifact.artifact_key,
             state_reason=artifact.state_reason,

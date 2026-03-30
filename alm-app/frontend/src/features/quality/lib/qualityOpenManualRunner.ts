@@ -22,7 +22,10 @@ export function navigateToManualExecution(
     ? new URLSearchParams((opts!.location!.search || "").replace(/^\?/, ""))
     : new URLSearchParams();
 
+  sp.delete("artifact");
+  sp.delete("under");
   sp.set("runExecute", runId);
+  sp.set("runView", "execution");
   const test = opts?.test?.trim();
   const step = opts?.step?.trim();
   if (test) sp.set("runTest", test);
@@ -30,6 +33,37 @@ export function navigateToManualExecution(
   if (step) sp.set("runStep", step);
   else sp.delete("runStep");
 
+  const search = sp.toString();
+  navigate(
+    {
+      pathname: `/${orgSlug}/${projectSlug}/quality/runs`,
+      search: search ? `?${search}` : "",
+    },
+    { replace: opts?.replace ?? false },
+  );
+}
+
+/** Navigate to run details in the modal overview pane. */
+export function navigateToRunDetails(
+  navigate: NavigateFunction,
+  orgSlug: string,
+  projectSlug: string,
+  runId: string,
+  opts?: {
+    location?: Pick<Location, "pathname" | "search">;
+    replace?: boolean;
+  },
+) {
+  const onRuns = opts?.location?.pathname.replace(/\/+$/, "").endsWith("/quality/runs") ?? false;
+  const sp = onRuns
+    ? new URLSearchParams((opts!.location!.search || "").replace(/^\?/, ""))
+    : new URLSearchParams();
+  sp.delete("artifact");
+  sp.delete("under");
+  sp.set("runExecute", runId);
+  sp.set("runView", "overview");
+  sp.delete("runTest");
+  sp.delete("runStep");
   const search = sp.toString();
   navigate(
     {

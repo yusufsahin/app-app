@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import { PlayCircle, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -23,8 +23,7 @@ import {
 import { StartSuiteRunDialog } from "./StartSuiteRunDialog";
 import { useStartSuiteRun } from "../hooks/useStartSuiteRun";
 import { formatRunEnvironmentLabel, summarizeRunMetricsFromCustomFields } from "../lib/runMetrics";
-import { qualityRunWorkspaceDetailPath } from "../lib/qualityRunPaths";
-import { navigateToManualExecution } from "../lib/qualityOpenManualRunner";
+import { navigateToManualExecution, navigateToRunDetails } from "../lib/qualityOpenManualRunner";
 
 type Props = {
   treeId?: string;
@@ -291,10 +290,6 @@ export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
                               notExecuted: summary.notExecuted,
                             });
                       const titleText = run.title ?? run.id;
-                      const detailsTo =
-                        orgSlug && projectSlug
-                          ? qualityRunWorkspaceDetailPath(orgSlug, projectSlug, run.id, run.parent_id)
-                          : "#";
                       return (
                         <tr
                           key={run.id}
@@ -322,7 +317,7 @@ export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
                                 type="button"
                                 variant="secondary"
                                 size="sm"
-                                title={t("runsHub.executeInNewWindow")}
+                                title={t("runsHub.executeInModal")}
                                 onClick={() => {
                                   if (!orgSlug || !projectSlug) return;
                                   navigateToManualExecution(navigate, orgSlug, projectSlug, run.id, {
@@ -333,8 +328,16 @@ export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
                                 <PlayCircle className="mr-1 size-4 shrink-0" aria-hidden />
                                 {t("runsHub.executeOrContinue")}
                               </Button>
-                              <Button type="button" variant="ghost" size="sm" asChild>
-                                <Link to={detailsTo}>{t("runsHub.openDetails")}</Link>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (!orgSlug || !projectSlug) return;
+                                  navigateToRunDetails(navigate, orgSlug, projectSlug, run.id, { location });
+                                }}
+                              >
+                                {t("runsHub.openDetails")}
                               </Button>
                             </div>
                           </td>
