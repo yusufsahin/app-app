@@ -117,6 +117,7 @@ export default function QualityDefectsPage() {
     true,
     undefined,
     undefined,
+    undefined,
     projectReady,
   );
 
@@ -300,6 +301,7 @@ export default function QualityDefectsPage() {
     "defect",
     false,
     underFolderIdFromUrl,
+    undefined,
     undefined,
     listQueryEnabled,
   );
