@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Outlet, useNavigate, useLocation, useParams, Navigate, Link } from "react-router-dom";
 import {
   Folder,
@@ -21,6 +22,7 @@ import {
   Layers,
   PlayCircle,
   FolderTree,
+  Bug,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -69,6 +71,14 @@ interface NestedNavItem {
   icon: React.ReactNode;
 }
 
+const QUALITY_SUBNAV_ICONS: Omit<NestedNavItem, "label">[] = [
+  { path: "quality/catalog", icon: <ListChecks className="size-4" /> },
+  { path: "quality/campaign", icon: <Layers className="size-4" /> },
+  { path: "quality/runs", icon: <PlayCircle className="size-4" /> },
+  { path: "quality/defects", icon: <Bug className="size-4" /> },
+  { path: "quality/traceability", icon: <GitBranch className="size-4" /> },
+];
+
 const NAV_ITEMS: NavItem[] = [
   { label: "Projects", path: "", icon: <Folder className="size-4" />, permission: "project:read" },
   { label: "Dashboard", path: "dashboard", icon: <LayoutDashboard className="size-4" />, permission: "project:read" },
@@ -83,18 +93,16 @@ const PROJECT_NAV_ITEMS: NavItem[] = [
   { label: "Automation", path: "automation", icon: <Sparkles className="size-4" />, permission: "project:read" },
 ];
 
-const QUALITY_SUBNAV_ITEMS: NestedNavItem[] = [
-  {
-    label: "Catalog",
-    path: "quality/catalog",
-    icon: <ListChecks className="size-4" />,
-  },
-  { label: "Campaign", path: "quality/campaign", icon: <Layers className="size-4" /> },
-  { label: "Runs", path: "quality/runs", icon: <PlayCircle className="size-4" /> },
-  { label: "Traceability", path: "quality/traceability", icon: <GitBranch className="size-4" /> },
-];
-
 export default function AppLayout() {
+  const { t } = useTranslation("quality");
+  const qualitySubnavItems = useMemo((): NestedNavItem[] => {
+    const keys = ["catalog", "campaign", "runs", "defects", "traceability"] as const;
+    return QUALITY_SUBNAV_ICONS.map((row, i) => ({
+      ...row,
+      label: t(`hubNav.${keys[i]}`),
+    }));
+  }, [t]);
+
   useRealtime();
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug?: string }>();
   const { data: projects = [] } = useOrgProjects(orgSlug);
@@ -215,6 +223,12 @@ export default function AppLayout() {
           icon: <PlayCircle className="size-4" />,
         });
         quickLinks.push({
+          id: "goto-quality-defects",
+          label: t("hubNav.commandPaletteDefects"),
+          path: `/${orgSlug}/${projectSlug}/quality/defects`,
+          icon: <Bug className="size-4" />,
+        });
+        quickLinks.push({
           id: "goto-quality-campaigns",
           label: "Quality — Campaigns",
           path: `/${orgSlug}/${projectSlug}/quality/campaigns`,
@@ -256,7 +270,7 @@ export default function AppLayout() {
       groups.push({ group: "Pages", items: pages });
     }
     return groups;
-  }, [orgSlug, projectSlug, visibleNavItems, permissions, isAdmin, projects, lastVisitedProjectSlug]);
+  }, [orgSlug, projectSlug, visibleNavItems, permissions, isAdmin, projects, lastVisitedProjectSlug, t]);
 
   const commandPaletteItems: CommandPaletteItem[] = useMemo(() => {
     return commandPaletteGroups.flatMap((g) => g.items);
@@ -399,7 +413,7 @@ export default function AppLayout() {
                         </SidebarMenuItem>
                         {item.path === "quality" ? (
                           <div className="ml-4 mt-1 space-y-1 border-l border-sidebar-border/60 pl-2">
-                            {QUALITY_SUBNAV_ITEMS.map((sub) => {
+                            {qualitySubnavItems.map((sub) => {
                               const subPath = `${basePath}/${sub.path}`;
                               const subActive = location.pathname.startsWith(subPath);
                               return (

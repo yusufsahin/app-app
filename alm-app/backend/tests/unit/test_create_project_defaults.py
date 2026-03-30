@@ -9,6 +9,7 @@ import pytest
 
 from alm.project.application.commands.create_project import CreateProject, CreateProjectHandler
 from alm.tenant.domain.entities import Tenant
+from tests.support.manifests import CREATE_PROJECT_ROOTS_MANIFEST_BUNDLE
 
 
 @pytest.mark.asyncio
@@ -76,21 +77,7 @@ async def test_create_project_explicit_slug_skips_tenant_default() -> None:
 @pytest.mark.asyncio
 async def test_create_project_creates_manifest_roots_for_tests_and_suites() -> None:
     tenant_id = uuid.uuid4()
-    manifest_bundle = {
-        "tree_roots": [
-            {"tree_id": "requirement", "root_artifact_type": "root-requirement"},
-            {"tree_id": "quality", "root_artifact_type": "root-quality"},
-            {"tree_id": "testsuites", "root_artifact_type": "root-testsuites"},
-            {"tree_id": "defect", "root_artifact_type": "root-defect"},
-        ],
-        "defs": [
-            {"kind": "Workflow", "id": "root", "initial": "Active", "states": ["Active"], "transitions": []},
-            {"kind": "ArtifactType", "id": "root-requirement", "workflow_id": "root", "child_types": []},
-            {"kind": "ArtifactType", "id": "root-quality", "workflow_id": "root", "child_types": []},
-            {"kind": "ArtifactType", "id": "root-testsuites", "workflow_id": "root", "child_types": []},
-            {"kind": "ArtifactType", "id": "root-defect", "workflow_id": "root", "child_types": []},
-        ],
-    }
+    manifest_bundle = CREATE_PROJECT_ROOTS_MANIFEST_BUNDLE
 
     tenant_repo = AsyncMock()
     tenant_repo.find_by_id = AsyncMock(return_value=Tenant(name="T", slug="t", id=tenant_id))

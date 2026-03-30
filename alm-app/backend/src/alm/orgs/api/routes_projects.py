@@ -220,6 +220,7 @@ async def list_artifacts(
         None,
         description="When set, return only artifacts whose parent_id equals this id (still scoped by tree subtree when tree is set).",
     ),
+    tag_id: uuid.UUID | None = Query(None, description="Filter artifacts that have this project tag"),
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("artifact:read"),
     _acl: None = require_manifest_acl("artifact", "read"),
@@ -244,31 +245,10 @@ async def list_artifacts(
             tree=tree,
             parent_id=parent_id,
             actor_roles=list(user.roles or []),
+            tag_id=tag_id,
         )
     )
-    items = [
-        ArtifactResponse(
-            id=d.id,
-            project_id=d.project_id,
-            artifact_type=d.artifact_type,
-            title=d.title,
-            description=d.description,
-            state=d.state,
-            assignee_id=d.assignee_id,
-            parent_id=d.parent_id,
-            custom_fields=d.custom_fields,
-            artifact_key=d.artifact_key,
-            state_reason=d.state_reason,
-            resolution=d.resolution,
-            rank_order=d.rank_order,
-            cycle_node_id=getattr(d, "cycle_node_id", None),
-            area_node_id=getattr(d, "area_node_id", None),
-            area_path_snapshot=getattr(d, "area_path_snapshot", None),
-            created_at=getattr(d, "created_at", None),
-            updated_at=getattr(d, "updated_at", None),
-        )
-        for d in result.items
-    ]
+    items = [artifact_response_from_dto(d) for d in result.items]
     items = await mask_artifact_list_for_user(items, user)
     list_actions = (
         items[0].allowed_actions
@@ -395,28 +375,10 @@ async def create_artifact(
             cycle_node_id=body.cycle_node_id,
             area_node_id=body.area_node_id,
             created_by=user.id,
+            tag_ids=body.tag_ids,
         )
     )
-    resp = ArtifactResponse(
-        id=dto.id,
-        project_id=dto.project_id,
-        artifact_type=dto.artifact_type,
-        title=dto.title,
-        description=dto.description,
-        state=dto.state,
-        assignee_id=dto.assignee_id,
-        parent_id=dto.parent_id,
-        custom_fields=dto.custom_fields,
-        artifact_key=dto.artifact_key,
-        state_reason=dto.state_reason,
-        resolution=dto.resolution,
-        rank_order=dto.rank_order,
-        cycle_node_id=getattr(dto, "cycle_node_id", None),
-        area_node_id=getattr(dto, "area_node_id", None),
-        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
-        created_at=dto.created_at,
-        updated_at=dto.updated_at,
-    )
+    resp = artifact_response_from_dto(dto)
     return await mask_artifact_for_user(resp, user)
 
 
@@ -439,26 +401,7 @@ async def get_artifact(
     )
     if dto is None:
         raise EntityNotFound("Artifact", artifact_id)
-    resp = ArtifactResponse(
-        id=dto.id,
-        project_id=dto.project_id,
-        artifact_type=dto.artifact_type,
-        title=dto.title,
-        description=dto.description,
-        state=dto.state,
-        assignee_id=dto.assignee_id,
-        parent_id=dto.parent_id,
-        custom_fields=dto.custom_fields,
-        artifact_key=dto.artifact_key,
-        state_reason=dto.state_reason,
-        resolution=dto.resolution,
-        rank_order=dto.rank_order,
-        cycle_node_id=getattr(dto, "cycle_node_id", None),
-        area_node_id=getattr(dto, "area_node_id", None),
-        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
-        created_at=dto.created_at,
-        updated_at=dto.updated_at,
-    )
+    resp = artifact_response_from_dto(dto)
     return await mask_artifact_for_user(resp, user)
 
 
@@ -485,26 +428,7 @@ async def update_artifact(
             updated_by=user.id,
         )
     )
-    resp = ArtifactResponse(
-        id=dto.id,
-        project_id=dto.project_id,
-        artifact_type=dto.artifact_type,
-        title=dto.title,
-        description=dto.description,
-        state=dto.state,
-        assignee_id=dto.assignee_id,
-        parent_id=dto.parent_id,
-        custom_fields=dto.custom_fields,
-        artifact_key=dto.artifact_key,
-        state_reason=dto.state_reason,
-        resolution=dto.resolution,
-        rank_order=dto.rank_order,
-        cycle_node_id=getattr(dto, "cycle_node_id", None),
-        area_node_id=getattr(dto, "area_node_id", None),
-        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
-        created_at=dto.created_at,
-        updated_at=dto.updated_at,
-    )
+    resp = artifact_response_from_dto(dto)
     return await mask_artifact_for_user(resp, user)
 
 
@@ -551,6 +475,7 @@ async def transition_artifact(
             project_id=project_id,
             artifact_id=artifact_id,
             new_state=body.new_state,
+            trigger=body.trigger,
             state_reason=body.state_reason,
             resolution=body.resolution,
             updated_by=user.id,
@@ -558,26 +483,7 @@ async def transition_artifact(
             actor_roles=tuple(user.roles) if user.roles else None,
         )
     )
-    resp = ArtifactResponse(
-        id=dto.id,
-        project_id=dto.project_id,
-        artifact_type=dto.artifact_type,
-        title=dto.title,
-        description=dto.description,
-        state=dto.state,
-        assignee_id=dto.assignee_id,
-        parent_id=dto.parent_id,
-        custom_fields=dto.custom_fields,
-        artifact_key=dto.artifact_key,
-        state_reason=dto.state_reason,
-        resolution=dto.resolution,
-        rank_order=dto.rank_order,
-        cycle_node_id=getattr(dto, "cycle_node_id", None),
-        area_node_id=getattr(dto, "area_node_id", None),
-        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
-        created_at=dto.created_at,
-        updated_at=dto.updated_at,
-    )
+    resp = artifact_response_from_dto(dto)
     return await mask_artifact_for_user(resp, user)
 
 
@@ -624,24 +530,5 @@ async def restore_artifact(
             restored_by=user.id,
         )
     )
-    resp = ArtifactResponse(
-        id=dto.id,
-        project_id=dto.project_id,
-        artifact_type=dto.artifact_type,
-        title=dto.title,
-        description=dto.description,
-        state=dto.state,
-        assignee_id=dto.assignee_id,
-        parent_id=dto.parent_id,
-        custom_fields=dto.custom_fields,
-        artifact_key=dto.artifact_key,
-        state_reason=dto.state_reason,
-        resolution=dto.resolution,
-        rank_order=dto.rank_order,
-        cycle_node_id=getattr(dto, "cycle_node_id", None),
-        area_node_id=getattr(dto, "area_node_id", None),
-        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
-        created_at=dto.created_at,
-        updated_at=dto.updated_at,
-    )
+    resp = artifact_response_from_dto(dto)
     return await mask_artifact_for_user(resp, user)

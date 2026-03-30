@@ -1,9 +1,8 @@
 import { create } from "zustand";
 import { devtools, persist, type StorageValue } from "zustand/middleware";
 
-const TENANT_STORAGE_KEY = "current_tenant";
+const TENANT_STORAGE_KEY = "alm_current_tenant";
 
-/** Persist current tenant using legacy key so existing sessions keep working. */
 const tenantStorage = {
   getItem: (): StorageValue<{ currentTenant: Tenant | null }> | null => {
     try {

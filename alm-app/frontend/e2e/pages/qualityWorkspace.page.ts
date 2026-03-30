@@ -16,7 +16,7 @@ export class QualityWorkspacePage {
     await this.page.waitForURL(/\/quality\/catalog/, { timeout: 10000 });
   }
 
-  /** Quality → Campaign workspace (`/quality/campaign`; legacy `/quality/suites` redirects). */
+  /** Quality → Campaign workspace (`/quality/campaign`). */
   async openCampaign() {
     await this.page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Campaign" }).click();
     await this.page.waitForURL(/\/quality\/campaign/, { timeout: 10000 });

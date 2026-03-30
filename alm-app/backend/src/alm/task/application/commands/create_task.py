@@ -13,6 +13,7 @@ from alm.artifact.domain.manifest_workflow_metadata import (
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
 from alm.task.application.dtos import TaskDTO
@@ -30,6 +31,7 @@ class CreateTask(Command):
     state: str = "todo"
     assignee_id: uuid.UUID | None = None
     rank_order: float | None = None
+    tag_ids: list[uuid.UUID] | None = None
 
 
 class CreateTaskHandler(CommandHandler[TaskDTO]):
@@ -39,11 +41,13 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
         artifact_repo: ArtifactRepository,
         project_repo: ProjectRepository,
         process_template_repo: ProcessTemplateRepository,
+        tag_repo: ProjectTagRepository,
     ) -> None:
         self._task_repo = task_repo
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
+        self._tag_repo = tag_repo
 
     async def handle(self, command: Command) -> TaskDTO:
         assert isinstance(command, CreateTask)
@@ -79,6 +83,16 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
         )
         await self._task_repo.add(task)
 
+        tids = list(command.tag_ids or [])
+        if tids:
+            try:
+                await self._tag_repo.set_task_tags(task.id, command.project_id, tids)
+            except ValueError as e:
+                raise ValidationError(str(e)) from e
+
+        tag_map = await self._tag_repo.get_tags_by_task_ids([task.id])
+        tags = tag_map.get(task.id, ())
+
         return TaskDTO(
             id=task.id,
             project_id=task.project_id,
@@ -90,4 +104,5 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
             rank_order=task.rank_order,
             created_at=task.created_at.isoformat() if task.created_at else None,
             updated_at=task.updated_at.isoformat() if task.updated_at else None,
+            tags=tags,
         )

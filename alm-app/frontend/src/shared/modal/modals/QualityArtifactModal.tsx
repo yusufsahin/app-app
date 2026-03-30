@@ -69,7 +69,7 @@ export function QualityArtifactModal({
   }, [title, description, steps, params, initialSnapshot]);
 
   const undefinedPlaceholders = useMemo(() => {
-    if (!enableStepsEditor || params.defs.length === 0) return [];
+    if (!enableStepsEditor) return [];
     const names = extractReferencedParamNamesFromPlan(steps);
     const defSet = new Set(params.defs.map((d) => d.name));
     return [...names].filter((n) => !defSet.has(n));

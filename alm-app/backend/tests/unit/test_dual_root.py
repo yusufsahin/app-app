@@ -15,6 +15,7 @@ from alm.artifact.application.commands.update_artifact import UpdateArtifact, Up
 from alm.artifact.domain.constants import ROOT_ARTIFACT_TYPES, is_root_artifact
 from alm.artifact.domain.entities import Artifact
 from alm.shared.domain.exceptions import ValidationError
+from tests.support.mocks import empty_project_tag_repo
 
 
 def test_is_root_artifact():
@@ -96,6 +97,7 @@ async def test_update_root_raises_validation_error() -> None:
         project_repo=project_repo,
         area_repo=area_repo,
         process_template_repo=process_template_repo,
+        tag_repo=empty_project_tag_repo(),
     )
     cmd = UpdateArtifact(
         tenant_id=tenant_id,

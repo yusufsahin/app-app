@@ -9,59 +9,8 @@ from alm.artifact.application.commands.create_artifact import CreateArtifact, Cr
 from alm.artifact.application.commands.update_artifact import UpdateArtifact, UpdateArtifactHandler
 from alm.artifact.domain.entities import Artifact
 from alm.shared.domain.exceptions import ValidationError
-
-
-def _manifest_bundle() -> dict:
-    return {
-        "defs": [
-            {"kind": "Workflow", "id": "root", "initial": "Active", "states": ["Active"], "transitions": []},
-            {"kind": "Workflow", "id": "basic", "initial": "new", "states": ["new", "done"], "transitions": []},
-            {"kind": "ArtifactType", "id": "root-quality", "workflow_id": "root", "child_types": ["quality-folder"]},
-            {"kind": "ArtifactType", "id": "root-testsuites", "workflow_id": "root", "child_types": ["testsuite-folder"]},
-            {
-                "kind": "ArtifactType",
-                "id": "quality-folder",
-                "workflow_id": "root",
-                "parent_types": ["root-quality", "quality-folder"],
-                "child_types": ["quality-folder", "test-case"],
-            },
-            {
-                "kind": "ArtifactType",
-                "id": "testsuite-folder",
-                "workflow_id": "root",
-                "parent_types": ["root-testsuites", "testsuite-folder"],
-                "child_types": ["testsuite-folder", "test-suite", "test-run", "test-campaign"],
-            },
-            {
-                "kind": "ArtifactType",
-                "id": "test-case",
-                "workflow_id": "basic",
-                "parent_types": ["root-quality", "quality-folder"],
-                "child_types": [],
-            },
-            {
-                "kind": "ArtifactType",
-                "id": "test-suite",
-                "workflow_id": "basic",
-                "parent_types": ["root-testsuites", "testsuite-folder"],
-                "child_types": [],
-            },
-            {
-                "kind": "ArtifactType",
-                "id": "test-run",
-                "workflow_id": "basic",
-                "parent_types": ["root-testsuites", "testsuite-folder"],
-                "child_types": [],
-            },
-            {
-                "kind": "ArtifactType",
-                "id": "test-campaign",
-                "workflow_id": "basic",
-                "parent_types": ["root-testsuites", "testsuite-folder"],
-                "child_types": [],
-            },
-        ]
-    }
+from tests.support.manifests import QUALITY_PARENT_RULES_MANIFEST_BUNDLE
+from tests.support.mocks import empty_project_tag_repo
 
 
 @pytest.mark.asyncio
@@ -72,7 +21,7 @@ async def test_create_test_case_rejects_testsuite_folder_parent() -> None:
     version_id = uuid.uuid4()
 
     project = AsyncMock(tenant_id=tenant_id, code="PRJ", process_template_version_id=version_id)
-    version = AsyncMock(id=version_id, manifest_bundle=_manifest_bundle())
+    version = AsyncMock(id=version_id, manifest_bundle=QUALITY_PARENT_RULES_MANIFEST_BUNDLE)
     parent = Artifact.create(
         project_id=project_id,
         artifact_type="testsuite-folder",
@@ -92,11 +41,13 @@ async def test_create_test_case_rejects_testsuite_folder_parent() -> None:
     process_template_repo.find_version_by_id = AsyncMock(return_value=version)
     area_repo = AsyncMock()
 
+    tag_repo = empty_project_tag_repo()
     handler = CreateArtifactHandler(
         artifact_repo=artifact_repo,
         project_repo=project_repo,
         process_template_repo=process_template_repo,
         area_repo=area_repo,
+        tag_repo=tag_repo,
     )
     cmd = CreateArtifact(
         tenant_id=tenant_id,
@@ -121,7 +72,7 @@ async def test_update_test_case_reparent_rejects_testsuite_folder() -> None:
     version_id = uuid.uuid4()
 
     project = AsyncMock(tenant_id=tenant_id, process_template_version_id=version_id)
-    version = AsyncMock(id=version_id, manifest_bundle=_manifest_bundle())
+    version = AsyncMock(id=version_id, manifest_bundle=QUALITY_PARENT_RULES_MANIFEST_BUNDLE)
     artifact = Artifact.create(
         project_id=project_id,
         artifact_type="test-case",
@@ -162,6 +113,7 @@ async def test_update_test_case_reparent_rejects_testsuite_folder() -> None:
         project_repo=project_repo,
         area_repo=area_repo,
         process_template_repo=process_template_repo,
+        tag_repo=empty_project_tag_repo(),
     )
     cmd = UpdateArtifact(
         tenant_id=tenant_id,

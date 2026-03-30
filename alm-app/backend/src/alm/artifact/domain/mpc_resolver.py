@@ -26,7 +26,6 @@ TYPE_KIND_ARTIFACT = "ArtifactType"
 
 _log = logging.getLogger(__name__)
 
-# Legacy / adapter names (tests, workflow_sm, manifest_acl)
 _to_ast = to_ast
 
 

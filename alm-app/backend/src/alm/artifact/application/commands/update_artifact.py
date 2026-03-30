@@ -13,8 +13,22 @@ from alm.artifact.domain.mpc_resolver import get_manifest_ast, is_valid_parent_c
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
+
+_TAG_IDS_OMITTED = object()
+
+
+def _parse_tag_ids_payload(raw: Any) -> list[uuid.UUID]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValidationError("tag_ids must be a list of UUID strings")
+    out: list[uuid.UUID] = []
+    for x in raw:
+        out.append(uuid.UUID(str(x).strip()))
+    return out
 
 
 @dataclass(frozen=True)
@@ -33,11 +47,13 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
         project_repo: ProjectRepository,
         area_repo: AreaRepository,
         process_template_repo: ProcessTemplateRepository,
+        tag_repo: ProjectTagRepository,
     ) -> None:
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
         self._area_repo = area_repo
         self._process_template_repo = process_template_repo
+        self._tag_repo = tag_repo
 
     async def handle(self, command: Command) -> ArtifactDTO:
         assert isinstance(command, UpdateArtifact)
@@ -53,7 +69,8 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
         if artifact.is_deleted:
             raise ValidationError("Cannot update a deleted artifact")
 
-        updates = command.updates or {}
+        updates = dict(command.updates or {})
+        tag_ids_raw = updates.pop("tag_ids", _TAG_IDS_OMITTED)
         manifest: dict = {}
         ast = None
         if project.process_template_version_id:
@@ -143,8 +160,17 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
             merged.update(updates["custom_fields"])
             artifact.custom_fields = merged
 
+        if tag_ids_raw is not _TAG_IDS_OMITTED:
+            try:
+                tid_list = _parse_tag_ids_payload(tag_ids_raw)
+                await self._tag_repo.set_artifact_tags(artifact.id, command.project_id, tid_list)
+            except ValueError as e:
+                raise ValidationError(str(e)) from e
+
         artifact.touch(by=command.updated_by)
         await self._artifact_repo.update(artifact)
+
+        tag_map = await self._tag_repo.get_tags_by_artifact_ids([artifact.id])
 
         return ArtifactDTO(
             id=artifact.id,
@@ -165,4 +191,5 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
             area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
             created_at=getattr(artifact, "created_at", None),
             updated_at=getattr(artifact, "updated_at", None),
+            tags=tag_map.get(artifact.id, ()),
         )

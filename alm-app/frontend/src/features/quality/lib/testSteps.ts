@@ -9,7 +9,7 @@ export function normalizeTestSteps(steps: TestStep[]): TestStep[] {
   }));
 }
 
-/** Inline steps only — ignores `kind: call` rows (legacy consumers / simple previews). */
+/** Inline steps only — drops `kind: call` rows (execution uses `expandTestPlan` for those). */
 export function parseTestSteps(raw: unknown): TestStep[] {
   return parseTestPlan(raw).filter((e): e is TestStep => !isTestPlanCall(e));
 }

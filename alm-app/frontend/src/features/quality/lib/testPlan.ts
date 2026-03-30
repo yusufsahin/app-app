@@ -38,33 +38,38 @@ export function parseTestPlan(raw: unknown): TestPlanEntry[] {
 
     const kindRaw = obj.kind;
     if (kindRaw === "call") {
-      const calledTestCaseId =
-        typeof obj.calledTestCaseId === "string"
-          ? obj.calledTestCaseId
-          : typeof obj.called_test_case_id === "string"
-            ? obj.called_test_case_id
-            : "";
-      if (!calledTestCaseId.trim()) continue;
-      const po = parseParamOverridesField(obj.paramOverrides ?? obj.param_overrides);
+      const calledTestCaseId = typeof obj.calledTestCaseId === "string" ? obj.calledTestCaseId.trim() : "";
+      if (!calledTestCaseId) continue;
+      const po = parseParamOverridesField(obj.paramOverrides);
       parsed.push({
         kind: "call",
         id: typeof obj.id === "string" ? obj.id : `call-${parsed.length + 1}`,
         stepNumber: typeof obj.stepNumber === "number" ? obj.stepNumber : parsed.length + 1,
-        calledTestCaseId: calledTestCaseId.trim(),
+        calledTestCaseId,
         calledTitle: typeof obj.calledTitle === "string" ? obj.calledTitle : undefined,
         ...(po ? { paramOverrides: po } : {}),
       });
       continue;
     }
 
-    const fallbackName = typeof obj.action === "string" ? obj.action : "";
+    if (kindRaw !== "step") continue;
+
+    const name = typeof obj.name === "string" ? obj.name.trim() : "";
+    if (!name) continue;
+
+    const rawSt = obj.status;
+    const status: TestStep["status"] =
+      rawSt === "passed" || rawSt === "failed" || rawSt === "blocked" || rawSt === "not-executed"
+        ? rawSt
+        : "not-executed";
+
     const step: TestStep = {
-      id: typeof obj.id === "string" ? obj.id : `step-${parsed.length + 1}`,
+      id: typeof obj.id === "string" && obj.id.trim() ? obj.id : `step-${parsed.length + 1}`,
       stepNumber: typeof obj.stepNumber === "number" ? obj.stepNumber : parsed.length + 1,
-      name: typeof obj.name === "string" ? obj.name : fallbackName,
+      name,
       description: typeof obj.description === "string" ? obj.description : "",
       expectedResult: typeof obj.expectedResult === "string" ? obj.expectedResult : "",
-      status: "not-executed",
+      status,
       actualResult: typeof obj.actualResult === "string" ? obj.actualResult : undefined,
       notes: typeof obj.notes === "string" ? obj.notes : undefined,
     };

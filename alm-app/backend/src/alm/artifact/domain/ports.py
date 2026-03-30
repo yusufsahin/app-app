@@ -43,6 +43,7 @@ class ArtifactRepository(ABC):
         exclude_root_artifact_types: bool = False,
         root_type_ids_exclude: frozenset[str] | None = None,
         fts_regconfig: str | None = None,
+        tag_id: uuid.UUID | None = None,
     ) -> list[Artifact]: ...
 
     @abstractmethod
@@ -61,6 +62,7 @@ class ArtifactRepository(ABC):
         exclude_root_artifact_types: bool = False,
         root_type_ids_exclude: frozenset[str] | None = None,
         fts_regconfig: str | None = None,
+        tag_id: uuid.UUID | None = None,
     ) -> int:
         """Count artifacts matching the same filters as list_by_project (no limit/offset).
 
@@ -82,7 +84,7 @@ class ArtifactRepository(ABC):
 
     @abstractmethod
     async def count_open_defects_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
-        """Count defects/bugs not in a final state (closed, done)."""
+        """Count defects not in a final state (closed, done)."""
         ...
 
     @abstractmethod
@@ -123,6 +125,14 @@ class ArtifactRepository(ABC):
         Returns [(cycle_node_id, total), ...].
         """
         ...
+
+    @abstractmethod
+    async def list_by_ids_in_project(
+        self,
+        project_id: uuid.UUID,
+        artifact_ids: list[uuid.UUID],
+    ) -> list[Artifact]:
+        """Non-deleted artifacts in the project whose id is in the list (any type)."""
 
 
 class IArtifactTransitionMetrics(ABC):

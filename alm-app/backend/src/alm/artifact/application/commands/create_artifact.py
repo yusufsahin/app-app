@@ -19,6 +19,7 @@ from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
 
@@ -38,6 +39,7 @@ class CreateArtifact(Command):
     cycle_node_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
     created_by: uuid.UUID | None = None
+    tag_ids: list[uuid.UUID] | None = None
 
 
 class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
@@ -47,11 +49,13 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
         project_repo: ProjectRepository,
         process_template_repo: ProcessTemplateRepository,
         area_repo: AreaRepository,
+        tag_repo: ProjectTagRepository,
     ) -> None:
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
         self._area_repo = area_repo
+        self._tag_repo = tag_repo
 
     async def handle(self, command: Command) -> ArtifactDTO:
         assert isinstance(command, CreateArtifact)
@@ -75,16 +79,36 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
 
         type_def = get_artifact_type_def(manifest, command.artifact_type, ast=ast)
         system_roots = resolve_system_root_artifact_types(manifest)
-        if type_def and command.parent_id is None:
-            parent_types = type_def.get("parent_types") or []
-            if parent_types and all(p in system_roots for p in parent_types):
-                raise ValidationError(
-                    f"Artifact type '{command.artifact_type}' must be created under a project root "
-                    "(Requirements, Quality, or Defects)"
-                )
+        parent_types = (type_def.get("parent_types") or []) if type_def else []
 
-        if command.parent_id is not None:
-            parent = await self._artifact_repo.find_by_id(command.parent_id)
+        effective_parent_id = command.parent_id
+        if effective_parent_id is None and "root-defect" in parent_types:
+            roots = await self._artifact_repo.list_by_project(
+                command.project_id,
+                type_filter="root-defect",
+                limit=2,
+                offset=0,
+            )
+            if len(roots) != 1:
+                raise ValidationError(
+                    "Project defects root (root-defect) is missing or ambiguous; "
+                    "set an explicit parent or fix project setup"
+                )
+            effective_parent_id = roots[0].id
+
+        if (
+            type_def
+            and effective_parent_id is None
+            and parent_types
+            and all(p in system_roots for p in parent_types)
+        ):
+            raise ValidationError(
+                f"Artifact type '{command.artifact_type}' must be created under a project root "
+                "(Requirements, Quality, or Defects)"
+            )
+
+        if effective_parent_id is not None:
+            parent = await self._artifact_repo.find_by_id(effective_parent_id)
             if parent is None or parent.project_id != command.project_id:
                 raise ValidationError("Parent artifact not found or belongs to another project")
             if not is_valid_parent_child(manifest, parent.artifact_type, command.artifact_type, ast=ast):
@@ -103,7 +127,7 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
                 raise ValidationError(
                     f"Artifact type '{command.artifact_type}' must be created under a '{expected_parent_type}'"
                 )
-        else:
+        elif effective_parent_id is None:
             quality_parent_map = {
                 "test-case": "quality-folder",
                 "test-suite": "testsuite-folder",
@@ -133,7 +157,7 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
             title=command.title.strip() or "Untitled",
             description=command.description,
             state=initial_state,
-            parent_id=command.parent_id,
+            parent_id=effective_parent_id,
             assignee_id=assignee,
             custom_fields=command.custom_fields or {},
             artifact_key=artifact_key,
@@ -144,6 +168,16 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
         )
         artifact.created_by = command.created_by
         await self._artifact_repo.add(artifact)
+
+        if command.tag_ids:
+            try:
+                await self._tag_repo.set_artifact_tags(artifact.id, command.project_id, list(command.tag_ids))
+            except ValueError as e:
+                raise ValidationError(str(e)) from e
+            artifact.touch(by=command.created_by)
+            await self._artifact_repo.update(artifact)
+
+        tag_map = await self._tag_repo.get_tags_by_artifact_ids([artifact.id])
 
         return ArtifactDTO(
             id=artifact.id,
@@ -164,4 +198,5 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
             area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
             created_at=getattr(artifact, "created_at", None),
             updated_at=getattr(artifact, "updated_at", None),
+            tags=tag_map.get(artifact.id, ()),
         )

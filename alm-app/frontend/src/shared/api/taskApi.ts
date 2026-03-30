@@ -4,6 +4,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
 
+export interface TaskTagBrief {
+  id: string;
+  name: string;
+}
+
 export interface Task {
   id: string;
   project_id: string;
@@ -15,6 +20,7 @@ export interface Task {
   rank_order: number | null;
   created_at: string | null;
   updated_at: string | null;
+  tags?: TaskTagBrief[];
 }
 
 export interface CreateTaskRequest {
@@ -23,6 +29,7 @@ export interface CreateTaskRequest {
   state?: string;
   assignee_id?: string | null;
   rank_order?: number | null;
+  tag_ids?: string[];
 }
 
 export interface UpdateTaskRequest {
@@ -31,6 +38,7 @@ export interface UpdateTaskRequest {
   description?: string | null;
   assignee_id?: string | null;
   rank_order?: number | null;
+  tag_ids?: string[];
 }
 
 export function useTasksByArtifact(
@@ -84,6 +92,7 @@ export function useCreateTask(
       };
       if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id;
       if (payload.rank_order !== undefined) body.rank_order = payload.rank_order;
+      if (payload.tag_ids !== undefined) body.tag_ids = payload.tag_ids;
       const { data } = await apiClient.post<Task>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/tasks`,
         body,
@@ -94,6 +103,7 @@ export function useCreateTask(
       queryClient.invalidateQueries({
         queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "tasks"],
       });
+      queryClient.invalidateQueries({ queryKey: ["orgs", orgSlug, "projects", projectId, "tasks"] });
     },
   });
 }
@@ -114,6 +124,7 @@ export function useUpdateTask(
       if (payload.description !== undefined) body.description = payload.description;
       if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id;
       if (payload.rank_order !== undefined) body.rank_order = payload.rank_order;
+      if (payload.tag_ids !== undefined) body.tag_ids = payload.tag_ids;
       const { data } = await apiClient.patch<Task>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/tasks/${taskId}`,
         body,
@@ -124,6 +135,7 @@ export function useUpdateTask(
       queryClient.invalidateQueries({
         queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "tasks"],
       });
+      queryClient.invalidateQueries({ queryKey: ["orgs", orgSlug, "projects", projectId, "tasks"] });
     },
   });
 }
@@ -145,6 +157,7 @@ export function useDeleteTask(
       queryClient.invalidateQueries({
         queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "tasks"],
       });
+      queryClient.invalidateQueries({ queryKey: ["orgs", orgSlug, "projects", projectId, "tasks"] });
     },
   });
 }

@@ -25,14 +25,14 @@ describe("testParams", () => {
     expect(doc?.defs).toEqual([{ name: "u", label: undefined, default: "a" }]);
   });
 
-  it("normalizeTestParams dedupes defs and normalizes legacy row objects", () => {
+  it("normalizeTestParams dedupes defs and keeps rows with values object only", () => {
     const n = normalizeTestParams({
       defs: [
         { name: "a", default: "1" },
         { name: "a", default: "2" },
         { name: "b" },
       ],
-      rows: [{ a: "x", b: "y" } as unknown as { values: Record<string, string> }],
+      rows: [{ values: { a: "x", b: "y" } }],
     });
     expect(n.defs.map((d) => d.name)).toEqual(["a", "b"]);
     expect(n.rows?.[0]?.values).toEqual({ a: "x", b: "y" });

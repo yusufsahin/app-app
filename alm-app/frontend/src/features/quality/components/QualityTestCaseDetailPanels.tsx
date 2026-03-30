@@ -6,8 +6,12 @@ import { PhoneForwarded } from "lucide-react";
 import { useAllQualityTestCases, type Artifact } from "../../../shared/api/artifactApi";
 import type { ArtifactLink } from "../../../shared/api/artifactLinkApi";
 import { apiClient } from "../../../shared/api/client";
+import { useOrgMembers } from "../../../shared/api/orgApi";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/components/ui/tabs";
 import { Button } from "../../../shared/components/ui";
+import { ArtifactCommentsPanel } from "../../../shared/components/comments";
+import { useAuthStore } from "../../../shared/stores/authStore";
+import { hasPermission } from "../../../shared/utils/permissions";
 import { qualityTraceabilityPath, qualityCatalogArtifactPath } from "../../../shared/utils/appPaths";
 import { parseTestPlan } from "../lib/testPlan";
 import { isTestPlanCall } from "../types";
@@ -43,6 +47,9 @@ export function QualityTestCaseDetailPanels({
   linksLoading,
 }: QualityTestCaseDetailPanelsProps) {
   const { t } = useTranslation("quality");
+  const { data: members } = useOrgMembers(orgSlug);
+  const permissions = useAuthStore((s) => s.permissions);
+  const canCommentArtifact = hasPermission(permissions, "artifact:comment");
 
   const planEntries = useMemo(
     () => parseTestPlan((artifact.custom_fields as Record<string, unknown> | undefined)?.test_steps_json),
@@ -235,8 +242,23 @@ export function QualityTestCaseDetailPanels({
         <TabsContent value="attachments" className="mt-3 text-sm text-muted-foreground">
           {t("detail.attachmentsPlaceholder")}
         </TabsContent>
-        <TabsContent value="comments" className="mt-3 text-sm text-muted-foreground">
-          {t("detail.commentsPlaceholder")}
+        <TabsContent value="comments" className="mt-3 text-sm">
+          <ArtifactCommentsPanel
+            orgSlug={orgSlug}
+            projectId={projectId}
+            artifactId={artifact.id}
+            members={members}
+            canComment={canCommentArtifact}
+            labels={{
+              heading: t("detail.commentsHeading"),
+              emptyList: t("detail.commentsEmpty"),
+              placeholder: t("detail.commentsFieldPlaceholder"),
+              submit: t("detail.commentsSubmit"),
+              unknownAuthor: t("detail.commentsUnknownAuthor"),
+              added: t("detail.commentsAdded"),
+              failed: t("detail.commentsFailed"),
+            }}
+          />
         </TabsContent>
       </Tabs>
     </div>

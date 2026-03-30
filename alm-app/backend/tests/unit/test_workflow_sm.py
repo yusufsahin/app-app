@@ -10,24 +10,14 @@ from alm.artifact.domain.workflow_sm import (
     get_workflow_def,
     is_valid_transition,
 )
+from tests.support.manifests import (
+    TRANSITION_MANIFEST_TRIGGER_LABELS,
+    WORKFLOW_SM_BASIC_MANIFEST,
+    WORKFLOW_SM_GUARD_FILTER_MANIFEST,
+    WORKFLOW_SM_TRANSITION_GUARD_LOOKUP_MANIFEST,
+)
 
-SAMPLE_MANIFEST = {
-    "defs": [
-        {
-            "kind": "Workflow",
-            "id": "basic",
-            "initial": "new",
-            "states": ["new", "active", "resolved", "closed"],
-            "transitions": [
-                {"from": "new", "to": "active", "on_enter": ["log_transition"]},
-                {"from": "active", "to": "resolved"},
-                {"from": "resolved", "to": "closed"},
-                {"from": "closed", "to": "active"},
-            ],
-        },
-        {"kind": "ArtifactType", "id": "requirement", "workflow_id": "basic"},
-    ],
-}
+SAMPLE_MANIFEST = WORKFLOW_SM_BASIC_MANIFEST
 
 
 class TestWorkflowSm:
@@ -64,22 +54,7 @@ class TestWorkflowSm:
         assert set(p[0] for p in permitted_active) == {"resolved"}
 
     def test_get_permitted_triggers_with_trigger_label(self):
-        manifest = {
-            "defs": [
-                {
-                    "kind": "Workflow",
-                    "id": "basic",
-                    "initial": "new",
-                    "states": ["new", "active", "resolved"],
-                    "transitions": [
-                        {"from": "new", "to": "active", "trigger": "start", "trigger_label": "Start"},
-                        {"from": "active", "to": "resolved", "trigger": "resolve", "trigger_label": "Resolve"},
-                    ],
-                },
-                {"kind": "ArtifactType", "id": "req", "workflow_id": "basic"},
-            ],
-        }
-        permitted = get_permitted_triggers(manifest, "req", "new")
+        permitted = get_permitted_triggers(TRANSITION_MANIFEST_TRIGGER_LABELS, "requirement", "new")
         assert len(permitted) == 1
         trigger, to_state, label = permitted[0]
         assert trigger == "start"
@@ -87,42 +62,18 @@ class TestWorkflowSm:
         assert label == "Start"
 
     def test_get_permitted_triggers_filters_by_guard(self):
-        manifest = {
-            "defs": [
-                {
-                    "kind": "Workflow",
-                    "id": "w",
-                    "initial": "new",
-                    "states": ["new", "active"],
-                    "transitions": [
-                        {"from": "new", "to": "active", "guard": "assignee_required"},
-                    ],
-                },
-                {"kind": "ArtifactType", "id": "req", "workflow_id": "w"},
-            ],
-        }
-        permitted_no_assignee = get_permitted_triggers(manifest, "req", "new", entity_snapshot={"assignee_id": None})
+        manifest = WORKFLOW_SM_GUARD_FILTER_MANIFEST
+        permitted_no_assignee = get_permitted_triggers(
+            manifest, "requirement", "new", entity_snapshot={"assignee_id": None}
+        )
         assert len(permitted_no_assignee) == 0
         permitted_with_assignee = get_permitted_triggers(
-            manifest, "req", "new", entity_snapshot={"assignee_id": "user-1"}
+            manifest, "requirement", "new", entity_snapshot={"assignee_id": "user-1"}
         )
         assert len(permitted_with_assignee) == 1
         assert permitted_with_assignee[0][1] == "active"
 
     def test_get_transition_guard(self):
-        manifest = {
-            "defs": [
-                {
-                    "kind": "Workflow",
-                    "id": "w",
-                    "states": ["new", "active"],
-                    "transitions": [
-                        {"from": "new", "to": "active", "guard": "assignee_required"},
-                        {"from": "active", "to": "new"},
-                    ],
-                },
-                {"kind": "ArtifactType", "id": "req", "workflow_id": "w"},
-            ],
-        }
-        assert get_transition_guard(manifest, "req", "new", "active") == "assignee_required"
-        assert get_transition_guard(manifest, "req", "active", "new") is None
+        manifest = WORKFLOW_SM_TRANSITION_GUARD_LOOKUP_MANIFEST
+        assert get_transition_guard(manifest, "requirement", "new", "active") == "assignee_required"
+        assert get_transition_guard(manifest, "requirement", "active", "new") is None

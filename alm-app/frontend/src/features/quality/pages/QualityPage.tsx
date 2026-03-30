@@ -11,6 +11,7 @@ import {
   qualityCampaignPath,
   qualityCatalogPath,
   qualityTraceabilityPath,
+  qualityDefectsPath,
 } from "../../../shared/utils/appPaths";
 
 /**
@@ -82,6 +83,7 @@ export default function QualityPage() {
               <Link className="rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted/40" to={qualityCatalogPath(orgSlug, projectSlug)}>Catalog</Link>
               <Link className="rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted/40" to={qualityCampaignPath(orgSlug, projectSlug)}>Campaign</Link>
               <Link className="rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted/40" to={qualityRunsPath(orgSlug, projectSlug)}>Runs</Link>
+              <Link className="rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted/40" to={qualityDefectsPath(orgSlug, projectSlug)}>Defects</Link>
               <Link className="rounded-lg border bg-card p-4 text-sm font-medium hover:bg-muted/40" to={qualityTraceabilityPath(orgSlug, projectSlug)}>Traceability</Link>
             </>
           ) : null}

@@ -40,7 +40,7 @@ Existing quality links (`verifies`, etc.) unchanged.
 ## Implementation
 
 - Manifest injection: [`quality_manifest_extension.py`](../backend/src/alm/artifact/domain/quality_manifest_extension.py) — `with_quality_manifest_bundle` (seed) and `merge_quality_domain_into_defs` ([`manifest_merge_defaults.py`](../backend/src/alm/artifact/domain/manifest_merge_defaults.py) at runtime, idempotent).
-- UI: Quality hub + `/quality/catalog` (Catalog), `/quality/campaign` (Campaign workspace), `/quality/runs`, `/quality/campaigns` (`test-campaign` items); legacy `/quality/tests` → `/quality/catalog`, `/quality/suites` → `/quality/campaign`.
+- UI: Quality hub + `/quality/catalog` (Catalog), `/quality/campaign` (Campaign workspace), `/quality/runs`, `/quality/campaigns` (`test-campaign` items).
 - Demo data: first seeded project includes a demo suite, run, campaign and the links above.
 
 See also [QUALITY_SUITE.md](./QUALITY_SUITE.md).

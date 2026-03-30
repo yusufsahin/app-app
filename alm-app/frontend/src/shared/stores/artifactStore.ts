@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 
+export interface ArtifactTagBrief {
+  id: string;
+  name: string;
+}
+
 export interface Artifact {
   id: string;
   project_id: string;
@@ -20,6 +25,8 @@ export interface Artifact {
   area_path_snapshot?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  /** Project work-item tags (ADO-style). */
+  tags?: ArtifactTagBrief[];
   /** Permission-aware UI: actions the current user can perform (e.g. read, update, delete, transition). */
   allowed_actions?: string[];
 }
@@ -47,6 +54,7 @@ export interface ArtifactListState {
   cycleNodeFilter: string;
   releaseCycleNodeFilter: string;
   areaNodeFilter: string;
+  tagFilter: string;
   searchInput: string;
   searchQuery: string;
   page: number;
@@ -95,6 +103,7 @@ const defaultListState: ArtifactListState = {
   cycleNodeFilter: "",
   releaseCycleNodeFilter: "",
   areaNodeFilter: "",
+  tagFilter: "",
   searchInput: "",
   searchQuery: "",
   page: 0,

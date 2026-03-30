@@ -23,7 +23,8 @@ import {
 import { StartSuiteRunDialog } from "./StartSuiteRunDialog";
 import { useStartSuiteRun } from "../hooks/useStartSuiteRun";
 import { formatRunEnvironmentLabel, summarizeRunMetricsFromCustomFields } from "../lib/runMetrics";
-import { qualityRunExecutePath, qualityRunWorkspaceDetailPath } from "../lib/qualityRunPaths";
+import { qualityRunWorkspaceDetailPath } from "../lib/qualityRunPaths";
+import { openManualRunnerInNewWindow } from "../lib/qualityOpenManualRunner";
 
 type Props = {
   treeId?: string;
@@ -292,9 +293,6 @@ export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
                         orgSlug && projectSlug
                           ? qualityRunWorkspaceDetailPath(orgSlug, projectSlug, run.id, run.parent_id)
                           : "#";
-                      const executeTo =
-                        orgSlug && projectSlug ? qualityRunExecutePath(orgSlug, projectSlug, run.id) : "#";
-
                       return (
                         <tr
                           key={run.id}
@@ -318,11 +316,18 @@ export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-2">
-                              <Button type="button" variant="secondary" size="sm" asChild>
-                                <Link to={executeTo}>
-                                  <PlayCircle className="mr-1 size-4 shrink-0" aria-hidden />
-                                  {t("runsHub.executeOrContinue")}
-                                </Link>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                title={t("runsHub.executeInNewWindow")}
+                                onClick={() => {
+                                  if (!orgSlug || !projectSlug) return;
+                                  openManualRunnerInNewWindow(orgSlug, projectSlug, run.id);
+                                }}
+                              >
+                                <PlayCircle className="mr-1 size-4 shrink-0" aria-hidden />
+                                {t("runsHub.executeOrContinue")}
                               </Button>
                               <Button type="button" variant="ghost" size="sm" asChild>
                                 <Link to={detailsTo}>{t("runsHub.openDetails")}</Link>

@@ -26,7 +26,7 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
-/** Normalize legacy `rows` as plain objects into `{ values }` shape. */
+/** Normalize defs and rows; each row must be `{ label?, values: Record<...> }`. */
 export function normalizeTestParams(doc: TestParamsDocument): TestParamsDocument {
   const seen = new Set<string>();
   const defs = doc.defs
@@ -43,25 +43,17 @@ export function normalizeTestParams(doc: TestParamsDocument): TestParamsDocument
     });
 
   const rowsRaw = Array.isArray(doc.rows) ? doc.rows : [];
-  const rows: ParamRow[] = rowsRaw.map((r) => {
-    if (isPlainObject(r) && "values" in r && isPlainObject((r as ParamRow).values)) {
-      const pr = r as ParamRow;
-      return {
-        label: typeof pr.label === "string" ? pr.label.trim() || undefined : undefined,
-        values: Object.fromEntries(
-          Object.entries(pr.values).map(([k, v]) => [k, v === undefined || v === null ? "" : String(v)]),
-        ),
-      };
-    }
-    if (isPlainObject(r)) {
-      return {
-        values: Object.fromEntries(
-          Object.entries(r).map(([k, v]) => [k, v === undefined || v === null ? "" : String(v)]),
-        ),
-      };
-    }
-    return { values: {} };
-  });
+  const rows: ParamRow[] = [];
+  for (const r of rowsRaw) {
+    if (!isPlainObject(r) || !("values" in r) || !isPlainObject((r as ParamRow).values)) continue;
+    const pr = r as ParamRow;
+    rows.push({
+      label: typeof pr.label === "string" ? pr.label.trim() || undefined : undefined,
+      values: Object.fromEntries(
+        Object.entries(pr.values).map(([k, v]) => [k, v === undefined || v === null ? "" : String(v)]),
+      ),
+    });
+  }
 
   return { defs, rows: rows.length > 0 ? rows : undefined };
 }

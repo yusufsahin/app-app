@@ -9,6 +9,14 @@ from typing import Any, Self
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from alm.artifact.api.quality_test_params import validate_and_normalize_test_params_json
+from alm.artifact.application.dtos import ArtifactDTO
+
+
+class ProjectTagBrief(BaseModel):
+    """Project work-item tag (id + display name), ADO-style."""
+
+    id: uuid.UUID
+    name: str
 
 
 def _normalize_test_params_in_custom_fields(cf: dict[str, Any]) -> None:
@@ -35,6 +43,7 @@ class ArtifactCreateRequest(BaseModel):
     rank_order: float | None = None
     cycle_node_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
+    tag_ids: list[uuid.UUID] | None = None
 
     @field_validator("parent_id", "assignee_id", "cycle_node_id", "area_node_id", mode="before")
     @classmethod
@@ -73,6 +82,7 @@ class ArtifactResponse(BaseModel):
     area_path_snapshot: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    tags: list[ProjectTagBrief] = Field(default_factory=list)
     # Permission-aware UI: actions the current user can perform on this artifact
     allowed_actions: list[str] = Field(default_factory=list)
 
@@ -92,6 +102,7 @@ class ArtifactUpdateRequest(BaseModel):
     area_node_id: uuid.UUID | None = None
     parent_id: uuid.UUID | None = None
     custom_fields: dict[str, Any] | None = None
+    tag_ids: list[uuid.UUID] | None = None
 
     @field_validator("assignee_id", "cycle_node_id", "area_node_id", "parent_id", mode="before")
     @classmethod
@@ -168,4 +179,32 @@ class BatchResultResponse(BaseModel):
             "Per-artifact result: artifact_id -> "
             "'ok' | 'validation_error' | 'guard_denied' | 'policy_denied' | 'conflict_error'"
         ),
+    )
+
+
+def artifact_response_from_dto(d: ArtifactDTO) -> ArtifactResponse:
+    """Map application DTO to API response (tags + core fields; allowed_actions filled by masking)."""
+    if not isinstance(d, ArtifactDTO):
+        raise TypeError("artifact_response_from_dto expects ArtifactDTO")
+    return ArtifactResponse(
+        id=d.id,
+        project_id=d.project_id,
+        artifact_type=d.artifact_type,
+        title=d.title,
+        description=d.description,
+        state=d.state,
+        assignee_id=d.assignee_id,
+        parent_id=d.parent_id,
+        custom_fields=d.custom_fields,
+        artifact_key=d.artifact_key,
+        state_reason=d.state_reason,
+        resolution=d.resolution,
+        rank_order=d.rank_order,
+        cycle_node_id=d.cycle_node_id,
+        area_node_id=d.area_node_id,
+        area_path_snapshot=d.area_path_snapshot,
+        created_at=d.created_at,
+        updated_at=d.updated_at,
+        tags=[ProjectTagBrief(id=t.id, name=t.name) for t in d.tags],
+        allowed_actions=[],
     )

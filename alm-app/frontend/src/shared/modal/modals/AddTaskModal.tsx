@@ -12,6 +12,7 @@ export function AddTaskModal({
   onSubmit,
   isPending,
   userOptions,
+  projectTagOptions = [],
   onClose,
 }: Props) {
   const [values, setValues] = useState(initialValues);
@@ -38,6 +39,7 @@ export function AddTaskModal({
           disabled={isPending}
           submitExternally
           userOptions={userOptions}
+          projectTagOptions={projectTagOptions}
         />
       ) : (
         <p className="text-muted-foreground">Loading form…</p>

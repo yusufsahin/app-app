@@ -4,8 +4,8 @@ import uuid
 from dataclasses import dataclass
 
 from alm.artifact.domain.entities import Artifact
-from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.manifest_workflow_metadata import get_tree_root_type_map
+from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
 from alm.config.settings import settings
 from alm.process_template.domain.ports import ProcessTemplateRepository

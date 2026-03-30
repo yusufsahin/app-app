@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">52.63% </span>
+                <span class="strong">53.33% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>30/57</span>
+                <span class='fraction'>32/60</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">79.16% </span>
+                <span class="strong">78.84% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>38/48</span>
+                <span class='fraction'>41/52</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">48.93% </span>
+                <span class="strong">51.02% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>23/47</span>
+                <span class='fraction'>25/49</span>
             </div>
         
             
@@ -267,7 +267,12 @@
 <a name='L202'></a><a href='#L202'>202</a>
 <a name='L203'></a><a href='#L203'>203</a>
 <a name='L204'></a><a href='#L204'>204</a>
-<a name='L205'></a><a href='#L205'>205</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L205'></a><a href='#L205'>205</a>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -399,6 +404,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -425,6 +431,8 @@
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -456,9 +464,11 @@
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -615,6 +625,7 @@ export function listStateToFilterParams(state: {
   searchQuery?: string;
   cycleNodeFilter?: string;
   areaNodeFilter?: string;
+  tagFilter?: string;
   sortBy?: string;
   sortOrder?: string;
 }): Record&lt;string, unknown&gt; {
@@ -626,6 +637,7 @@ export function listStateToFilterParams(state: {
   if (state.searchQuery?.trim()) fp.q = state.searchQuery.trim();
   if (state.cycleNodeFilter) fp.cycle_node_id = state.cycleNodeFilter;
   if (state.areaNodeFilter) fp.area_node_id = state.areaNodeFilter;
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (state.tagFilter) <span class="cstat-no" title="statement not covered" >fp.tag_id = state.tagFilter;</span>
   if (state.sortBy) fp.sort_by = state.sortBy;
   if (state.sortOrder) fp.sort_order = state.sortOrder;
   return fp;
@@ -644,6 +656,7 @@ export function filterParamsToListStatePatch(
   searchInput: string;
   cycleNodeFilter: string;
   areaNodeFilter: string;
+  tagFilter: string;
   sortBy: "artifact_key" | "title" | "state" | "artifact_type" | "created_at" | "updated_at";
   sortOrder: "asc" | "desc";
   page: number;
@@ -658,6 +671,7 @@ export function filterParamsToListStatePatch(
   const q = String(filterParams.q ?? "").trim();
   const cycle = String(filterParams.cycle_node_id ?? "").trim();
   const area = String(filterParams.area_node_id ?? "").trim();
+  const tag = String(filterParams.tag_id ?? "").trim();
   const sortBy = String(filterParams.sort_by ?? "created_at").trim() as "artifact_key" | "title" | "state" | "artifact_type" | "created_at" | "updated_at";
   const sortOrder = (String(filterParams.sort_order ?? "desc").trim() === "asc"
     ? "asc"
@@ -670,6 +684,7 @@ export function filterParamsToListStatePatch(
     searchInput: q,
     cycleNodeFilter: cycle,
     areaNodeFilter: area,
+    tagFilter: tag,
     sortBy: sortBy || <span class="branch-1 cbranch-no" title="branch not covered" >"created_at",</span>
     sortOrder,
     page: 0,
@@ -682,7 +697,7 @@ export function filterParamsToListStatePatch(
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-03-26T10:26:49.108Z
+                at 2026-03-30T01:11:57.008Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

@@ -57,3 +57,34 @@ export function useCreateComment(
     },
   });
 }
+
+/** Create a comment when `artifactId` is chosen at action time (e.g. modal) — avoids hooks with undefined id. */
+export function useCreateArtifactCommentMutation(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { artifactId: string; body: string }): Promise<Comment> => {
+      const { data } = await apiClient.post<Comment>(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/${input.artifactId}/comments`,
+        { body: input.body },
+      );
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [
+          "orgs",
+          orgSlug,
+          "projects",
+          projectId,
+          "artifacts",
+          variables.artifactId,
+          "comments",
+        ],
+      });
+    },
+  });
+}

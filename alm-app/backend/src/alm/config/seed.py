@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from pathlib import Path
 from typing import Any
@@ -10,8 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from alm.artifact.domain.entities import Artifact as ArtifactEntity
-from alm.artifact.domain.mpc_resolver import get_manifest_ast
 from alm.artifact.domain.manifest_workflow_metadata import get_tree_root_type_map
+from alm.artifact.domain.mpc_resolver import get_manifest_ast
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.quality_manifest_extension import with_quality_manifest_bundle
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
@@ -26,8 +27,11 @@ from alm.process_template.infrastructure.repositories import (
 )
 from alm.project.domain.entities import Project
 from alm.project.infrastructure.repositories import SqlAlchemyProjectRepository
+from alm.project_tag.infrastructure.repositories import SqlAlchemyProjectTagRepository
 from alm.shared.domain.value_objects import ProjectCode, Slug
 from alm.shared.infrastructure.security.password import hash_password
+from alm.task.domain.entities import Task as TaskEntity
+from alm.task.infrastructure.repositories import SqlAlchemyTaskRepository
 from alm.tenant.application.sagas.tenant_onboarding import TenantOnboardingSaga
 from alm.tenant.domain.entities import Privilege
 from alm.tenant.infrastructure.models import TenantModel
@@ -51,6 +55,116 @@ _MANIFEST_TASK_AND_TREES: dict[str, Any] = {
     ],
 }
 
+def _open_text_defect_parity_fields(*, visible_in: list[str]) -> list[dict[str, Any]]:
+    """Custom fields aligned with OpenText-style defect triage (manifest `typeName` → `artifact_type` in forms)."""
+    vw = {"field": "typeName", "in": visible_in}
+    return [
+        {
+            "id": "severity",
+            "name": "Severity",
+            "type": "choice",
+            "options": [
+                {"id": "low", "label": "Low"},
+                {"id": "medium", "label": "Medium"},
+                {"id": "high", "label": "High"},
+                {"id": "critical", "label": "Critical"},
+            ],
+            "visibleWhen": vw,
+        },
+        {
+            "id": "defect_priority",
+            "name": "Priority",
+            "type": "choice",
+            "options": [
+                {"id": "1", "label": "1"},
+                {"id": "2", "label": "2"},
+                {"id": "3", "label": "3"},
+                {"id": "4", "label": "4"},
+                {"id": "5", "label": "5"},
+            ],
+            "visibleWhen": vw,
+        },
+        {
+            "id": "detected_by",
+            "name": "Detected by",
+            "type": "entity_ref",
+            "entity_ref": "user",
+            "visibleWhen": vw,
+        },
+        {
+            "id": "detected_on_date",
+            "name": "Detected on",
+            "type": "date",
+            "visibleWhen": vw,
+        },
+        {
+            "id": "reproducible",
+            "name": "Reproducible",
+            "type": "choice",
+            "options": [
+                {"id": "yes", "label": "Yes"},
+                {"id": "no", "label": "No"},
+                {"id": "unknown", "label": "Unknown"},
+            ],
+            "visibleWhen": vw,
+        },
+        {
+            "id": "detected_version",
+            "name": "Detected in version",
+            "type": "string",
+            "visibleWhen": vw,
+        },
+        {
+            "id": "planned_fix_version",
+            "name": "Planned fix version",
+            "type": "string",
+            "visibleWhen": vw,
+        },
+        {
+            "id": "closed_version",
+            "name": "Closed version",
+            "type": "string",
+            "visibleWhen": vw,
+        },
+        {
+            "id": "closing_date",
+            "name": "Closing date",
+            "type": "date",
+            "visibleWhen": vw,
+        },
+        {
+            "id": "detected_environment",
+            "name": "Detected environment",
+            "type": "string",
+            "visibleWhen": vw,
+        },
+        {
+            "id": "detected_in_release",
+            "name": "Detected in release / cycle",
+            "type": "string",
+            "visibleWhen": vw,
+        },
+        {
+            "id": "target_release",
+            "name": "Target release / cycle",
+            "type": "string",
+            "visibleWhen": vw,
+        },
+        {
+            "id": "estimated_fix_days",
+            "name": "Estimated fix time (days)",
+            "type": "number",
+            "visibleWhen": vw,
+        },
+        {
+            "id": "actual_fix_days",
+            "name": "Actual fix time (days)",
+            "type": "number",
+            "visibleWhen": vw,
+        },
+    ]
+
+
 _TASK_BASIC_WORKFLOW_DEF: dict[str, Any] = {
     "kind": "Workflow",
     "id": "task_basic",
@@ -69,8 +183,16 @@ DEMO_PASSWORD = "Admin123!"
 DEMO_DISPLAY_NAME = "Admin User"
 DEMO_ORG_NAME = "Demo"  # slug: demo
 DEMO_PROJECTS = [
-    {"name": "Sample Project", "code": "SAMP", "description": "Example project for testing"},
-    {"name": "Unima", "code": "UNIMA", "description": "Sample ALM project"},
+    {
+        "name": "Sample Project",
+        "code": "SAMP",
+        "description": "Primary demo: multi-feature backlog, parameterized tests, tags, tasks, defects, quality trees",
+    },
+    {
+        "name": "Unima",
+        "code": "UNIMA",
+        "description": "Secondary demo project with a small seeded epic, requirement, and defect",
+    },
 ]
 
 
@@ -287,20 +409,7 @@ async def seed_process_templates(
                                 "id": "defect",
                                 "workflow_id": "basic",
                                 "parent_types": ["root-defect"],
-                                "fields": [
-                                    {
-                                        "id": "severity",
-                                        "name": "Severity",
-                                        "type": "choice",
-                                        "options": [
-                                            {"id": "low", "label": "Low"},
-                                            {"id": "medium", "label": "Medium"},
-                                            {"id": "high", "label": "High"},
-                                            {"id": "critical", "label": "Critical"},
-                                        ],
-                                        "visibleWhen": {"field": "typeName", "in": ["defect"]},
-                                    },
-                                ],
+                                "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
                             },
                             {
                                 "kind": "TransitionPolicy",
@@ -402,7 +511,7 @@ async def seed_process_templates(
                                 "id": "root-defect",
                                 "name": "Project root (Defects)",
                                 "workflow_id": "root",
-                                "child_types": ["bug"],
+                                "child_types": ["defect"],
                                 "fields": [],
                             },
                             {
@@ -450,22 +559,10 @@ async def seed_process_templates(
                             },
                             {
                                 "kind": "ArtifactType",
-                                "id": "bug",
+                                "id": "defect",
                                 "workflow_id": "scrum",
                                 "parent_types": ["root-defect"],
-                                "fields": [
-                                    {
-                                        "id": "severity",
-                                        "name": "Severity",
-                                        "type": "choice",
-                                        "options": [
-                                            {"id": "low", "label": "Low"},
-                                            {"id": "high", "label": "High"},
-                                            {"id": "critical", "label": "Critical"},
-                                        ],
-                                        "visibleWhen": {"field": "typeName", "in": ["bug"]},
-                                    }
-                                ],
+                                "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
                             },
                             {
                                 "kind": "TransitionPolicy",
@@ -563,7 +660,7 @@ async def seed_process_templates(
                                 "id": "root-defect",
                                 "name": "Project root (Defects)",
                                 "workflow_id": "root",
-                                "child_types": ["bug"],
+                                "child_types": ["defect"],
                                 "fields": [],
                             },
                             {
@@ -600,18 +697,10 @@ async def seed_process_templates(
                             },
                             {
                                 "kind": "ArtifactType",
-                                "id": "bug",
+                                "id": "defect",
                                 "workflow_id": "kanban",
                                 "parent_types": ["root-defect"],
-                                "fields": [
-                                    {
-                                        "id": "severity",
-                                        "name": "Severity",
-                                        "type": "choice",
-                                        "options": [{"id": "low", "label": "Low"}, {"id": "high", "label": "High"}],
-                                        "visibleWhen": {"field": "typeName", "in": ["bug"]},
-                                    }
-                                ],
+                                "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
                             },
                             {
                                 "kind": "TransitionPolicy",
@@ -719,8 +808,17 @@ async def seed_process_templates(
                                 "id": "root-defect",
                                 "name": "Project root (Defects)",
                                 "workflow_id": "root",
-                                "child_types": [],
+                                "child_types": ["defect"],
                                 "fields": [],
+                            },
+                            {
+                                "kind": "ArtifactType",
+                                "id": "defect",
+                                "name": "Defect",
+                                "workflow_id": "ado_basic",
+                                "parent_types": ["root-defect"],
+                                "child_types": [],
+                                "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
                             },
                             {
                                 "kind": "ArtifactType",
@@ -946,19 +1044,83 @@ async def seed_demo_data(
                     )
 
             first_project = await project_repo.list_by_tenant(provisioned.tenant_id)
-            if first_project and version_id:
-                root_req_list = await artifact_repo.list_by_project(first_project[0].id, type_filter="root-requirement")
-                parent_id = root_req_list[0].id if root_req_list else None
+            if first_project and version_id and default_version:
+                demo_defect_high: ArtifactEntity | None = None
+                demo_defect_medium: ArtifactEntity | None = None
+                demo_defect_resolved: ArtifactEntity | None = None
+                req_mfa: ArtifactEntity | None = None
+                req_audit: ArtifactEntity | None = None
+                demo_feature_o11y: ArtifactEntity | None = None
+
+                mb = default_version.manifest_bundle or {}
+                ast_seed = get_manifest_ast(default_version.id, mb)
+
+                root_req_list = await artifact_repo.list_by_project(
+                    first_project[0].id, type_filter="root-requirement"
+                )
+                root_req_id = root_req_list[0].id if root_req_list else None
+                req_parent_id = root_req_id
+                demo_epic: ArtifactEntity | None = None
+                demo_feature: ArtifactEntity | None = None
+
+                if root_req_id:
+                    st_epic = workflow_get_initial_state(mb, "epic", ast=ast_seed) or "new"
+                    seq_e = await project_repo.increment_artifact_seq(first_project[0].id)
+                    demo_epic = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="epic",
+                        title="Demo — Platform delivery",
+                        description="Seeded epic; requirements sit under a feature (manifest-valid hierarchy).",
+                        state=st_epic,
+                        parent_id=root_req_id,
+                        artifact_key=f"{first_project[0].code}-{seq_e}",
+                        custom_fields={"priority": "2"},
+                    )
+                    demo_epic.created_by = user.id
+                    await artifact_repo.add(demo_epic)
+
+                    st_feat = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
+                    seq_f = await project_repo.increment_artifact_seq(first_project[0].id)
+                    demo_feature = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="feature",
+                        title="Authentication & session management",
+                        description="Feature bucket for login, tokens, and session lifecycle requirements.",
+                        state=st_feat,
+                        parent_id=demo_epic.id,
+                        artifact_key=f"{first_project[0].code}-{seq_f}",
+                        custom_fields={"story_points": 8},
+                    )
+                    demo_feature.created_by = user.id
+                    await artifact_repo.add(demo_feature)
+                    req_parent_id = demo_feature.id
+
+                    st_o11y = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
+                    seq_o = await project_repo.increment_artifact_seq(first_project[0].id)
+                    demo_feature_o11y = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="feature",
+                        title="Observability & compliance",
+                        description="Audit trails, metrics export, and retention policies for regulated workloads.",
+                        state=st_o11y,
+                        parent_id=demo_epic.id,
+                        artifact_key=f"{first_project[0].code}-{seq_o}",
+                        custom_fields={"story_points": 5},
+                    )
+                    demo_feature_o11y.created_by = user.id
+                    await artifact_repo.add(demo_feature_o11y)
+
+                st_req = workflow_get_initial_state(mb, "requirement", ast=ast_seed) or "new"
                 seq = await project_repo.increment_artifact_seq(first_project[0].id)
                 sample = ArtifactEntity(
                     project_id=first_project[0].id,
                     artifact_type="requirement",
                     title="Sample requirement",
-                    description="Example artifact for demo",
-                    state="new",
-                    parent_id=parent_id,
+                    description="Traced by seeded test cases; parent is a feature per Basic template rules.",
+                    state=st_req,
+                    parent_id=req_parent_id,
                     artifact_key=f"{first_project[0].code}-{seq}",
-                    custom_fields={"governance_artifact_id": "schema.cycle.v1"},
+                    custom_fields={"governance_artifact_id": "schema.cycle.v1", "priority": "high"},
                 )
                 sample.created_by = user.id
                 await artifact_repo.add(sample)
@@ -969,8 +1131,8 @@ async def seed_demo_data(
                     artifact_type="requirement",
                     title="Governance anchor: manifest sample (demo)",
                     description="Maps to artifact_catalog manifest_sample.cycle.minimal for traceability export",
-                    state="new",
-                    parent_id=parent_id,
+                    state=st_req,
+                    parent_id=req_parent_id,
                     artifact_key=f"{first_project[0].code}-{seq_manifest}",
                     custom_fields={"governance_artifact_id": "manifest_sample.cycle.minimal"},
                 )
@@ -983,17 +1145,123 @@ async def seed_demo_data(
                     artifact_type="requirement",
                     title="Governance anchor: rule pack (demo)",
                     description="Maps to artifact_catalog rule_pack.cycle.v1 for traceability export",
-                    state="new",
-                    parent_id=parent_id,
+                    state=st_req,
+                    parent_id=req_parent_id,
                     artifact_key=f"{first_project[0].code}-{seq_rule}",
                     custom_fields={"governance_artifact_id": "rule_pack.cycle.v1"},
                 )
                 gov_rule.created_by = user.id
                 await artifact_repo.add(gov_rule)
 
+                if demo_feature is not None:
+                    seq_mfa = await project_repo.increment_artifact_seq(first_project[0].id)
+                    req_mfa = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="requirement",
+                        title="MFA enrollment is mandatory for privileged roles",
+                        description=(
+                            "Administrators and support roles must enroll TOTP before production access."
+                        ),
+                        state=st_req,
+                        parent_id=demo_feature.id,
+                        artifact_key=f"{first_project[0].code}-{seq_mfa}",
+                        custom_fields={"priority": "high", "governance_artifact_id": "schema.cycle.v1"},
+                    )
+                    req_mfa.created_by = user.id
+                    await artifact_repo.add(req_mfa)
+
+                if demo_feature_o11y is not None:
+                    seq_audit = await project_repo.increment_artifact_seq(first_project[0].id)
+                    req_audit = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="requirement",
+                        title="Structured audit stream for security-sensitive API calls",
+                        description=(
+                            "AuthN, authZ, and data-export endpoints emit immutable audit events."
+                        ),
+                        state=st_req,
+                        parent_id=demo_feature_o11y.id,
+                        artifact_key=f"{first_project[0].code}-{seq_audit}",
+                        custom_fields={"priority": "medium"},
+                    )
+                    req_audit.created_by = user.id
+                    await artifact_repo.add(req_audit)
+
+                root_defect_list = await artifact_repo.list_by_project(
+                    first_project[0].id, type_filter="root-defect"
+                )
+                root_defect_id = root_defect_list[0].id if root_defect_list else None
+                if root_defect_id:
+                    st_def = workflow_get_initial_state(mb, "defect", ast=ast_seed) or "new"
+                    seq_d1 = await project_repo.increment_artifact_seq(first_project[0].id)
+                    demo_defect_high = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="defect",
+                        title="Session cookie persists after logout",
+                        description="Seeded defect with OpenText-style fields for triage UI demos.",
+                        state=st_def,
+                        parent_id=root_defect_id,
+                        assignee_id=user.id,
+                        artifact_key=f"{first_project[0].code}-{seq_d1}",
+                        custom_fields={
+                            "severity": "high",
+                            "defect_priority": "2",
+                            "reproducible": "yes",
+                            "detected_environment": "staging",
+                            "detected_by": str(user.id),
+                            "detected_version": "2.4.0",
+                        },
+                    )
+                    demo_defect_high.created_by = user.id
+                    await artifact_repo.add(demo_defect_high)
+
+                    seq_d2 = await project_repo.increment_artifact_seq(first_project[0].id)
+                    demo_defect_medium = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="defect",
+                        title="Search API latency spikes above 2s under concurrent load",
+                        description="Performance regression observed in load tests; environment integration.",
+                        state="active",
+                        parent_id=root_defect_id,
+                        artifact_key=f"{first_project[0].code}-{seq_d2}",
+                        custom_fields={
+                            "severity": "medium",
+                            "defect_priority": "3",
+                            "reproducible": "unknown",
+                            "detected_environment": "integration",
+                            "estimated_fix_days": 3,
+                        },
+                    )
+                    demo_defect_medium.created_by = user.id
+                    await artifact_repo.add(demo_defect_medium)
+
+                    seq_d3 = await project_repo.increment_artifact_seq(first_project[0].id)
+                    demo_defect_resolved = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="defect",
+                        title="Password reset email shows wrong product name",
+                        description="Closed-loop example: fixed copy in template v3.",
+                        state="resolved",
+                        parent_id=root_defect_id,
+                        artifact_key=f"{first_project[0].code}-{seq_d3}",
+                        resolution="fixed",
+                        custom_fields={
+                            "severity": "low",
+                            "defect_priority": "4",
+                            "reproducible": "yes",
+                            "detected_environment": "production",
+                            "planned_fix_version": "2.5.0",
+                        },
+                    )
+                    demo_defect_resolved.created_by = user.id
+                    await artifact_repo.add(demo_defect_resolved)
+
                 root_quality_list = await artifact_repo.list_by_project(first_project[0].id, type_filter="root-quality")
                 parent_tests_id = root_quality_list[0].id if root_quality_list else None
-                root_suites_list = await artifact_repo.list_by_project(first_project[0].id, type_filter="root-testsuites")
+                root_suites_list = await artifact_repo.list_by_project(
+                    first_project[0].id,
+                    type_filter="root-testsuites",
+                )
                 parent_suites_id = root_suites_list[0].id if root_suites_list else None
                 tc_state = "new"
                 if default_version and default_version.manifest_bundle and parent_tests_id:
@@ -1007,6 +1275,7 @@ async def seed_demo_data(
                 tc_login = None
                 tc_api = None
                 tc_security = None
+                tc_composite = None
                 perf_folder = None
                 api_subfolder = None
                 extra_test_cases: list[ArtifactEntity] = []
@@ -1078,17 +1347,52 @@ async def seed_demo_data(
                         project_id=first_project[0].id,
                         artifact_type="test-case",
                         title="Login — happy path",
-                        description="Demo test case under the Quality tree; links to the sample requirement.",
+                        description="Parameterized manual case (${env}, ${username}); reused by composite E2E.",
                         state=tc_state,
                         parent_id=tests_folder.id if tests_folder is not None else parent_tests_id,
                         artifact_key=f"{first_project[0].code}-{seq_tc1}",
                         custom_fields={
                             "priority": "high",
                             "automation": "manual",
-                            "test_steps_json": (
-                                '[{"stepNumber":1,"action":"Open login page","expectedResult":"Login form is visible"},'
-                                '{"stepNumber":2,"action":"Submit valid credentials",'
-                                '"expectedResult":"Redirect to dashboard"}]'
+                            "test_params_json": json.dumps(
+                                {
+                                    "defs": [
+                                        {"name": "env", "label": "Environment", "default": "staging"},
+                                        {"name": "username", "label": "Username", "default": "demo.user"},
+                                    ],
+                                    "rows": [
+                                        {
+                                            "label": "Staging QA",
+                                            "values": {"env": "staging", "username": "qa.alpha"},
+                                        },
+                                        {
+                                            "label": "Prod smoke",
+                                            "values": {"env": "production", "username": "smoke.bot"},
+                                        },
+                                    ],
+                                }
+                            ),
+                            "test_steps_json": json.dumps(
+                                [
+                                    {
+                                        "kind": "step",
+                                        "id": "step-1",
+                                        "stepNumber": 1,
+                                        "name": "Open login page",
+                                        "description": "Target ${env}; account ${username}.",
+                                        "expectedResult": "Login form is visible for the selected environment",
+                                        "status": "not-executed",
+                                    },
+                                    {
+                                        "kind": "step",
+                                        "id": "step-2",
+                                        "stepNumber": 2,
+                                        "name": "Submit valid credentials",
+                                        "description": "Use ${username} with a valid password from the vault.",
+                                        "expectedResult": "Redirect to dashboard",
+                                        "status": "not-executed",
+                                    },
+                                ]
                             ),
                         },
                     )
@@ -1107,9 +1411,18 @@ async def seed_demo_data(
                         custom_fields={
                             "priority": "medium",
                             "automation": "automated",
-                            "test_steps_json": (
-                                '[{"stepNumber":1,"action":"Send invalid payload",'
-                                '"expectedResult":"HTTP 400 with schema errors"}]'
+                            "test_steps_json": json.dumps(
+                                [
+                                    {
+                                        "kind": "step",
+                                        "id": "step-1",
+                                        "stepNumber": 1,
+                                        "name": "Send invalid payload",
+                                        "description": "",
+                                        "expectedResult": "HTTP 400 with schema errors",
+                                        "status": "not-executed",
+                                    },
+                                ]
                             ),
                         },
                     )
@@ -1128,14 +1441,60 @@ async def seed_demo_data(
                         custom_fields={
                             "priority": "critical",
                             "automation": "manual",
-                            "test_steps_json": (
-                                '[{"stepNumber":1,"action":"Send 10 invalid login attempts",'
-                                '"expectedResult":"Rate limit message is shown"}]'
+                            "test_steps_json": json.dumps(
+                                [
+                                    {
+                                        "kind": "step",
+                                        "id": "step-1",
+                                        "stepNumber": 1,
+                                        "name": "Send 10 invalid login attempts",
+                                        "description": "",
+                                        "expectedResult": "Rate limit message is shown",
+                                        "status": "not-executed",
+                                    },
+                                ]
                             ),
                         },
                     )
                     tc_security.created_by = user.id
                     await artifact_repo.add(tc_security)
+
+                    seq_tc_comp = await project_repo.increment_artifact_seq(first_project[0].id)
+                    tc_composite = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="test-case",
+                        title="E2E — session flow delegates to login happy path",
+                        description="Composite plan: local pre-step then Call-to-Test into the login case.",
+                        state=tc_state,
+                        parent_id=tests_folder.id if tests_folder is not None else parent_tests_id,
+                        artifact_key=f"{first_project[0].code}-{seq_tc_comp}",
+                        custom_fields={
+                            "priority": "medium",
+                            "automation": "manual",
+                            "test_steps_json": json.dumps(
+                                [
+                                    {
+                                        "kind": "step",
+                                        "id": "pre-1",
+                                        "stepNumber": 1,
+                                        "name": "Clear browser storage for clean session",
+                                        "description": "",
+                                        "expectedResult": "No prior session cookies for the app origin",
+                                        "status": "not-executed",
+                                    },
+                                    {
+                                        "kind": "call",
+                                        "id": "call-login",
+                                        "stepNumber": 2,
+                                        "calledTestCaseId": str(tc_login.id),
+                                        "calledTitle": tc_login.title,
+                                    },
+                                ]
+                            ),
+                        },
+                    )
+                    tc_composite.created_by = user.id
+                    await artifact_repo.add(tc_composite)
 
                     extra_case_specs = [
                         ("API — list users pagination", "Validate pagination metadata and bounds handling."),
@@ -1160,8 +1519,18 @@ async def seed_demo_data(
                             custom_fields={
                                 "priority": "high" if idx <= 3 else "medium",
                                 "automation": "automated" if idx % 2 == 0 else "manual",
-                                "test_steps_json": (
-                                    '[{"stepNumber":1,"action":"Execute test scenario","expectedResult":"Expected system behavior is observed"}]'
+                                "test_steps_json": json.dumps(
+                                    [
+                                        {
+                                            "kind": "step",
+                                            "id": "step-1",
+                                            "stepNumber": 1,
+                                            "name": "Execute test scenario",
+                                            "description": "",
+                                            "expectedResult": "Expected system behavior is observed",
+                                            "status": "not-executed",
+                                        },
+                                    ]
                                 ),
                             },
                         )
@@ -1222,30 +1591,72 @@ async def seed_demo_data(
                             project_id=first_project[0].id,
                             artifact_type="test-run",
                             title="Demo test run",
-                            description="Sample run against the demo suite.",
+                            description="Run metrics reference real seeded test-case ids (login + API contract).",
                             state=run_st,
                             parent_id=suites_folder.id if suites_folder is not None else parent_suites_id,
                             artifact_key=f"{first_project[0].code}-{seq_run}",
                             custom_fields={
                                 "environment": "staging",
-                                "run_metrics_json": '{"passed":2,"failed":0,"blocked":0}',
+                                "run_metrics_json": json.dumps(
+                                    {
+                                        "v": 1,
+                                        "results": [
+                                            {
+                                                "testId": str(tc_login.id),
+                                                "status": "passed",
+                                                "stepResults": [],
+                                            },
+                                            {
+                                                "testId": str(tc_api.id),
+                                                "status": "passed",
+                                                "stepResults": [],
+                                            },
+                                        ],
+                                    }
+                                ),
                             },
                         )
                         demo_run.created_by = user.id
                         await artifact_repo.add(demo_run)
 
                         seq_run2 = await project_repo.increment_artifact_seq(first_project[0].id)
+                        blocked_tid = (
+                            str(extra_test_cases[0].id)
+                            if extra_test_cases
+                            else str(tc_login.id)
+                        )
                         failed_run = ArtifactEntity(
                             project_id=first_project[0].id,
                             artifact_type="test-run",
                             title="Nightly API run - failed",
-                            description="Seeded failed run to demonstrate run status distribution.",
+                            description="Mixed outcomes mapped to real test ids: pass / fail / blocked.",
                             state="failed",
                             parent_id=suites_folder.id if suites_folder is not None else parent_suites_id,
                             artifact_key=f"{first_project[0].code}-{seq_run2}",
                             custom_fields={
                                 "environment": "staging",
-                                "run_metrics_json": '{"passed":1,"failed":1,"blocked":1}',
+                                "run_metrics_json": json.dumps(
+                                    {
+                                        "v": 1,
+                                        "results": [
+                                            {
+                                                "testId": str(tc_api.id),
+                                                "status": "passed",
+                                                "stepResults": [],
+                                            },
+                                            {
+                                                "testId": str(tc_security.id),
+                                                "status": "failed",
+                                                "stepResults": [],
+                                            },
+                                            {
+                                                "testId": blocked_tid,
+                                                "status": "blocked",
+                                                "stepResults": [],
+                                            },
+                                        ],
+                                    }
+                                ),
                             },
                         )
                         failed_run.created_by = user.id
@@ -1289,6 +1700,205 @@ async def seed_demo_data(
                         await artifact_repo.add(release_campaign)
 
                 link_repo = SqlAlchemyArtifactLinkRepository(session)
+                tag_repo = SqlAlchemyProjectTagRepository(session)
+                task_repo = SqlAlchemyTaskRepository(session)
+
+                if len(first_project) > 1:
+                    p2 = first_project[1]
+                    mb2 = default_version.manifest_bundle or {}
+                    ast2 = get_manifest_ast(default_version.id, mb2)
+                    rr2 = await artifact_repo.list_by_project(p2.id, type_filter="root-requirement")
+                    rd2 = await artifact_repo.list_by_project(p2.id, type_filter="root-defect")
+                    if rr2 and rd2:
+                        st_e2 = workflow_get_initial_state(mb2, "epic", ast=ast2) or "new"
+                        seq_p2e = await project_repo.increment_artifact_seq(p2.id)
+                        epic_p2 = ArtifactEntity(
+                            project_id=p2.id,
+                            artifact_type="epic",
+                            title="UNIMA — mobile onboarding",
+                            description=(
+                                "Second-project backlog: feature, two requirements, defect, and test."
+                            ),
+                            state=st_e2,
+                            parent_id=rr2[0].id,
+                            artifact_key=f"{p2.code}-{seq_p2e}",
+                            custom_fields={"priority": "2"},
+                        )
+                        epic_p2.created_by = user.id
+                        await artifact_repo.add(epic_p2)
+
+                        st_f2 = workflow_get_initial_state(mb2, "feature", ast=ast2) or "new"
+                        seq_p2f = await project_repo.increment_artifact_seq(p2.id)
+                        feat_p2 = ArtifactEntity(
+                            project_id=p2.id,
+                            artifact_type="feature",
+                            title="First-run experience",
+                            description="Account creation, profile basics, and first successful login.",
+                            state=st_f2,
+                            parent_id=epic_p2.id,
+                            artifact_key=f"{p2.code}-{seq_p2f}",
+                            custom_fields={"story_points": 3},
+                        )
+                        feat_p2.created_by = user.id
+                        await artifact_repo.add(feat_p2)
+
+                        st_r2 = workflow_get_initial_state(mb2, "requirement", ast=ast2) or "new"
+                        seq_p2r = await project_repo.increment_artifact_seq(p2.id)
+                        req_p2 = ArtifactEntity(
+                            project_id=p2.id,
+                            artifact_type="requirement",
+                            title="Email verification before workspace access",
+                            description="New users must confirm email before seeing project data.",
+                            state=st_r2,
+                            parent_id=feat_p2.id,
+                            artifact_key=f"{p2.code}-{seq_p2r}",
+                            custom_fields={"priority": "high"},
+                        )
+                        req_p2.created_by = user.id
+                        await artifact_repo.add(req_p2)
+
+                        seq_p2r2 = await project_repo.increment_artifact_seq(p2.id)
+                        req_p2_b = ArtifactEntity(
+                            project_id=p2.id,
+                            artifact_type="requirement",
+                            title="Profile photo optional but validated when present",
+                            description="If the user uploads an avatar, MIME type and dimensions are enforced.",
+                            state=st_r2,
+                            parent_id=feat_p2.id,
+                            artifact_key=f"{p2.code}-{seq_p2r2}",
+                            custom_fields={"priority": "low"},
+                        )
+                        req_p2_b.created_by = user.id
+                        await artifact_repo.add(req_p2_b)
+
+                        st_d2 = workflow_get_initial_state(mb2, "defect", ast=ast2) or "new"
+                        seq_p2d = await project_repo.increment_artifact_seq(p2.id)
+                        def_p2 = ArtifactEntity(
+                            project_id=p2.id,
+                            artifact_type="defect",
+                            title="Verification email link expires immediately in mobile webview",
+                            description="Repro on iOS in-app browser; token appears consumed on first load.",
+                            state=st_d2,
+                            parent_id=rd2[0].id,
+                            artifact_key=f"{p2.code}-{seq_p2d}",
+                            custom_fields={
+                                "severity": "high",
+                                "reproducible": "yes",
+                                "detected_environment": "dev",
+                                "defect_priority": "2",
+                            },
+                        )
+                        def_p2.created_by = user.id
+                        await artifact_repo.add(def_p2)
+
+                        rq2 = await artifact_repo.list_by_project(p2.id, type_filter="root-quality")
+                        tc_state_p2 = workflow_get_initial_state(mb2, "test-case", ast=ast2) or "new"
+                        tc_uni = None
+                        if rq2:
+                            seq_ut = await project_repo.increment_artifact_seq(p2.id)
+                            tc_uni = ArtifactEntity(
+                                project_id=p2.id,
+                                artifact_type="test-case",
+                                title="UNIMA — email verification flow",
+                                description="Manual checks for the verification gate on second demo project.",
+                                state=tc_state_p2,
+                                parent_id=rq2[0].id,
+                                artifact_key=f"{p2.code}-{seq_ut}",
+                                custom_fields={
+                                    "priority": "high",
+                                    "automation": "manual",
+                                    "test_steps_json": json.dumps(
+                                        [
+                                            {
+                                                "kind": "step",
+                                                "id": "u1",
+                                                "stepNumber": 1,
+                                                "name": "Register with a fresh mailbox",
+                                                "description": "",
+                                                "expectedResult": "Account pending verification state",
+                                                "status": "not-executed",
+                                            },
+                                            {
+                                                "kind": "step",
+                                                "id": "u2",
+                                                "stepNumber": 2,
+                                                "name": "Open verification link from email",
+                                                "description": "",
+                                                "expectedResult": "User lands in workspace home",
+                                                "status": "not-executed",
+                                            },
+                                        ]
+                                    ),
+                                },
+                            )
+                            tc_uni.created_by = user.id
+                            await artifact_repo.add(tc_uni)
+
+                        await link_repo.add(
+                            ArtifactLink.create(
+                                project_id=p2.id,
+                                from_artifact_id=def_p2.id,
+                                to_artifact_id=req_p2.id,
+                                link_type="blocks",
+                            )
+                        )
+                        if tc_uni is not None:
+                            await link_repo.add(
+                                ArtifactLink.create(
+                                    project_id=p2.id,
+                                    from_artifact_id=tc_uni.id,
+                                    to_artifact_id=req_p2.id,
+                                    link_type="verifies",
+                                )
+                            )
+                            await link_repo.add(
+                                ArtifactLink.create(
+                                    project_id=p2.id,
+                                    from_artifact_id=tc_uni.id,
+                                    to_artifact_id=req_p2_b.id,
+                                    link_type="verifies",
+                                )
+                            )
+
+                t_security = await tag_repo.create(first_project[0].id, "security-review")
+                t_customer = await tag_repo.create(first_project[0].id, "customer-alpha")
+                t_release = await tag_repo.create(first_project[0].id, "release-24.3")
+                await tag_repo.set_artifact_tags(
+                    sample.id, first_project[0].id, [t_security.id, t_release.id]
+                )
+                if tc_login is not None:
+                    await tag_repo.set_artifact_tags(
+                        tc_login.id, first_project[0].id, [t_customer.id, t_release.id]
+                    )
+                if demo_defect_high is not None:
+                    await tag_repo.set_artifact_tags(
+                        demo_defect_high.id, first_project[0].id, [t_security.id]
+                    )
+
+                await task_repo.add(
+                    TaskEntity.create(
+                        first_project[0].id,
+                        sample.id,
+                        "Walk through acceptance criteria with product owner",
+                        state="in_progress",
+                        description="Demo task linked to the sample requirement.",
+                        assignee_id=user.id,
+                        rank_order=1.0,
+                    )
+                )
+                if demo_defect_high is not None:
+                    await task_repo.add(
+                        TaskEntity.create(
+                            first_project[0].id,
+                            demo_defect_high.id,
+                            "Capture HAR + console for logout cookie repro",
+                            state="todo",
+                            description="Attach artifacts to the defect when ready.",
+                            assignee_id=user.id,
+                            rank_order=1.0,
+                        )
+                    )
+
                 await link_repo.add(
                     ArtifactLink.create(
                         project_id=first_project[0].id,
@@ -1305,6 +1915,24 @@ async def seed_demo_data(
                         link_type="schema_constrains_rules",
                     )
                 )
+                if demo_defect_high is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=demo_defect_high.id,
+                            to_artifact_id=sample.id,
+                            link_type="blocks",
+                        )
+                    )
+                if demo_defect_medium is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=demo_defect_medium.id,
+                            to_artifact_id=sample.id,
+                            link_type="related",
+                        )
+                    )
                 if tc_login is not None:
                     await link_repo.add(
                         ArtifactLink.create(
@@ -1332,6 +1960,42 @@ async def seed_demo_data(
                             link_type="verifies",
                         )
                     )
+                if tc_security is not None and req_mfa is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=tc_security.id,
+                            to_artifact_id=req_mfa.id,
+                            link_type="verifies",
+                        )
+                    )
+                if tc_composite is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=tc_composite.id,
+                            to_artifact_id=sample.id,
+                            link_type="verifies",
+                        )
+                    )
+                if req_audit is not None and tc_api is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=tc_api.id,
+                            to_artifact_id=req_audit.id,
+                            link_type="verifies",
+                        )
+                    )
+                if demo_defect_resolved is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=demo_defect_resolved.id,
+                            to_artifact_id=sample.id,
+                            link_type="related",
+                        )
+                    )
                 if demo_suite is not None and tc_login is not None:
                     await link_repo.add(
                         ArtifactLink.create(
@@ -1347,6 +2011,15 @@ async def seed_demo_data(
                             project_id=first_project[0].id,
                             from_artifact_id=demo_suite.id,
                             to_artifact_id=tc_api.id,
+                            link_type="suite_includes_test",
+                        )
+                    )
+                if demo_suite is not None and tc_composite is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=demo_suite.id,
+                            to_artifact_id=tc_composite.id,
                             link_type="suite_includes_test",
                         )
                     )
@@ -1439,6 +2112,10 @@ async def seed_demo_data(
                 email=DEMO_EMAIL,
                 org=DEMO_ORG_NAME,
                 projects=len(DEMO_PROJECTS),
+                includes=(
+                    "epic_multi_feature_requirements defects quality_campaign "
+                    "tags_tasks_param_test call_plan run_metrics_ids unima_backlog"
+                ),
             )
     except Exception as e:
         logger.exception("seed_demo_data_failed", error=str(e))

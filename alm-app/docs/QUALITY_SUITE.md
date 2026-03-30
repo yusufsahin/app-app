@@ -10,9 +10,7 @@ Proje içinde kalite çalışması için ayrı giriş noktaları:
 |-------|----------|
 | `/:orgSlug/:projectSlug/quality` | Hub + artifact listesi (Artifacts ile aynı API) |
 | `/:orgSlug/:projectSlug/quality/catalog` | **Catalog** — test case’ler (`tree_id: quality`, `quality-folder` grupları) |
-| `/:orgSlug/:projectSlug/quality/tests` | Eski bookmark; **`/quality/catalog`** adresine yönlendirilir |
 | `/:orgSlug/:projectSlug/quality/campaign` | **Campaign** — `test-suite` (collections = `testsuite-folder`) |
-| `/:orgSlug/:projectSlug/quality/suites` | Eski bookmark; **`/quality/campaign`** adresine yönlendirilir |
 | `/:orgSlug/:projectSlug/quality/runs` | `test-run` |
 | `/:orgSlug/:projectSlug/quality/campaigns` | `test-campaign` |
 | `/:orgSlug/:projectSlug/quality/traceability` | Quality ağacı; sayfalama + arama; detayda link yönetimi |

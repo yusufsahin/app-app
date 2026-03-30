@@ -1,119 +1,73 @@
-# Manifest DSL / Metadata-Driven İhlal Analizi (Frontend)
+# Manifest DSL / metadata-driven uyum (Frontend + ilgili backend)
 
-**Kaynak:** `manifest-dsl.md`, `CONTEXTS_AND_PROGRESSION.md` — *"Süreç davranışı manifest ile tanımlanır; form/list schema manifest'ten (meta-metadata) türetilir."*
+**Hedef:** Süreç ve iş öğesi formları mümkün olduğunca manifest / API şemasından (`form-schema`, `list-schema`) üretilsin; sayfada tekrarlanan sabit form alanı kalmasın.
 
-**Durum:** Aşağıdaki ihlaller düzeltildi (fix all).
-
----
-
-## Özet
-
-| # | Konum | İhlal | Öneri |
-|---|--------|--------|--------|
-| 1 | ArtifactsPage – liste toolbar | Filtreler (State, Type, Cycle, Area, Sort, Order, Search, Saved query) tamamen hardcoded | Liste filtreleri `listSchema.filters` + varsa ek filtreler metadata ile tanımlanmalı; toolbar tek kaynak olarak schema kullanmalı |
-| 2 | ArtifactsPage – table fallback | `listSchema` yokken sabit kolonlu `<Table>` render ediliyor | Schema yokken tablo göstermemek (loading/mesaj) veya fallback’i kaldırmak |
-| 3 | ArtifactsPage – artifact detay düzenleme | Drawer’da “Edit” için Title, Description, Assignee hardcoded TextField/Select | `useFormSchema(..., "artifact", "edit")` + `MetadataDrivenForm` kullanılmalı |
-| 4 | ArtifactsPage – task ekleme/düzenleme | Add task / Edit task dialog’ları tamamen hardcoded (title, state, assignee) | Backend’de `entity_type=task`, `context=create|edit` form schema var; `useFormSchema(..., "task", "create")` / `"edit"` + `MetadataDrivenForm` kullanılmalı |
-| 5 | ArtifactsPage – state transition dialog | State reason / Resolution alanları hardcoded Select | İsteğe bağlı: workflow/transition metadata’dan seçenekler türetilebilir |
-| 6 | ArtifactsPage – detay drawer Planning | Cycle / Area seçicileri hardcoded | Form schema’da planning alanları varsa metadata-driven yapılabilir |
+**Son güncelleme:** Kod tabanıyla hizalı durum özeti aşağıdadır (otomatik denetim için bu dosyayı ve `MetadataDrivenForm` / `ArtifactsToolbar` kaynaklarını kullanın).
 
 ---
 
-## 1. Liste toolbar filtreleri (ArtifactsPage, ~satır 927–1090)
+## Uyumlu / tamamlanan
 
-**Durum:** Sayfa hem `MetadataDrivenList` ile `schema={listSchema}` kullanıyor hem de üstte ayrı bir toolbar’da şu alanlar **hardcoded**:
-
-- Search (TextField)
-- Saved queries (Select)
-- State (Select)
-- Type (Select)
-- Cycle (Select)
-- Area (Select)
-- Sort by (Select)
-- Order (Select)
-- Show deleted (Checkbox)
-
-Backend `get_list_schema` zaten `filters` dönüyor (`type`, `state` için `ListFilterSchema`). Metadata-driven prensibe göre liste filtreleri **list schema**’dan gelmeli; ek ihtiyaçlar (Cycle, Area, Sort, Search) ya schema genişletmesi ya da ayrı bir “list view options” metadata ile tanımlanmalı.
-
-**İhlal:** Filtrelerin schema dışında, sabit kodla tanımlanması.
+| Alan | Durum |
+|------|--------|
+| Artifact create | `CreateArtifactModal` + `useFormSchema(..., "artifact", "create")` + `MetadataDrivenForm` |
+| Artifact edit (drawer) | `useFormSchema(..., "artifact", "edit", artifactType)` + `MetadataDrivenForm`; proje etiketleri şemada `tag_list` (`tag_ids`) + `projectTagOptions` |
+| Task create | `useFormSchema(..., "task", "create")` + `AddTaskModal` / `MetadataDrivenForm` |
+| Task edit | `useFormSchema(..., "task", "edit")` + `EditTaskModal` (backend create/edit için aynı builder; ayrı context ile sorgu) |
+| Tablo görünümü | `listSchema` yokken sabit kolonlu tablo yok; yükleme / hata / bilgi mesajı |
+| Tablo + kolonlar | `MetadataDrivenList` + `useListSchema` (`entity_type=artifact`) |
+| Transition (tekil) | Modal içinde `MetadataDrivenForm`; alanlar manifest workflow `state_reason_options` / `resolution_options` ile client’ta şemaya dönüştürülüyor |
+| Bulk transition | Aynı yaklaşım + `BulkTransitionModal` |
+| Manifest önizleme | `buildPreviewSchemaFromManifest` + `MetadataDrivenForm` |
 
 ---
 
-## 2. Table fallback (listSchema yokken)
+## Kalan sapmalar (bilinçli borç veya ileri iş)
 
-**Konum:** `ArtifactsPage.tsx` ~1364–1460.
+### 1. Artifacts toolbar filtreleri (`ArtifactsToolbar.tsx`)
 
-**Durum:** `viewMode === "table"` ama `!listSchema` iken sabit kolonlu `<Table>` (Key, Type, Title, State, …) render ediliyor.
+Üst bölümde arama, kayıtlı sorgu, cycle, area, tag, state, type, sıralama, silinenleri göster vb. **hâlâ sayfada sabit tanımlı** (`ToolbarFilterValues` + RHF bileşenleri).
 
-**İhlal:** Liste görünümü her zaman **list schema** ile tanımlanmalı; schema yokken aynı sayfada sabit kolonlu tablo göstermek metadata-driven kuralını bozar.
+Backend `get_list_schema` yalnızca **`state`** ve **`type`** filtresini şemaya koyuyor; cycle / area / tag / sort / free-text search şemada yok. Toolbar’ı tamamen `listSchema.filters` (ve gerekirse genişletilmiş liste-metadata) ile üretmek **ayrı bir mimari iş** (API + UI).
 
-**Öneri:** `listSchema` yokken tablo göstermeyip “Loading…” veya “List schema not available” mesajı göstermek; fallback tabloyu kaldırmak.
+### 2. Tablo içi filtre satırı
 
----
+`MetadataDrivenList` kullanılırken `hideFilters={true}`; state/type senkronu toolbar ile yapılıyor. Liste ve toolbar **çift kaynak** riski (şimdilik elle senkronize).
 
-## 3. Artifact detay düzenleme (drawer)
+### 3. Transition — resolution görünürlüğü
 
-**Konum:** `ArtifactsPage.tsx` ~2643–2725 (`detailDrawerEditing`).
+`resolution_target_states` yoksa hedef state `resolved` / `closed` / `done` için **sabit fallback** kullanılıyor (`ArtifactsPage`).
 
-**Durum:** Artifact düzenlerken Title, Description, Assignee alanları doğrudan `TextField` / `FormControl` + `Select` ile yazılmış.
+### 4. `MetadataDrivenForm` özel dalları
 
-**İhlal:** Artifact edit formu, create’te olduğu gibi **form schema** ile sürülmeli. Backend’de `entityType=artifact`, `context=edit` desteği varsa kullanılmalı; yoksa eklenmeli ve frontend `MetadataDrivenForm` ile tekilleştirilmeli.
+- `field.key === "test_steps_json"` → `TestStepsEditor`
+- `field.key === "description"` veya `input_mode` → `DescriptionField`
+- `cycle_node_id` / `area_node_id` için ek `field.key` kontrolleri  
+Bunlar **render motoru** parçası; tamamen manifest-generic değil.
 
----
+### 5. Task / artifact kaydetme payload’ları
 
-## 4. Task create / edit formları
+Şemadan gelen alanların bir kısmı submit sırasında **sabit property adlarıyla** API DTO’suna map’leniyor. Yeni çekirdek alanlar için hem şema hem bu map güncellenmeli.
 
-**Konum:** `ArtifactsPage.tsx` ~2264–2333 (Add task), ~2335–2408 (Edit task).
+### 6. `QualityDefectsPage`
 
-**Durum:** Task ekleme ve düzenleme dialog’ları tamamen hardcoded: Title (TextField), State (Select: todo / in_progress / done), Assignee (Select).
+Özel triage listesi: filtreler `Input` + URL; `useListSchema` / `MetadataDrivenList` kullanılmıyor. İstenirse ileride artifact list şeması veya ayrı `entity_type` ile hizalanabilir.
 
-**Backend:** `get_form_schema` ve `manifest_form_schema_builder` içinde `entity_type="task"`, `context in ("create", "edit")` ile task form schema üretiliyor.
+### 7. Tenant / admin formları
 
-**İhlal:** Task formları da metadata-driven olmalı; backend schema’ya rağmen frontend’de sabit form kullanılması ihlal.
-
-**Öneri:**
-
-- `useFormSchema(orgSlug, projectId, "task", "create")` ve `useFormSchema(..., "task", "edit")` çağrılmalı.
-- Add task dialog’unda `MetadataDrivenForm` + task create schema.
-- Edit task dialog’unda `MetadataDrivenForm` + task edit schema + mevcut task değerleri.
+Proje dışı ekranlar (üye, rol, proje oluşturma vb.) bu dokümanın kapsamı dışında tutulabilir.
 
 ---
 
-## 5. State transition dialog (State reason / Resolution)
+## Backend notları
 
-**Konum:** `ArtifactsPage.tsx` ~2025–2055.
-
-**Durum:** State reason ve Resolution için Select’ler sabit kodda; seçenekler `transitionOptions` ile geliyor (muhtemelen API’den).
-
-**İhlal:** Hafif. Workflow/transition metadata tek kaynak kabul edilirse, bu alanlar da manifest/API metadata’ya bağlanabilir; şu an tam “manifest’ten türetilmiş form” değil.
+- **Form şeması:** `manifest_form_schema_builder` — çekirdek alanlar kodda, manifest `fields` ile özel alanlar birleşir. Artifact edit’te `tag_ids` (`tag_list`) çekirdek alanlardandır.
+- **Liste şeması:** `get_list_schema` — varsayılan kolon seti Python’da; `artifact_list.columns` manifest ile override edilebilir.
 
 ---
 
-## 6. Detay drawer – Planning (Cycle / Area)
+## İleride yapılabilecekler (öncelik önerisi)
 
-**Konum:** `ArtifactsPage.tsx` ~2771–2825.
-
-**Durum:** Cycle ve Area için iki ayrı `FormControl` + `Select` hardcoded; seçenekler `cycleNodesFlat` / `areaNodesFlat` ile dolduruluyor.
-
-**İhlal:** CONTEXTS_AND_PROGRESSION’a göre planning “Manifest veya ayrı planning config; alan/iterasyon path metadata” ile yönetilebilir. Form schema’da bu alanlar tanımlıysa aynı ekranda metadata-driven (MetadataDrivenForm veya schema’dan gelen alanlar) yapılması tutarlı olur.
-
----
-
-## İhlal olmayan / farklı bağlam
-
-- **Artifact create dialog:** `MetadataDrivenForm` + `useFormSchema(..., "artifact", "create")` kullanılıyor — uyumlu.
-- **Manifest sayfası (preview):** `MetadataDrivenForm` + `buildPreviewSchemaFromManifest` — uyumlu.
-- **Table view (listSchema varken):** `MetadataDrivenList` + `useListSchema` — uyumlu.
-- Auth, tenant, project, settings (CreateUser, InviteMember, CreateProject, Role, vb.): Bunlar Tenant/Project/Admin context; dokümandaki “meta-metadata driven” hedefi öncelikle **Process / Artifact / Task** için. İsteğe bağlı olarak ileride metadata’ya alınabilir, şu an net ihlal sayılmadı.
-
----
-
-## Yapılacaklar (öncelik sırasıyla)
-
-1. **Task create/edit:** Task form schema API’yi kullan, Add/Edit task dialog’larını `MetadataDrivenForm` ile değiştir.
-2. **Artifact edit (drawer):** Edit context form schema (backend’de varsa/eklenirse) + `MetadataDrivenForm` ile drawer edit formunu tekilleştir.
-3. **Liste filtreleri:** Toolbar’daki State/Type (ve mümkünse Cycle/Area) filtrelerini list schema’dan türet; tekrarlanan filtre UI’ı kaldır veya schema ile senkronize et.
-4. **Table fallback:** `listSchema` yokken sabit tablo yerine loading/mesaj göster veya fallback’i kaldır.
-5. **Transition dialog / Planning alanları:** İsteğe bağlı olarak workflow ve form schema ile metadata-driven yap.
-
-Bu doküman `alm-app/frontend/docs/METADATA_DRIVEN_VIOLATIONS.md` olarak kaydedildi; ihlalleri gidermek için yukarıdaki adımlar uygulanabilir.
+1. Liste API’sine toolbar ihtiyaçlarını taşıyacak şekilde **filtre / sıralama metadata** genişletmesi; `ArtifactsToolbar`’ı şemadan üretmek.
+2. Transition resolution visibility’yi tamamen workflow metadata’ya bağlamak (fallback’i kaldırmak veya manifest’e taşımak).
+3. Submit mapper’ları şema yansımasından türetmek veya paylaşılan bir “çekirdek anahtar” listesi ile tekilleştirmek (backend ile contract).

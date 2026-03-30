@@ -66,3 +66,27 @@ class ArtifactLinkRepository:
         ordered_link_ids: list[uuid.UUID],
     ) -> None:
         """Set sort_order to index for each link id; all must match from+type."""
+
+    @abstractmethod
+    async def list_candidate_run_test_pairs(
+        self,
+        project_id: uuid.UUID,
+        test_ids: list[uuid.UUID],
+    ) -> list[tuple[uuid.UUID, uuid.UUID]]:
+        """Pairs ``(test_run_id, test_case_id)`` where the run may include the test (suite or direct path)."""
+
+    @abstractmethod
+    async def list_outgoing_links_from_artifacts(
+        self,
+        project_id: uuid.UUID,
+        from_artifact_ids: list[uuid.UUID],
+    ) -> list[ArtifactLink]:
+        """All links with ``from_artifact_id`` in the given set."""
+
+    @abstractmethod
+    async def list_suite_includes_tests_for_suites(
+        self,
+        project_id: uuid.UUID,
+        suite_ids: list[uuid.UUID],
+    ) -> list[ArtifactLink]:
+        """Outgoing ``suite_includes_test`` links from each suite id."""

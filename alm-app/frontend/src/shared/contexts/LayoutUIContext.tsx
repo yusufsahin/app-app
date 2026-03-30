@@ -9,8 +9,6 @@ import {
 } from "react";
 
 const LAYOUT_UI_STORAGE_KEY = "alm-layout-ui";
-/** Legacy key: migrate once so existing sidebar preference is preserved. */
-const LEGACY_SIDEBAR_KEY = "alm-sidebar-collapsed";
 
 interface LayoutUIState {
   /** Sidebar collapsed (desktop): persisted so preference survives refresh. */
@@ -32,13 +30,6 @@ function readFromStorage(): LayoutUIState {
             ? parsed.sidebarCollapsed
             : defaultState.sidebarCollapsed,
       };
-    }
-    const legacy = localStorage.getItem(LEGACY_SIDEBAR_KEY);
-    if (legacy === "true") {
-      const state = { ...defaultState, sidebarCollapsed: true };
-      writeToStorage(state);
-      localStorage.removeItem(LEGACY_SIDEBAR_KEY);
-      return state;
     }
     return defaultState;
   } catch {

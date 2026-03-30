@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   ChevronLeft,
@@ -12,6 +13,7 @@ import {
   Play,
   Save,
   Flag,
+  Link2,
 } from "lucide-react";
 import {
   Button,
@@ -49,6 +51,13 @@ import {
   rowLabelForIndex,
 } from "../lib/testParams";
 import { toast } from "sonner";
+import { useAuthStore } from "../../../shared/stores/authStore";
+import { hasPermission } from "../../../shared/utils/permissions";
+import { useProjectManifest } from "../../../shared/api/manifestApi";
+import { qualityRunExecuteAbsoluteUrl } from "../lib/qualityRunPaths";
+import { buildBugReportMarkdown } from "../lib/bugReportMarkdown";
+import { findRootDefectId, pickDefectArtifactType } from "../lib/defectManifestHelpers";
+import { CreateDefectFromExecutionDialog } from "./CreateDefectFromExecutionDialog";
 
 function mergeSavedExecution(
   saved: TestExecutionResultRow | undefined,
@@ -102,22 +111,33 @@ function mergeSavedExecution(
 
 interface ManualExecutionPlayerCoreProps {
   orgSlug: string;
+  /** Project UUID for API calls. */
   projectSlug: string;
+  /** Project slug from the URL (for share links and navigation). */
+  executePathProjectSlug: string;
   runId: string;
   onExit: () => void;
   onSave?: () => void;
   fullScreen?: boolean;
+  layout?: "default" | "popout";
+  deepLinkTestId?: string;
+  deepLinkStepId?: string;
 }
 
 export function ManualExecutionPlayerCore({
   orgSlug,
   projectSlug,
+  executePathProjectSlug,
   runId,
   onExit,
   onSave,
   fullScreen = false,
+  layout = "default",
+  deepLinkTestId,
+  deepLinkStepId,
 }: ManualExecutionPlayerCoreProps) {
   const { t } = useTranslation("quality");
+  const queryClient = useQueryClient();
   // Data fetching
   const { data: run, isLoading: runLoading } = useArtifact(orgSlug, projectSlug, runId);
   const { data: runLinks = [], isLoading: linksLoading } = useArtifactLinks(
@@ -163,6 +183,36 @@ export function ManualExecutionPlayerCore({
     false,
   );
   const updateRunMutation = useUpdateArtifact(orgSlug, projectSlug, runId);
+  const { data: manifestData } = useProjectManifest(orgSlug, projectSlug);
+  const { data: defectRootsData, isPending: defectRootsPending } = useArtifacts(
+    orgSlug,
+    projectSlug,
+    undefined,
+    undefined,
+    "updated_at",
+    "desc",
+    undefined,
+    80,
+    0,
+    false,
+    undefined,
+    undefined,
+    undefined,
+    "defect",
+    true,
+  );
+  const permissions = useAuthStore((s) => s.permissions);
+  const canCreateDefect = hasPermission(permissions, "artifact:create");
+  const canUpdateArtifacts = hasPermission(permissions, "artifact:update");
+
+  const rootDefectId = useMemo(
+    () => findRootDefectId(defectRootsData?.items),
+    [defectRootsData?.items],
+  );
+  const defectArtifactType = useMemo(
+    () => pickDefectArtifactType(manifestData?.manifest_bundle),
+    [manifestData?.manifest_bundle],
+  );
 
   // Local state for the execution session
   const [currentTestIndex, setCurrentTestIndex] = useState(0);
@@ -179,6 +229,24 @@ export function ManualExecutionPlayerCore({
   >({});
   const [selectedParamRowByTestId, setSelectedParamRowByTestId] = useState<Record<string, number | null>>({});
   const [isInitialized, setIsInitialized] = useState(false);
+  const [defectDialog, setDefectDialog] = useState<{
+    step: TestStep;
+    stepResult: StepResult;
+  } | null>(null);
+
+  const appliedTestDeepLink = useRef(false);
+  const scrolledToStepRef = useRef<string | null>(null);
+  const deepLinkStepInvalidToastRef = useRef(false);
+
+  useEffect(() => {
+    appliedTestDeepLink.current = false;
+    scrolledToStepRef.current = null;
+    deepLinkStepInvalidToastRef.current = false;
+  }, [runId, deepLinkTestId, deepLinkStepId]);
+
+  const isPopout = layout === "popout";
+  const showDefectRootUnavailable =
+    canCreateDefect && !defectRootsPending && !rootDefectId;
 
   const testsById = useMemo(
     () => new Map((testsData?.items ?? []).map((t) => [t.id, t])),
@@ -350,6 +418,77 @@ export function ManualExecutionPlayerCore({
     ? parseTestParams(currentTest.custom_fields?.test_params_json)
     : null;
 
+  useEffect(() => {
+    if (!isInitialized || appliedTestDeepLink.current) return;
+    let tid = deepLinkTestId?.trim();
+    const sid = deepLinkStepId?.trim();
+    if (!tid && sid) {
+      for (const test of activeTests) {
+        const steps = getResolvedStepsForTest(test);
+        if (steps.some((s) => String(s.id) === sid)) {
+          tid = test.id;
+          break;
+        }
+      }
+    }
+    if (!tid) {
+      appliedTestDeepLink.current = true;
+      return;
+    }
+    const idx = testExecutionResults.findIndex((r) => r.testId === tid);
+    if (idx < 0) {
+      toast.error(t("execution.deepLinkInvalidTest"));
+    } else {
+      setCurrentTestIndex(idx);
+    }
+    appliedTestDeepLink.current = true;
+  }, [
+    isInitialized,
+    deepLinkTestId,
+    deepLinkStepId,
+    activeTests,
+    testExecutionResults,
+    getResolvedStepsForTest,
+    t,
+  ]);
+
+  useEffect(() => {
+    const sid = deepLinkStepId?.trim();
+    if (!sid || !isInitialized || !currentTest) return;
+    if (deepLinkTestId?.trim() && currentTest.id !== deepLinkTestId.trim()) return;
+    const exists = currentTestSteps.some((s) => String(s.id) === sid);
+    if (!exists) {
+      if (!deepLinkStepInvalidToastRef.current) {
+        deepLinkStepInvalidToastRef.current = true;
+        toast.error(t("execution.deepLinkInvalidStep"));
+      }
+      scrolledToStepRef.current = sid;
+      return;
+    }
+    if (scrolledToStepRef.current === sid) return;
+    scrolledToStepRef.current = sid;
+    const tmr = window.setTimeout(() => {
+      document.getElementById(`execution-step-${sid}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 150);
+    return () => clearTimeout(tmr);
+  }, [isInitialized, currentTest?.id, deepLinkStepId, deepLinkTestId, currentTestSteps, t]);
+
+  const defectFormDefaults = useMemo(() => {
+    if (!defectDialog || !currentTest || !run) return null;
+    return {
+      title: `${run.title ?? "Run"} — Step ${defectDialog.step.stepNumber}`,
+      description: buildBugReportMarkdown({
+        test: currentTest,
+        run,
+        step: defectDialog.step,
+        stepResult: defectDialog.stepResult,
+      }),
+    };
+  }, [defectDialog, currentTest, run]);
+
   // Handlers
   const handleStepUpdate = (
     stepId: string,
@@ -394,28 +533,25 @@ export function ManualExecutionPlayerCore({
   };
 
   const handleCopyBugReport = (step: TestStep, stepResult: StepResult) => {
-    if (!currentTest) return;
-
-    const bugReport = `
-# BUG REPORT: ${currentTest.title} (Step ${step.stepNumber})
-
-**Test Case ID:** ${currentTest.artifact_key || currentTest.id}
-**Run ID:** ${run?.artifact_key || run?.id}
-
-## Step Details
-- **Name:** ${step.name}
-- **Description:** ${step.description || "N/A"}
-- **Expected Result:** ${step.expectedResult}
-- **Actual Result:** ${stepResult.actualResult || "No actual result provided"}
-
-## Execution Context
-- **Run:** ${run?.title}
-- **Date:** ${new Date().toLocaleString()}
-`.trim();
-
-    navigator.clipboard.writeText(bugReport);
-    toast.success(`Bug report copied for step ${step.stepNumber}`);
+    if (!currentTest || !run) return;
+    const md = buildBugReportMarkdown({
+      test: currentTest,
+      run,
+      step,
+      stepResult,
+    });
+    void navigator.clipboard.writeText(md);
+    toast.success(t("execution.bugReportCopied", { step: step.stepNumber }));
   };
+
+  const handleCopyExecuteLink = useCallback(() => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = qualityRunExecuteAbsoluteUrl(origin, orgSlug, executePathProjectSlug, runId, {
+      test: currentTest?.id,
+    });
+    void navigator.clipboard.writeText(url);
+    toast.success(t("execution.linkCopied"));
+  }, [orgSlug, executePathProjectSlug, runId, currentTest?.id, t]);
 
   const handlePassAllSteps = () => {
     if (!currentResult) return;
@@ -489,6 +625,8 @@ export function ManualExecutionPlayerCore({
         },
       });
 
+      void queryClient.invalidateQueries({ queryKey: ["qualityLastExec"] });
+
       toast.success("Execution progress saved");
       if (onSave) onSave();
       onExit();
@@ -514,10 +652,15 @@ export function ManualExecutionPlayerCore({
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-background/50 backdrop-blur-sm">
-        <div className="flex flex-col items-center gap-4">
-          <div className="size-12 animate-spin rounded-full border-4 border-primary border-t-transparent shadow-xl"></div>
+        <div
+          className="flex flex-col items-center gap-4"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="size-12 animate-spin rounded-full border-4 border-primary border-t-transparent shadow-xl" />
           <span className="animate-pulse text-sm font-medium text-muted-foreground">
-            Initializing Execution Session...
+            {t("execution.loadingSession")}
           </span>
         </div>
       </div>
@@ -528,18 +671,18 @@ export function ManualExecutionPlayerCore({
   if (!run) {
     return (
       <div className="flex h-full items-center justify-center p-8">
-        <Card className="max-w-md border-destructive/20 bg-destructive/5 text-center shadow-xl">
+        <Card
+          role="alert"
+          className="max-w-md border-destructive/20 bg-destructive/5 text-center shadow-xl"
+        >
           <CardHeader>
-            <AlertCircle className="mx-auto mb-2 size-12 text-destructive" />
-            <CardTitle className="text-destructive">Run not found</CardTitle>
+            <AlertCircle className="mx-auto mb-2 size-12 text-destructive" aria-hidden />
+            <CardTitle className="text-destructive">{t("execution.runNotFoundTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              The requested run ID could not be loaded. It may have been deleted or you may not have
-              access.
-            </p>
+            <p className="text-sm text-muted-foreground">{t("execution.runNotFoundDescription")}</p>
             <Button onClick={onExit} variant="outline" className="mt-6">
-              Return to Project
+              {t("execution.returnToProject")}
             </Button>
           </CardContent>
         </Card>
@@ -551,9 +694,9 @@ export function ManualExecutionPlayerCore({
   if (!isInitialized) {
     return (
       <div className="flex h-full items-center justify-center p-12">
-        <div className="flex flex-col items-center gap-2">
-          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-          <span className="text-xs text-muted-foreground">Preparing test data...</span>
+        <div className="flex flex-col items-center gap-2" role="status" aria-live="polite">
+          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="text-xs text-muted-foreground">{t("execution.preparingTestData")}</span>
         </div>
       </div>
     );
@@ -564,17 +707,13 @@ export function ManualExecutionPlayerCore({
       <div className="flex h-full items-center justify-center p-8">
         <Card className="max-w-md text-center shadow-lg">
           <CardHeader>
-            <Flag className="mx-auto mb-2 size-12 text-muted-foreground" />
-            <CardTitle>No tests linked</CardTitle>
+            <Flag className="mx-auto mb-2 size-12 text-muted-foreground" aria-hidden />
+            <CardTitle>{t("execution.noTestsLinkedTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Link this run to a suite (<span className="font-mono text-xs">run_for_suite</span>), add tests
-              to the suite (<span className="font-mono text-xs">suite_includes_test</span>), or attach test cases
-              directly for legacy runs.
-            </p>
+            <p className="text-sm text-muted-foreground">{t("execution.noTestsLinkedDescription")}</p>
             <Button onClick={onExit} variant="outline" className="mt-6">
-              Close Player
+              {t("execution.closePlayer")}
             </Button>
           </CardContent>
         </Card>
@@ -588,28 +727,33 @@ export function ManualExecutionPlayerCore({
 
   return (
     <div
-      className={`flex h-full flex-col overflow-hidden bg-[#F8FAFC] ${fullScreen ? "fixed inset-0 z-50" : "relative"}`}
+      className={`flex h-full min-h-0 flex-col overflow-hidden bg-[#F8FAFC] ${fullScreen ? "fixed inset-0 z-50" : "relative"}`}
+      data-testid={isPopout ? "quality-exec-popout" : undefined}
     >
       {/* Header */}
-      <header className="z-10 flex h-14 shrink-0 items-center justify-between border-b border-[#E2E8F0] bg-white px-6 shadow-sm transition-all">
-        <div className="flex items-center gap-4">
+      <header
+        className={`z-10 flex shrink-0 items-center justify-between border-b border-[#E2E8F0] bg-white shadow-sm transition-all ${
+          isPopout ? "h-12 px-3" : "h-14 px-6"
+        }`}
+      >
+        <div className="flex min-w-0 items-center gap-2 md:gap-4">
           <Button
             variant="ghost"
             size="sm"
             onClick={onExit}
-            className="text-[#64748B] hover:text-[#1E293B]"
+            className="min-h-9 shrink-0 text-[#64748B] hover:text-[#1E293B]"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             {fullScreen ? "Exit" : "Close"}
           </Button>
-          <div className="h-6 w-px bg-[#E2E8F0]" />
-          <h1 className="flex items-center gap-2 truncate font-bold text-[#1E293B] md:max-w-md max-w-[200px]">
-            <Play className="h-3.5 w-3.5 fill-blue-600 text-blue-600" />
-            {run.title}
+          <div className="hidden h-6 w-px bg-[#E2E8F0] sm:block" />
+          <h1 className="flex min-w-0 items-center gap-2 truncate font-bold text-[#1E293B] max-w-[200px] md:max-w-md">
+            <Play className="h-3.5 w-3.5 shrink-0 fill-blue-600 text-blue-600" />
+            <span className="truncate">{run.title}</span>
           </h1>
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex shrink-0 items-center gap-2 md:gap-4">
           <div className="hidden items-center gap-4 text-[11px] font-medium text-[#64748B] md:flex">
             <div className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 text-[#94A3B8]" />
@@ -620,10 +764,21 @@ export function ManualExecutionPlayerCore({
             </div>
           </div>
           <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="min-h-9"
+            onClick={handleCopyExecuteLink}
+            title={t("execution.copyLinkTitle")}
+          >
+            <Link2 className="mr-1.5 h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{t("execution.copyLink")}</span>
+          </Button>
+          <Button
             size="sm"
             onClick={handleSaveAndExit}
             disabled={updateRunMutation.isPending}
-            className="h-8 bg-blue-600 shadow-sm hover:bg-blue-700"
+            className="min-h-9 bg-blue-600 shadow-sm hover:bg-blue-700"
           >
             <Save className="mr-2 h-3.5 w-3.5" />
             Save
@@ -631,11 +786,33 @@ export function ManualExecutionPlayerCore({
         </div>
       </header>
 
+      {isPopout ? (
+        <p className="shrink-0 border-b border-[#E2E8F0] bg-slate-50 px-3 py-1.5 text-center text-[10px] leading-snug text-[#64748B]">
+          {t("execution.popoutHint")}
+        </p>
+      ) : null}
+
+      {showDefectRootUnavailable ? (
+        <div
+          role="status"
+          className="flex shrink-0 items-start gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950"
+        >
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
+          <span>{t("execution.defect.rootUnavailableBanner")}</span>
+        </div>
+      ) : null}
+
       {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Test List Sidebar */}
-        <aside className="hidden w-72 flex-col border-r border-[#E2E8F0] bg-white shadow-sm lg:flex">
-          <div className="space-y-3 border-b border-[#E2E8F0] bg-slate-50/50 p-5">
+        <aside
+          className={`hidden flex-col border-r border-[#E2E8F0] bg-white shadow-sm lg:flex ${
+            isPopout ? "w-56" : "w-72"
+          }`}
+        >
+          <div
+            className={`space-y-3 border-b border-[#E2E8F0] bg-slate-50/50 ${isPopout ? "p-3" : "p-5"}`}
+          >
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">
                 Progress
@@ -661,8 +838,11 @@ export function ManualExecutionPlayerCore({
                 return (
                   <button
                     key={result.testId}
+                    type="button"
                     onClick={() => setCurrentTestIndex(index)}
-                    className={`w-full rounded-lg border p-2.5 text-left transition-all ${
+                    className={`min-h-11 w-full rounded-lg border text-left transition-all ${
+                      isPopout ? "p-2" : "p-2.5"
+                    } ${
                       isActive
                         ? "border-blue-200 bg-blue-50 shadow-sm"
                         : "border-transparent bg-white hover:bg-slate-50"
@@ -693,8 +873,14 @@ export function ManualExecutionPlayerCore({
         </aside>
 
         {/* execution Display */}
-        <main className="custom-scrollbar flex-1 overflow-y-auto bg-[#F8FAFC] p-4 md:p-6">
-          <div className="mx-auto max-w-3xl space-y-6">
+        <main
+          className={`custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#F8FAFC] ${
+            isPopout ? "p-2 md:p-3" : "p-4 md:p-6"
+          }`}
+        >
+          <div
+            className={`mx-auto ${isPopout ? "max-w-full space-y-3" : "max-w-3xl space-y-6"}`}
+          >
             {currentResult && (
               <>
                 <div className="space-y-3">
@@ -706,7 +892,11 @@ export function ManualExecutionPlayerCore({
                       {currentTest?.artifact_key || `TC-${String(currentResult.testId).slice(0, 8)}`}
                     </Badge>
                   </div>
-                  <h2 className="text-2xl font-bold leading-tight tracking-tight text-[#1E293B]">
+                  <h2
+                    className={`font-bold leading-tight tracking-tight text-[#1E293B] ${
+                      isPopout ? "text-xl" : "text-2xl"
+                    }`}
+                  >
                     {currentTest?.title || `Test (${String(currentResult.testId).slice(0, 8)}…)`}
                   </h2>
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#64748B]">
@@ -754,6 +944,12 @@ export function ManualExecutionPlayerCore({
                       onUpdateStep={handleStepUpdate}
                       onCopyBugReport={handleCopyBugReport}
                       onPassAllSteps={handlePassAllSteps}
+                      layoutCompact={isPopout}
+                      onOpenCreateDefect={
+                        canCreateDefect && rootDefectId
+                          ? (step, stepResult) => setDefectDialog({ step, stepResult })
+                          : undefined
+                      }
                     />
                   </CardContent>
                 </Card>
@@ -764,13 +960,17 @@ export function ManualExecutionPlayerCore({
       </div>
 
       {/* Footer Nav */}
-      <footer className="z-10 flex h-14 shrink-0 items-center justify-between border-t border-[#E2E8F0] bg-white px-6 shadow-sm">
+      <footer
+        className={`z-10 flex shrink-0 items-center justify-between border-t border-[#E2E8F0] bg-white shadow-sm ${
+          isPopout ? "h-12 px-3" : "h-14 px-6"
+        }`}
+      >
         <Button
           variant="outline"
           size="sm"
           onClick={handlePrev}
           disabled={resolvedTestIndex === 0}
-          className="h-8 border-[#E2E8F0] text-xs text-[#64748B] hover:bg-slate-50"
+          className="min-h-9 border-[#E2E8F0] text-xs text-[#64748B] hover:bg-slate-50"
         >
           <ChevronLeft className="mr-1 h-3.5 w-3.5" />
           Prev
@@ -784,7 +984,7 @@ export function ManualExecutionPlayerCore({
           <Button
             size="sm"
             onClick={handleSaveAndExit}
-            className="h-8 bg-green-600 px-6 text-xs text-white shadow-sm hover:bg-green-700"
+            className="min-h-9 bg-green-600 px-6 text-xs text-white shadow-sm hover:bg-green-700"
           >
             Complete Run
           </Button>
@@ -792,13 +992,33 @@ export function ManualExecutionPlayerCore({
           <Button
             size="sm"
             onClick={handleNext}
-            className="h-8 bg-[#1E293B] px-6 text-xs text-white hover:bg-slate-800"
+            className="min-h-9 bg-[#1E293B] px-6 text-xs text-white hover:bg-slate-800"
           >
             Next
             <ChevronRight className="ml-1 h-3.5 w-3.5" />
           </Button>
         )}
       </footer>
+
+      {defectFormDefaults && defectDialog && currentTest?.id ? (
+        <CreateDefectFromExecutionDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setDefectDialog(null);
+          }}
+          orgSlug={orgSlug}
+          projectId={projectSlug}
+          projectSlug={executePathProjectSlug}
+          runId={runId}
+          testCaseId={currentTest.id}
+          defectParentId={rootDefectId}
+          defectArtifactType={defectArtifactType}
+          defaultTitle={defectFormDefaults.title}
+          defaultDescription={defectFormDefaults.description}
+          canCreateArtifact={canCreateDefect}
+          canUpdateArtifact={canUpdateArtifacts}
+        />
+      ) : null}
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }

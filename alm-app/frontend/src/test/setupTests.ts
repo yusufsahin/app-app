@@ -4,6 +4,11 @@ import "@testing-library/jest-dom/vitest";
 
 beforeAll(() => {
   if (typeof window === "undefined") return;
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  };
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     configurable: true,

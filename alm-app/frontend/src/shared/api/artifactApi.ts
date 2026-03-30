@@ -15,6 +15,7 @@ export interface CreateArtifactRequest {
   parent_id?: string | null;
   assignee_id?: string | null;
   custom_fields?: Record<string, unknown>;
+  tag_ids?: string[];
 }
 
 export type ArtifactSortBy =
@@ -50,6 +51,8 @@ export interface ArtifactListParams {
   include_system_roots?: boolean;
   /** Direct children of this parent artifact (combined with `tree` subtree when set). */
   parent_id?: string;
+  /** Filter by project tag id. */
+  tag_id?: string;
 }
 
 /**
@@ -70,6 +73,7 @@ export function buildArtifactListParams(options: {
   tree?: string | null;
   includeSystemRoots?: boolean;
   parentId?: string | null;
+  tagId?: string | null;
 }): ArtifactListParams {
   const params: ArtifactListParams = {};
   const {
@@ -87,6 +91,7 @@ export function buildArtifactListParams(options: {
     tree,
     includeSystemRoots,
     parentId,
+    tagId,
   } = options;
   if (stateFilter) params.state = stateFilter;
   if (typeFilter) params.type = typeFilter;
@@ -105,6 +110,8 @@ export function buildArtifactListParams(options: {
   if (includeSystemRoots) params.include_system_roots = true;
   const parentTrim = parentId?.trim();
   if (parentTrim) params.parent_id = parentTrim;
+  const tagTrim = tagId?.trim();
+  if (tagTrim) params.tag_id = tagTrim;
   return params;
 }
 
@@ -125,6 +132,9 @@ export function useArtifacts(
   tree?: string | null,
   includeSystemRoots?: boolean,
   parentId?: string | null,
+  tagId?: string | null,
+  /** When false, the query does not run (e.g. wait for a prerequisite like defect root). */
+  queryEnabled: boolean = true,
 ) {
   const params = buildArtifactListParams({
     stateFilter,
@@ -141,6 +151,7 @@ export function useArtifacts(
     tree,
     includeSystemRoots,
     parentId,
+    tagId,
   });
 
   return useQuery({
@@ -164,6 +175,8 @@ export function useArtifacts(
       tree || null,
       includeSystemRoots ?? false,
       parentId?.trim() || null,
+      tagId?.trim() || null,
+      queryEnabled,
     ],
     queryFn: async (): Promise<ArtifactsListResult> => {
       const { data } = await apiClient.get<ArtifactsListResult>(
@@ -172,7 +185,7 @@ export function useArtifacts(
       );
       return data;
     },
-    enabled: !!orgSlug && !!projectId,
+    enabled: !!orgSlug && !!projectId && queryEnabled,
   });
 }
 
@@ -259,6 +272,7 @@ export function useCreateArtifact(orgSlug: string | undefined, projectId: string
       };
       if (payload.parent_id != null && payload.parent_id !== "") body.parent_id = payload.parent_id;
       if (payload.assignee_id != null && payload.assignee_id !== "") body.assignee_id = payload.assignee_id;
+      if (payload.tag_ids != null && payload.tag_ids.length > 0) body.tag_ids = payload.tag_ids;
       const { data } = await apiClient.post<Artifact>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts`,
         body,
@@ -281,6 +295,7 @@ export interface UpdateArtifactRequest {
   area_node_id?: string | null;
   parent_id?: string | null;
   custom_fields?: Record<string, unknown>;
+  tag_ids?: string[];
 }
 
 export interface PermittedTransitionItem {
@@ -356,6 +371,7 @@ export function useUpdateArtifact(
       if (payload.area_node_id !== undefined) body.area_node_id = payload.area_node_id ?? null;
       if (payload.parent_id !== undefined) body.parent_id = payload.parent_id ?? null;
       if (payload.custom_fields !== undefined) body.custom_fields = payload.custom_fields;
+      if (payload.tag_ids !== undefined) body.tag_ids = payload.tag_ids;
       const { data } = await apiClient.patch<Artifact>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}`,
         body,

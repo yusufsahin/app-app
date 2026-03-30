@@ -9,10 +9,13 @@ from typing import Any
 from alm.artifact.domain.manifest_workflow_metadata import allowed_task_state_ids
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
 from alm.task.application.dtos import TaskDTO
 from alm.task.domain.ports import TaskRepository
+
+_TAG_IDS_OMITTED = object()
 
 
 @dataclass(frozen=True)
@@ -25,6 +28,7 @@ class UpdateTask(Command):
     description: str | None = None
     assignee_id: uuid.UUID | None = None
     rank_order: float | None = None
+    tag_ids: Any = _TAG_IDS_OMITTED
 
 
 class UpdateTaskHandler(CommandHandler[TaskDTO]):
@@ -33,10 +37,12 @@ class UpdateTaskHandler(CommandHandler[TaskDTO]):
         task_repo: TaskRepository,
         project_repo: ProjectRepository,
         process_template_repo: ProcessTemplateRepository,
+        tag_repo: ProjectTagRepository,
     ) -> None:
         self._task_repo = task_repo
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
+        self._tag_repo = tag_repo
 
     async def handle(self, command: Command) -> TaskDTO:
         assert isinstance(command, UpdateTask)
@@ -68,7 +74,23 @@ class UpdateTaskHandler(CommandHandler[TaskDTO]):
         if command.rank_order is not None:
             task.rank_order = command.rank_order
 
+        if command.tag_ids is not _TAG_IDS_OMITTED:
+            raw = command.tag_ids
+            if raw is None:
+                tid_list: list[uuid.UUID] = []
+            elif not isinstance(raw, list):
+                raise ValidationError("tag_ids must be a list of UUID strings")
+            else:
+                tid_list = [uuid.UUID(str(x).strip()) for x in raw]
+            try:
+                await self._tag_repo.set_task_tags(task.id, command.project_id, tid_list)
+            except ValueError as e:
+                raise ValidationError(str(e)) from e
+
         await self._task_repo.update(task)
+
+        tag_map = await self._tag_repo.get_tags_by_task_ids([task.id])
+        tags = tag_map.get(task.id, ())
 
         return TaskDTO(
             id=task.id,
@@ -81,4 +103,5 @@ class UpdateTaskHandler(CommandHandler[TaskDTO]):
             rank_order=task.rank_order,
             created_at=task.created_at.isoformat() if task.created_at else None,
             updated_at=task.updated_at.isoformat() if task.updated_at else None,
+            tags=tags,
         )

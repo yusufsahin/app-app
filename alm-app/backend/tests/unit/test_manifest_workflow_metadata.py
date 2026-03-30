@@ -10,15 +10,16 @@ from alm.artifact.domain.manifest_workflow_metadata import (
     get_tree_root_type_map,
     resolve_tree_root_artifact_type,
 )
+from tests.support.manifests import (
+    MANIFEST_WORKFLOW_METADATA_RESOLUTION_CATEGORY_BUNDLE,
+    MANIFEST_WORKFLOW_METADATA_RESOLUTION_EXPLICIT_BUNDLE,
+    MANIFEST_WORKFLOW_METADATA_TASK_BUNDLE,
+    MANIFEST_WORKFLOW_METADATA_TREE_ROOTS_BUNDLE,
+)
 
 
 def test_tree_roots_merge_manifest_over_default() -> None:
-    bundle = {
-        "tree_roots": [
-            {"tree_id": "req", "root_artifact_type": "root-requirement"},
-            {"tree_id": "custom", "root_artifact_type": "root-custom"},
-        ]
-    }
+    bundle = MANIFEST_WORKFLOW_METADATA_TREE_ROOTS_BUNDLE
     m = get_tree_root_type_map(bundle)
     assert m["req"] == "root-requirement"
     assert m["custom"] == "root-custom"
@@ -33,18 +34,7 @@ def test_resolve_tree_root() -> None:
 
 
 def test_task_states_from_manifest() -> None:
-    bundle = {
-        "task_workflow_id": "tw",
-        "defs": [
-            {
-                "kind": "Workflow",
-                "id": "tw",
-                "initial": "open",
-                "states": ["open", "shipped"],
-                "transitions": [{"from": "open", "to": "shipped", "on": "ship"}],
-            },
-        ],
-    }
+    bundle = MANIFEST_WORKFLOW_METADATA_TASK_BUNDLE
     opts, initial = get_task_state_options_and_initial(bundle)
     assert initial == "open"
     assert [o["id"] for o in opts] == ["open", "shipped"]
@@ -52,28 +42,10 @@ def test_task_states_from_manifest() -> None:
 
 
 def test_resolution_targets_explicit() -> None:
-    bundle = {
-        "workflows": [
-            {
-                "id": "w1",
-                "states": ["a", "b"],
-                "resolution_target_states": ["b"],
-            }
-        ]
-    }
+    bundle = MANIFEST_WORKFLOW_METADATA_RESOLUTION_EXPLICIT_BUNDLE
     assert get_resolution_target_state_ids(bundle, "w1") == frozenset({"b"})
 
 
 def test_resolution_targets_category_completed() -> None:
-    bundle = {
-        "workflows": [
-            {
-                "id": "w1",
-                "states": [
-                    {"id": "open", "category": "proposed"},
-                    {"id": "done", "category": "completed"},
-                ],
-            }
-        ]
-    }
+    bundle = MANIFEST_WORKFLOW_METADATA_RESOLUTION_CATEGORY_BUNDLE
     assert get_resolution_target_state_ids(bundle, "w1") == frozenset({"done"})

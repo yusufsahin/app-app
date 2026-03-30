@@ -5,6 +5,7 @@ import {
   Edit3,
   MessageSquare,
   Copy,
+  Bug,
 } from "lucide-react";
 import {
   Button,
@@ -19,9 +20,12 @@ import { cn } from "../../../shared/components/ui/utils";
 import type { TestStep, StepResult } from "../types";
 import { useTranslation } from "react-i18next";
 
-const textareaClassName = cn(
-  "placeholder:text-muted-foreground border-input flex min-h-[60px] w-full rounded-md border bg-background px-3 py-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-);
+function textareaClasses(compact: boolean) {
+  return cn(
+    "placeholder:text-muted-foreground border-input flex w-full rounded-md border bg-background px-3 py-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+    compact ? "min-h-[44px]" : "min-h-[60px]",
+  );
+}
 
 interface ExecutionStepListProps {
   steps: TestStep[];
@@ -33,8 +37,11 @@ interface ExecutionStepListProps {
     notes?: string
   ) => void;
   onCopyBugReport?: (step: TestStep, result: StepResult) => void;
+  onOpenCreateDefect?: (step: TestStep, result: StepResult) => void;
   onPassAllSteps?: () => void;
   readOnly?: boolean;
+  /** Narrow padding and fields for pop-out / side-by-side layout. */
+  layoutCompact?: boolean;
 }
 
 export function ExecutionStepList({
@@ -42,28 +49,35 @@ export function ExecutionStepList({
   results,
   onUpdateStep,
   onCopyBugReport,
+  onOpenCreateDefect,
   onPassAllSteps,
   readOnly = false,
+  layoutCompact = false,
 }: ExecutionStepListProps) {
   const { t } = useTranslation("quality");
   const getStepResult = (stepId: string) =>
     results.find((r) => r.stepId === stepId);
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", layoutCompact && "space-y-2")}>
       {!readOnly && onPassAllSteps && steps.length > 0 && (
-          <div className="flex justify-end px-4 py-2 border-b border-slate-100 bg-slate-50/30">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={onPassAllSteps}
-                className="text-[10px] font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-              >
-                  {t("execution.markAllPassed")}
-              </Button>
-          </div>
+        <div
+          className={cn(
+            "flex justify-end border-b border-slate-100 bg-slate-50/30 py-2",
+            layoutCompact ? "px-2" : "px-4",
+          )}
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onPassAllSteps}
+            className="min-h-9 text-[10px] font-bold uppercase tracking-wider text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+          >
+            {t("execution.markAllPassed")}
+          </Button>
+        </div>
       )}
-      <div className="p-4 space-y-4">
+      <div className={cn("space-y-4", layoutCompact ? "space-y-2 p-2" : "space-y-4 p-4")}>
       {steps.map((step) => {
         const result = getStepResult(step.id);
         const status = result?.status || "not-executed";
@@ -71,17 +85,18 @@ export function ExecutionStepList({
         return (
           <Card
             key={step.id}
+            id={`execution-step-${step.id}`}
             className={cn(
-              "group overflow-hidden border-l-4 transition-all duration-200",
+              "group scroll-mt-20 overflow-hidden border-l-4 transition-all duration-200",
               status === "passed" && "border-l-green-500 bg-green-50/10",
               status === "failed" && "border-l-red-500 bg-red-50/10",
               status === "blocked" && "border-l-amber-500 bg-amber-50/10",
               status === "not-executed" && "border-l-slate-300 bg-slate-50/30"
             )}
           >
-            <CardHeader className="p-4 pb-2">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
+            <CardHeader className={cn(layoutCompact ? "p-3 pb-2" : "p-4 pb-2")}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2 md:gap-3">
                   <div
                     className={cn(
                       "flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition-all",
@@ -98,12 +113,12 @@ export function ExecutionStepList({
                   </CardTitle>
                 </div>
                 {!readOnly && (
-                  <div className="flex gap-1">
+                  <div className="flex shrink-0 flex-wrap justify-end gap-1">
                     <Button
                       size="sm"
                       variant={status === "passed" ? "default" : "outline"}
                       className={cn(
-                        "h-7 px-2 text-[10px] font-bold uppercase tracking-wider transition-all",
+                        "min-h-9 px-2 text-[10px] font-bold uppercase tracking-wider transition-all",
                         status === "passed"
                           ? "bg-green-600 hover:bg-green-700"
                           : "text-slate-500"
@@ -117,7 +132,7 @@ export function ExecutionStepList({
                       size="sm"
                       variant={status === "failed" ? "destructive" : "outline"}
                       className={cn(
-                        "h-7 px-2 text-[10px] font-bold uppercase tracking-wider transition-all",
+                        "min-h-9 px-2 text-[10px] font-bold uppercase tracking-wider transition-all",
                         status === "failed" ? "" : "text-slate-500"
                       )}
                       onClick={() => onUpdateStep(step.id, "failed")}
@@ -129,7 +144,7 @@ export function ExecutionStepList({
                       size="sm"
                       variant={status === "blocked" ? "default" : "outline"}
                       className={cn(
-                        "h-7 px-2 text-[10px] font-bold uppercase tracking-wider transition-all",
+                        "min-h-9 px-2 text-[10px] font-bold uppercase tracking-wider transition-all",
                         status === "blocked"
                           ? "bg-amber-500 hover:bg-amber-600"
                           : "text-slate-500"
@@ -158,7 +173,7 @@ export function ExecutionStepList({
               </div>
             </CardHeader>
 
-            <CardContent className="p-4 pt-2">
+            <CardContent className={cn(layoutCompact ? "p-3 pt-2" : "p-4 pt-2")}>
               <div className="mb-3 space-y-1">
                 {step.description ? (
                   <p className="text-xs leading-relaxed text-slate-500">{step.description}</p>
@@ -172,7 +187,12 @@ export function ExecutionStepList({
               </div>
 
               {!readOnly && (
-                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div
+                  className={cn(
+                    "mt-4 grid grid-cols-1 md:grid-cols-2",
+                    layoutCompact ? "gap-2" : "gap-4",
+                  )}
+                >
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -192,7 +212,10 @@ export function ExecutionStepList({
                     </div>
                     <textarea
                       placeholder={t("execution.placeholders.actualResult")}
-                      className={cn(textareaClassName, "border-slate-200 bg-white/50 focus:bg-white resize-none")}
+                      className={cn(
+                        textareaClasses(layoutCompact),
+                        "resize-none border-slate-200 bg-white/50 focus:bg-white",
+                      )}
                       value={result?.actualResult || ""}
                       onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                         onUpdateStep(step.id, status, e.target.value, result?.notes)
@@ -207,7 +230,10 @@ export function ExecutionStepList({
                     </Label>
                     <textarea
                       placeholder={t("execution.placeholders.notes")}
-                      className={cn(textareaClassName, "border-slate-200 bg-white/50 focus:bg-white resize-none")}
+                      className={cn(
+                        textareaClasses(layoutCompact),
+                        "resize-none border-slate-200 bg-white/50 focus:bg-white",
+                      )}
                       value={result?.notes || ""}
                       onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                         onUpdateStep(
@@ -247,17 +273,30 @@ export function ExecutionStepList({
                 </div>
               )}
 
-              {!readOnly && status === "failed" && onCopyBugReport && (
-                <div className="mt-4 flex items-center justify-end">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1.5 text-[10px] font-bold uppercase tracking-wider text-red-500 hover:bg-red-50 hover:text-red-600"
-                    onClick={() => onCopyBugReport(step, result!)}
-                  >
-                    <Copy className="size-3" />
-                    {t("execution.copyBugReport")}
-                  </Button>
+              {!readOnly && status === "failed" && (onCopyBugReport || onOpenCreateDefect) && (
+                <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                  {onCopyBugReport ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-9 gap-1.5 text-[10px] font-bold uppercase tracking-wider text-red-500 hover:bg-red-50 hover:text-red-600"
+                      onClick={() => onCopyBugReport(step, result!)}
+                    >
+                      <Copy className="size-3" />
+                      {t("execution.copyBugReport")}
+                    </Button>
+                  ) : null}
+                  {onOpenCreateDefect ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-h-9 gap-1.5 text-[10px] font-bold uppercase tracking-wider text-red-700 hover:bg-red-50"
+                      onClick={() => onOpenCreateDefect(step, result!)}
+                    >
+                      <Bug className="size-3" />
+                      {t("execution.createDefect")}
+                    </Button>
+                  ) : null}
                 </div>
               )}
             </CardContent>

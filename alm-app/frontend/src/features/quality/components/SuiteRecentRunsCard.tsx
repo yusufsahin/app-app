@@ -8,7 +8,8 @@ import type { Artifact } from "../../../shared/stores/artifactStore";
 import { incomingRunForSuiteLinks, type ArtifactLink } from "../../../shared/api/artifactLinkApi";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Skeleton } from "../../../shared/components/ui";
 import { formatRunEnvironmentLabel, summarizeRunMetricsFromCustomFields } from "../lib/runMetrics";
-import { qualityRunExecutePath, qualityRunWorkspaceDetailPath } from "../lib/qualityRunPaths";
+import { qualityRunWorkspaceDetailPath } from "../lib/qualityRunPaths";
+import { openManualRunnerInNewWindow } from "../lib/qualityOpenManualRunner";
 
 const MAX_RECENT = 10;
 
@@ -88,7 +89,6 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
                     notExecuted: summary.notExecuted,
                   });
             const detailsTo = qualityRunWorkspaceDetailPath(orgSlug, projectSlug, runId, artifact?.parent_id);
-            const executeTo = qualityRunExecutePath(orgSlug, projectSlug, runId);
             const titleText = artifact?.title ?? runId;
             const metaParts = [
               artifact?.updated_at ? dayjs(artifact.updated_at).format("YYYY-MM-DD HH:mm") : null,
@@ -108,11 +108,15 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
                   <p className="text-xs text-muted-foreground">{metaParts.join(" · ")}</p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
-                  <Button type="button" variant="secondary" size="sm" asChild>
-                    <Link to={executeTo}>
-                      <PlayCircle className="mr-1 size-4 shrink-0" aria-hidden />
-                      {t("runsHub.executeOrContinue")}
-                    </Link>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    title={t("runsHub.executeInNewWindow")}
+                    onClick={() => openManualRunnerInNewWindow(orgSlug, projectSlug, runId)}
+                  >
+                    <PlayCircle className="mr-1 size-4 shrink-0" aria-hidden />
+                    {t("runsHub.executeOrContinue")}
                   </Button>
                   <Button type="button" variant="ghost" size="sm" asChild>
                     <Link to={detailsTo}>{t("runsHub.openDetails")}</Link>

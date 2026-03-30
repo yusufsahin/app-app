@@ -11,11 +11,8 @@ import {
 import { isTestPlanCall } from "../types";
 
 describe("parseTestPlan", () => {
-  it("parses legacy inline rows without kind", () => {
-    const out = parseTestPlan([{ id: "a", name: "Click" }]);
-    expect(out).toHaveLength(1);
-    expect(isTestPlanCall(out[0]!)).toBe(false);
-    expect(out[0]).toMatchObject({ id: "a", name: "Click", stepNumber: 1 });
+  it("ignores inline rows without kind step", () => {
+    expect(parseTestPlan([{ id: "a", name: "Click" }])).toEqual([]);
   });
 
   it("parses call rows", () => {
@@ -32,7 +29,9 @@ describe("parseTestPlan", () => {
   });
 
   it("parses kind step as inline", () => {
-    const out = parseTestPlan([{ kind: "step", id: "s", name: "N", description: "", expectedResult: "" }]);
+    const out = parseTestPlan([
+      { kind: "step", id: "s", name: "N", description: "", expectedResult: "", status: "not-executed" },
+    ]);
     expect(isTestPlanCall(out[0]!)).toBe(false);
   });
 });
@@ -58,7 +57,14 @@ describe("serializeTestPlan", () => {
 
   it("round-trips inline and call", () => {
     const plan = normalizeTestPlan([
-      { id: "s", stepNumber: 1, name: "A", description: "", expectedResult: "", status: "not-executed" },
+      {
+        id: "s",
+        stepNumber: 1,
+        name: "A",
+        description: "",
+        expectedResult: "",
+        status: "not-executed" as const,
+      },
       {
         kind: "call" as const,
         id: "c",
@@ -78,7 +84,16 @@ describe("expandTestPlan", () => {
     const calleeId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
     const load = vi.fn(async (id: string) => {
       if (id === calleeId) {
-        return [{ id: "x", name: "Inner", description: "", expectedResult: "" }];
+        return [
+          {
+            kind: "step",
+            id: "x",
+            name: "Inner",
+            description: "",
+            expectedResult: "",
+            status: "not-executed",
+          },
+        ];
       }
       return null;
     });
@@ -122,7 +137,18 @@ describe("expandTestPlan", () => {
           },
         ];
       }
-      if (id === innerId) return [{ id: "s", name: "leaf" }];
+      if (id === innerId) {
+        return [
+          {
+            kind: "step",
+            id: "s",
+            name: "leaf",
+            description: "",
+            expectedResult: "",
+            status: "not-executed",
+          },
+        ];
+      }
       return null;
     });
     const plan = parseTestPlan([

@@ -35,6 +35,7 @@ from alm.artifact.api.schemas import (
     BatchTransitionRequest,
     PermittedTransitionItem,
     PermittedTransitionsResponse,
+    artifact_response_from_dto,
 )
 from alm.artifact.application.commands.create_artifact import CreateArtifact
 from alm.artifact.application.commands.delete_artifact import DeleteArtifact
@@ -106,6 +107,10 @@ from alm.project.application.queries.get_project_manifest import GetProjectManif
 from alm.project.application.queries.get_velocity import GetVelocity
 from alm.project.application.queries.list_project_members import ListProjectMembers
 from alm.project.application.queries.list_projects import ListProjects
+from alm.project_tag.application.commands.create_project_tag import CreateProjectTag
+from alm.project_tag.application.commands.delete_project_tag import DeleteProjectTag
+from alm.project_tag.application.commands.rename_project_tag import RenameProjectTag
+from alm.project_tag.application.queries.list_project_tags import ListProjectTags
 from alm.saved_query.api.schemas import (
     SavedQueryCreateRequest,
     SavedQueryResponse,
@@ -138,7 +143,12 @@ from alm.shared.infrastructure.security.field_masking import (
     mask_artifact_list_for_user,
 )
 from alm.shared.infrastructure.security.manifest_acl import require_manifest_acl
-from alm.task.api.schemas import TaskCreateRequest, TaskResponse, TaskUpdateRequest
+from alm.task.api.schemas import (
+    TaskCreateRequest,
+    TaskResponse,
+    TaskUpdateRequest,
+    task_response_from_dto,
+)
 from alm.task.application.commands.create_task import CreateTask
 from alm.task.application.commands.delete_task import DeleteTask
 from alm.task.application.commands.update_task import UpdateTask

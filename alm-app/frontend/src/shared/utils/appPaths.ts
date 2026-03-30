@@ -75,7 +75,6 @@ export function qualityTraceabilityPath(
 
 /**
  * Catalog workspace (test cases under groups; manifest `tree_id: quality`).
- * Canonical segment is `quality/catalog`; `/quality/tests` redirects for old bookmarks.
  */
 export function qualityCatalogPath(orgSlug: string, projectSlug: string): string {
   return `/${orgSlug}/${projectSlug}/quality/catalog`;
@@ -97,7 +96,6 @@ export function qualityCatalogArtifactPath(
 
 /**
  * Campaign workspace: collections + test suites (manifest `tree_id: testsuites`).
- * Canonical segment is `quality/campaign`; `/quality/suites` redirects here for old bookmarks.
  */
 export function qualityCampaignPath(orgSlug: string, projectSlug: string): string {
   return `/${orgSlug}/${projectSlug}/quality/campaign`;
@@ -105,6 +103,34 @@ export function qualityCampaignPath(orgSlug: string, projectSlug: string): strin
 
 export function qualityRunsPath(orgSlug: string, projectSlug: string): string {
   return `/${orgSlug}/${projectSlug}/quality/runs`;
+}
+
+/** Quality → Defects triage list (defect tree subtree; same artifact model as Artifacts). */
+export function qualityDefectsPath(
+  orgSlug: string,
+  projectSlug: string,
+  params?: { page?: number; q?: string; state?: string; under?: string },
+): string {
+  const base = `/${orgSlug}/${projectSlug}/quality/defects`;
+  const underTrim = params?.under?.trim();
+  if (
+    !params ||
+    ((params.page == null || params.page <= 1) &&
+      !params.q?.trim() &&
+      !params.state?.trim() &&
+      !underTrim)
+  ) {
+    return base;
+  }
+  const search = new URLSearchParams();
+  if (params.page != null && params.page > 1) search.set("page", String(params.page));
+  const q = params.q?.trim();
+  if (q) search.set("q", q);
+  const st = params.state?.trim();
+  if (st) search.set("state", st);
+  if (underTrim) search.set("under", underTrim);
+  const qs = search.toString();
+  return qs ? `${base}?${qs}` : base;
 }
 
 export function qualityCampaignsPath(orgSlug: string, projectSlug: string): string {

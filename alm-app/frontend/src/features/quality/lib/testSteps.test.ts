@@ -44,10 +44,12 @@ describe("parseTestSteps", () => {
   it("parses JSON string array", () => {
     const raw = JSON.stringify([
       {
+        kind: "step",
         id: "s1",
         name: "Click login",
         description: "Use valid user",
         expectedResult: "Dashboard",
+        status: "not-executed",
       },
     ]);
     const out = parseTestSteps(raw);
@@ -60,19 +62,11 @@ describe("parseTestSteps", () => {
     expect(out[0]?.status).toBe("not-executed");
   });
 
-  it("maps legacy action field to name when name missing", () => {
-    const out = parseTestSteps([{ action: "Open app", id: "x" }]);
-    expect(out[0]?.name).toBe("Open app");
-    expect(out[0]?.id).toBe("x");
-  });
-
-  it("prefers name over action when both present", () => {
-    const out = parseTestSteps([{ name: "Primary", action: "Ignored", id: "z" }]);
-    expect(out[0]?.name).toBe("Primary");
-  });
-
   it("assigns fallback id when missing", () => {
-    const out = parseTestSteps([{ name: "A" }, { name: "B" }]);
+    const out = parseTestSteps([
+      { kind: "step", name: "A", description: "", expectedResult: "", status: "not-executed" },
+      { kind: "step", name: "B", description: "", expectedResult: "", status: "not-executed" },
+    ]);
     expect(out[0]?.id).toBe("step-1");
     expect(out[1]?.id).toBe("step-2");
   });
@@ -81,8 +75,8 @@ describe("parseTestSteps", () => {
     const out = parseTestSteps([
       null,
       "bad",
-      { id: "k", name: "One" },
-      { id: "m", name: "Two", stepNumber: 10 },
+      { kind: "step", id: "k", name: "One", description: "", expectedResult: "", status: "not-executed" },
+      { kind: "step", id: "m", name: "Two", description: "", expectedResult: "", status: "not-executed" },
     ]);
     expect(out).toHaveLength(2);
     expect(out[0]?.stepNumber).toBe(1);
@@ -95,7 +89,14 @@ describe("parseTestSteps", () => {
 
   it("drops call rows for inline-only parseTestSteps", () => {
     const raw = JSON.stringify([
-      { name: "Keep", id: "k" },
+      {
+        kind: "step",
+        name: "Keep",
+        id: "k",
+        description: "",
+        expectedResult: "",
+        status: "not-executed",
+      },
       { kind: "call", id: "c", calledTestCaseId: "550e8400-e29b-41d4-a716-446655440000" },
     ]);
     const out = parseTestSteps(raw);
@@ -104,7 +105,16 @@ describe("parseTestSteps", () => {
   });
 
   it("parses array passed directly", () => {
-    const out = parseTestSteps([{ id: "p", name: "Step", expectedResult: "OK" }]);
+    const out = parseTestSteps([
+      {
+        kind: "step",
+        id: "p",
+        name: "Step",
+        description: "",
+        expectedResult: "OK",
+        status: "not-executed",
+      },
+    ]);
     expect(out).toHaveLength(1);
     expect(out[0]?.expectedResult).toBe("OK");
   });

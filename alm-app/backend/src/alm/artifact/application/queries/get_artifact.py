@@ -10,6 +10,7 @@ from alm.artifact.domain.mpc_resolver import get_manifest_ast, redact_data
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.query import Query, QueryHandler
 
 
@@ -27,10 +28,12 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
         artifact_repo: ArtifactRepository,
         project_repo: ProjectRepository,
         process_template_repo: ProcessTemplateRepository,
+        tag_repo: ProjectTagRepository,
     ) -> None:
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
+        self._tag_repo = tag_repo
 
     async def handle(self, query: Query) -> ArtifactDTO | None:
         assert isinstance(query, GetArtifact)
@@ -42,6 +45,9 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
         artifact = await self._artifact_repo.find_by_id(query.artifact_id)
         if artifact is None or artifact.project_id != query.project_id:
             return None
+
+        tag_map = await self._tag_repo.get_tags_by_artifact_ids([artifact.id])
+        tags = tag_map.get(artifact.id, ())
 
         dto = ArtifactDTO(
             id=artifact.id,
@@ -62,6 +68,7 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
             area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
             created_at=getattr(artifact, "created_at", None),
             updated_at=getattr(artifact, "updated_at", None),
+            tags=tags,
         )
 
         if project.process_template_version_id:

@@ -20,6 +20,16 @@ describe("buildVelocityParams", () => {
     expect(params.get("last_n")).toBe("8");
     expect(params.get("effort_field")).toBe("effort");
   });
+
+  it("includes last_n when zero", () => {
+    const params = buildVelocityParams({ lastN: 0 });
+    expect(params.get("last_n")).toBe("0");
+  });
+
+  it("omits empty releaseCycleNodeId", () => {
+    const params = buildVelocityParams({ releaseCycleNodeId: "" });
+    expect(params.get("release_cycle_node_id")).toBeNull();
+  });
 });
 
 describe("buildBurndownParams", () => {
@@ -32,5 +42,11 @@ describe("buildBurndownParams", () => {
   it("includes cycle ids in order", () => {
     const params = buildBurndownParams({ cycleNodeIds: ["x", "y"] });
     expect(params.getAll("cycle_node_id")).toEqual(["x", "y"]);
+  });
+
+  it("sets custom effort field and omits last_n when undefined", () => {
+    const params = buildBurndownParams({ effortField: "hours" });
+    expect(params.get("effort_field")).toBe("hours");
+    expect(params.get("last_n")).toBeNull();
   });
 });

@@ -18,6 +18,12 @@ from alm.artifact.application.queries.get_permitted_transitions import (
 )
 from alm.artifact.domain.entities import Artifact
 from alm.shared.domain.exceptions import GuardDeniedError, PolicyDeniedError, ValidationError
+from tests.support.manifests import (
+    TRANSITION_MANIFEST_ASSIGNEE_POLICY,
+    TRANSITION_MANIFEST_GUARD_ASSIGNEE,
+    TRANSITION_MANIFEST_TRIGGER_LABELS,
+)
+from tests.support.mocks import empty_project_tag_repo
 
 
 class _NoOpTransitionMetrics:
@@ -53,56 +59,9 @@ class _Version:
         self.manifest_bundle = manifest_bundle
 
 
-MANIFEST_WITH_TRIGGER_LABEL = {
-    "defs": [
-        {
-            "kind": "Workflow",
-            "id": "basic",
-            "initial": "new",
-            "states": ["new", "active", "resolved"],
-            "transitions": [
-                {"from": "new", "to": "active", "trigger": "start", "trigger_label": "Start"},
-                {"from": "active", "to": "resolved", "trigger": "resolve", "trigger_label": "Resolve"},
-            ],
-        },
-        {"kind": "ArtifactType", "id": "requirement", "workflow_id": "basic"},
-    ],
-}
-
-# Manifest with TransitionPolicy: assignee required when entering "active"
-MANIFEST_WITH_ASSIGNEE_POLICY = {
-    "defs": [
-        {
-            "kind": "Workflow",
-            "id": "basic",
-            "initial": "new",
-            "states": ["new", "active", "resolved"],
-            "transitions": [
-                {"from": "new", "to": "active"},
-                {"from": "active", "to": "resolved"},
-            ],
-        },
-        {"kind": "ArtifactType", "id": "requirement", "workflow_id": "basic"},
-        {"kind": "TransitionPolicy", "id": "assignee_active", "when": {"state": "active"}, "require": "assignee"},
-    ],
-}
-
-# Per-transition guard only (no TransitionPolicy) — tests guard_evaluator path in handler
-MANIFEST_WITH_TRANSITION_GUARD = {
-    "defs": [
-        {
-            "kind": "Workflow",
-            "id": "basic",
-            "initial": "new",
-            "states": ["new", "active", "resolved"],
-            "transitions": [
-                {"from": "new", "to": "active", "guard": "assignee_required"},
-                {"from": "active", "to": "resolved"},
-            ],
-        },
-        {"kind": "ArtifactType", "id": "requirement", "workflow_id": "basic"},
-    ],
-}
+MANIFEST_WITH_TRIGGER_LABEL = TRANSITION_MANIFEST_TRIGGER_LABELS
+MANIFEST_WITH_ASSIGNEE_POLICY = TRANSITION_MANIFEST_ASSIGNEE_POLICY
+MANIFEST_WITH_TRANSITION_GUARD = TRANSITION_MANIFEST_GUARD_ASSIGNEE
 
 
 @pytest.fixture
@@ -229,6 +188,7 @@ class TestTransitionArtifactHandlerWithTrigger:
             project_repo=project_repo,
             process_template_repo=process_repo,
             metrics=_NoOpTransitionMetrics(),
+            tag_repo=empty_project_tag_repo(),
         )
         command = TransitionArtifact(
             tenant_id=tenant_id,
@@ -271,6 +231,7 @@ class TestTransitionArtifactHandlerWithTrigger:
             project_repo=project_repo,
             process_template_repo=process_repo,
             metrics=_NoOpTransitionMetrics(),
+            tag_repo=empty_project_tag_repo(),
         )
         command = TransitionArtifact(
             tenant_id=tenant_id,
@@ -306,6 +267,7 @@ class TestTransitionArtifactHandlerWithTrigger:
             project_repo=project_repo,
             process_template_repo=process_repo,
             metrics=_NoOpTransitionMetrics(),
+            tag_repo=empty_project_tag_repo(),
         )
         command = TransitionArtifact(
             tenant_id=tenant_id,
@@ -345,6 +307,7 @@ class TestTransitionArtifactHandlerWithTrigger:
             project_repo=project_repo,
             process_template_repo=process_repo,
             metrics=_NoOpTransitionMetrics(),
+            tag_repo=empty_project_tag_repo(),
         )
         command = TransitionArtifact(
             tenant_id=tenant_id,
@@ -385,6 +348,7 @@ class TestTransitionArtifactHandlerWithTrigger:
             project_repo=project_repo,
             process_template_repo=process_repo,
             metrics=metrics,
+            tag_repo=empty_project_tag_repo(),
         )
         command = TransitionArtifact(
             tenant_id=tenant_id,
@@ -429,6 +393,7 @@ class TestTransitionArtifactHandlerWithTrigger:
             project_repo=project_repo,
             process_template_repo=process_repo,
             metrics=_NoOpTransitionMetrics(),
+            tag_repo=empty_project_tag_repo(),
         )
         command = TransitionArtifact(
             tenant_id=tenant_id,

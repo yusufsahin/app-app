@@ -1,6 +1,12 @@
 """Pytest configuration and fixtures for ALM backend.
 
 Integration tests use PostgreSQL. Either: test container (Docker), ALM_TEST_DATABASE_URL, or local alm_test.
+
+Unit-test seed data: reuse ``tests.support.manifests`` (manifest bundles) and
+``tests.support.mocks`` (e.g. ``empty_project_tag_repo``, ``simple_manifest_ast``) instead of copying dicts.
+
+Minimal FastAPI apps in unit tests should call ``register_exception_handlers(app)`` when asserting
+HTTP status codes for ``DomainException`` subclasses (e.g. ``AccessDenied`` → 403).
 """
 
 from __future__ import annotations
@@ -30,6 +36,7 @@ import alm.comment.infrastructure.models  # noqa: F401
 import alm.cycle.infrastructure.models  # noqa: F401
 import alm.process_template.infrastructure.models  # noqa: F401
 import alm.project.infrastructure.models  # noqa: F401
+import alm.project_tag.infrastructure.models  # noqa: F401 — project_tags, artifact_tags, task_tags
 import alm.project.infrastructure.project_member_models  # noqa: F401
 import alm.saved_query.infrastructure.models  # noqa: F401
 import alm.shared.audit.models  # noqa: F401

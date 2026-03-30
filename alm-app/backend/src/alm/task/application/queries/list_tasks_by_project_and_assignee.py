@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.query import Query, QueryHandler
 from alm.task.application.dtos import TaskDTO
 from alm.task.domain.ports import TaskRepository
@@ -18,8 +19,9 @@ class ListTasksByProjectAndAssignee(Query):
 
 
 class ListTasksByProjectAndAssigneeHandler(QueryHandler[list[TaskDTO]]):
-    def __init__(self, task_repo: TaskRepository) -> None:
+    def __init__(self, task_repo: TaskRepository, tag_repo: ProjectTagRepository) -> None:
         self._task_repo = task_repo
+        self._tag_repo = tag_repo
 
     async def handle(self, query: Query) -> list[TaskDTO]:
         assert isinstance(query, ListTasksByProjectAndAssignee)
@@ -28,6 +30,8 @@ class ListTasksByProjectAndAssigneeHandler(QueryHandler[list[TaskDTO]]):
             query.project_id,
             query.assignee_id,
         )
+        ids = [t.id for t in tasks]
+        tag_map = await self._tag_repo.get_tags_by_task_ids(ids)
         return [
             TaskDTO(
                 id=t.id,
@@ -40,6 +44,7 @@ class ListTasksByProjectAndAssigneeHandler(QueryHandler[list[TaskDTO]]):
                 rank_order=t.rank_order,
                 created_at=t.created_at.isoformat() if t.created_at else None,
                 updated_at=t.updated_at.isoformat() if t.updated_at else None,
+                tags=tag_map.get(t.id, ()),
             )
             for t in tasks
         ]

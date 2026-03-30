@@ -45,7 +45,7 @@ const COLUMN_COLORS = [
 
 function getTypeVariant(type: string): "default" | "secondary" | "destructive" | "outline" {
   const t = type.toLowerCase();
-  if (t === "defect" || t === "bug") return "destructive";
+  if (t === "defect") return "destructive";
   if (t === "epic") return "secondary";
   return "outline";
 }

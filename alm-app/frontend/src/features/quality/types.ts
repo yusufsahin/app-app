@@ -33,13 +33,3 @@ export interface StepResult {
   actualResult?: string;
   notes?: string;
 }
-
-/** Legacy / alternate shape; persisted runs prefer `runMetrics.ts` (`v` + `results`). */
-export interface RunMetrics {
-  testResults: Record<string, {
-    status: 'passed' | 'failed' | 'blocked' | 'not-executed';
-    stepResults: StepResult[];
-    executedAt?: string;
-    executedBy?: string;
-  }>;
-}

@@ -19,7 +19,7 @@ export interface RunMetricsDocumentV1 {
   results: TestExecutionResultRow[];
 }
 
-/** Parse legacy array, v1 `{ results }`, or `{ testResults: Record<...> }` shapes. */
+/** Parse v1 document only: `{ "v": 1, "results": [...] }`. */
 export function parseRunMetricsPayload(raw: unknown): TestExecutionResultRow[] | null {
   if (raw == null) return null;
   let parsed: unknown;
@@ -28,24 +28,12 @@ export function parseRunMetricsPayload(raw: unknown): TestExecutionResultRow[] |
   } catch {
     return null;
   }
-  if (Array.isArray(parsed)) {
-    return parsed as TestExecutionResultRow[];
-  }
-  if (parsed && typeof parsed === "object" && Array.isArray((parsed as RunMetricsDocumentV1).results)) {
-    return (parsed as RunMetricsDocumentV1).results;
-  }
-  const tr = (parsed as { testResults?: Record<string, { stepResults?: StepResult[]; status?: string }> })
-    .testResults;
-  if (tr && typeof tr === "object") {
-    const entries = Object.entries(tr);
-    if (entries.length === 0) return [];
-    return entries.map(([testId, v]) => ({
-      testId,
-      status: (v.status as TestExecutionResultRow["status"]) || "not-executed",
-      stepResults: Array.isArray(v.stepResults) ? v.stepResults : [],
-    }));
-  }
-  return null;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const doc = parsed as Record<string, unknown>;
+  if (doc.v !== RUN_METRICS_VERSION) return null;
+  const results = doc.results;
+  if (!Array.isArray(results)) return null;
+  return results as TestExecutionResultRow[];
 }
 
 export function stringifyRunMetricsPayload(results: TestExecutionResultRow[]): string {

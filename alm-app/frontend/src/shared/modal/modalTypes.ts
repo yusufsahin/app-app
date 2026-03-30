@@ -39,17 +39,27 @@ export type AddTaskModalProps = {
   onSubmit: (values: Record<string, unknown>) => void;
   isPending: boolean;
   userOptions: Array<{ id: string; label: string }>;
+  projectTagOptions?: Array<{ id: string; name: string }>;
 };
 
 /** Edit task – parent provides schema; modal passes current values to onSubmit */
 export type EditTaskModalProps = {
   taskFormSchema: import("@/shared/types/formSchema").FormSchemaDto | null;
-  task: { id: string; title: string; description?: string | null; state?: string; assignee_id?: string | null; rank_order?: number | null };
+  task: {
+    id: string;
+    title: string;
+    description?: string | null;
+    state?: string;
+    assignee_id?: string | null;
+    rank_order?: number | null;
+    tags?: Array<{ id: string; name: string }>;
+  };
   values: Record<string, unknown>;
   onChange: (v: Record<string, unknown>) => void;
   onSubmit: (values: Record<string, unknown>) => void;
   isPending: boolean;
   userOptions: Array<{ id: string; label: string }>;
+  projectTagOptions?: Array<{ id: string; name: string }>;
 };
 
 /** Add link */

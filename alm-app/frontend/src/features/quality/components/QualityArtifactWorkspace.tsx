@@ -46,7 +46,10 @@ import { QualityTestCaseDetailPanels } from "./QualityTestCaseDetailPanels";
 import { SuiteTestLinkModal } from "./SuiteTestLinkModal";
 import { StartSuiteRunDialog } from "./StartSuiteRunDialog";
 import { CampaignSuiteCommandDialog } from "./CampaignSuiteCommandDialog";
+import { useLastExecutionStatusBatch, lastExecutionStatusMap } from "../hooks/useLastExecutionStatusBatch";
 import { SuiteRecentRunsCard } from "./SuiteRecentRunsCard";
+import { TestLastStatusBadge } from "./TestLastStatusBadge";
+import { SuiteIncludedTestsReorderList } from "./SuiteIncludedTestsReorderList";
 import { useStartSuiteRun } from "../hooks/useStartSuiteRun";
 import { qualityPath, qualityCatalogPath } from "../../../shared/utils/appPaths";
 import type { BreadcrumbSegment } from "../../../shared/components/Layout";
@@ -56,6 +59,7 @@ import { parseTestParams, serializeTestParams, normalizeTestParams } from "../li
 import { modalApi } from "../../../shared/modal/modalApi";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "../../../shared/api/client";
+import { openManualRunnerInNewWindow } from "../lib/qualityOpenManualRunner";
 
 interface LinkConfig {
   linkType: string;
@@ -296,6 +300,19 @@ export default function QualityArtifactWorkspace({
     workspaceIncludeSubfolders,
   ]);
 
+  const catalogTestIdsForLastExec = useMemo(
+    () =>
+      artifactType === "test-case"
+        ? workspaceItems
+            .filter((i) => i.artifact_type === "test-case")
+            .map((i) => i.id)
+            .slice(0, 200)
+        : [],
+    [artifactType, workspaceItems],
+  );
+  const { data: lastExecItems } = useLastExecutionStatusBatch(orgSlug, project?.id, catalogTestIdsForLastExec);
+  const lastExecById = useMemo(() => lastExecutionStatusMap(lastExecItems), [lastExecItems]);
+
   const isTreeDetail = explorerMode === "tree-detail";
 
   const underParam = searchParams.get("under");
@@ -406,6 +423,14 @@ export default function QualityArtifactWorkspace({
   const linkedTargetIds = useMemo(() => new Set(selectedLinks.map((l) => l.to_artifact_id)), [selectedLinks]);
   const linkedTargets = linkTargets.filter((a) => linkedTargetIds.has(a.id));
   const availableTargets = linkTargets.filter((a) => !linkedTargetIds.has(a.id));
+
+  const suiteLinkedTargetsById = useMemo(() => {
+    const m = new Map<string, Artifact>();
+    for (const a of linkedTargets) {
+      m.set(a.id, a);
+    }
+    return m;
+  }, [linkedTargets]);
 
   const catalogBreadcrumbTrail = useMemo((): BreadcrumbSegment[] | undefined => {
     if (artifactType !== "test-case" || !orgSlug || !projectSlug) return undefined;
@@ -849,22 +874,32 @@ export default function QualityArtifactWorkspace({
           </div>
           {linkedTargets.length === 0 ? (
             <p className="text-sm text-muted-foreground">No linked items yet.</p>
+          ) : orgSlug && project?.id ? (
+            <SuiteIncludedTestsReorderList
+              orgSlug={orgSlug}
+              projectId={project.id}
+              suiteId={selectedArtifact.id}
+              linkType={linkConfig.linkType}
+              links={linksQuery.data ?? []}
+              targetsById={suiteLinkedTargetsById}
+              canUpdate={canUpdateSelectedArtifact}
+            />
           ) : (
-            linkedTargets.map((target) => {
-              const link = selectedLinks.find((l) => l.to_artifact_id === target.id);
-              if (!link) return null;
-              return (
-                <div
-                  key={link.id}
-                  className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-                >
-                  <span>{target.title}</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => deleteLink.mutate(link.id)}>
-                    Remove
-                  </Button>
-                </div>
-              );
-            })
+            <div className="space-y-2" data-testid="suite-includes-readonly-list">
+              <p className="text-xs text-muted-foreground">{t("campaignExecution.suitePlanReadonlyContext")}</p>
+              {orderedSuiteLinks.map((link, idx) => {
+                const row = suiteLinkedTargetsById.get(link.to_artifact_id);
+                return (
+                  <div
+                    key={link.id}
+                    className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
+                  >
+                    <span className="w-8 shrink-0 tabular-nums text-muted-foreground">{idx + 1}</span>
+                    <span className="min-w-0 flex-1 font-medium">{row?.title ?? link.to_artifact_id}</span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -1240,8 +1275,13 @@ export default function QualityArtifactWorkspace({
                         className={`w-full rounded-md border px-3 py-2 text-left text-sm transition ${active ? "border-primary bg-primary/5" : "border-border hover:bg-muted/60"}`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <div className="font-medium">{item.title}</div>
-                          {isFolderRow ? <Badge variant="secondary">{tws("groupBadge")}</Badge> : null}
+                          <div className="min-w-0 flex-1 font-medium">{item.title}</div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            {!isFolderRow && item.artifact_type === "test-case" ? (
+                              <TestLastStatusBadge item={lastExecById.get(item.id)} />
+                            ) : null}
+                            {isFolderRow ? <Badge variant="secondary">{tws("groupBadge")}</Badge> : null}
+                          </div>
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {isFolderRow ? item.artifact_type : item.artifact_key ?? item.artifact_type}
@@ -1402,12 +1442,14 @@ export default function QualityArtifactWorkspace({
         ) : null}
 
         {runExecute && selectedArtifactId && orgSlug && projectSlug ? (
-          <div className="flex justify-end">
-            <Button asChild>
-              <Link to={`/${orgSlug}/${projectSlug}/quality/runs/${selectedArtifactId}/execute`}>
-                <PlayCircle className="mr-2 size-4" />
-                Execute run
-              </Link>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              title={t("runsHub.executeInNewWindow")}
+              onClick={() => openManualRunnerInNewWindow(orgSlug, projectSlug, selectedArtifactId)}
+            >
+              <PlayCircle className="mr-2 size-4" />
+              {t("runsHub.executeOrContinue")}
             </Button>
           </div>
         ) : null}

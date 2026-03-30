@@ -5,6 +5,8 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from alm.project_tag.application.dtos import ProjectTagDTO
+
 
 @dataclass
 class TaskDTO:
@@ -18,3 +20,4 @@ class TaskDTO:
     rank_order: float | None
     created_at: str | None
     updated_at: str | None
+    tags: tuple[ProjectTagDTO, ...] = ()

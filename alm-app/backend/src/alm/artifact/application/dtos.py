@@ -5,7 +5,10 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from alm.project_tag.application.dtos import ProjectTagDTO
 
 
 @dataclass(frozen=True)
@@ -28,3 +31,4 @@ class ArtifactDTO:
     area_path_snapshot: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    tags: tuple[ProjectTagDTO, ...] = ()

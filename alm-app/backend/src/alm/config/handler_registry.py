@@ -85,6 +85,10 @@ from alm.artifact_link.application.queries.list_artifact_links import (
     ListArtifactLinksHandler,
 )
 from alm.artifact_link.infrastructure.repositories import SqlAlchemyArtifactLinkRepository
+from alm.quality.application.queries.batch_last_test_execution_status import (
+    BatchLastTestExecutionStatus,
+    BatchLastTestExecutionStatusHandler,
+)
 
 # ── Attachment commands ──
 from alm.attachment.application.commands.create_attachment import (
@@ -228,6 +232,23 @@ from alm.project.infrastructure.project_member_repository import (
     SqlAlchemyProjectMemberRepository,
 )
 from alm.project.infrastructure.repositories import SqlAlchemyProjectRepository
+from alm.project_tag.application.commands.create_project_tag import (
+    CreateProjectTag,
+    CreateProjectTagHandler,
+)
+from alm.project_tag.application.commands.delete_project_tag import (
+    DeleteProjectTag,
+    DeleteProjectTagHandler,
+)
+from alm.project_tag.application.commands.rename_project_tag import (
+    RenameProjectTag,
+    RenameProjectTagHandler,
+)
+from alm.project_tag.application.queries.list_project_tags import (
+    ListProjectTags,
+    ListProjectTagsHandler,
+)
+from alm.project_tag.infrastructure.repositories import SqlAlchemyProjectTagRepository
 from alm.realtime.event_handlers import on_artifact_state_changed_realtime
 
 # ── Saved query commands ──
@@ -844,6 +865,7 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
             area_repo=SqlAlchemyAreaRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
     register_command_handler(
@@ -853,6 +875,7 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
             metrics=PrometheusArtifactTransitionMetrics(),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
     register_command_handler(
@@ -862,6 +885,7 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             area_repo=SqlAlchemyAreaRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
     register_command_handler(
@@ -877,6 +901,29 @@ def register_all_handlers() -> None:
         lambda s: RestoreArtifactHandler(
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
+        ),
+    )
+
+    register_command_handler(
+        CreateProjectTag,
+        lambda s: CreateProjectTagHandler(
+            project_repo=SqlAlchemyProjectRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
+        ),
+    )
+    register_command_handler(
+        RenameProjectTag,
+        lambda s: RenameProjectTagHandler(
+            project_repo=SqlAlchemyProjectRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
+        ),
+    )
+    register_command_handler(
+        DeleteProjectTag,
+        lambda s: DeleteProjectTagHandler(
+            project_repo=SqlAlchemyProjectRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
 
@@ -888,6 +935,7 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             cycle_repo=SqlAlchemyCycleRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
     register_query_handler(
@@ -896,6 +944,7 @@ def register_all_handlers() -> None:
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
     register_query_handler(
@@ -904,6 +953,13 @@ def register_all_handlers() -> None:
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+        ),
+    )
+    register_query_handler(
+        ListProjectTags,
+        lambda s: ListProjectTagsHandler(
+            project_repo=SqlAlchemyProjectRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
 
@@ -915,6 +971,7 @@ def register_all_handlers() -> None:
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
     register_command_handler(
@@ -923,6 +980,7 @@ def register_all_handlers() -> None:
             task_repo=SqlAlchemyTaskRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
     register_command_handler(
@@ -936,18 +994,21 @@ def register_all_handlers() -> None:
         ListTasksByArtifact,
         lambda s: ListTasksByArtifactHandler(
             task_repo=SqlAlchemyTaskRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
     register_query_handler(
         ListTasksByProjectAndAssignee,
         lambda s: ListTasksByProjectAndAssigneeHandler(
             task_repo=SqlAlchemyTaskRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
     register_query_handler(
         GetTask,
         lambda s: GetTaskHandler(
             task_repo=SqlAlchemyTaskRepository(s),
+            tag_repo=SqlAlchemyProjectTagRepository(s),
         ),
     )
 
@@ -995,6 +1056,14 @@ def register_all_handlers() -> None:
     register_query_handler(
         ListArtifactLinks,
         lambda s: ListArtifactLinksHandler(
+            link_repo=SqlAlchemyArtifactLinkRepository(s),
+        ),
+    )
+    register_query_handler(
+        BatchLastTestExecutionStatus,
+        lambda s: BatchLastTestExecutionStatusHandler(
+            project_repo=SqlAlchemyProjectRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
             link_repo=SqlAlchemyArtifactLinkRepository(s),
         ),
     )

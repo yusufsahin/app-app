@@ -142,6 +142,7 @@ export function listStateToFilterParams(state: {
   searchQuery?: string;
   cycleNodeFilter?: string;
   areaNodeFilter?: string;
+  tagFilter?: string;
   sortBy?: string;
   sortOrder?: string;
 }): Record<string, unknown> {
@@ -153,6 +154,7 @@ export function listStateToFilterParams(state: {
   if (state.searchQuery?.trim()) fp.q = state.searchQuery.trim();
   if (state.cycleNodeFilter) fp.cycle_node_id = state.cycleNodeFilter;
   if (state.areaNodeFilter) fp.area_node_id = state.areaNodeFilter;
+  if (state.tagFilter) fp.tag_id = state.tagFilter;
   if (state.sortBy) fp.sort_by = state.sortBy;
   if (state.sortOrder) fp.sort_order = state.sortOrder;
   return fp;
@@ -171,6 +173,7 @@ export function filterParamsToListStatePatch(
   searchInput: string;
   cycleNodeFilter: string;
   areaNodeFilter: string;
+  tagFilter: string;
   sortBy: "artifact_key" | "title" | "state" | "artifact_type" | "created_at" | "updated_at";
   sortOrder: "asc" | "desc";
   page: number;
@@ -185,6 +188,7 @@ export function filterParamsToListStatePatch(
   const q = String(filterParams.q ?? "").trim();
   const cycle = String(filterParams.cycle_node_id ?? "").trim();
   const area = String(filterParams.area_node_id ?? "").trim();
+  const tag = String(filterParams.tag_id ?? "").trim();
   const sortBy = String(filterParams.sort_by ?? "created_at").trim() as "artifact_key" | "title" | "state" | "artifact_type" | "created_at" | "updated_at";
   const sortOrder = (String(filterParams.sort_order ?? "desc").trim() === "asc"
     ? "asc"
@@ -197,6 +201,7 @@ export function filterParamsToListStatePatch(
     searchInput: q,
     cycleNodeFilter: cycle,
     areaNodeFilter: area,
+    tagFilter: tag,
     sortBy: sortBy || "created_at",
     sortOrder,
     page: 0,

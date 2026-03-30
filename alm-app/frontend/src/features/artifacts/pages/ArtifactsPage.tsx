@@ -18,6 +18,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   Badge,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  Input,
 } from "../../../shared/components/ui";
 import {
   Plus,
@@ -38,7 +44,7 @@ import {
   PlayCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { apiClient } from "../../../shared/api/client";
 import { useOrgMembers } from "../../../shared/api/orgApi";
@@ -52,7 +58,7 @@ import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { useFormSchema } from "../../../shared/api/formSchemaApi";
 import type { ProblemDetail } from "../../../shared/api/types";
 import type { FormFieldSchema, FormSchemaDto } from "../../../shared/types/formSchema";
-import { MetadataDrivenForm, RhfTextField } from "../../../shared/components/forms";
+import { MetadataDrivenForm } from "../../../shared/components/forms";
 import {
   buildArtifactListParams,
   useArtifacts,
@@ -68,10 +74,15 @@ import {
   useRestoreArtifact,
   type Artifact,
   type PermittedTransitionsResponse,
-  type CreateArtifactRequest,
   type TransitionArtifactRequest,
   type UpdateArtifactRequest,
 } from "../../../shared/api/artifactApi";
+import {
+  useProjectTags,
+  useCreateProjectTag,
+  useRenameProjectTag,
+  useDeleteProjectTag,
+} from "../../../shared/api/projectTagApi";
 import {
   useTasksByArtifact,
   useMyTasksInProject,
@@ -81,7 +92,6 @@ import {
   type Task,
   type CreateTaskRequest,
 } from "../../../shared/api/taskApi";
-import { useCommentsByArtifact, useCreateComment } from "../../../shared/api/commentApi";
 import {
   useArtifactLinks,
   useCreateArtifactLink,
@@ -110,10 +120,13 @@ import { EmptyState } from "../../../shared/components/EmptyState";
 import { LoadingState } from "../../../shared/components/LoadingState";
 import { modalApi, useModalStore } from "../../../shared/modal";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
+import { useAuthStore } from "../../../shared/stores/authStore";
+import { hasPermission } from "../../../shared/utils/permissions";
+import { ArtifactCommentsPanel } from "../../../shared/components/comments";
+import { useCommentsByArtifact } from "../../../shared/api/commentApi";
 import { useArtifactStore } from "../../../shared/stores/artifactStore";
 import { useRealtimeStore } from "../../../shared/stores/realtimeStore";
 import {
-  CORE_FIELD_KEYS,
   TITLE_MAX_LENGTH,
   formatDateTime,
   getArtifactCellValue,
@@ -122,16 +135,59 @@ import {
   buildArtifactTree,
   isRootArtifact,
   getSystemRootArtifactTypes,
+  isManifestFieldExcludedFromForms,
   type ArtifactNode,
 } from "../utils";
 import { ArtifactsToolbar, ArtifactsList, ArtifactDetailDrawer } from "../components";
 import type { ToolbarFilterValues } from "../components/ArtifactsToolbar";
 import { useArtifactsPageProject } from "./useArtifactsPageProject";
 import { getTreeRootsFromManifestBundle } from "../../../shared/lib/manifestTreeRoots";
+import { buildArtifactCreatePayload } from "../lib/buildArtifactCreatePayload";
 
 export type ViewMode = "table" | "tree";
 
 export type ArtifactsPageVariant = "default" | "quality";
+
+function ProjectTagRowEditor({
+  initialName,
+  onRename,
+  onDelete,
+  renamePending,
+  deletePending,
+}: {
+  initialName: string;
+  onRename: (name: string) => void;
+  onDelete: () => void;
+  renamePending: boolean;
+  deletePending: boolean;
+}) {
+  const [name, setName] = useState(initialName);
+  useEffect(() => {
+    setName(initialName);
+  }, [initialName]);
+  return (
+    <>
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="min-w-0 flex-1"
+        aria-label={`Tag ${initialName}`}
+      />
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={renamePending || !name.trim() || name.trim() === initialName}
+        onClick={() => onRename(name.trim())}
+      >
+        Rename
+      </Button>
+      <Button type="button" size="sm" variant="destructive" disabled={deletePending} onClick={onDelete}>
+        Delete
+      </Button>
+    </>
+  );
+}
 
 export interface ArtifactsPageProps {
   /** `"quality"` — Quality suite route: breadcrumb + default `tree=quality` when manifest includes that tree. */
@@ -180,8 +236,11 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
   const { data: listSchema, isLoading: listSchemaLoading, isError: listSchemaError, refetch: refetchListSchema } = useListSchema(orgSlug, project?.id, "artifact");
   const { data: formSchema, isError: formSchemaError, error: formSchemaErr } = useFormSchema(orgSlug, project?.id);
   const formSchema403 = formSchemaError && (formSchemaErr as unknown as ProblemDetail)?.status === 403;
-  const { data: taskFormSchema } = useFormSchema(orgSlug, project?.id, "task", "create");
+  const { data: taskCreateFormSchema } = useFormSchema(orgSlug, project?.id, "task", "create");
+  const { data: taskEditFormSchema } = useFormSchema(orgSlug, project?.id, "task", "edit");
   const { data: members } = useOrgMembers(orgSlug);
+  const permissions = useAuthStore((s) => s.permissions);
+  const canCommentArtifact = hasPermission(permissions, "artifact:comment");
   useProjectMembers(orgSlug, project?.id);
   useAddProjectMember(orgSlug, project?.id);
   useRemoveProjectMember(orgSlug, project?.id);
@@ -222,6 +281,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
     cycleNodeFilter,
     releaseCycleNodeFilter,
     areaNodeFilter,
+    tagFilter,
     searchInput,
     searchQuery,
     page,
@@ -258,6 +318,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
         cycleNodeFilter ||
         releaseCycleNodeFilter ||
         areaNodeFilter ||
+        tagFilter ||
         searchQuery
       ),
     [
@@ -267,6 +328,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
       cycleNodeFilter,
       releaseCycleNodeFilter,
       areaNodeFilter,
+      tagFilter,
       searchQuery,
     ],
   );
@@ -287,7 +349,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
         ? "Try clearing filters or changing the tree."
         : variant === "quality"
           ? "Create test cases in catalog groups, or suites, runs, and campaigns in campaign collections."
-          : "Create a requirement, defect, or bug to get started.",
+          : "Create a requirement or defect to get started.",
     [hasActiveArtifactFilters, variant],
   );
 
@@ -311,6 +373,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
       cycleNodeFilter: "",
       releaseCycleNodeFilter: "",
       areaNodeFilter: "",
+      tagFilter: "",
       page: 0,
     });
   }, [variant, setListState]);
@@ -321,6 +384,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
       savedQueryId: "",
       cycleNodeFilter: cycleNodeFilter,
       areaNodeFilter: areaNodeFilter,
+      tagFilter: tagFilter,
       sortBy,
       sortOrder,
       showDeleted,
@@ -342,6 +406,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
         searchInput: toolbarValues.searchInput,
         cycleNodeFilter: toolbarValues.cycleNodeFilter,
         areaNodeFilter: toolbarValues.areaNodeFilter,
+        tagFilter: toolbarValues.tagFilter,
         sortBy: toolbarValues.sortBy,
         sortOrder: toolbarValues.sortOrder,
         showDeleted: toolbarValues.showDeleted,
@@ -366,6 +431,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
     toolbarValues.savedQueryId,
     toolbarValues.cycleNodeFilter,
     toolbarValues.areaNodeFilter,
+    toolbarValues.tagFilter,
     toolbarValues.sortBy,
     toolbarValues.sortOrder,
     toolbarValues.showDeleted,
@@ -421,6 +487,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
     treeFilter,
     cycleNodeFilter,
     areaNodeFilter,
+    tagFilter,
     searchQuery,
     underFolderIdFromUrl,
     setListState,
@@ -438,6 +505,12 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
   const createSavedQueryMutation = useCreateSavedQuery(orgSlug, project?.id);
   const [_conflictDialogOpen, _setConflictDialogOpen] = useState(false);
   const [_conflictDetail, _setConflictDetail] = useState("");
+  const [tagsDialogOpen, setTagsDialogOpen] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const { data: projectTags = [] } = useProjectTags(orgSlug, project?.id);
+  const createTagMutation = useCreateProjectTag(orgSlug, project?.id);
+  const renameTagMutation = useRenameProjectTag(orgSlug, project?.id);
+  const deleteTagMutation = useDeleteProjectTag(orgSlug, project?.id);
   const isBoardView = viewMode === "board";
   /**
    * Quality: always quality subtree. Artifacts (default): requirement subtree by default so test cases
@@ -471,6 +544,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
     treeForList,
     isBoardView,
     underFolderIdFromUrl,
+    tagFilter || undefined,
   );
   const artifacts = useMemo(() => listResult?.items ?? [], [listResult?.items]);
   const totalArtifacts = listResult?.total ?? 0;
@@ -560,15 +634,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
     project?.id,
   );
 
-  const { data: comments = [], isLoading: commentsLoading } = useCommentsByArtifact(
-    orgSlug,
-    project?.id,
-    detailArtifact?.id,
-  );
-  const createCommentMutation = useCreateComment(orgSlug, project?.id, detailArtifact?.id);
-  type CommentFormValues = { body: string };
-  const commentForm = useForm<CommentFormValues>({ defaultValues: { body: "" } });
-  const commentBody = commentForm.watch("body");
+  const { data: comments = [] } = useCommentsByArtifact(orgSlug, project?.id, detailArtifact?.id);
 
   const { data: artifactLinks = [], isLoading: linksLoading } = useArtifactLinks(
     orgSlug,
@@ -1074,6 +1140,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
     const cols: { key: string; label: string }[] = [];
     for (const at of bundle?.artifact_types ?? []) {
       for (const f of at.fields ?? []) {
+        if (isManifestFieldExcludedFromForms(f)) continue;
         const id = f.id as string;
         if (id && !seen.has(id)) {
           seen.add(id);
@@ -1197,61 +1264,47 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
 
   const taskCreateInitialValues = useMemo(() => {
     const vals: Record<string, unknown> = {};
-    for (const f of taskFormSchema?.fields ?? []) {
-      vals[f.key] = f.default_value ?? (f.key === "assignee_id" ? "" : "");
+    for (const f of taskCreateFormSchema?.fields ?? []) {
+      if (f.key === "assignee_id") vals[f.key] = "";
+      else if (f.type === "tag_list") vals[f.key] = [];
+      else vals[f.key] = f.default_value ?? "";
     }
     return vals;
-  }, [taskFormSchema?.fields]);
+  }, [taskCreateFormSchema?.fields]);
 
   useEffect(() => {
-    if (addTaskOpen && taskFormSchema) {
+    if (addTaskOpen && taskCreateFormSchema) {
       setTaskCreateFormValues(taskCreateInitialValues);
     }
-  }, [addTaskOpen, taskFormSchema, taskCreateInitialValues]);
+  }, [addTaskOpen, taskCreateFormSchema, taskCreateInitialValues]);
 
   useEffect(() => {
-    if (editingTask && taskFormSchema) {
+    if (editingTask && taskEditFormSchema) {
       setTaskEditFormValues({
         title: editingTask.title,
         description: editingTask.description ?? "",
         state: editingTask.state,
         assignee_id: editingTask.assignee_id ?? "",
         rank_order: editingTask.rank_order ?? "",
+        tag_ids: editingTask.tags?.map((x) => x.id) ?? [],
       });
     }
-  }, [editingTask, taskFormSchema]);
+  }, [editingTask, taskEditFormSchema]);
 
   const handleCreate = async (currentValues?: Record<string, unknown>) => {
     const currentCreateValues = currentValues ?? createFormValuesRef.current;
-    const title = (currentCreateValues.title as string)?.trim();
-    const artifactType =
-      (currentCreateValues.artifact_type as string)?.trim() || createArtifactTypeIdRef.current?.trim() || "";
-    const err: Record<string, string> = {};
-    if (!title) err.title = "Title is required.";
-    else if (title.length > TITLE_MAX_LENGTH) err.title = `Title must be at most ${TITLE_MAX_LENGTH} characters.`;
-    if (!artifactType) err.artifact_type = "Type is required.";
-    setCreateFormErrors(err);
-    if (Object.keys(err).length > 0) {
-      const firstMsg = err.title ?? err.artifact_type ?? "Please fix the form errors.";
-      showNotification(firstMsg, "error");
+    const result = buildArtifactCreatePayload(currentCreateValues, {
+      fallbackArtifactType: createArtifactTypeIdRef.current || undefined,
+    });
+    if (!result.ok) {
+      setCreateFormErrors(result.errors);
+      if (useModalStore.getState().modalType === "CreateArtifactModal") {
+        useModalStore.getState().updateModalProps({ formErrors: result.errors });
+      }
+      showNotification(result.firstMessage, "error");
       return;
     }
-    const customFields: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(currentCreateValues)) {
-      if (!CORE_FIELD_KEYS.has(key) && val !== undefined && val !== "" && val !== null) {
-        customFields[key] = val;
-      }
-    }
-    const rawParent = (currentCreateValues.parent_id as string | null) ?? null;
-    const rawAssignee = (currentCreateValues.assignee_id as string | null) ?? null;
-    const payload: CreateArtifactRequest = {
-      artifact_type: artifactType ?? "requirement",
-      title,
-      description: (currentCreateValues.description as string) ?? "",
-      parent_id: rawParent && String(rawParent).trim() ? String(rawParent).trim() : null,
-      assignee_id: rawAssignee && String(rawAssignee).trim() ? String(rawAssignee).trim() : null,
-      custom_fields: Object.keys(customFields).length ? customFields : undefined,
-    };
+    const payload = result.payload;
     try {
       await createMutation.mutateAsync(payload);
       modalApi.closeModal();
@@ -1394,7 +1447,74 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
             onCreateArtifact={handleCreateOpen}
             listStateToFilterParams={listStateToFilterParams}
             showNotification={showNotification}
+            projectTagOptions={projectTags.map((t) => ({ id: t.id, name: t.name }))}
+            onOpenTagsManager={() => setTagsDialogOpen(true)}
           />
+
+          <Dialog open={tagsDialogOpen} onOpenChange={setTagsDialogOpen}>
+            <DialogContent aria-describedby={undefined}>
+              <DialogHeader>
+                <DialogTitle>Project tags</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Create, rename, or delete work item tags for this project.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-2 py-2">
+                <Input
+                  placeholder="New tag name"
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  aria-label="New tag name"
+                />
+                <Button
+                  type="button"
+                  disabled={!newTagName.trim() || createTagMutation.isPending}
+                  onClick={() => {
+                    const n = newTagName.trim();
+                    if (!n) return;
+                    createTagMutation.mutate(n, {
+                      onSuccess: () => {
+                        setNewTagName("");
+                        showNotification("Tag created", "success");
+                      },
+                      onError: () => showNotification("Could not create tag", "error"),
+                    });
+                  }}
+                >
+                  Add
+                </Button>
+              </div>
+              <ul className="max-h-64 space-y-2 overflow-y-auto text-sm">
+                {projectTags.map((t) => (
+                  <li key={t.id} className="flex items-center gap-2 border-b border-border pb-2">
+                    <ProjectTagRowEditor
+                      initialName={t.name}
+                      onRename={(name) =>
+                        renameTagMutation.mutate(
+                          { tagId: t.id, name },
+                          {
+                            onSuccess: () => showNotification("Tag renamed", "success"),
+                            onError: () => showNotification("Could not rename tag", "error"),
+                          },
+                        )
+                      }
+                      onDelete={() =>
+                        deleteTagMutation.mutate(t.id, {
+                          onSuccess: () => showNotification("Tag deleted", "success"),
+                          onError: () => showNotification("Could not delete tag", "error"),
+                        })
+                      }
+                      renamePending={renameTagMutation.isPending}
+                      deletePending={deleteTagMutation.isPending}
+                    />
+                  </li>
+                ))}
+              </ul>
+              {projectTags.length === 0 && (
+                <p className="text-sm text-muted-foreground">No tags yet. Add one above.</p>
+              )}
+            </DialogContent>
+          </Dialog>
 
           <ArtifactsList>
           {selectedIds.size > 0 && !showDeleted && (
@@ -1660,6 +1780,11 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                           <span className="text-xs text-muted-foreground">
                             {a.artifact_type}
                           </span>
+                          {(a.tags ?? []).map((t) => (
+                            <Badge key={t.id} variant="outline" className="h-[18px] px-1 text-[0.65rem] font-normal">
+                              {t.name}
+                            </Badge>
+                          ))}
                           {(a.custom_fields?.priority != null && String(a.custom_fields.priority) !== "") && (
                             <Badge variant="secondary" className="h-[18px] text-[0.7rem]">{String(a.custom_fields.priority)}</Badge>
                           )}
@@ -1687,6 +1812,18 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                     <span className="inline-flex items-center gap-1.5">
                       {getArtifactIcon(row.artifact_type, bundle)}
                       <span className="capitalize">{val != null && val !== "" ? String(val) : "—"}</span>
+                    </span>
+                  ) : columnKey === "tags" ? (
+                    <span className="flex max-w-[220px] flex-wrap gap-0.5">
+                      {(row.tags ?? []).length ? (
+                        (row.tags ?? []).map((t) => (
+                          <Badge key={t.id} variant="outline" className="px-1 py-0 text-[0.65rem] font-normal">
+                            {t.name}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </span>
                   ) : null
                 }
@@ -2067,6 +2204,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                               assignee_id: detailArtifact.assignee_id ?? "",
                               cycle_node_id: detailArtifact.cycle_node_id ?? "",
                               area_node_id: detailArtifact.area_node_id ?? "",
+                              tag_ids: detailArtifact.tags?.map((x) => x.id) ?? [],
                               ...(detailArtifact.custom_fields ?? {}),
                             });
                             setEditFormErrors({});
@@ -2136,17 +2274,28 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                           return;
                         }
                         setEditFormErrors({});
-                        const _coreKeys = new Set(["title", "description", "assignee_id", "cycle_node_id", "area_node_id"]);
+                        const _coreKeys = new Set([
+                          "title",
+                          "description",
+                          "assignee_id",
+                          "cycle_node_id",
+                          "area_node_id",
+                          "tag_ids",
+                        ]);
                         const _customFields: Record<string, unknown> = {};
                         for (const f of editFormSchema?.fields ?? []) {
                           if (!_coreKeys.has(f.key)) _customFields[f.key] = editFormValues[f.key] ?? null;
                         }
+                        const tagIds = Array.isArray(editFormValues.tag_ids)
+                          ? (editFormValues.tag_ids as string[])
+                          : [];
                         const payload: UpdateArtifactRequest = {
                           title: titleTrim,
                           description: (editFormValues.description as string) || null,
                           assignee_id: (editFormValues.assignee_id as string) || null,
                           cycle_node_id: (editFormValues.cycle_node_id as string) || null,
                           area_node_id: (editFormValues.area_node_id as string) || null,
+                          tag_ids: tagIds,
                           ...(Object.keys(_customFields).length ? { custom_fields: _customFields } : {}),
                         };
                         updateArtifactMutation.mutate(payload, {
@@ -2170,6 +2319,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                       userOptions={members?.map((m) => ({ id: m.user_id, label: m.display_name || m.email || m.user_id })) ?? []}
                       cycleOptions={(incrementsFlatIterations.length ? incrementsFlatIterations : incrementsFlat).map((c) => ({ id: c.id, label: (c as { path?: string }).path || c.name }))}
                       areaOptions={areaNodesFlat.map((a) => ({ id: a.id, label: areaNodeDisplayLabel(a) }))}
+                      projectTagOptions={projectTags.map((t) => ({ id: t.id, name: t.name }))}
                     />
                   ) : (
                     <p className="text-muted-foreground">Loading form…</p>
@@ -2196,17 +2346,28 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                             return;
                           }
                           setEditFormErrors({});
-                          const _coreKeys2 = new Set(["title", "description", "assignee_id", "cycle_node_id", "area_node_id"]);
+                          const _coreKeys2 = new Set([
+                            "title",
+                            "description",
+                            "assignee_id",
+                            "cycle_node_id",
+                            "area_node_id",
+                            "tag_ids",
+                          ]);
                           const _customFields2: Record<string, unknown> = {};
                           for (const f of editFormSchema?.fields ?? []) {
                             if (!_coreKeys2.has(f.key)) _customFields2[f.key] = editFormValues[f.key] ?? null;
                           }
+                          const tagIds2 = Array.isArray(editFormValues.tag_ids)
+                            ? (editFormValues.tag_ids as string[])
+                            : [];
                           const payload: UpdateArtifactRequest = {
                             title: titleTrim,
                             description: (editFormValues.description as string) || null,
                             assignee_id: (editFormValues.assignee_id as string) || null,
                             cycle_node_id: (editFormValues.cycle_node_id as string) || null,
                             area_node_id: (editFormValues.area_node_id as string) || null,
+                            tag_ids: tagIds2,
                             ...(Object.keys(_customFields2).length ? { custom_fields: _customFields2 } : {}),
                           };
                           updateArtifactMutation.mutate(payload, {
@@ -2234,6 +2395,15 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                   <h3 className="mb-2 mt-1 text-lg font-semibold">
                     {detailArtifact.title}
                   </h3>
+                  {(detailArtifact.tags?.length ?? 0) > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1">
+                      {detailArtifact.tags!.map((t) => (
+                        <Badge key={t.id} variant="secondary" className="text-xs font-normal">
+                          {t.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                   {(recentlyUpdatedArtifactIds[detailArtifact.id] ||
                     (presenceByArtifactId[detailArtifact.id]?.length ?? 0) > 0) && (
                     <div className="mb-2 flex items-center gap-2">
@@ -2373,6 +2543,25 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                     <Skeleton className="h-16 rounded-md" />
                   ) : (
                     <>
+                      {detailArtifact?.tags && detailArtifact.tags.length > 0 && (
+                        <div
+                          className="mb-3 rounded-md border border-dashed border-muted-foreground/25 bg-muted/30 px-3 py-2 text-sm"
+                          aria-label="Work item tags"
+                        >
+                          <span className="text-muted-foreground">Work item tags</span>
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {detailArtifact.tags.map((t) => (
+                              <Badge
+                                key={t.id}
+                                variant="outline"
+                                className="font-normal text-[0.65rem] text-muted-foreground"
+                              >
+                                {t.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <ul className="space-y-1">
                         {tasks.map((task) => (
                           <li
@@ -2383,6 +2572,11 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                               <p className="font-medium">{task.title}</p>
                               <div className="flex flex-wrap items-center gap-1">
                                 <Badge variant="outline" className="text-xs">{task.state}</Badge>
+                                {(task.tags ?? []).map((t) => (
+                                  <Badge key={t.id} variant="secondary" className="text-[0.65rem] font-normal">
+                                    {t.name}
+                                  </Badge>
+                                ))}
                                 {task.assignee_id &&
                                   (members?.find((m) => m.user_id === task.assignee_id)?.display_name ||
                                     members?.find((m) => m.user_id === task.assignee_id)?.email ||
@@ -2401,15 +2595,19 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                                       state: task.state,
                                       assignee_id: task.assignee_id ?? "",
                                       rank_order: task.rank_order ?? "",
+                                      tag_ids: task.tags?.map((x) => x.id) ?? [],
                                     };
                                     modalApi.openEditTask({
-                                      taskFormSchema: taskFormSchema ?? null,
+                                      taskFormSchema: taskEditFormSchema ?? null,
                                       task,
                                       values: editValues,
                                       onChange: setTaskEditFormValues,
                                       onSubmit: (values) => {
                                         const title = (values.title as string)?.trim();
                                         if (!title) return;
+                                        const tagIds = Array.isArray(values.tag_ids)
+                                          ? (values.tag_ids as string[])
+                                          : [];
                                         updateTaskMutation.mutate(
                                           {
                                             title,
@@ -2417,6 +2615,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                                             state: (values.state as string) ?? undefined,
                                             assignee_id: (values.assignee_id as string) || null,
                                             rank_order: typeof values.rank_order === "number" ? values.rank_order : undefined,
+                                            tag_ids: tagIds,
                                           },
                                           {
                                             onSuccess: () => {
@@ -2436,6 +2635,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                                         id: m.user_id,
                                         label: m.display_name || m.email || m.user_id,
                                       })) ?? [],
+                                      projectTagOptions: projectTags.map((t) => ({ id: t.id, name: t.name })),
                                     });
                                   }}
                                 >
@@ -2483,9 +2683,10 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                             state: (v.state as string) || "todo",
                             assignee_id: (v.assignee_id as string) || null,
                             rank_order: typeof v.rank_order === "number" ? v.rank_order : undefined,
+                            tag_ids: Array.isArray(v.tag_ids) ? (v.tag_ids as string[]) : undefined,
                           });
                           modalApi.openAddTask({
-                            taskFormSchema: taskFormSchema ?? null,
+                            taskFormSchema: taskCreateFormSchema ?? null,
                             initialValues: taskCreateInitialValues,
                             onChange: setTaskCreateFormValues,
                             onSubmit: (values) => {
@@ -2508,6 +2709,7 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                               id: m.user_id,
                               label: m.display_name || m.email || m.user_id,
                             })) ?? [],
+                            projectTagOptions: projectTags.map((t) => ({ id: t.id, name: t.name })),
                           });
                         }}
                       >
@@ -2725,66 +2927,13 @@ export default function ArtifactsPage({ variant = "default" }: ArtifactsPageProp
                   )}
                   {detailDrawerTab === "comments" && (
                     <TabsContent value="comments" className="py-2">
-                  <p className="mb-2 text-sm font-medium text-muted-foreground">Comments</p>
-                  {commentsLoading ? (
-                    <Skeleton className="h-16 rounded-md" />
-                  ) : (
-                    <>
-                      <ul className="space-y-2">
-                        {comments.map((c) => (
-                          <li key={c.id} className="flex flex-col gap-0.5 py-1">
-                            <p className="whitespace-pre-wrap text-sm">{c.body}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {c.created_by
-                                ? (members?.find((m) => m.user_id === c.created_by)?.display_name ||
-                                    members?.find((m) => m.user_id === c.created_by)?.email ||
-                                    c.created_by)
-                                : "Unknown"}{" "}
-                              · {formatDateTime(c.created_at)}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                      <div className="mt-2 flex flex-col gap-2">
-                        <FormProvider {...commentForm}>
-                          <form
-                            className="flex flex-col gap-2"
-                            onSubmit={commentForm.handleSubmit((data) => {
-                              const body = data.body.trim();
-                              if (!body) return;
-                              createCommentMutation.mutate(
-                                { body },
-                                {
-                                  onSuccess: () => {
-                                    commentForm.reset({ body: "" });
-                                    showNotification("Comment added", "success");
-                                  },
-                                  onError: (err: Error) => {
-                                    const b = (err as unknown as { body?: ProblemDetail })?.body;
-                                    showNotification(b?.detail ?? "Failed to add comment", "error");
-                                  },
-                                },
-                              );
-                            })}
-                          >
-                            <RhfTextField<CommentFormValues>
-                              name="body"
-                              label=""
-                              placeholder="Add a comment..."
-                            />
-                            <Button
-                              type="submit"
-                              size="sm"
-                              variant="outline"
-                              disabled={!commentBody?.trim() || createCommentMutation.isPending}
-                            >
-                              Add comment
-                            </Button>
-                          </form>
-                        </FormProvider>
-                      </div>
-                    </>
-                  )}
+                      <ArtifactCommentsPanel
+                        orgSlug={orgSlug}
+                        projectId={project?.id}
+                        artifactId={detailArtifact?.id}
+                        members={members}
+                        canComment={canCommentArtifact}
+                      />
                     </TabsContent>
                   )}
                   {detailDrawerTab === "audit" && (

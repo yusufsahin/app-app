@@ -1,6 +1,7 @@
 """Admin-only API (G5: access audit, G1: create user, G2: list/delete users). Requires admin role in current tenant."""
 from __future__ import annotations
 
+import contextlib
 import uuid
 from datetime import datetime
 from typing import Annotated
@@ -121,15 +122,11 @@ async def get_access_audit(
     from_ts: datetime | None = None
     to_ts: datetime | None = None
     if from_date:
-        try:
+        with contextlib.suppress(ValueError):
             from_ts = datetime.fromisoformat(from_date.replace("Z", "+00:00"))
-        except ValueError:
-            pass
     if to_date:
-        try:
+        with contextlib.suppress(ValueError):
             to_ts = datetime.fromisoformat(to_date.replace("Z", "+00:00"))
-        except ValueError:
-            pass
     return await store.list_entries(
         from_ts=from_ts,
         to_ts=to_ts,
