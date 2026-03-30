@@ -18,6 +18,7 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 
 | Doküman | Amaç | Ne zaman kullanılır |
 |---------|------|---------------------|
+| [DEPLOY_EXTERNAL_NGINX.md](./DEPLOY_EXTERNAL_NGINX.md) | Üretim: harici nginx, TLS, demo host | Sunucu deploy, reverse proxy |
 | [REMAINING_PLAN.md](./REMAINING_PLAN.md) | Kalan işler (Faz A–E), önerilen sıra | Cycle planlama, ilerleme takibi |
 | [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) | Mevcut vs hedef gap analizi | Durum özeti, eksik özellik listesi |
 | [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) | Git PR/commit ↔ artifact izlenebilirliği (API, UI, webhook fazları) | SCM gap; DevOps tek cam |

@@ -1,4 +1,7 @@
-# Production Deployment: docker compose -f docker-compose.prod.yml up -d
+# Production: from alm-app directory
+#   docker compose -f docker-compose.prod.yml --env-file .env up --build -d
+# Build context must include folder alm-manifest-app (see DEPLOY.md). Harici nginx için
+# .env içinde ör: ALM_FRONTEND_PORT_MAPPING=127.0.0.1:9081:80
 services:
   db:
     image: postgres:16-alpine
@@ -31,9 +34,11 @@ services:
 
   backend:
     build:
-      context: ../..
+      context: ${ALM_DOCKER_CONTEXT:-../..}
       dockerfile: alm-manifest-app/alm-app/backend/Dockerfile
     restart: always
+    env_file:
+      - .env
     environment:
       ALM_ENVIRONMENT: "production"
       ALM_DEBUG: "false"
@@ -41,24 +46,34 @@ services:
       ALM_REDIS_URL: "redis://redis:6379/0"
       ALM_JWT_SECRET_KEY: ${ALM_JWT_SECRET_KEY}
       ALM_SEED_DEMO_DATA: "false"
-      # Other variables (SMTP, CORS) should be provided via .env
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/liveness')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     networks:
       - alm_internal
       - alm_public
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ${ALM_DOCKER_CONTEXT:-../..}
+      dockerfile: alm-manifest-app/alm-app/frontend/Dockerfile
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
+      - "${ALM_FRONTEND_PORT_MAPPING:-80:80}"
     depends_on:
       backend:
         condition: service_healthy
