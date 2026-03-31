@@ -196,6 +196,115 @@ DEMO_PROJECTS = [
 ]
 
 
+def _seed_step(
+    step_id: str,
+    step_number: int,
+    name: str,
+    expected_result: str,
+    *,
+    description: str = "",
+    status: str = "not-executed",
+) -> dict[str, Any]:
+    return {
+        "kind": "step",
+        "id": step_id,
+        "stepNumber": step_number,
+        "name": name,
+        "description": description,
+        "expectedResult": expected_result,
+        "status": status,
+    }
+
+
+def _seed_call_step(
+    step_id: str,
+    step_number: int,
+    called_test_case_id: uuid.UUID,
+    called_title: str,
+    *,
+    param_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "kind": "call",
+        "id": step_id,
+        "stepNumber": step_number,
+        "calledTestCaseId": str(called_test_case_id),
+        "calledTitle": called_title,
+    }
+    if param_overrides:
+        row["paramOverrides"] = {str(k): "" if v is None else str(v) for k, v in param_overrides.items()}
+    return row
+
+
+def _seed_configuration(
+    config_id: str,
+    name: str,
+    label: str,
+    values: dict[str, Any],
+    *,
+    is_default: bool = False,
+    status: str = "active",
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "id": config_id,
+        "name": name,
+        "label": label,
+        "status": status,
+        "values": {str(k): "" if v is None else str(v) for k, v in values.items()},
+    }
+    if is_default:
+        row["isDefault"] = True
+    if tags:
+        row["tags"] = tags
+    return row
+
+
+def _seed_test_params(defs: list[dict[str, Any]], rows: list[dict[str, Any]] | None = None) -> str:
+    payload: dict[str, Any] = {"v": 2, "defs": defs}
+    if rows:
+        payload["rows"] = rows
+    return json.dumps(payload)
+
+
+def _seed_test_steps(steps: list[dict[str, Any]]) -> str:
+    return json.dumps(steps)
+
+
+def _seed_run_result(
+    test_id: uuid.UUID,
+    status: str,
+    *,
+    configuration_id: str | None = None,
+    configuration_name: str | None = None,
+    configuration_snapshot: dict[str, Any] | None = None,
+    resolved_values: dict[str, Any] | None = None,
+    step_results: list[dict[str, Any]] | None = None,
+    expanded_steps_snapshot: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "testId": str(test_id),
+        "status": status,
+        "stepResults": step_results or [],
+    }
+    if configuration_id is not None:
+        row["configurationId"] = configuration_id
+    if configuration_name is not None:
+        row["configurationName"] = configuration_name
+    if configuration_snapshot is not None:
+        row["configurationSnapshot"] = configuration_snapshot
+    if resolved_values is not None:
+        row["resolvedValues"] = {str(k): "" if v is None else str(v) for k, v in resolved_values.items()}
+        row["paramValuesUsed"] = row["resolvedValues"]
+    if expanded_steps_snapshot is not None:
+        row["expandedStepsSnapshot"] = expanded_steps_snapshot
+    return row
+
+
+def _seed_run_metrics(results: list[dict[str, Any]]) -> str:
+    return json.dumps({"v": 2, "results": results})
+
+
 def _find_seed_dir() -> Path:
     """Locate alm_meta/seed: cwd (Docker /app) or next to alm package."""
     for base in (Path.cwd(), Path(__file__).resolve().parents[3]):
@@ -1283,7 +1392,9 @@ async def seed_demo_data(
                 api_suite = None
                 scale_suite = None
                 demo_run = None
+                previous_demo_run = None
                 failed_run = None
+                scale_run = None
                 demo_campaign = None
                 release_campaign = None
                 if parent_tests_id and parent_suites_id:
@@ -1354,44 +1465,52 @@ async def seed_demo_data(
                         custom_fields={
                             "priority": "high",
                             "automation": "manual",
-                            "test_params_json": json.dumps(
-                                {
-                                    "defs": [
-                                        {"name": "env", "label": "Environment", "default": "staging"},
-                                        {"name": "username", "label": "Username", "default": "demo.user"},
-                                    ],
-                                    "rows": [
-                                        {
-                                            "label": "Staging QA",
-                                            "values": {"env": "staging", "username": "qa.alpha"},
-                                        },
-                                        {
-                                            "label": "Prod smoke",
-                                            "values": {"env": "production", "username": "smoke.bot"},
-                                        },
-                                    ],
-                                }
+                            "test_params_json": _seed_test_params(
+                                defs=[
+                                    {"name": "env", "label": "Environment", "default": "staging", "type": "string"},
+                                    {"name": "username", "label": "Username", "default": "demo.user", "type": "string"},
+                                ],
+                                rows=[
+                                    _seed_configuration(
+                                        "cfg-login-staging",
+                                        "staging_qa",
+                                        "Staging QA",
+                                        {"env": "staging", "username": "qa.alpha"},
+                                        is_default=True,
+                                        tags=["smoke", "staging"],
+                                    ),
+                                    _seed_configuration(
+                                        "cfg-login-prod",
+                                        "prod_smoke",
+                                        "Prod smoke",
+                                        {"env": "production", "username": "smoke.bot"},
+                                        tags=["prod", "release-gate"],
+                                    ),
+                                    _seed_configuration(
+                                        "cfg-login-qa-eu",
+                                        "qa_eu_regression",
+                                        "QA EU Regression",
+                                        {"env": "qa-eu", "username": "qa.eu.runner"},
+                                        tags=["qa", "eu", "regression"],
+                                    ),
+                                ],
                             ),
-                            "test_steps_json": json.dumps(
+                            "test_steps_json": _seed_test_steps(
                                 [
-                                    {
-                                        "kind": "step",
-                                        "id": "step-1",
-                                        "stepNumber": 1,
-                                        "name": "Open login page",
-                                        "description": "Target ${env}; account ${username}.",
-                                        "expectedResult": "Login form is visible for the selected environment",
-                                        "status": "not-executed",
-                                    },
-                                    {
-                                        "kind": "step",
-                                        "id": "step-2",
-                                        "stepNumber": 2,
-                                        "name": "Submit valid credentials",
-                                        "description": "Use ${username} with a valid password from the vault.",
-                                        "expectedResult": "Redirect to dashboard",
-                                        "status": "not-executed",
-                                    },
+                                    _seed_step(
+                                        "step-1",
+                                        1,
+                                        "Open login page",
+                                        "Login form is visible for the selected environment",
+                                        description="Target ${env}; account ${username}.",
+                                    ),
+                                    _seed_step(
+                                        "step-2",
+                                        2,
+                                        "Submit valid credentials",
+                                        "Redirect to dashboard",
+                                        description="Use ${username} with a valid password from the vault.",
+                                    ),
                                 ]
                             ),
                         },
@@ -1411,17 +1530,14 @@ async def seed_demo_data(
                         custom_fields={
                             "priority": "medium",
                             "automation": "automated",
-                            "test_steps_json": json.dumps(
+                            "test_steps_json": _seed_test_steps(
                                 [
-                                    {
-                                        "kind": "step",
-                                        "id": "step-1",
-                                        "stepNumber": 1,
-                                        "name": "Send invalid payload",
-                                        "description": "",
-                                        "expectedResult": "HTTP 400 with schema errors",
-                                        "status": "not-executed",
-                                    },
+                                    _seed_step(
+                                        "step-1",
+                                        1,
+                                        "Send invalid payload",
+                                        "HTTP 400 with schema errors",
+                                    ),
                                 ]
                             ),
                         },
@@ -1441,17 +1557,14 @@ async def seed_demo_data(
                         custom_fields={
                             "priority": "critical",
                             "automation": "manual",
-                            "test_steps_json": json.dumps(
+                            "test_steps_json": _seed_test_steps(
                                 [
-                                    {
-                                        "kind": "step",
-                                        "id": "step-1",
-                                        "stepNumber": 1,
-                                        "name": "Send 10 invalid login attempts",
-                                        "description": "",
-                                        "expectedResult": "Rate limit message is shown",
-                                        "status": "not-executed",
-                                    },
+                                    _seed_step(
+                                        "step-1",
+                                        1,
+                                        "Send 10 invalid login attempts",
+                                        "Rate limit message is shown",
+                                    ),
                                 ]
                             ),
                         },
@@ -1471,24 +1584,21 @@ async def seed_demo_data(
                         custom_fields={
                             "priority": "medium",
                             "automation": "manual",
-                            "test_steps_json": json.dumps(
+                            "test_steps_json": _seed_test_steps(
                                 [
-                                    {
-                                        "kind": "step",
-                                        "id": "pre-1",
-                                        "stepNumber": 1,
-                                        "name": "Clear browser storage for clean session",
-                                        "description": "",
-                                        "expectedResult": "No prior session cookies for the app origin",
-                                        "status": "not-executed",
-                                    },
-                                    {
-                                        "kind": "call",
-                                        "id": "call-login",
-                                        "stepNumber": 2,
-                                        "calledTestCaseId": str(tc_login.id),
-                                        "calledTitle": tc_login.title,
-                                    },
+                                    _seed_step(
+                                        "pre-1",
+                                        1,
+                                        "Clear browser storage for clean session",
+                                        "No prior session cookies for the app origin",
+                                    ),
+                                    _seed_call_step(
+                                        "call-login",
+                                        2,
+                                        tc_login.id,
+                                        tc_login.title,
+                                        param_overrides={"env": "staging", "username": "qa.alpha"},
+                                    ),
                                 ]
                             ),
                         },
@@ -1519,17 +1629,14 @@ async def seed_demo_data(
                             custom_fields={
                                 "priority": "high" if idx <= 3 else "medium",
                                 "automation": "automated" if idx % 2 == 0 else "manual",
-                                "test_steps_json": json.dumps(
+                                "test_steps_json": _seed_test_steps(
                                     [
-                                        {
-                                            "kind": "step",
-                                            "id": "step-1",
-                                            "stepNumber": 1,
-                                            "name": "Execute test scenario",
-                                            "description": "",
-                                            "expectedResult": "Expected system behavior is observed",
-                                            "status": "not-executed",
-                                        },
+                                        _seed_step(
+                                            "step-1",
+                                            1,
+                                            "Execute test scenario",
+                                            "Expected system behavior is observed",
+                                        ),
                                     ]
                                 ),
                             },
@@ -1597,27 +1704,140 @@ async def seed_demo_data(
                             artifact_key=f"{first_project[0].code}-{seq_run}",
                             custom_fields={
                                 "environment": "staging",
-                                "run_metrics_json": json.dumps(
-                                    {
-                                        "v": 1,
-                                        "results": [
-                                            {
-                                                "testId": str(tc_login.id),
-                                                "status": "passed",
-                                                "stepResults": [],
-                                            },
-                                            {
-                                                "testId": str(tc_api.id),
-                                                "status": "passed",
-                                                "stepResults": [],
-                                            },
-                                        ],
-                                    }
+                                "run_metrics_json": _seed_run_metrics(
+                                    [
+                                        _seed_run_result(
+                                            tc_login.id,
+                                            "passed",
+                                            configuration_id="cfg-login-staging",
+                                            configuration_name="Staging QA",
+                                            configuration_snapshot=_seed_configuration(
+                                                "cfg-login-staging",
+                                                "staging_qa",
+                                                "Staging QA",
+                                                {"env": "staging", "username": "qa.alpha"},
+                                                is_default=True,
+                                                tags=["smoke", "staging"],
+                                            ),
+                                            resolved_values={"env": "staging", "username": "qa.alpha"},
+                                            step_results=[
+                                                {"stepId": "step-1", "status": "passed"},
+                                                {"stepId": "step-2", "status": "passed"},
+                                            ],
+                                            expanded_steps_snapshot=[
+                                                _seed_step(
+                                                    "step-1",
+                                                    1,
+                                                    "Open login page",
+                                                    "Login form is visible for the selected environment",
+                                                    description="Target staging; account qa.alpha.",
+                                                    status="passed",
+                                                ),
+                                                _seed_step(
+                                                    "step-2",
+                                                    2,
+                                                    "Submit valid credentials",
+                                                    "Redirect to dashboard",
+                                                    description="Use qa.alpha with a valid password from the vault.",
+                                                    status="passed",
+                                                ),
+                                            ],
+                                        ),
+                                        _seed_run_result(
+                                            tc_api.id,
+                                            "passed",
+                                            resolved_values={},
+                                            step_results=[
+                                                {"stepId": "step-1", "status": "passed"},
+                                            ],
+                                            expanded_steps_snapshot=[
+                                                _seed_step(
+                                                    "step-1",
+                                                    1,
+                                                    "Send invalid payload",
+                                                    "HTTP 400 with schema errors",
+                                                    status="passed",
+                                                ),
+                                            ],
+                                        ),
+                                    ]
                                 ),
                             },
                         )
                         demo_run.created_by = user.id
                         await artifact_repo.add(demo_run)
+
+                        seq_run0 = await project_repo.increment_artifact_seq(first_project[0].id)
+                        previous_demo_run = ArtifactEntity(
+                            project_id=first_project[0].id,
+                            artifact_type="test-run",
+                            title="Demo test run - previous baseline",
+                            description="Older regression baseline used to demonstrate compare-with-previous UI.",
+                            state="completed",
+                            parent_id=suites_folder.id if suites_folder is not None else parent_suites_id,
+                            artifact_key=f"{first_project[0].code}-{seq_run0}",
+                            custom_fields={
+                                "environment": "staging",
+                                "run_metrics_json": _seed_run_metrics(
+                                    [
+                                        _seed_run_result(
+                                            tc_login.id,
+                                            "failed",
+                                            configuration_id="cfg-login-staging",
+                                            configuration_name="Staging QA",
+                                            configuration_snapshot=_seed_configuration(
+                                                "cfg-login-staging",
+                                                "staging_qa",
+                                                "Staging QA",
+                                                {"env": "staging", "username": "qa.alpha"},
+                                                is_default=True,
+                                                tags=["smoke", "staging"],
+                                            ),
+                                            resolved_values={"env": "staging", "username": "qa.alpha"},
+                                            step_results=[
+                                                {"stepId": "step-1", "status": "passed"},
+                                                {"stepId": "step-2", "status": "failed"},
+                                            ],
+                                            expanded_steps_snapshot=[
+                                                _seed_step(
+                                                    "step-1",
+                                                    1,
+                                                    "Open login page",
+                                                    "Login form is visible for the selected environment",
+                                                    description="Target staging; account qa.alpha.",
+                                                    status="passed",
+                                                ),
+                                                _seed_step(
+                                                    "step-2",
+                                                    2,
+                                                    "Submit valid credentials",
+                                                    "Redirect to dashboard",
+                                                    description="Use qa.alpha with a valid password from the vault.",
+                                                    status="failed",
+                                                ),
+                                            ],
+                                        ),
+                                        _seed_run_result(
+                                            tc_api.id,
+                                            "blocked",
+                                            resolved_values={},
+                                            step_results=[{"stepId": "step-1", "status": "blocked"}],
+                                            expanded_steps_snapshot=[
+                                                _seed_step(
+                                                    "step-1",
+                                                    1,
+                                                    "Send invalid payload",
+                                                    "HTTP 400 with schema errors",
+                                                    status="blocked",
+                                                ),
+                                            ],
+                                        ),
+                                    ]
+                                ),
+                            },
+                        )
+                        previous_demo_run.created_by = user.id
+                        await artifact_repo.add(previous_demo_run)
 
                         seq_run2 = await project_repo.increment_artifact_seq(first_project[0].id)
                         blocked_tid = (
@@ -1635,32 +1855,115 @@ async def seed_demo_data(
                             artifact_key=f"{first_project[0].code}-{seq_run2}",
                             custom_fields={
                                 "environment": "staging",
-                                "run_metrics_json": json.dumps(
-                                    {
-                                        "v": 1,
-                                        "results": [
-                                            {
-                                                "testId": str(tc_api.id),
-                                                "status": "passed",
-                                                "stepResults": [],
-                                            },
-                                            {
-                                                "testId": str(tc_security.id),
-                                                "status": "failed",
-                                                "stepResults": [],
-                                            },
-                                            {
-                                                "testId": blocked_tid,
-                                                "status": "blocked",
-                                                "stepResults": [],
-                                            },
-                                        ],
-                                    }
+                                "run_metrics_json": _seed_run_metrics(
+                                    [
+                                        _seed_run_result(
+                                            tc_api.id,
+                                            "passed",
+                                            resolved_values={},
+                                            step_results=[{"stepId": "step-1", "status": "passed"}],
+                                        ),
+                                        _seed_run_result(
+                                            tc_security.id,
+                                            "failed",
+                                            resolved_values={},
+                                            step_results=[{"stepId": "step-1", "status": "failed"}],
+                                            expanded_steps_snapshot=[
+                                                _seed_step(
+                                                    "step-1",
+                                                    1,
+                                                    "Send 10 invalid login attempts",
+                                                    "Rate limit message is shown",
+                                                    status="failed",
+                                                ),
+                                            ],
+                                        ),
+                                        _seed_run_result(
+                                            uuid.UUID(blocked_tid),
+                                            "blocked",
+                                            resolved_values={},
+                                            step_results=[{"stepId": "step-1", "status": "blocked"}],
+                                            expanded_steps_snapshot=[
+                                                _seed_step(
+                                                    "step-1",
+                                                    1,
+                                                    "Execute test scenario",
+                                                    "Expected system behavior is observed",
+                                                    status="blocked",
+                                                ),
+                                            ],
+                                        ),
+                                    ]
                                 ),
                             },
                         )
                         failed_run.created_by = user.id
                         await artifact_repo.add(failed_run)
+
+                        seq_run3 = await project_repo.increment_artifact_seq(first_project[0].id)
+                        scale_run = ArtifactEntity(
+                            project_id=first_project[0].id,
+                            artifact_type="test-run",
+                            title="Release gate scale sweep",
+                            description="Scale-focused run with degraded outcomes to demonstrate campaign release gates.",
+                            state="failed",
+                            parent_id=suites_folder.id if suites_folder is not None else parent_suites_id,
+                            artifact_key=f"{first_project[0].code}-{seq_run3}",
+                            custom_fields={
+                                "environment": "production",
+                                "run_metrics_json": _seed_run_metrics(
+                                    [
+                                        _seed_run_result(
+                                            extra_test_cases[3].id if len(extra_test_cases) > 3 else tc_login.id,
+                                            "passed",
+                                            resolved_values={},
+                                            step_results=[{"stepId": "step-1", "status": "passed"}],
+                                            expanded_steps_snapshot=[
+                                                _seed_step(
+                                                    "step-1",
+                                                    1,
+                                                    "Execute test scenario",
+                                                    "Expected system behavior is observed",
+                                                    status="passed",
+                                                ),
+                                            ],
+                                        ),
+                                        _seed_run_result(
+                                            extra_test_cases[4].id if len(extra_test_cases) > 4 else tc_security.id,
+                                            "failed",
+                                            resolved_values={},
+                                            step_results=[{"stepId": "step-1", "status": "failed"}],
+                                            expanded_steps_snapshot=[
+                                                _seed_step(
+                                                    "step-1",
+                                                    1,
+                                                    "Execute test scenario",
+                                                    "Expected system behavior is observed",
+                                                    status="failed",
+                                                ),
+                                            ],
+                                        ),
+                                        _seed_run_result(
+                                            extra_test_cases[7].id if len(extra_test_cases) > 7 else tc_api.id,
+                                            "blocked",
+                                            resolved_values={},
+                                            step_results=[{"stepId": "step-1", "status": "blocked"}],
+                                            expanded_steps_snapshot=[
+                                                _seed_step(
+                                                    "step-1",
+                                                    1,
+                                                    "Execute test scenario",
+                                                    "Expected system behavior is observed",
+                                                    status="blocked",
+                                                ),
+                                            ],
+                                        ),
+                                    ]
+                                ),
+                            },
+                        )
+                        scale_run.created_by = user.id
+                        await artifact_repo.add(scale_run)
 
                         seq_camp = await project_repo.increment_artifact_seq(first_project[0].id)
                         demo_campaign = ArtifactEntity(
@@ -1673,7 +1976,19 @@ async def seed_demo_data(
                             artifact_key=f"{first_project[0].code}-{seq_camp}",
                             custom_fields={
                                 "target_environment": "staging",
-                                "campaign_config_json": '[{"suite":"Demo regression suite","order":1}]',
+                                "campaign_config_json": json.dumps(
+                                    [
+                                        {
+                                            "suite": "Demo regression suite",
+                                            "order": 1,
+                                            "entryCriteria": "smoke must pass",
+                                            "focusConfiguration": "cfg-login-staging",
+                                            "owner": "qa-team",
+                                            "exitCriteria": "all critical smoke tests passed",
+                                            "gatePolicy": "warn-on-failure",
+                                        }
+                                    ]
+                                ),
                             },
                         )
                         demo_campaign.created_by = user.id
@@ -1690,9 +2005,35 @@ async def seed_demo_data(
                             artifact_key=f"{first_project[0].code}-{seq_camp2}",
                             custom_fields={
                                 "target_environment": "production",
-                                "campaign_config_json": (
-                                    '[{"suite":"Demo regression suite","order":1},'
-                                    '{"suite":"API contract suite","order":2}]'
+                                "campaign_config_json": json.dumps(
+                                    [
+                                        {
+                                            "suite": "Demo regression suite",
+                                            "order": 1,
+                                            "entryCriteria": "staging smoke passed",
+                                            "focusConfiguration": "cfg-login-prod",
+                                            "owner": "release-qa",
+                                            "exitCriteria": "prod smoke stays green for 1 consecutive run",
+                                            "gatePolicy": "hard-gate",
+                                        },
+                                        {
+                                            "suite": "API contract suite",
+                                            "order": 2,
+                                            "entryCriteria": "schema baseline approved",
+                                            "owner": "qa-platform",
+                                            "exitCriteria": "no failed contract or auth checks",
+                                            "gatePolicy": "hard-gate",
+                                        },
+                                        {
+                                            "suite": "Scale and resilience suite",
+                                            "order": 3,
+                                            "entryCriteria": "regression and api suites completed",
+                                            "owner": "sre-oncall",
+                                            "exitCriteria": "no blocked resilience tests and <=1 tolerated perf failure",
+                                            "gatePolicy": "conditional-gate",
+                                            "releaseDecision": "hold-if-failed",
+                                        },
+                                    ]
                                 ),
                             },
                         )
@@ -1807,26 +2148,20 @@ async def seed_demo_data(
                                 custom_fields={
                                     "priority": "high",
                                     "automation": "manual",
-                                    "test_steps_json": json.dumps(
+                                    "test_steps_json": _seed_test_steps(
                                         [
-                                            {
-                                                "kind": "step",
-                                                "id": "u1",
-                                                "stepNumber": 1,
-                                                "name": "Register with a fresh mailbox",
-                                                "description": "",
-                                                "expectedResult": "Account pending verification state",
-                                                "status": "not-executed",
-                                            },
-                                            {
-                                                "kind": "step",
-                                                "id": "u2",
-                                                "stepNumber": 2,
-                                                "name": "Open verification link from email",
-                                                "description": "",
-                                                "expectedResult": "User lands in workspace home",
-                                                "status": "not-executed",
-                                            },
+                                            _seed_step(
+                                                "u1",
+                                                1,
+                                                "Register with a fresh mailbox",
+                                                "Account pending verification state",
+                                            ),
+                                            _seed_step(
+                                                "u2",
+                                                2,
+                                                "Open verification link from email",
+                                                "User lands in workspace home",
+                                            ),
                                         ]
                                     ),
                                 },
@@ -1969,6 +2304,24 @@ async def seed_demo_data(
                             link_type="verifies",
                         )
                     )
+                if tc_login is not None and req_audit is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=tc_login.id,
+                            to_artifact_id=req_audit.id,
+                            link_type="verifies",
+                        )
+                    )
+                if tc_composite is not None and req_mfa is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=tc_composite.id,
+                            to_artifact_id=req_mfa.id,
+                            link_type="verifies",
+                        )
+                    )
                 if tc_composite is not None:
                     await link_repo.add(
                         ArtifactLink.create(
@@ -2069,12 +2422,30 @@ async def seed_demo_data(
                             link_type="run_for_suite",
                         )
                     )
+                if previous_demo_run is not None and demo_suite is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=previous_demo_run.id,
+                            to_artifact_id=demo_suite.id,
+                            link_type="run_for_suite",
+                        )
+                    )
                 if failed_run is not None and api_suite is not None:
                     await link_repo.add(
                         ArtifactLink.create(
                             project_id=first_project[0].id,
                             from_artifact_id=failed_run.id,
                             to_artifact_id=api_suite.id,
+                            link_type="run_for_suite",
+                        )
+                    )
+                if scale_run is not None and scale_suite is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=scale_run.id,
+                            to_artifact_id=scale_suite.id,
                             link_type="run_for_suite",
                         )
                     )
@@ -2102,6 +2473,15 @@ async def seed_demo_data(
                             project_id=first_project[0].id,
                             from_artifact_id=release_campaign.id,
                             to_artifact_id=api_suite.id,
+                            link_type="campaign_includes_suite",
+                        )
+                    )
+                if release_campaign is not None and scale_suite is not None:
+                    await link_repo.add(
+                        ArtifactLink.create(
+                            project_id=first_project[0].id,
+                            from_artifact_id=release_campaign.id,
+                            to_artifact_id=scale_suite.id,
                             link_type="campaign_includes_suite",
                         )
                     )

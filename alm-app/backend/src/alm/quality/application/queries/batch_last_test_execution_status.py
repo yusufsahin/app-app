@@ -13,8 +13,12 @@ from alm.artifact_link.domain.ports import ArtifactLinkRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.quality.application.execution_linked_tests import linked_execution_test_ids_for_run
 from alm.quality.application.run_metrics_v1 import (
+    configuration_id_from_metrics_row,
+    configuration_name_from_metrics_row,
     metrics_row_for_test_id,
     normalize_execution_status,
+    step_attachment_ids_from_metrics_row,
+    step_defect_ids_from_metrics_row,
     step_statuses_from_metrics_row,
 )
 from alm.shared.application.query import Query, QueryHandler
@@ -34,12 +38,16 @@ class BatchLastTestExecutionStatus(Query):
     scope_suite_id: uuid.UUID | None = None
     """When set (and no narrower scope), only runs linked to suites under this campaign."""
     scope_campaign_id: uuid.UUID | None = None
+    """When set, only metrics rows for this configuration id are considered."""
+    scope_configuration_id: str | None = None
 
 
 @dataclass
 class LastExecutionStepStatusDTO:
     step_id: str
     status: str
+    linked_defect_ids: list[str] = field(default_factory=list)
+    attachment_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -49,6 +57,8 @@ class LastTestExecutionStatusDTO:
     run_id: uuid.UUID | None
     run_title: str | None
     run_updated_at: Any
+    configuration_id: str | None
+    configuration_name: str | None
     param_row_index: int | None
     step_results: list[LastExecutionStepStatusDTO] = field(default_factory=list)
 
@@ -142,6 +152,8 @@ class BatchLastTestExecutionStatusHandler(QueryHandler[list[LastTestExecutionSta
                     run_id=None,
                     run_title=None,
                     run_updated_at=None,
+                    configuration_id=None,
+                    configuration_name=None,
                     param_row_index=None,
                     step_results=[],
                 )
@@ -185,6 +197,8 @@ class BatchLastTestExecutionStatusHandler(QueryHandler[list[LastTestExecutionSta
                 run_id=None,
                 run_title=None,
                 run_updated_at=None,
+                configuration_id=None,
+                configuration_name=None,
                 param_row_index=None,
                 step_results=[],
             )
@@ -202,13 +216,22 @@ class BatchLastTestExecutionStatusHandler(QueryHandler[list[LastTestExecutionSta
                 if tid not in linked:
                     continue
                 row = metrics_row_for_test_id(cf, tid)
+                if query.scope_configuration_id is not None:
+                    row = metrics_row_for_test_id(cf, tid, query.scope_configuration_id)
                 if row is None:
                     continue
                 st = normalize_execution_status(row.get("status")) or "not-executed"
                 pri = row.get("paramRowIndex")
                 pidx: int | None = pri if isinstance(pri, int) else None
+                step_defects = step_defect_ids_from_metrics_row(row)
+                step_attachments = step_attachment_ids_from_metrics_row(row)
                 steps = [
-                    LastExecutionStepStatusDTO(step_id=sid, status=sst)
+                    LastExecutionStepStatusDTO(
+                        step_id=sid,
+                        status=sst,
+                        linked_defect_ids=step_defects.get(sid, []),
+                        attachment_ids=step_attachments.get(sid, []),
+                    )
                     for sid, sst in step_statuses_from_metrics_row(row)
                 ]
                 results[tid] = LastTestExecutionStatusDTO(
@@ -217,6 +240,8 @@ class BatchLastTestExecutionStatusHandler(QueryHandler[list[LastTestExecutionSta
                     run_id=rid,
                     run_title=art.title,
                     run_updated_at=art.updated_at,
+                    configuration_id=configuration_id_from_metrics_row(row),
+                    configuration_name=configuration_name_from_metrics_row(row),
                     param_row_index=pidx,
                     step_results=steps,
                 )

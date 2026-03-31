@@ -8,20 +8,42 @@ import {
 } from "./runMetrics";
 
 describe("runMetrics", () => {
-  it("round-trips v1 document", () => {
+  it("round-trips v2 document", () => {
     const results = [
       { testId: "t1", status: "not-executed" as const, stepResults: [{ stepId: "s1", status: "not-executed" as const }] },
     ];
     const s = stringifyRunMetricsPayload(results);
     const parsed = JSON.parse(s) as { v: number; results: unknown };
     expect(parsed.v).toBe(RUN_METRICS_VERSION);
-    expect(parseRunMetricsPayload(s)).toEqual(results);
+    expect(parseRunMetricsPayload(s)).toEqual([
+      {
+        ...results[0],
+        stepResults: [
+          {
+            ...results[0]!.stepResults[0],
+            linkedDefectIds: undefined,
+            attachmentIds: undefined,
+            attachmentNames: undefined,
+            lastEvidenceAt: null,
+            expectedResultSnapshot: undefined,
+            stepNameSnapshot: undefined,
+            stepNumber: undefined,
+          },
+        ],
+        configurationId: null,
+        configurationName: null,
+        configurationSnapshot: null,
+        resolvedValues: undefined,
+        paramRowIndex: null,
+        paramValuesUsed: undefined,
+      },
+    ]);
   });
 
-  it("rejects non-v1 shapes", () => {
+  it("rejects non-run-metrics shapes and accepts legacy v1/v2 documents", () => {
     expect(parseRunMetricsPayload(JSON.stringify([{ testId: "x", status: "passed", stepResults: [] }]))).toBeNull();
     expect(parseRunMetricsPayload(JSON.stringify({ testResults: { t1: { status: "failed", stepResults: [] } } }))).toBeNull();
-    expect(parseRunMetricsPayload(JSON.stringify({ v: 2, results: [] }))).toBeNull();
+    expect(parseRunMetricsPayload(JSON.stringify({ v: 2, results: [] }))).toEqual([]);
     expect(parseRunMetricsPayload(JSON.stringify({ v: 1 }))).toBeNull();
   });
 

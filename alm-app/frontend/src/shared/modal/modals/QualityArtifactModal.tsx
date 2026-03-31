@@ -12,6 +12,7 @@ import {
   normalizeTestParams,
   serializeTestParams,
   extractReferencedParamNamesFromPlan,
+  validateTestParams,
 } from "../../../features/quality/lib/testParams";
 import { emptyTestParamsDocument } from "../../../features/quality/lib/emptyTestParams";
 
@@ -75,6 +76,11 @@ export function QualityArtifactModal({
     return [...names].filter((n) => !defSet.has(n));
   }, [enableStepsEditor, steps, params.defs]);
 
+  const paramsValidation = useMemo(
+    () => (enableStepsEditor ? validateTestParams(params) : { hasErrors: false, paramErrors: [], rowErrors: [] }),
+    [enableStepsEditor, params],
+  );
+
   useEffect(() => {
     dirtyRef.current = isDirty;
   }, [isDirty]);
@@ -109,10 +115,11 @@ export function QualityArtifactModal({
   const isSaveDisabled = useMemo(() => {
     if (!title.trim()) return true;
     if (!enableStepsEditor) return false;
+    if (paramsValidation.hasErrors) return true;
     return steps.some((entry) =>
       isTestPlanCall(entry) ? !entry.calledTestCaseId.trim() : !entry.name.trim(),
     );
-  }, [enableStepsEditor, steps, title]);
+  }, [enableStepsEditor, paramsValidation.hasErrors, steps, title]);
 
   const handleSubmit = async () => {
     setSubmitError(null);

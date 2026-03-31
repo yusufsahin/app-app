@@ -34,6 +34,23 @@ def test_metrics_row_for_test_id():
     assert row["paramRowIndex"] == 2
 
 
+def test_metrics_row_for_test_id_filters_by_configuration_id():
+    tid = uuid.uuid4()
+    cf = {
+        "run_metrics_json": {
+            "v": 2,
+            "results": [
+                {"testId": str(tid), "status": "failed", "configurationId": "cfg-a", "stepResults": []},
+                {"testId": str(tid), "status": "passed", "configurationId": "cfg-b", "stepResults": []},
+            ],
+        }
+    }
+    row = metrics_row_for_test_id(cf, tid, "cfg-b")
+    assert row is not None
+    assert row["status"] == "passed"
+    assert row["configurationId"] == "cfg-b"
+
+
 def test_normalize_execution_status():
     assert normalize_execution_status("passed") == "passed"
     assert normalize_execution_status("bad") is None

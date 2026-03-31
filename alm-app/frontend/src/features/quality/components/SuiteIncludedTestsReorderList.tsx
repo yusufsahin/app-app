@@ -1,4 +1,4 @@
-import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { TouchBackend } from "react-dnd-touch-backend";
@@ -291,9 +291,9 @@ export function SuiteIncludedTestsReorderList({
   const { data: lastExecItems } = useLastExecutionStatusBatch(orgSlug, projectId, suiteTestIdsForLastExec);
   const lastExecById = useMemo(() => lastExecutionStatusMap(lastExecItems), [lastExecItems]);
 
-  if (orderRef.current.baseKey !== serverOrderKey) {
+  useEffect(() => {
     orderRef.current = { baseKey: serverOrderKey, ids: [...serverIds] };
-  }
+  }, [serverOrderKey, serverIds]);
 
   const localIds = localOrder?.baseKey === serverOrderKey ? localOrder.ids : null;
   const displayIds = localIds ?? serverIds;

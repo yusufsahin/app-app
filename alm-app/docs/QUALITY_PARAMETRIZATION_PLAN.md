@@ -21,21 +21,20 @@ Non-hedefler (ilk faz): otomasyon framework’e parametre aktarımı, bulk CSV i
 | Azure DevOps | Shared Parameters + test case’e bağlama; adımlarda @param benzeri kullanım |
 | HP ALM | Test instance / parametre seti (ürünümüzde “run anı seçimi” ile yaklaşılabilir) |
 
-## 3. Önerilen veri modeli
+## 3. Mevcut production-grade veri modeli
 
-### 3.1 Test case `custom_fields` (yeni alanlar)
+### 3.1 Test case `custom_fields`
 
-Öneri: `test_steps_json` dizisini bozmadan yanında ek alanlar.
+Tek authoritative alan:
 
-- **`test_param_defs_json`** (opsiyonel): parametre şeması  
-  - Örnek: `[{ "name": "username", "label": "Kullanıcı", "default": "demo@x.com" }]`  
-  - `name`: yer tutucu anahtarı (`${username}` ile eşleşir); `label`: UI; `default`: tek satırlık çalıştırmada varsayılan.
-
-- **`test_param_rows_json`** (opsiyonel): veri satırları (dataset)  
-  - Örnek: `[{ "username": "a@x.com", "amount": "100" }, { "username": "b@x.com", "amount": "200" }]`  
-  - Anahtarlar `test_param_defs_json` içindeki `name` ile uyumlu olmalı (validasyon).
-
-Alternatif (daha minimal): tek obje `test_params_json: { defs: [...], rows: [...] }` — tek PATCH ile güncellenir, tercih edilebilir.
+- **`test_params_json`**  
+  - Şekil: `{
+      "v": 2,
+      "defs": [{ "name": "...", "label": "...", "default": "...", "type": "string", "required": false, "allowedValues": [] }],
+      "rows": [{ "id": "cfg-...", "name": "staging_qa", "label": "Staging QA", "values": { ... }, "isDefault": true, "status": "active", "tags": [] }]
+    }`
+  - Ürün dili: her `row` bir **configuration** olarak gösterilir.
+  - `id` alanı reorder/delete sonrası geçmiş run görünümünü koruyan stable identity’dir.
 
 ### 3.2 Adım metinleri
 
@@ -54,26 +53,24 @@ Alternatif (daha minimal): tek obje `test_params_json: { defs: [...], rows: [...
 - **Eksik anahtar:**  
   - **Editör / önizleme:** uyarı rozeti + ham `${name}` bırak veya boş string — ürün kararı; öneri: ham bırak + sarı uyarı.  
   - **Execution save:** ya blokla (eksik parametreyle kaydetme) ya da kaydet ve `unresolvedPlaceholders` metadata — öneri: kayıt öncesi blokla.
-- **Fonksiyon:** `applyTestParams(template: string, values: Record<string, string>): string` — saf, test edilebilir modül (`frontend/src/features/quality/lib/`).
+- Çözümleme artık backend-owned olmalı; frontend yalnızca configuration seçimi ve sonuç görüntüleme yapar.
 
 ## 5. Call to Test ile etkileşim
 
-Genişletilmiş plan üretilirken (`expandTestPlan`):
+Genişletilmiş plan backend’de çözülür:
 
-1. **Kök** test case’in `defs + seçilen row` → üst seviye `values` map’i.
-2. Her **call** için: çağrılan artifact’tan `defs` ve (ileride) call satırına özel override okunabilir.  
-   - **Faz 1 önerisi:** Sadece **birleşik map**: çağıranın satır değerleri + çağrılanın default’ları; çakışmada **çağıran kazanır** (explicit).  
-   - **Faz 2:** Call satırında `paramOverrides?: Record<string, string>` (JSON’da `call` objesine opsiyonel alan).
-
-Çağrılan test case’in kendi `test_param_rows_json` içeriği, kök run’da otomatik seçilmez; kullanıcı tek “aktif satır” ile kökten beslenir (karmaşıklığı düşürür). İleride “nested row” istenirse ayrı iş kuralı yazılır.
+1. Kök test case’in default + seçilen configuration değerleri alınır.
+2. Her `call` satırında çağrılan testin default’ları ve `paramOverrides` uygulanır.
+3. Invalid override key, circular call ve eksik artifact durumları typed error üretir.
 
 ## 6. Execution (manuel run) ve kalıcılık
 
-- **Run başlatma / test seçimi:** Player, ilgili test case için `rows` varsa satır seçici (dropdown) gösterir; yoksa `defs` default’larından tek map üretir.
+- **Run başlatma / test seçimi:** Player, ilgili test case için configuration seçici (dropdown) gösterir; yoksa `defs` default’larından tek map üretir.
 - **Gösterim:** Adımlarda **çözülmüş** metin; isteğe bağlı “şablonu göster” toggle (QA için).
 - **`run_metrics_json`:**  
-  - Mevcut `expandedStepsSnapshot` gibi, koşu anı için **`resolvedStepsSnapshot`** veya mevcut snapshot içinde adımların zaten çözülmüş halinin yazılması (genişletme + parametre uygulama sırası: önce call expand, sonra tek pass’ta `${}` replace).  
-  - Ek metadata (opsiyonel): `paramRowIndex`, `paramValuesUsed: Record<string, string>` — raporlama ve replay.
+  - Güncel payload `v: 2` altında configuration-aware çalışır.
+  - Her result için `configurationId`, `configurationName`, `configurationSnapshot`, `resolvedValues`, `expandedStepsSnapshot` saklanır.
+  - Legacy `paramRowIndex` ve `paramValuesUsed` yalnızca read-compat amaçlı düşünülebilir.
 
 ## 7. UI kapsamı
 
@@ -90,23 +87,13 @@ Genişletilmiş plan üretilirken (`expandTestPlan`):
 - İstenirse: artifact PATCH validasyonu — `test_param_defs_json` / `test_param_rows_json` şema kontrolü (Pydantic) ve `name` benzersizliği.
 - Arama/indeks: ilk fazda gerek yok.
 
-## 9. Uygulama fazları
+## 9. Uygulanan yön
 
-**Faz A — Çekirdek**
-
-- `test_params_json` (veya ayrı iki alan) tipi + parse/normalize + artifact modal’da defs + tek satır (rows olmadan sadece default’lar).
-- `applyTestParams` + unit testler.
-- Player’da çözülmüş adımlar; run kaydında çözülmüş snapshot.
-
-**Faz B — Dataset**
-
-- `rows` CRUD UI; satır seçimi player’da.
-- Eksik anahtar validasyonu ve kayıt metadata’sı.
-
-**Faz C — Call to Test entegrasyonu**
-
-- `expandTestPlan` sonrası veya expand içinde parametre map’inin iletilmesi; çakışma kuralı (çağıran öncelikli).
-- Opsiyonel: `call` satırında `paramOverrides`.
+- V2 `test_params_json` schema
+- stable configuration IDs
+- backend execution resolution endpoint
+- V2 `run_metrics_json`
+- configuration-first UI terminology
 
 ## 10. Geriye dönük uyumluluk
 

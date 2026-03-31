@@ -9,6 +9,7 @@ from alm.orgs.api.routes_comments_artifact_linked import router as _r3
 from alm.orgs.api.routes_capacity_p7 import router as _r17
 from alm.orgs.api.routes_cycle_nodes_planning_tree_pamera_iterationnode_like import router as _r8
 from alm.orgs.api.routes_dashboard import router as _r12
+from alm.orgs.api.routes_quality_execution_resolve import router as _r19
 from alm.orgs.api.routes_members import router as _r13
 from alm.orgs.api.routes_org_tenant import router as _r0
 from alm.orgs.api.routes_project_tags import router as _r15
@@ -47,3 +48,4 @@ router.include_router(_r14)
 router.include_router(_r16)
 router.include_router(_r17)
 router.include_router(_r18)
+router.include_router(_r19)

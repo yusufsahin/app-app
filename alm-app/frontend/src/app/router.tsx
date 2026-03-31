@@ -68,6 +68,9 @@ const ArtifactsPage = lazy(
 const RequirementsCoveragePage = lazy(
   () => import("../features/artifacts/pages/RequirementsCoveragePage"),
 );
+const RequirementTraceabilityMatrixPage = lazy(
+  () => import("../features/artifacts/pages/RequirementTraceabilityMatrixPage"),
+);
 const PlanningPage = lazy(
   () => import("../features/planning/pages/PlanningPage"),
 );
@@ -211,6 +214,10 @@ export const router = createBrowserRouter([
           {
             path: ":projectSlug/requirements/coverage",
             element: withPermission("artifact:read", RequirementsCoveragePage),
+          },
+          {
+            path: ":projectSlug/requirements/traceability",
+            element: withPermission("artifact:read", RequirementTraceabilityMatrixPage),
           },
           {
             path: ":projectSlug/quality/traceability",

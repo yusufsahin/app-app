@@ -60,6 +60,27 @@ export function QualityRunOverviewBody({
   const action = getPrimaryActionForRunState(run.state);
 
   const results = useMemo(() => parseRunMetricsPayload(cf?.run_metrics_json) ?? [], [cf?.run_metrics_json]);
+  const evidenceSummary = useMemo(() => {
+    let stepsWithDefects = 0;
+    let totalDefects = 0;
+    let stepsWithEvidence = 0;
+    let totalEvidence = 0;
+    for (const row of results) {
+      for (const step of row.stepResults) {
+        const defectCount = step.linkedDefectIds?.length ?? 0;
+        const evidenceCount = step.attachmentIds?.length ?? 0;
+        if (defectCount > 0) {
+          stepsWithDefects += 1;
+          totalDefects += defectCount;
+        }
+        if (evidenceCount > 0) {
+          stepsWithEvidence += 1;
+          totalEvidence += evidenceCount;
+        }
+      }
+    }
+    return { stepsWithDefects, totalDefects, stepsWithEvidence, totalEvidence };
+  }, [results]);
 
   const linksQuery = useArtifactLinks(orgSlug, projectId, runArtifactId);
   const attachmentsQuery = useAttachments(orgSlug, projectId, runArtifactId);
@@ -108,6 +129,22 @@ export function QualityRunOverviewBody({
             <div className="rounded-md border px-3 py-2">{t("runsHub.modalBlocked", { count: summary.blocked })}</div>
             <div className="rounded-md border px-3 py-2">{t("runsHub.modalNotRun", { count: summary.notExecuted })}</div>
           </div>
+          {evidenceSummary.totalDefects > 0 || evidenceSummary.totalEvidence > 0 ? (
+            <div className="grid gap-2 text-sm sm:grid-cols-2">
+              <div className="rounded-md border px-3 py-2">
+                {t("runsHub.overviewStepDefectSummary", {
+                  steps: evidenceSummary.stepsWithDefects,
+                  defects: evidenceSummary.totalDefects,
+                })}
+              </div>
+              <div className="rounded-md border px-3 py-2">
+                {t("runsHub.overviewStepEvidenceSummary", {
+                  steps: evidenceSummary.stepsWithEvidence,
+                  evidence: evidenceSummary.totalEvidence,
+                })}
+              </div>
+            </div>
+          ) : null}
           <RunPreviousCompareSection
             orgSlug={orgSlug}
             projectSlug={projectSlug}
@@ -198,16 +235,32 @@ export function QualityRunOverviewBody({
           <p className="text-sm text-muted-foreground">{t("runsHub.overviewAttachmentsEmpty")}</p>
         ) : (
           <ul className="space-y-2 text-sm">
-            {attachmentsQuery.data.map((att) => (
-              <li key={att.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2">
-                <span className="min-w-0 truncate" title={att.file_name}>
-                  {att.file_name}
-                </span>
-                <Button type="button" size="sm" variant="outline" onClick={() => void onDownload(att.id, att.file_name)}>
-                  {t("runsHub.overviewDownload")}
-                </Button>
-              </li>
-            ))}
+            {attachmentsQuery.data.map((att) => {
+              const referencedBySteps = results.flatMap((row) =>
+                row.stepResults
+                  .filter((step) => step.attachmentIds?.includes(att.id))
+                  .map((step) => step.stepNumber ?? step.stepId),
+              );
+              return (
+                <li key={att.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2">
+                  <span className="min-w-0 truncate" title={att.file_name}>
+                    {att.file_name}
+                  </span>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {referencedBySteps.length > 0 ? (
+                      <Badge variant="outline">
+                        {t("runsHub.overviewAttachmentReferencedBy", {
+                          steps: referencedBySteps.join(", "),
+                        })}
+                      </Badge>
+                    ) : null}
+                    <Button type="button" size="sm" variant="outline" onClick={() => void onDownload(att.id, att.file_name)}>
+                      {t("runsHub.overviewDownload")}
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </TabsContent>
@@ -276,9 +329,9 @@ function RunResultStepsSection({ row, index }: { row: TestExecutionResultRow; in
     <div className="rounded-lg border border-border/80">
       <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
         {t("runsHub.overviewTestResultHeading", { index: index + 1, status: row.status })}
-        {row.paramRowIndex != null ? (
+        {row.configurationName ? (
           <span className="ml-2 text-xs font-normal text-muted-foreground">
-            {t("runsHub.overviewParamRow", { row: row.paramRowIndex })}
+            {t("runsHub.overviewConfigurationName", { name: row.configurationName })}
           </span>
         ) : null}
       </div>
@@ -295,7 +348,10 @@ function RunResultStepsSection({ row, index }: { row: TestExecutionResultRow; in
 
 function ParametersOverview({ results }: { results: TestExecutionResultRow[] }) {
   const { t } = useTranslation("quality");
-  const rowsWithParams = results.filter((r) => r.paramValuesUsed && Object.keys(r.paramValuesUsed).length > 0);
+  const rowsWithParams = results.filter((r) => {
+    const values = r.resolvedValues ?? r.paramValuesUsed;
+    return values && Object.keys(values).length > 0;
+  });
   if (rowsWithParams.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("runsHub.overviewParamsEmpty")}</p>;
   }
@@ -305,9 +361,14 @@ function ParametersOverview({ results }: { results: TestExecutionResultRow[] }) 
         <div key={`${r.testId}-params-${idx}`} className="rounded-md border">
           <div className="border-b bg-muted/30 px-3 py-2 text-xs font-medium">
             {t("runsHub.overviewParamsForTest", { index: idx + 1 })}
+            {r.configurationName ? (
+              <span className="ml-2 text-muted-foreground">
+                {t("runsHub.overviewConfigurationName", { name: r.configurationName })}
+              </span>
+            ) : null}
           </div>
           <dl className="grid gap-2 p-3 text-sm sm:grid-cols-2">
-            {Object.entries(r.paramValuesUsed!).map(([k, v]) => (
+            {Object.entries(r.resolvedValues ?? r.paramValuesUsed ?? {}).map(([k, v]) => (
               <div key={k}>
                 <dt className="text-xs text-muted-foreground">{k}</dt>
                 <dd className="font-mono text-xs break-all">{v}</dd>

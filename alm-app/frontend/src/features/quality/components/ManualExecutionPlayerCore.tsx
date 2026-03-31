@@ -30,9 +30,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../shared/components/ui/select";
-import { useArtifact, useUpdateArtifact, useArtifacts, type Artifact } from "../../../shared/api/artifactApi";
+import { useArtifact, useUpdateArtifact, useArtifacts } from "../../../shared/api/artifactApi";
 import { sortOutgoingSuiteLinks, useArtifactLinks } from "../../../shared/api/artifactLinkApi";
-import { apiClient } from "../../../shared/api/client";
+import {
+  resolveExecutionConfig,
+  type ResolvedExecutionConfigResponse,
+} from "../../../shared/api/qualityExecutionConfigApi";
 import { ExecutionStepList } from "./ExecutionStepList";
 import type { TestStep, StepResult } from "../types";
 import {
@@ -41,15 +44,7 @@ import {
   type TestExecutionResultRow,
 } from "../lib/runMetrics";
 import { parseTestSteps } from "../lib/testSteps";
-import { parseTestPlan, expandTestPlan, collectCallParamOverridesPreorder } from "../lib/testPlan";
-import {
-  parseTestParams,
-  buildParamValuesMap,
-  applyTestParamsToSteps,
-  listUnresolvedInSteps,
-  defaultsFromDefs,
-  rowLabelForIndex,
-} from "../lib/testParams";
+import { parseTestParams, rowLabelForIndex } from "../lib/testParams";
 import { toast } from "sonner";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { hasPermission } from "../../../shared/utils/permissions";
@@ -57,7 +52,26 @@ import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { qualityRunExecuteAbsoluteUrl } from "../lib/qualityRunPaths";
 import { buildBugReportMarkdown } from "../lib/bugReportMarkdown";
 import { findRootDefectId, pickDefectArtifactType } from "../lib/defectManifestHelpers";
-import { CreateDefectFromExecutionDialog } from "./CreateDefectFromExecutionDialog";
+import {
+  CreateDefectFromExecutionDialog,
+  type DefectCreatedPayload,
+} from "./CreateDefectFromExecutionDialog";
+
+function mergeUniqueStrings(...values: Array<string[] | undefined>): string[] | undefined {
+  const merged = values.flatMap((items) => items ?? []).filter((item) => item.length > 0);
+  if (merged.length === 0) return undefined;
+  return Array.from(new Set(merged));
+}
+
+function buildStepResultFromStep(step: TestStep): StepResult {
+  return {
+    stepId: String(step.id),
+    status: "not-executed",
+    expectedResultSnapshot: step.expectedResult,
+    stepNameSnapshot: step.name,
+    stepNumber: step.stepNumber,
+  };
+}
 
 function mergeSavedExecution(
   saved: TestExecutionResultRow | undefined,
@@ -66,8 +80,12 @@ function mergeSavedExecution(
 ): TestExecutionResultRow {
   const carryParams = (base: TestExecutionResultRow): TestExecutionResultRow => ({
     ...base,
+    configurationId: saved?.configurationId ?? null,
+    configurationName: saved?.configurationName ?? null,
+    configurationSnapshot: saved?.configurationSnapshot ?? null,
+    resolvedValues: saved?.resolvedValues ?? saved?.paramValuesUsed,
     paramRowIndex: saved?.paramRowIndex,
-    paramValuesUsed: saved?.paramValuesUsed,
+    paramValuesUsed: saved?.paramValuesUsed ?? saved?.resolvedValues,
   });
 
   if (expanded.length === 0 && saved) {
@@ -77,10 +95,7 @@ function mergeSavedExecution(
     return {
       testId,
       status: "not-executed",
-      stepResults: expanded.map((step) => ({
-        stepId: String(step.id),
-        status: "not-executed" as const,
-      })),
+      stepResults: expanded.map((step) => buildStepResultFromStep(step)),
       expandedStepsSnapshot: expanded,
     };
   }
@@ -101,10 +116,7 @@ function mergeSavedExecution(
   return carryParams({
     testId,
     status: "not-executed",
-    stepResults: expanded.map((step) => ({
-      stepId: String(step.id),
-      status: "not-executed" as const,
-    })),
+    stepResults: expanded.map((step) => buildStepResultFromStep(step)),
     expandedStepsSnapshot: expanded,
   });
 }
@@ -217,17 +229,8 @@ export function ManualExecutionPlayerCore({
   // Local state for the execution session
   const [currentTestIndex, setCurrentTestIndex] = useState(0);
   const [testExecutionResults, setTestExecutionResults] = useState<TestExecutionResultRow[]>([]);
-  /** Expanded plan (Call-to-Test) without ${} substitution. */
-  const [templateStepsByTestId, setTemplateStepsByTestId] = useState<Record<string, TestStep[]>>({});
-  /** Callee `defs[].default` merged during expand (per root test). */
-  const [calleeDefaultParamsByTestId, setCalleeDefaultParamsByTestId] = useState<
-    Record<string, Record<string, string>>
-  >({});
-  /** Preorder-merged `paramOverrides` from all `call` rows in the plan (and nested callees). */
-  const [callParamOverridesByTestId, setCallParamOverridesByTestId] = useState<
-    Record<string, Record<string, string>>
-  >({});
-  const [selectedParamRowByTestId, setSelectedParamRowByTestId] = useState<Record<string, number | null>>({});
+  const [resolvedConfigByTestId, setResolvedConfigByTestId] = useState<Record<string, ResolvedExecutionConfigResponse>>({});
+  const [selectedConfigurationIdByTestId, setSelectedConfigurationIdByTestId] = useState<Record<string, string | null>>({});
   const [isInitialized, setIsInitialized] = useState(false);
   const [defectDialog, setDefectDialog] = useState<{
     step: TestStep;
@@ -259,136 +262,33 @@ export function ManualExecutionPlayerCore({
       .filter((t): t is NonNullable<typeof t> => t !== undefined);
   }, [linkedTestIds, testsById]);
 
-  const getMergedParamMapForTest = useCallback(
-    (test: Artifact) => {
-      const doc = parseTestParams(test.custom_fields?.test_params_json);
-      const idx = selectedParamRowByTestId[test.id] ?? null;
-      const rootMap = buildParamValuesMap(doc, idx);
-      const callee = calleeDefaultParamsByTestId[test.id] ?? {};
-      const callOv = callParamOverridesByTestId[test.id] ?? {};
-      return { ...callee, ...callOv, ...rootMap };
-    },
-    [selectedParamRowByTestId, calleeDefaultParamsByTestId, callParamOverridesByTestId],
-  );
-
-  const getResolvedStepsForTest = useCallback(
-    (test: Artifact) => {
-      const tid = test.id;
-      const tmpl = templateStepsByTestId[tid] ?? [];
-      if (!tmpl.length) return parseTestSteps(test.custom_fields?.test_steps_json);
-      const doc = parseTestParams(test.custom_fields?.test_params_json);
-      if (!doc?.defs?.length) return tmpl;
-      return applyTestParamsToSteps(tmpl, getMergedParamMapForTest(test));
-    },
-    [templateStepsByTestId, getMergedParamMapForTest],
-  );
-
-  // Initialize results from run (expand Call-to-Test, merge saved metrics)
+  // Initialize results from run and select a stable configuration id when available.
   useEffect(() => {
     if (!run || isInitialized) return;
     if (runLoading || linksLoading || testsLoading) return;
     if (suiteId && suiteLinksLoading) return;
-
-    let cancelled = false;
-
-    (async () => {
-      const rawCalleeCache = new Map<string, Artifact | null>();
-      const calleeAccumByRoot: Record<string, Record<string, string>> = {};
-
-      const loadCalleeSteps = async (testCaseId: string, rootId: string): Promise<unknown | null> => {
-        const cacheKey = `${rootId}:${testCaseId}`;
-        if (rawCalleeCache.has(cacheKey)) {
-          const art = rawCalleeCache.get(cacheKey);
-          return art
-            ? ((art.custom_fields as Record<string, unknown> | undefined)?.test_steps_json ?? [])
-            : null;
-        }
-        try {
-          const { data } = await apiClient.get<Artifact>(
-            `/orgs/${orgSlug}/projects/${projectSlug}/artifacts/${testCaseId}`,
-          );
-          rawCalleeCache.set(cacheKey, data);
-          const tp = parseTestParams(
-            (data.custom_fields as Record<string, unknown> | undefined)?.test_params_json,
-          );
-          if (tp?.defs?.length) {
-            calleeAccumByRoot[rootId] = {
-              ...(calleeAccumByRoot[rootId] ?? {}),
-              ...defaultsFromDefs(tp.defs),
-            };
-          }
-          return (data.custom_fields as Record<string, unknown> | undefined)?.test_steps_json ?? [];
-        } catch {
-          rawCalleeCache.set(cacheKey, null);
-          return null;
-        }
-      };
-
-      const expandedMap: Record<string, TestStep[]> = {};
-      const callOverridesMap: Record<string, Record<string, string>> = {};
-      const rowSelection: Record<string, number | null> = {};
-
-      for (const test of activeTests) {
-        calleeAccumByRoot[test.id] = { ...(calleeAccumByRoot[test.id] ?? {}) };
-        const plan = parseTestPlan(test.custom_fields?.test_steps_json);
-        const loadForRoot = (id: string) => loadCalleeSteps(id, test.id);
-        const { steps, error } = await expandTestPlan(plan, loadForRoot, { rootTestId: test.id });
-        if (cancelled) return;
-        if (error) {
-          toast.error(`${test.title ?? "Test"}: ${error}`);
-          expandedMap[test.id] = parseTestSteps(test.custom_fields?.test_steps_json);
-          callOverridesMap[test.id] = {};
-        } else {
-          expandedMap[test.id] = steps;
-          callOverridesMap[test.id] = await collectCallParamOverridesPreorder(plan, loadForRoot, {
-            rootTestId: test.id,
-          });
-        }
-      }
-
-      if (cancelled) return;
-
-      const saved = parseRunMetricsPayload(run.custom_fields?.run_metrics_json);
-      let initialResults: TestExecutionResultRow[] = [];
-
-      if (activeTests.length > 0) {
-        initialResults = activeTests.map((test) => {
-          const expanded = expandedMap[test.id] ?? [];
-          const savedRow = saved?.find((s) => s.testId === test.id);
-          const doc = parseTestParams(test.custom_fields?.test_params_json);
-          if (doc?.rows && doc.rows.length > 0) {
-            const rawIdx = savedRow?.paramRowIndex;
-            const idx =
-              typeof rawIdx === "number" && rawIdx >= 0 && rawIdx < doc.rows.length
-                ? rawIdx
-                : 0;
-            rowSelection[test.id] = idx;
-          } else {
-            rowSelection[test.id] = null;
-          }
-          return mergeSavedExecution(savedRow, test.id, expanded);
-        });
-      } else if (saved && saved.length > 0) {
-        initialResults = saved;
-      }
-
-      const calleeMap: Record<string, Record<string, string>> = {};
-      for (const test of activeTests) {
-        calleeMap[test.id] = calleeAccumByRoot[test.id] ?? {};
-      }
-
-      setCalleeDefaultParamsByTestId(calleeMap);
-      setCallParamOverridesByTestId(callOverridesMap);
-      setSelectedParamRowByTestId(rowSelection);
-      setTemplateStepsByTestId(expandedMap);
+    const saved = parseRunMetricsPayload(run.custom_fields?.run_metrics_json);
+    const selections: Record<string, string | null> = {};
+    const initialResults =
+      activeTests.length > 0
+        ? activeTests.map((test) => {
+            const savedRow = saved?.find((s) => s.testId === test.id);
+            const doc = parseTestParams(test.custom_fields?.test_params_json);
+            const defaultConfigId =
+              savedRow?.configurationId ??
+              doc?.rows?.find((row) => row.isDefault)?.id ??
+              doc?.rows?.[0]?.id ??
+              null;
+            selections[test.id] = defaultConfigId;
+            return mergeSavedExecution(savedRow, test.id, parseTestSteps(test.custom_fields?.test_steps_json));
+          })
+        : (saved ?? []);
+    queueMicrotask(() => {
+      setSelectedConfigurationIdByTestId(selections);
       setTestExecutionResults(initialResults);
       setCurrentTestIndex(0);
       setIsInitialized(true);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    });
   }, [
     run,
     runLoading,
@@ -398,8 +298,6 @@ export function ManualExecutionPlayerCore({
     suiteLinksLoading,
     activeTests,
     isInitialized,
-    orgSlug,
-    projectSlug,
   ]);
 
   const resolvedTestIndex = useMemo(() => {
@@ -411,22 +309,67 @@ export function ManualExecutionPlayerCore({
 
   const currentResult = testExecutionResults[resolvedTestIndex];
   const currentTest = activeTests.find((t) => t.id === currentResult?.testId);
-
-  const currentTestSteps = currentTest ? getResolvedStepsForTest(currentTest) : [];
+  const currentTestId = currentTest?.id ?? null;
+  const currentResolvedConfig = currentTest ? resolvedConfigByTestId[currentTest.id] : undefined;
+  const currentResolvedSteps = currentResolvedConfig?.steps ?? null;
+  const currentTestStepsJson = currentTest?.custom_fields?.test_steps_json;
+  const currentTestStepsKey =
+    typeof currentTestStepsJson === "string"
+      ? currentTestStepsJson
+      : JSON.stringify(currentTestStepsJson ?? null);
+  const currentTestSteps = currentResolvedSteps?.length
+    ? currentResolvedSteps.map((step) => ({
+        id: step.id,
+        stepNumber: step.step_number,
+        name: step.name,
+        description: step.description,
+        expectedResult: step.expected_result,
+        status: step.status,
+      }))
+    : currentTestStepsJson
+      ? parseTestSteps(currentTestStepsJson)
+      : [];
 
   const currentParamDoc = currentTest
     ? parseTestParams(currentTest.custom_fields?.test_params_json)
     : null;
 
   useEffect(() => {
+    if (!isInitialized || !currentTestId) return;
+    let cancelled = false;
+    void resolveExecutionConfig(
+      orgSlug,
+      projectSlug,
+      runId,
+      currentTestId,
+      selectedConfigurationIdByTestId[currentTestId] ?? null,
+    )
+      .then((resolved) => {
+        if (cancelled) return;
+        setResolvedConfigByTestId((prev) => ({ ...prev, [currentTestId]: resolved }));
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const detail =
+          (error as { body?: { detail?: string }; detail?: string; message?: string })?.body?.detail ??
+          (error as { detail?: string; message?: string })?.detail ??
+          (error as { message?: string })?.message ??
+          "Could not resolve execution configuration.";
+        toast.error(detail);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isInitialized, currentTestId, orgSlug, projectSlug, runId, selectedConfigurationIdByTestId]);
+
+  useEffect(() => {
     if (!isInitialized || appliedTestDeepLink.current) return;
     let tid = deepLinkTestId?.trim();
     const sid = deepLinkStepId?.trim();
     if (!tid && sid) {
-      for (const test of activeTests) {
-        const steps = getResolvedStepsForTest(test);
-        if (steps.some((s) => String(s.id) === sid)) {
-          tid = test.id;
+      for (const [testId, resolved] of Object.entries(resolvedConfigByTestId)) {
+        if (resolved.steps.some((s) => String(s.id) === sid)) {
+          tid = testId;
           break;
         }
       }
@@ -439,7 +382,9 @@ export function ManualExecutionPlayerCore({
     if (idx < 0) {
       toast.error(t("execution.deepLinkInvalidTest"));
     } else {
-      setCurrentTestIndex(idx);
+      queueMicrotask(() => {
+        setCurrentTestIndex(idx);
+      });
     }
     appliedTestDeepLink.current = true;
   }, [
@@ -448,15 +393,27 @@ export function ManualExecutionPlayerCore({
     deepLinkStepId,
     activeTests,
     testExecutionResults,
-    getResolvedStepsForTest,
+    resolvedConfigByTestId,
     t,
   ]);
 
   useEffect(() => {
     const sid = deepLinkStepId?.trim();
-    if (!sid || !isInitialized || !currentTest) return;
-    if (deepLinkTestId?.trim() && currentTest.id !== deepLinkTestId.trim()) return;
-    const exists = currentTestSteps.some((s) => String(s.id) === sid);
+    if (!sid || !isInitialized || !currentTestId) return;
+    if (deepLinkTestId?.trim() && currentTestId !== deepLinkTestId.trim()) return;
+    const effectSteps = currentResolvedSteps?.length
+      ? currentResolvedSteps.map((step) => ({
+          id: step.id,
+          stepNumber: step.step_number,
+          name: step.name,
+          description: step.description,
+          expectedResult: step.expected_result,
+          status: step.status,
+        }))
+      : currentTestStepsJson
+        ? parseTestSteps(currentTestStepsJson)
+        : [];
+    const exists = effectSteps.some((s) => String(s.id) === sid);
     if (!exists) {
       if (!deepLinkStepInvalidToastRef.current) {
         deepLinkStepInvalidToastRef.current = true;
@@ -474,9 +431,18 @@ export function ManualExecutionPlayerCore({
       });
     }, 150);
     return () => clearTimeout(tmr);
-  }, [isInitialized, currentTest?.id, deepLinkStepId, deepLinkTestId, currentTestSteps, t]);
+  }, [
+    isInitialized,
+    currentTestId,
+    deepLinkStepId,
+    deepLinkTestId,
+    currentResolvedSteps,
+    currentTestStepsJson,
+    currentTestStepsKey,
+    t,
+  ]);
 
-  const defectFormDefaults = useMemo(() => {
+  const defectFormDefaults = (() => {
     if (!defectDialog || !currentTest || !run) return null;
     return {
       title: `${run.title ?? "Run"} — Step ${defectDialog.step.stepNumber}`,
@@ -487,7 +453,7 @@ export function ManualExecutionPlayerCore({
         stepResult: defectDialog.stepResult,
       }),
     };
-  }, [defectDialog, currentTest, run]);
+  })();
 
   // Handlers
   const handleStepUpdate = (
@@ -512,6 +478,19 @@ export function ManualExecutionPlayerCore({
         status: updatedStatus,
         actualResult: actualResult !== undefined ? actualResult : existing.actualResult,
         notes: notes !== undefined ? notes : existing.notes,
+        linkedDefectIds: existing.linkedDefectIds,
+        attachmentIds: existing.attachmentIds,
+        attachmentNames: existing.attachmentNames,
+        lastEvidenceAt: existing.lastEvidenceAt ?? null,
+        expectedResultSnapshot:
+          existing.expectedResultSnapshot ??
+          currentTestSteps.find((step) => String(step.id) === stepId)?.expectedResult,
+        stepNameSnapshot:
+          existing.stepNameSnapshot ??
+          currentTestSteps.find((step) => String(step.id) === stepId)?.name,
+        stepNumber:
+          existing.stepNumber ??
+          currentTestSteps.find((step) => String(step.id) === stepId)?.stepNumber,
       };
 
       testResult.stepResults[stepResultIndex] = updatedStepResult;
@@ -532,6 +511,61 @@ export function ManualExecutionPlayerCore({
     }
   };
 
+  const handleDefectCreated = useCallback(
+    (payload: DefectCreatedPayload) => {
+      if (!defectDialog) return;
+      let nextResults: TestExecutionResultRow[] = [];
+      setTestExecutionResults((prev) => {
+        nextResults = prev.map((row, rowIndex) => {
+          if (rowIndex !== resolvedTestIndex) return row;
+          return {
+            ...row,
+            stepResults: row.stepResults.map((stepResult) => {
+              if (stepResult.stepId !== String(defectDialog.step.id)) return stepResult;
+              return {
+                ...stepResult,
+                status: payload.executionContext.step_status === "blocked" ? "blocked" : "failed",
+                linkedDefectIds: mergeUniqueStrings(stepResult.linkedDefectIds, [payload.defectId]),
+                attachmentIds: mergeUniqueStrings(stepResult.attachmentIds, payload.runAttachmentIds),
+                attachmentNames: mergeUniqueStrings(stepResult.attachmentNames, payload.runAttachmentNames),
+                lastEvidenceAt:
+                  payload.runAttachmentIds.length > 0 ? new Date().toISOString() : stepResult.lastEvidenceAt ?? null,
+                expectedResultSnapshot:
+                  stepResult.expectedResultSnapshot ?? defectDialog.step.expectedResult,
+                stepNameSnapshot: stepResult.stepNameSnapshot ?? defectDialog.step.name,
+                stepNumber: stepResult.stepNumber ?? defectDialog.step.stepNumber,
+              };
+            }),
+          };
+        });
+        return nextResults;
+      });
+      if (run && nextResults.length > 0) {
+        void updateRunMutation.mutateAsync({
+          custom_fields: {
+            ...run.custom_fields,
+            run_metrics_json: stringifyRunMetricsPayload(nextResults),
+          },
+        });
+      }
+      void queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectSlug, "artifacts", runId, "attachments"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectSlug, "artifacts", runId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectSlug, "artifacts"],
+      });
+      toast.success(
+        t("execution.defect.runnerLinkedSuccess", {
+          step: defectDialog.step.stepNumber,
+        }),
+      );
+    },
+    [defectDialog, orgSlug, projectSlug, queryClient, resolvedTestIndex, run, runId, t, updateRunMutation],
+  );
+
   const handleCopyBugReport = (step: TestStep, stepResult: StepResult) => {
     if (!currentTest || !run) return;
     const md = buildBugReportMarkdown({
@@ -544,14 +578,14 @@ export function ManualExecutionPlayerCore({
     toast.success(t("execution.bugReportCopied", { step: step.stepNumber }));
   };
 
-  const handleCopyExecuteLink = useCallback(() => {
+  const handleCopyExecuteLink = () => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const url = qualityRunExecuteAbsoluteUrl(origin, orgSlug, executePathProjectSlug, runId, {
-      test: currentTest?.id,
+      test: currentTestId ?? undefined,
     });
     void navigator.clipboard.writeText(url);
     toast.success(t("execution.linkCopied"));
-  }, [orgSlug, executePathProjectSlug, runId, currentTest?.id, t]);
+  };
 
   const handlePassAllSteps = () => {
     if (!currentResult) return;
@@ -560,7 +594,7 @@ export function ManualExecutionPlayerCore({
       return;
     }
 
-    const steps = getResolvedStepsForTest(currentTest);
+    const steps = currentTestSteps;
 
     const updatedStepResults = steps.map((step) => {
       const existing = currentResult.stepResults.find((r) => r.stepId === String(step.id));
@@ -569,6 +603,13 @@ export function ManualExecutionPlayerCore({
         status: "passed" as const,
         actualResult: existing?.actualResult || "As expected",
         notes: existing?.notes || "",
+        linkedDefectIds: existing?.linkedDefectIds,
+        attachmentIds: existing?.attachmentIds,
+        attachmentNames: existing?.attachmentNames,
+        lastEvidenceAt: existing?.lastEvidenceAt ?? null,
+        expectedResultSnapshot: existing?.expectedResultSnapshot ?? step.expectedResult,
+        stepNameSnapshot: existing?.stepNameSnapshot ?? step.name,
+        stepNumber: existing?.stepNumber ?? step.stepNumber,
       };
     });
 
@@ -585,39 +626,47 @@ export function ManualExecutionPlayerCore({
   const handleSaveAndExit = async () => {
     if (!run) return;
 
-    for (const r of testExecutionResults) {
-      const test = activeTests.find((x) => x.id === r.testId);
-      if (!test) continue;
-      const doc = parseTestParams(test.custom_fields?.test_params_json);
-      if (!doc?.defs?.length) continue;
-      const tmpl = templateStepsByTestId[test.id] ?? [];
-      const merged = getMergedParamMapForTest(test);
-      const unresolved = listUnresolvedInSteps(tmpl, merged);
-      if (unresolved.length > 0) {
-        toast.error(t("execution.unresolvedParams", { names: unresolved.join(", ") }));
-        return;
-      }
-    }
-
     try {
-      const resultsWithSnapshots = testExecutionResults.map((r) => {
+      const resultsWithSnapshots: TestExecutionResultRow[] = [];
+      for (const r of testExecutionResults) {
         const test = activeTests.find((x) => x.id === r.testId);
-        const tmpl = templateStepsByTestId[r.testId] ?? [];
-        const doc = parseTestParams(test?.custom_fields?.test_params_json);
-        if (test && doc?.defs?.length) {
-          const merged = getMergedParamMapForTest(test);
-          return {
-            ...r,
-            expandedStepsSnapshot: applyTestParamsToSteps(tmpl, merged),
-            paramRowIndex: selectedParamRowByTestId[r.testId] ?? null,
-            paramValuesUsed: merged,
-          };
+        if (!test) {
+          resultsWithSnapshots.push(r);
+          continue;
         }
-        return {
+        const resolved = await resolveExecutionConfig(
+          orgSlug,
+          projectSlug,
+          runId,
+          test.id,
+          selectedConfigurationIdByTestId[test.id] ?? null,
+        );
+        if (resolved.unresolved_params.length > 0) {
+          toast.error(t("execution.unresolvedParams", { names: resolved.unresolved_params.join(", ") }));
+          return;
+        }
+        const configurationSnapshot = (() => {
+          if (!resolved.configuration_id) return null;
+          const doc = parseTestParams(test.custom_fields?.test_params_json);
+          return doc?.rows?.find((row) => row.id === resolved.configuration_id) ?? null;
+        })();
+        resultsWithSnapshots.push({
           ...r,
-          expandedStepsSnapshot: tmpl.length > 0 ? tmpl : r.expandedStepsSnapshot,
-        };
-      });
+          configurationId: resolved.configuration_id,
+          configurationName: resolved.configuration_name,
+          configurationSnapshot,
+          resolvedValues: resolved.resolved_values,
+          paramValuesUsed: resolved.resolved_values,
+          expandedStepsSnapshot: resolved.steps.map((step) => ({
+            id: step.id,
+            stepNumber: step.step_number,
+            name: step.name,
+            description: step.description,
+            expectedResult: step.expected_result,
+            status: step.status,
+          })),
+        });
+      }
       await updateRunMutation.mutateAsync({
         custom_fields: {
           ...run.custom_fields,
@@ -821,15 +870,14 @@ export function ManualExecutionPlayerCore({
                 {Math.round(progressPercentage)}%
               </span>
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
-              <div
-                className="h-full bg-blue-600 transition-all duration-300"
-                style={{ width: `${progressPercentage}%` }}
-              />
-            </div>
+            <progress
+              className="h-1.5 w-full overflow-hidden rounded-full [&::-webkit-progress-bar]:bg-[#E2E8F0] [&::-webkit-progress-value]:bg-blue-600 [&::-moz-progress-bar]:bg-blue-600"
+              max={100}
+              value={progressPercentage}
+            />
           </div>
 
-          <div className="custom-scrollbar flex-1 overflow-y-auto p-3">
+          <div className="flex-1 overflow-y-auto p-3">
             <div className="space-y-1">
               {testExecutionResults.map((result, index) => {
                 const test = activeTests.find((t) => t.id === result.testId);
@@ -874,7 +922,7 @@ export function ManualExecutionPlayerCore({
 
         {/* execution Display */}
         <main
-          className={`custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#F8FAFC] ${
+          className={`min-h-0 flex-1 overflow-y-auto bg-[#F8FAFC] ${
             isPopout ? "p-2 md:p-3" : "p-4 md:p-6"
           }`}
         >
@@ -906,10 +954,12 @@ export function ManualExecutionPlayerCore({
                     <div className="flex flex-col gap-1.5 rounded-md border border-[#E2E8F0] bg-white p-3">
                       <span className="text-xs font-semibold text-[#475569]">{t("execution.dataRow")}</span>
                       <Select
-                        value={String(selectedParamRowByTestId[currentTest.id] ?? 0)}
+                        value={selectedConfigurationIdByTestId[currentTest.id] ?? ""}
                         onValueChange={(v) => {
-                          const idx = Number.parseInt(v, 10);
-                          setSelectedParamRowByTestId((prev) => ({ ...prev, [currentTest.id]: idx }));
+                          setSelectedConfigurationIdByTestId((prev) => ({
+                            ...prev,
+                            [currentTest.id]: v || null,
+                          }));
                         }}
                       >
                         <SelectTrigger
@@ -919,9 +969,15 @@ export function ManualExecutionPlayerCore({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {currentParamDoc.rows.map((_, i) => (
-                            <SelectItem key={i} value={String(i)}>
-                              {rowLabelForIndex(currentParamDoc, i)}
+                          {(currentResolvedConfig?.available_configurations.length
+                            ? currentResolvedConfig.available_configurations
+                            : currentParamDoc.rows.map((row, i) => ({
+                                id: row.id,
+                                name: row.name ?? row.label ?? rowLabelForIndex(currentParamDoc, i),
+                                is_default: row.isDefault ?? false,
+                              }))).map((row, i) => (
+                            <SelectItem key={row.id ?? i} value={row.id}>
+                              {row.name ?? rowLabelForIndex(currentParamDoc, i)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1017,15 +1073,20 @@ export function ManualExecutionPlayerCore({
           defaultDescription={defectFormDefaults.description}
           canCreateArtifact={canCreateDefect}
           canUpdateArtifact={canUpdateArtifacts}
+          stepContext={{
+            stepId: String(defectDialog.step.id),
+            stepName: defectDialog.step.name,
+            stepNumber: defectDialog.step.stepNumber,
+            stepStatus: defectDialog.stepResult.status,
+            actualResult: defectDialog.stepResult.actualResult,
+            notes: defectDialog.stepResult.notes,
+            expectedResult: defectDialog.step.expectedResult,
+          }}
+          manualRunnerMode
+          onCreated={handleDefectCreated}
         />
       ) : null}
 
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
-      `}</style>
     </div>
   );
 }

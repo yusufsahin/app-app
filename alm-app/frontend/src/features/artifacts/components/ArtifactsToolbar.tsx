@@ -43,7 +43,7 @@ import { areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import type { ProblemDetail } from "../../../shared/api/types";
 import type { ManifestTreeRoot } from "../../../shared/lib/manifestTreeRoots";
 import type { ListColumnSchema } from "../../../shared/types/listSchema";
-import { requirementsCoveragePath } from "../../../shared/utils/appPaths";
+import { requirementsCoveragePath, requirementsTraceabilityPath } from "../../../shared/utils/appPaths";
 
 export type ToolbarFilterValues = {
   searchInput: string;
@@ -181,6 +181,13 @@ export function ArtifactsToolbar({
             <Button variant="outline" size="sm" asChild>
               <Link to={requirementsCoveragePath(orgSlug, projectSlug)}>
                 {t("requirementCoverage.breadcrumb")}
+              </Link>
+            </Button>
+          ) : null}
+          {orgSlug && projectSlug ? (
+            <Button variant="outline" size="sm" asChild>
+              <Link to={requirementsTraceabilityPath(orgSlug, projectSlug)}>
+                {t("traceabilityMatrix.breadcrumb")}
               </Link>
             </Button>
           ) : null}

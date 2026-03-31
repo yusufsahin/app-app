@@ -1,7 +1,8 @@
 import type { RunMetricsSummary, TestExecutionResultRow } from "./runMetrics";
 
-/** Stable key for a result row (parametric rows use paramRowIndex; else index). */
+/** Stable key for a result row (prefer configuration identity, then legacy row index, then index). */
 export function resultRowKey(row: TestExecutionResultRow, index: number): string {
+  if (row.configurationId) return `${row.testId}\0cfg:${row.configurationId}`;
   const pr = row.paramRowIndex;
   return `${row.testId}\0${pr == null ? `i${index}` : `p${pr}`}`;
 }

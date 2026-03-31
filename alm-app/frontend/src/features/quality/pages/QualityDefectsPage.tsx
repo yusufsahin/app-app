@@ -70,6 +70,34 @@ function parsePage(raw: string | null): number {
   return Math.floor(n);
 }
 
+function parseExecutionContextSummary(customFields: Record<string, unknown> | undefined): string {
+  const raw = customFields?.execution_context_json;
+  let parsed: Record<string, unknown> | null = null;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) parsed = raw as Record<string, unknown>;
+  else if (typeof raw === "string") {
+    try {
+      const decoded = JSON.parse(raw) as unknown;
+      if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
+        parsed = decoded as Record<string, unknown>;
+      }
+    } catch {
+      parsed = null;
+    }
+  }
+  if (!parsed) return "";
+  const runId = typeof parsed.run_id === "string" ? parsed.run_id.slice(0, 8) : "";
+  const stepOrder = typeof parsed.step_order === "number" ? parsed.step_order : null;
+  const stepName = typeof parsed.step_name === "string" ? parsed.step_name : "";
+  const source = typeof parsed.source === "string" ? parsed.source : "";
+  const parts = [
+    source === "manual_runner" ? "Manual Runner" : "",
+    runId ? `Run ${runId}` : "",
+    stepOrder != null ? `Step ${stepOrder}` : "",
+    stepName || "",
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
 /**
  * Defect triage list: defect tree subtree via the same artifact list API; detail opens in Artifacts.
  */
@@ -540,6 +568,7 @@ export default function QualityDefectsPage() {
                     const assigneeName = a.assignee_id
                       ? (memberLabels.get(a.assignee_id) ?? a.assignee_id)
                       : "";
+                    const executionSummary = parseExecutionContextSummary(a.custom_fields);
                     const extraParts = defectListExtraColumns
                       .map((col) => {
                         const v = formatDefectListCustomValue(a, col.key, memberLabels);
@@ -560,6 +589,9 @@ export default function QualityDefectsPage() {
                           {severity ? ` · ${t("defectsPage.severityLabel")}: ${severity}` : ""}
                           {extraParts.length ? ` · ${extraParts.join(" · ")}` : ""}
                         </p>
+                        {executionSummary ? (
+                          <p className="mt-1 text-xs text-muted-foreground">{executionSummary}</p>
+                        ) : null}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
                         <div className="flex flex-wrap justify-end gap-1">

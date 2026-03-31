@@ -22,6 +22,8 @@ describe("TestLastStatusBadge", () => {
           run_id: null,
           run_title: "R",
           run_updated_at: "2025-06-01T10:00:00.000Z",
+          configuration_id: null,
+          configuration_name: null,
           param_row_index: null,
           step_results: [],
         }}
@@ -40,6 +42,8 @@ describe("TestLastStatusBadge", () => {
           run_id: "r1",
           run_title: "Nightly",
           run_updated_at: "2025-06-01T10:00:00.000Z",
+          configuration_id: null,
+          configuration_name: null,
           param_row_index: null,
           step_results: [],
         }}

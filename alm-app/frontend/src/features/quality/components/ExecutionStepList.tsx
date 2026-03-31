@@ -6,6 +6,9 @@ import {
   MessageSquare,
   Copy,
   Bug,
+  FileImage,
+  Link2,
+  Paperclip,
 } from "lucide-react";
 import {
   Button,
@@ -112,6 +115,22 @@ export function ExecutionStepList({
                     {step.name}
                   </CardTitle>
                 </div>
+                {!readOnly && ((result?.linkedDefectIds?.length ?? 0) > 0 || (result?.attachmentIds?.length ?? 0) > 0) ? (
+                  <div className="flex flex-1 flex-wrap justify-end gap-1">
+                    {(result?.linkedDefectIds?.length ?? 0) > 0 ? (
+                      <Badge variant="outline" className="gap-1 text-[10px]">
+                        <Link2 className="size-3" />
+                        {t("execution.defect.linkedCount", { count: result?.linkedDefectIds?.length ?? 0 })}
+                      </Badge>
+                    ) : null}
+                    {(result?.attachmentIds?.length ?? 0) > 0 ? (
+                      <Badge variant="outline" className="gap-1 text-[10px]">
+                        <FileImage className="size-3" />
+                        {t("execution.defect.evidenceCount", { count: result?.attachmentIds?.length ?? 0 })}
+                      </Badge>
+                    ) : null}
+                  </div>
+                ) : null}
                 {!readOnly && (
                   <div className="flex shrink-0 flex-wrap justify-end gap-1">
                     <Button
@@ -273,7 +292,24 @@ export function ExecutionStepList({
                 </div>
               )}
 
-              {!readOnly && status === "failed" && (onCopyBugReport || onOpenCreateDefect) && (
+              {readOnly && ((result?.linkedDefectIds?.length ?? 0) > 0 || (result?.attachmentNames?.length ?? 0) > 0) ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {(result?.linkedDefectIds?.length ?? 0) > 0 ? (
+                    <Badge variant="outline" className="gap-1 text-[10px]">
+                      <Bug className="size-3" />
+                      {t("execution.defect.linkedCount", { count: result?.linkedDefectIds?.length ?? 0 })}
+                    </Badge>
+                  ) : null}
+                  {(result?.attachmentNames?.length ?? 0) > 0 ? (
+                    <Badge variant="outline" className="gap-1 text-[10px]">
+                      <Paperclip className="size-3" />
+                      {t("execution.defect.evidenceCount", { count: result?.attachmentNames?.length ?? 0 })}
+                    </Badge>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {!readOnly && (status === "failed" || status === "blocked") && (onCopyBugReport || onOpenCreateDefect) && (
                 <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
                   {onCopyBugReport ? (
                     <Button

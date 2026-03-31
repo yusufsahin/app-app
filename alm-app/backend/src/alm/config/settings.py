@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    model_config = {"env_file": ".env", "env_prefix": "ALM_"}
+    model_config = {"env_file": ".env", "env_prefix": "ALM_", "extra": "ignore"}
 
     app_name: str = "ALM"
     app_version: str = ""  # G4: optional, set via ALM_APP_VERSION

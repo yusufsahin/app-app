@@ -257,9 +257,19 @@ from alm.quality.application.queries.batch_last_test_execution_status import (
     BatchLastTestExecutionStatus,
     BatchLastTestExecutionStatusHandler,
 )
+from alm.quality.application.queries.resolve_test_execution_config import (
+    ResolveTestExecutionConfig,
+    ResolveTestExecutionConfigHandler,
+)
 from alm.quality.application.queries.requirement_coverage_analysis import (
     RequirementCoverageAnalysis,
     RequirementCoverageAnalysisHandler,
+)
+from alm.quality.application.queries.requirement_traceability_matrix import (
+    RequirementTraceabilityMatrix,
+    RequirementTraceabilityMatrixSummary,
+    RequirementTraceabilityMatrixHandler,
+    RequirementTraceabilityMatrixSummaryHandler,
 )
 from alm.realtime.event_handlers import on_artifact_state_changed_realtime
 
@@ -1087,6 +1097,32 @@ def register_all_handlers() -> None:
             artifact_repo=SqlAlchemyArtifactRepository(s),
             link_repo=SqlAlchemyArtifactLinkRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+        ),
+    )
+    register_query_handler(
+        RequirementTraceabilityMatrixSummary,
+        lambda s: RequirementTraceabilityMatrixSummaryHandler(
+            project_repo=SqlAlchemyProjectRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            link_repo=SqlAlchemyArtifactLinkRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+        ),
+    )
+    register_query_handler(
+        RequirementTraceabilityMatrix,
+        lambda s: RequirementTraceabilityMatrixHandler(
+            project_repo=SqlAlchemyProjectRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            link_repo=SqlAlchemyArtifactLinkRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+        ),
+    )
+    register_query_handler(
+        ResolveTestExecutionConfig,
+        lambda s: ResolveTestExecutionConfigHandler(
+            project_repo=SqlAlchemyProjectRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            link_repo=SqlAlchemyArtifactLinkRepository(s),
         ),
     )
 
