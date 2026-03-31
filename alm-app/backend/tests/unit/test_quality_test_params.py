@@ -11,8 +11,11 @@ def test_normalize_basic() -> None:
         }
     )
     assert out is not None
-    assert out["defs"] == [{"name": "user", "label": "U", "default": "a@x.com"}]
-    assert out["rows"] == [{"label": "R1", "values": {"user": "b@x.com"}}]
+    assert out["v"] == 2
+    assert out["defs"] == [{"name": "user", "type": "string", "label": "U", "default": "a@x.com"}]
+    assert out["rows"][0]["label"] == "R1"
+    assert out["rows"][0]["values"] == {"user": "b@x.com"}
+    assert out["rows"][0]["id"]
 
 
 def test_rejects_bad_defs_type() -> None:

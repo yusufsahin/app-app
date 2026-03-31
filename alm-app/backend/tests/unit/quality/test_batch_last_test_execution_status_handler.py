@@ -440,3 +440,67 @@ async def test_scope_campaign_id_filters_via_campaign_suites():
     assert len(out) == 1
     assert out[0].run_id == run_id
     assert out[0].status == "passed"
+
+
+@pytest.mark.asyncio
+async def test_scope_configuration_id_filters_matching_metrics_row():
+    tenant = uuid.uuid4()
+    proj = uuid.uuid4()
+    test_id = uuid.uuid4()
+    run_id = uuid.uuid4()
+
+    project = MagicMock()
+    project.tenant_id = tenant
+
+    project_repo = AsyncMock()
+    project_repo.find_by_id = AsyncMock(return_value=project)
+
+    metrics = {
+        "v": 2,
+        "results": [
+            {"testId": str(test_id), "status": "failed", "configurationId": "cfg-a", "stepResults": []},
+            {"testId": str(test_id), "status": "passed", "configurationId": "cfg-b", "stepResults": []},
+        ],
+    }
+
+    run_art = Artifact(
+        project_id=proj,
+        artifact_type="test-run",
+        title="Run A",
+        state="completed",
+        id=run_id,
+        custom_fields={"run_metrics_json": json.dumps(metrics)},
+        updated_at=datetime(2025, 1, 2, 12, 0, 0, tzinfo=timezone.utc),
+    )
+
+    link_direct = ArtifactLink.create(
+        project_id=proj,
+        from_artifact_id=run_id,
+        to_artifact_id=test_id,
+        link_type="includes_test",
+    )
+
+    link_repo = AsyncMock()
+    link_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[(run_id, test_id)])
+    link_repo.list_outgoing_links_from_artifacts = AsyncMock(return_value=[link_direct])
+    link_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
+
+    artifact_repo = AsyncMock()
+    artifact_repo.list_by_ids_in_project = AsyncMock(return_value=[run_art])
+
+    h = BatchLastTestExecutionStatusHandler(
+        project_repo=project_repo,
+        artifact_repo=artifact_repo,
+        link_repo=link_repo,
+    )
+    out = await h.handle(
+        BatchLastTestExecutionStatus(
+            tenant_id=tenant,
+            project_id=proj,
+            test_ids=[test_id],
+            scope_configuration_id="cfg-b",
+        )
+    )
+    assert len(out) == 1
+    assert out[0].status == "passed"
+    assert out[0].configuration_id == "cfg-b"

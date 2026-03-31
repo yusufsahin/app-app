@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Button, Input } from "../../../shared/components/ui";
 import type { ParamDef, ParamRow, TestParamsDocument } from "../lib/testParams";
-import { normalizeTestParams } from "../lib/testParams";
+import { normalizeTestParams, validateTestParams } from "../lib/testParams";
 
 export type QualityTestParamsEditorProps = {
   value: TestParamsDocument;
@@ -17,6 +17,7 @@ export function QualityTestParamsEditor({ value, onChange, disabled }: QualityTe
   const { t } = useTranslation("quality");
   const doc = normalizeTestParams(value.defs.length || value.rows?.length ? value : emptyDoc());
   const rows = doc.rows ?? [];
+  const validation = validateTestParams(doc);
 
   const setDoc = (next: TestParamsDocument) => onChange(normalizeTestParams(next));
 
@@ -54,7 +55,10 @@ export function QualityTestParamsEditor({ value, onChange, disabled }: QualityTe
   const addRow = () => {
     const values: Record<string, string> = {};
     for (const d of doc.defs) values[d.name] = "";
-    setDoc({ ...doc, rows: [...rows, { label: "", values }] });
+    setDoc({
+      ...doc,
+      rows: [...rows, { id: crypto.randomUUID(), name: `config_${rows.length + 1}`, label: "", values, status: "active" }],
+    });
   };
 
   const updateRow = (rowIndex: number, patch: Partial<ParamRow>) => {
@@ -148,6 +152,14 @@ export function QualityTestParamsEditor({ value, onChange, disabled }: QualityTe
                 <div key={ri} className="rounded border border-border bg-background p-2">
                   <div className="mb-2 flex items-center gap-2">
                     <Input
+                      className="h-8 max-w-[10rem] text-xs font-mono"
+                      value={row.name ?? ""}
+                      disabled={disabled}
+                      onChange={(e) => updateRow(ri, { name: e.target.value })}
+                      placeholder={t("params.rowNamePlaceholder")}
+                      data-testid={`quality-param-row-name-${ri}`}
+                    />
+                    <Input
                       className="h-8 max-w-xs text-xs"
                       value={row.label ?? ""}
                       disabled={disabled}
@@ -167,6 +179,9 @@ export function QualityTestParamsEditor({ value, onChange, disabled }: QualityTe
                       {t("params.removeRow")}
                     </Button>
                   </div>
+                  <p className="mb-2 text-[10px] text-muted-foreground">
+                    {t("params.configurationId")}: <span className="font-mono">{row.id}</span>
+                  </p>
                   <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                     {doc.defs.map((d, di) => (
                       <div key={di} className="space-y-1">
@@ -185,6 +200,17 @@ export function QualityTestParamsEditor({ value, onChange, disabled }: QualityTe
               ))}
             </div>
           )}
+        </div>
+      ) : null}
+
+      {validation.hasErrors ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+          {validation.paramErrors.map((error, index) => (
+            <p key={`param-${index}`}>{error}</p>
+          ))}
+          {validation.rowErrors.map((error, index) => (
+            <p key={`row-${index}`}>{error}</p>
+          ))}
         </div>
       ) : null}
     </div>

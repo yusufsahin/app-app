@@ -1,4 +1,4 @@
-"""Parse test-run ``run_metrics_json`` v1 document (aligned with frontend runMetrics.ts)."""
+"""Parse test-run ``run_metrics_json`` documents (v1/v2) for query usage."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ import json
 import uuid
 from typing import Any
 
-RUN_METRICS_VERSION = 1
+RUN_METRICS_VERSION = 2
+LEGACY_RUN_METRICS_VERSION = 1
 
 _VALID_STATUS = frozenset({"passed", "failed", "blocked", "not-executed"})
 
@@ -27,7 +28,7 @@ def parse_run_metrics_v1_results(custom_fields: dict[str, Any] | None) -> list[d
         doc = raw
     else:
         return []
-    if doc.get("v") != RUN_METRICS_VERSION:
+    if doc.get("v") not in {LEGACY_RUN_METRICS_VERSION, RUN_METRICS_VERSION}:
         return []
     results = doc.get("results")
     if not isinstance(results, list):
@@ -36,12 +37,14 @@ def parse_run_metrics_v1_results(custom_fields: dict[str, Any] | None) -> list[d
 
 
 def metrics_row_for_test_id(
-    custom_fields: dict[str, Any] | None, test_id: uuid.UUID
+    custom_fields: dict[str, Any] | None, test_id: uuid.UUID, configuration_id: str | None = None
 ) -> dict[str, Any] | None:
     """First result row whose ``testId`` string matches ``test_id``."""
     tid = str(test_id)
     for row in parse_run_metrics_v1_results(custom_fields):
         if str(row.get("testId") or "") == tid:
+            if configuration_id is not None and configuration_id_from_metrics_row(row) != configuration_id:
+                continue
             return row
     return None
 
@@ -68,3 +71,23 @@ def step_statuses_from_metrics_row(row: dict[str, Any]) -> list[tuple[str, str]]
         st = normalize_execution_status(item.get("status")) or "not-executed"
         out.append((sid, st))
     return out
+
+
+def configuration_id_from_metrics_row(row: dict[str, Any]) -> str | None:
+    raw = row.get("configurationId")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
+
+
+def configuration_name_from_metrics_row(row: dict[str, Any]) -> str | None:
+    raw = row.get("configurationName")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    snapshot = row.get("configurationSnapshot")
+    if isinstance(snapshot, dict):
+        for key in ("name", "label"):
+            value = snapshot.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None

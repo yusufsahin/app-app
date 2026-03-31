@@ -276,9 +276,9 @@ function RunResultStepsSection({ row, index }: { row: TestExecutionResultRow; in
     <div className="rounded-lg border border-border/80">
       <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
         {t("runsHub.overviewTestResultHeading", { index: index + 1, status: row.status })}
-        {row.paramRowIndex != null ? (
+        {row.configurationName ? (
           <span className="ml-2 text-xs font-normal text-muted-foreground">
-            {t("runsHub.overviewParamRow", { row: row.paramRowIndex })}
+            {t("runsHub.overviewConfigurationName", { name: row.configurationName })}
           </span>
         ) : null}
       </div>
@@ -295,7 +295,10 @@ function RunResultStepsSection({ row, index }: { row: TestExecutionResultRow; in
 
 function ParametersOverview({ results }: { results: TestExecutionResultRow[] }) {
   const { t } = useTranslation("quality");
-  const rowsWithParams = results.filter((r) => r.paramValuesUsed && Object.keys(r.paramValuesUsed).length > 0);
+  const rowsWithParams = results.filter((r) => {
+    const values = r.resolvedValues ?? r.paramValuesUsed;
+    return values && Object.keys(values).length > 0;
+  });
   if (rowsWithParams.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("runsHub.overviewParamsEmpty")}</p>;
   }
@@ -305,9 +308,14 @@ function ParametersOverview({ results }: { results: TestExecutionResultRow[] }) 
         <div key={`${r.testId}-params-${idx}`} className="rounded-md border">
           <div className="border-b bg-muted/30 px-3 py-2 text-xs font-medium">
             {t("runsHub.overviewParamsForTest", { index: idx + 1 })}
+            {r.configurationName ? (
+              <span className="ml-2 text-muted-foreground">
+                {t("runsHub.overviewConfigurationName", { name: r.configurationName })}
+              </span>
+            ) : null}
           </div>
           <dl className="grid gap-2 p-3 text-sm sm:grid-cols-2">
-            {Object.entries(r.paramValuesUsed!).map(([k, v]) => (
+            {Object.entries(r.resolvedValues ?? r.paramValuesUsed ?? {}).map(([k, v]) => (
               <div key={k}>
                 <dt className="text-xs text-muted-foreground">{k}</dt>
                 <dd className="font-mono text-xs break-all">{v}</dd>

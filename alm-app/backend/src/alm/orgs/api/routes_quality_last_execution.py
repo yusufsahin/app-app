@@ -40,6 +40,7 @@ async def batch_last_execution_status(
             scope_run_id=body.scope_run_id,
             scope_suite_id=body.scope_suite_id,
             scope_campaign_id=body.scope_campaign_id,
+            scope_configuration_id=body.scope_configuration_id,
         )
     )
     items = [
@@ -49,6 +50,8 @@ async def batch_last_execution_status(
             run_id=d.run_id,
             run_title=d.run_title,
             run_updated_at=d.run_updated_at,
+            configuration_id=d.configuration_id,
+            configuration_name=d.configuration_name,
             param_row_index=d.param_row_index,
             step_results=[
                 LastExecutionStepStatusItem(step_id=s.step_id, status=s.status) for s in d.step_results

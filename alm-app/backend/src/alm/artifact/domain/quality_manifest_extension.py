@@ -158,6 +158,14 @@ def _inject_quality_domain_defs(defs: list[dict[str, Any]]) -> list[dict[str, An
 
         if kind == "ArtifactType" and aid == "test-case":
             fields = list(d.get("fields") or [])
+            if not any(isinstance(f, dict) and f.get("id") == "test_params_json" for f in fields):
+                fields.append(
+                    {
+                        "id": "test_params_json",
+                        "name": "Test configurations (JSON)",
+                        "type": "string",
+                    }
+                )
             if not any(isinstance(f, dict) and f.get("id") == "test_steps_json" for f in fields):
                 fields.append(
                     {

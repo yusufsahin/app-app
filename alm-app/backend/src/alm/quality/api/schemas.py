@@ -13,6 +13,7 @@ class LastExecutionStatusRequest(BaseModel):
     scope_run_id: uuid.UUID | None = None
     scope_suite_id: uuid.UUID | None = None
     scope_campaign_id: uuid.UUID | None = None
+    scope_configuration_id: str | None = None
 
     @model_validator(mode="after")
     def _one_scope(self) -> LastExecutionStatusRequest:
@@ -37,12 +38,46 @@ class LastExecutionStatusItem(BaseModel):
     run_id: uuid.UUID | None = None
     run_title: str | None = None
     run_updated_at: datetime | None = None
+    configuration_id: str | None = None
+    configuration_name: str | None = None
     param_row_index: int | None = None
     step_results: list[LastExecutionStepStatusItem] = Field(default_factory=list)
 
 
 class LastExecutionStatusResponse(BaseModel):
     items: list[LastExecutionStatusItem]
+
+
+class ResolveExecutionConfigRequest(BaseModel):
+    run_id: uuid.UUID
+    test_id: uuid.UUID
+    configuration_id: str | None = None
+
+
+class ResolveExecutionConfigOptionItem(BaseModel):
+    id: str
+    name: str | None = None
+    is_default: bool = False
+
+
+class ResolveExecutionConfigStepItem(BaseModel):
+    id: str
+    step_number: int
+    name: str
+    description: str
+    expected_result: str
+    status: str
+
+
+class ResolveExecutionConfigResponse(BaseModel):
+    test_id: uuid.UUID
+    configuration_id: str | None = None
+    configuration_name: str | None = None
+    available_configurations: list[ResolveExecutionConfigOptionItem] = Field(default_factory=list)
+    resolved_values: dict[str, str] = Field(default_factory=dict)
+    unresolved_params: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    steps: list[ResolveExecutionConfigStepItem] = Field(default_factory=list)
 
 
 class RequirementCoverageTestRefResponse(BaseModel):

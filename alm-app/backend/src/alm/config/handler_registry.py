@@ -257,6 +257,10 @@ from alm.quality.application.queries.batch_last_test_execution_status import (
     BatchLastTestExecutionStatus,
     BatchLastTestExecutionStatusHandler,
 )
+from alm.quality.application.queries.resolve_test_execution_config import (
+    ResolveTestExecutionConfig,
+    ResolveTestExecutionConfigHandler,
+)
 from alm.quality.application.queries.requirement_coverage_analysis import (
     RequirementCoverageAnalysis,
     RequirementCoverageAnalysisHandler,
@@ -1087,6 +1091,14 @@ def register_all_handlers() -> None:
             artifact_repo=SqlAlchemyArtifactRepository(s),
             link_repo=SqlAlchemyArtifactLinkRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+        ),
+    )
+    register_query_handler(
+        ResolveTestExecutionConfig,
+        lambda s: ResolveTestExecutionConfigHandler(
+            project_repo=SqlAlchemyProjectRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            link_repo=SqlAlchemyArtifactLinkRepository(s),
         ),
     )
 

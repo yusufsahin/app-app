@@ -1,6 +1,16 @@
 import type { StepResult, TestStep } from "../types";
 
-export const RUN_METRICS_VERSION = 1 as const;
+export const RUN_METRICS_VERSION = 2 as const;
+
+export type ConfigurationSnapshot = {
+  id: string;
+  name?: string;
+  label?: string;
+  values: Record<string, string>;
+  isDefault?: boolean;
+  status?: "active" | "draft" | "archived";
+  tags?: string[];
+};
 
 export type TestExecutionResultRow = {
   testId: string;
@@ -8,18 +18,34 @@ export type TestExecutionResultRow = {
   stepResults: StepResult[];
   /** Flattened steps at save time (Call-to-Test expanded) for historical accuracy. */
   expandedStepsSnapshot?: TestStep[];
-  /** Selected dataset row index when `test_params_json.rows` exists; null = defaults only. */
+  /** Stable configuration identity selected for this execution. */
+  configurationId?: string | null;
+  configurationName?: string | null;
+  configurationSnapshot?: ConfigurationSnapshot | null;
+  /** Final merged map used for ${} substitution at save time. */
+  resolvedValues?: Record<string, string>;
+  /** Deprecated read-compat fields. */
   paramRowIndex?: number | null;
-  /** Final merged map (caller row + callee defaults) used for ${} substitution at save time. */
   paramValuesUsed?: Record<string, string>;
 };
 
-export interface RunMetricsDocumentV1 {
+export interface RunMetricsDocumentV2 {
   v: typeof RUN_METRICS_VERSION;
   results: TestExecutionResultRow[];
 }
 
-/** Parse v1 document only: `{ "v": 1, "results": [...] }`. */
+function normalizeRow(row: TestExecutionResultRow): TestExecutionResultRow {
+  return {
+    ...row,
+    configurationId: row.configurationId ?? null,
+    configurationName: row.configurationName ?? row.configurationSnapshot?.name ?? row.configurationSnapshot?.label ?? null,
+    configurationSnapshot: row.configurationSnapshot ?? null,
+    resolvedValues: row.resolvedValues ?? row.paramValuesUsed ?? undefined,
+    paramValuesUsed: row.paramValuesUsed ?? row.resolvedValues ?? undefined,
+    paramRowIndex: row.paramRowIndex ?? null,
+  };
+}
+
 export function parseRunMetricsPayload(raw: unknown): TestExecutionResultRow[] | null {
   if (raw == null) return null;
   let parsed: unknown;
@@ -30,14 +56,25 @@ export function parseRunMetricsPayload(raw: unknown): TestExecutionResultRow[] |
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
   const doc = parsed as Record<string, unknown>;
-  if (doc.v !== RUN_METRICS_VERSION) return null;
   const results = doc.results;
   if (!Array.isArray(results)) return null;
-  return results as TestExecutionResultRow[];
+  if (doc.v === 1 || doc.v === RUN_METRICS_VERSION) {
+    return (results as TestExecutionResultRow[]).map(normalizeRow);
+  }
+  return null;
 }
 
 export function stringifyRunMetricsPayload(results: TestExecutionResultRow[]): string {
-  return JSON.stringify({ v: RUN_METRICS_VERSION, results } satisfies RunMetricsDocumentV1);
+  return JSON.stringify({
+    v: RUN_METRICS_VERSION,
+    results: results.map((row) => ({
+      ...row,
+      resolvedValues: row.resolvedValues ?? row.paramValuesUsed,
+      configurationId: row.configurationId ?? null,
+      configurationName: row.configurationName ?? null,
+      configurationSnapshot: row.configurationSnapshot ?? null,
+    })),
+  } satisfies RunMetricsDocumentV2);
 }
 
 export type RunMetricsSummary = {

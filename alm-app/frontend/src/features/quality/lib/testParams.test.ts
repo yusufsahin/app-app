@@ -22,7 +22,9 @@ describe("testParams", () => {
 
   it("parseTestParams accepts JSON string", () => {
     const doc = parseTestParams(JSON.stringify({ defs: [{ name: "u", default: "a" }] }));
-    expect(doc?.defs).toEqual([{ name: "u", label: undefined, default: "a" }]);
+    expect(doc?.defs).toEqual([
+      { name: "u", label: undefined, default: "a", type: "string", required: undefined, allowedValues: undefined },
+    ]);
   });
 
   it("normalizeTestParams dedupes defs and keeps rows with values object only", () => {
@@ -32,7 +34,7 @@ describe("testParams", () => {
         { name: "a", default: "2" },
         { name: "b" },
       ],
-      rows: [{ values: { a: "x", b: "y" } }],
+      rows: [{ id: "cfg-1", values: { a: "x", b: "y" } }],
     });
     expect(n.defs.map((d) => d.name)).toEqual(["a", "b"]);
     expect(n.rows?.[0]?.values).toEqual({ a: "x", b: "y" });
@@ -44,10 +46,10 @@ describe("testParams", () => {
         { name: "u", default: "defU" },
         { name: "p", default: "" },
       ],
-      rows: [{ values: { u: "rowU", p: "rowP" } }],
+      rows: [{ id: "cfg-1", values: { u: "rowU", p: "rowP" } }],
     });
     expect(buildParamValuesMap(doc, null)).toEqual({ u: "defU", p: "" });
-    expect(buildParamValuesMap(doc, 0)).toEqual({ u: "rowU", p: "rowP" });
+    expect(buildParamValuesMap(doc, "cfg-1")).toEqual({ u: "rowU", p: "rowP" });
   });
 
   it("applyTestParamsToText replaces placeholders", () => {
@@ -108,7 +110,7 @@ describe("testParams", () => {
   it("serializeTestParams roundtrips through parse", () => {
     const doc = normalizeTestParams({
       defs: [{ name: "x", label: "L" }],
-      rows: [{ label: "R1", values: { x: "v" } }],
+      rows: [{ id: "cfg-1", label: "R1", values: { x: "v" } }],
     });
     const raw = serializeTestParams(doc);
     const again = parseTestParams(raw);

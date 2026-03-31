@@ -14,6 +14,7 @@ import { useAuthStore } from "../../../shared/stores/authStore";
 import { hasPermission } from "../../../shared/utils/permissions";
 import { qualityTraceabilityPath, qualityCatalogArtifactPath } from "../../../shared/utils/appPaths";
 import { parseTestPlan } from "../lib/testPlan";
+import { parseTestParams } from "../lib/testParams";
 import { isTestPlanCall } from "../types";
 
 const MAX_LINK_TARGET_QUERIES = 20;
@@ -53,6 +54,10 @@ export function QualityTestCaseDetailPanels({
 
   const planEntries = useMemo(
     () => parseTestPlan((artifact.custom_fields as Record<string, unknown> | undefined)?.test_steps_json),
+    [artifact.custom_fields],
+  );
+  const paramsDoc = useMemo(
+    () => parseTestParams((artifact.custom_fields as Record<string, unknown> | undefined)?.test_params_json),
     [artifact.custom_fields],
   );
 
@@ -194,6 +199,18 @@ export function QualityTestCaseDetailPanels({
               </ul>
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {paramsDoc ? (
+        <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
+          <p className="font-medium text-foreground">{t("params.sectionTitle")}</p>
+          <p className="mt-1 text-muted-foreground">
+            {t("detail.configurationSummary", {
+              parameters: paramsDoc.defs.length,
+              configurations: paramsDoc.rows?.length ?? 0,
+            })}
+          </p>
         </div>
       ) : null}
 
