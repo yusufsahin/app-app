@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from alm.orgs.api._router_deps import *  # noqa: F403
 from alm.quality.api.schemas import (
     RequirementTraceabilityMatrixResponse,
+    RequirementTraceabilityMatrixSummaryResponse,
     RequirementCoverageAnalysisResponse,
     RequirementCoverageLeafResponse,
     RequirementCoverageNodeResponse,
@@ -16,6 +17,7 @@ from alm.quality.api.schemas import (
     TraceabilityMatrixCellResponse,
     TraceabilityMatrixColumnResponse,
     TraceabilityMatrixRowResponse,
+    TraceabilityMatrixSummaryChildResponse,
     TraceabilityRelationshipResponse,
 )
 from alm.quality.application.queries.requirement_coverage_analysis import (
@@ -23,6 +25,7 @@ from alm.quality.application.queries.requirement_coverage_analysis import (
 )
 from alm.quality.application.queries.requirement_traceability_matrix import (
     RequirementTraceabilityMatrix,
+    RequirementTraceabilityMatrixSummary,
 )
 from alm.shared.domain.exceptions import ValidationError
 
@@ -116,6 +119,94 @@ async def get_requirement_coverage_analysis(
                 ],
             )
             for leaf in result.leaves
+        ],
+    )
+
+
+@router.get(
+    "/projects/{project_id}/requirements/traceability-matrix-summary",
+    response_model=RequirementTraceabilityMatrixSummaryResponse,
+)
+async def get_requirement_traceability_matrix_summary(
+    project_id: uuid.UUID,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:read"),
+    _acl: None = require_manifest_acl("artifact", "read"),
+    mediator: Mediator = Depends(get_mediator),
+    under: uuid.UUID | None = Query(None, description="Subtree root artifact id"),
+    link_types: str | None = Query(
+        None,
+        description="Comma-separated link types (default: verifies)",
+    ),
+    include_reverse_verifies: bool = Query(
+        True,
+        description="Also count verifies links from requirement to test-case",
+    ),
+    scope_run_id: uuid.UUID | None = None,
+    scope_suite_id: uuid.UUID | None = None,
+    scope_campaign_id: uuid.UUID | None = None,
+    search: str | None = Query(
+        None,
+        description="Optional text filter against requirement and test title/key",
+    ),
+    refresh: bool = Query(False, description="Bypass short-lived server cache"),
+) -> RequirementTraceabilityMatrixSummaryResponse:
+    scopes = sum(
+        1 for x in (scope_run_id, scope_suite_id, scope_campaign_id) if x is not None
+    )
+    if scopes > 1:
+        raise HTTPException(
+            status_code=422,
+            detail="At most one of scope_run_id, scope_suite_id, scope_campaign_id",
+        )
+    lt_raw = (link_types or "verifies").strip()
+    lt_tuple = tuple(s.strip() for s in lt_raw.split(",") if s.strip())
+    if not lt_tuple:
+        lt_tuple = ("verifies",)
+    try:
+        result = await mediator.query(
+            RequirementTraceabilityMatrixSummary(
+                tenant_id=org.tenant_id,
+                project_id=project_id,
+                under_artifact_id=under,
+                link_types=lt_tuple,
+                include_reverse_verifies=include_reverse_verifies,
+                scope_run_id=scope_run_id,
+                scope_suite_id=scope_suite_id,
+                scope_campaign_id=scope_campaign_id,
+                search=search,
+                refresh=refresh,
+            )
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return RequirementTraceabilityMatrixSummaryResponse(
+        computed_at=result.computed_at,
+        cache_hit=result.cache_hit,
+        project_node_count=result.project_node_count,
+        subtree_node_count=result.subtree_node_count,
+        candidate_requirement_row_count=result.candidate_requirement_row_count,
+        distinct_test_count=result.distinct_test_count,
+        relationship_count=result.relationship_count,
+        can_render_matrix=result.can_render_matrix,
+        exceeds_project_without_under_limit=result.exceeds_project_without_under_limit,
+        exceeds_subtree_limit=result.exceeds_subtree_limit,
+        exceeds_row_limit=result.exceeds_row_limit,
+        exceeds_column_limit=result.exceeds_column_limit,
+        applied_search=result.applied_search,
+        child_subtrees=[
+            TraceabilityMatrixSummaryChildResponse(
+                artifact_id=child.artifact_id,
+                parent_id=child.parent_id,
+                artifact_key=child.artifact_key,
+                title=child.title,
+                subtree_node_count=child.subtree_node_count,
+                requirement_row_count=child.requirement_row_count,
+                relationship_count=child.relationship_count,
+                distinct_test_count=child.distinct_test_count,
+            )
+            for child in result.child_subtrees
         ],
     )
 

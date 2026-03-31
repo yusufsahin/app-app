@@ -159,3 +159,31 @@ class RequirementTraceabilityMatrixResponse(BaseModel):
     rows: list[TraceabilityMatrixRowResponse] = Field(default_factory=list)
     columns: list[TraceabilityMatrixColumnResponse] = Field(default_factory=list)
     relationships: list[TraceabilityRelationshipResponse] = Field(default_factory=list)
+
+
+class TraceabilityMatrixSummaryChildResponse(BaseModel):
+    artifact_id: uuid.UUID
+    parent_id: uuid.UUID | None = None
+    artifact_key: str | None = None
+    title: str
+    subtree_node_count: int
+    requirement_row_count: int
+    relationship_count: int
+    distinct_test_count: int
+
+
+class RequirementTraceabilityMatrixSummaryResponse(BaseModel):
+    computed_at: datetime
+    cache_hit: bool
+    project_node_count: int
+    subtree_node_count: int
+    candidate_requirement_row_count: int
+    distinct_test_count: int
+    relationship_count: int
+    can_render_matrix: bool
+    exceeds_project_without_under_limit: bool
+    exceeds_subtree_limit: bool
+    exceeds_row_limit: bool
+    exceeds_column_limit: bool
+    applied_search: str | None = None
+    child_subtrees: list[TraceabilityMatrixSummaryChildResponse] = Field(default_factory=list)

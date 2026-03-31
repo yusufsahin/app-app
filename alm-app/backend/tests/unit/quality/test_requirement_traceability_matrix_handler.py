@@ -15,6 +15,8 @@ from alm.quality.application.queries import requirement_traceability_matrix as r
 from alm.quality.application.queries.requirement_traceability_matrix import (
     RequirementTraceabilityMatrix,
     RequirementTraceabilityMatrixHandler,
+    RequirementTraceabilityMatrixSummary,
+    RequirementTraceabilityMatrixSummaryHandler,
 )
 from alm.shared.domain.exceptions import ValidationError
 
@@ -283,3 +285,141 @@ async def test_rejects_multiple_execution_scopes() -> None:
                 scope_suite_id=uuid.uuid4(),
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_summary_reports_matrix_is_renderable_for_small_slice() -> None:
+    tenant = uuid.uuid4()
+    proj = uuid.uuid4()
+    root_id = uuid.uuid4()
+    req_id = uuid.uuid4()
+    test_id = uuid.uuid4()
+
+    project = MagicMock()
+    project.tenant_id = tenant
+    project.process_template_version_id = None
+
+    root = Artifact.create(
+        project_id=proj,
+        artifact_type="root-requirement",
+        title="Root",
+        state="active",
+        id=root_id,
+    )
+    req = Artifact.create(
+        project_id=proj,
+        artifact_type="requirement",
+        title="Login",
+        state="new",
+        id=req_id,
+        parent_id=root_id,
+        artifact_key="REQ-1",
+    )
+    test_art = Artifact.create(
+        project_id=proj,
+        artifact_type="test-case",
+        title="Login test",
+        state="ready",
+        id=test_id,
+        artifact_key="TC-1",
+    )
+
+    project_repo = AsyncMock()
+    project_repo.find_by_id = AsyncMock(return_value=project)
+
+    async def _list_bp(*_a: object, **kw: object) -> list[Artifact]:
+        if kw.get("type_filter") == "root-requirement":
+            return [root]
+        return [req]
+
+    artifact_repo = AsyncMock()
+    artifact_repo.list_by_project = AsyncMock(side_effect=_list_bp)
+    artifact_repo.count_by_project = AsyncMock(return_value=1)
+    artifact_repo.find_by_id = AsyncMock(return_value=req)
+    artifact_repo.list_by_ids_in_project = AsyncMock(return_value=[test_art])
+
+    link_repo = AsyncMock()
+    link_repo.list_links_to_artifacts = AsyncMock(
+        return_value=[
+            ArtifactLink.create(
+                project_id=proj,
+                from_artifact_id=test_id,
+                to_artifact_id=req_id,
+                link_type="verifies",
+            )
+        ]
+    )
+    link_repo.list_outgoing_links_from_artifacts = AsyncMock(return_value=[])
+
+    h = RequirementTraceabilityMatrixSummaryHandler(
+        project_repo=project_repo,
+        artifact_repo=artifact_repo,
+        link_repo=link_repo,
+        process_template_repo=AsyncMock(),
+    )
+    out = await h.handle(
+        RequirementTraceabilityMatrixSummary(
+            tenant_id=tenant,
+            project_id=proj,
+            include_reverse_verifies=False,
+            refresh=True,
+        )
+    )
+
+    assert out.can_render_matrix is True
+    assert out.candidate_requirement_row_count == 1
+    assert out.distinct_test_count == 1
+    assert out.relationship_count == 1
+
+
+@pytest.mark.asyncio
+async def test_summary_flags_project_wide_scope_that_requires_under() -> None:
+    tenant = uuid.uuid4()
+    proj = uuid.uuid4()
+    root_id = uuid.uuid4()
+
+    project = MagicMock()
+    project.tenant_id = tenant
+    project.process_template_version_id = None
+
+    root = Artifact.create(
+        project_id=proj,
+        artifact_type="root-requirement",
+        title="Root",
+        state="active",
+        id=root_id,
+    )
+
+    project_repo = AsyncMock()
+    project_repo.find_by_id = AsyncMock(return_value=project)
+
+    artifact_repo = AsyncMock()
+
+    async def _list_bp(*_a: object, **kw: object) -> list[Artifact]:
+        if kw.get("type_filter") == "root-requirement":
+            return [root]
+        return []
+
+    artifact_repo.list_by_project = AsyncMock(side_effect=_list_bp)
+    artifact_repo.count_by_project = AsyncMock(
+        side_effect=[rtm_mod.MAX_MATRIX_ARTIFACTS_WITHOUT_UNDER + 10, 0]
+    )
+    artifact_repo.list_by_ids_in_project = AsyncMock(return_value=[])
+
+    h = RequirementTraceabilityMatrixSummaryHandler(
+        project_repo=project_repo,
+        artifact_repo=artifact_repo,
+        link_repo=AsyncMock(),
+        process_template_repo=AsyncMock(),
+    )
+    out = await h.handle(
+        RequirementTraceabilityMatrixSummary(
+            tenant_id=tenant,
+            project_id=proj,
+            include_reverse_verifies=False,
+            refresh=True,
+        )
+    )
+
+    assert out.can_render_matrix is False
+    assert out.exceeds_project_without_under_limit is True
