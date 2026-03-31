@@ -56,12 +56,13 @@ def _build_artifact_list_schema(
         for i, c in enumerate(raw_cols):
             if not isinstance(c, dict):
                 continue
-            if c.get("visible") is False:
-                continue
             key = c.get("key")
             if not key:
                 continue
             sk = str(key)
+            if c.get("visible") is False:
+                seen_field_keys.add(sk)
+                continue
             seen_field_keys.add(sk)
             columns_list.append(
                 ListColumnSchema(
@@ -78,12 +79,20 @@ def _build_artifact_list_schema(
             ListColumnSchema(key="artifact_type", label="Type", order=2, sortable=True),
             ListColumnSchema(key="title", label="Title", order=3, sortable=True),
             ListColumnSchema(key="state", label="State", order=4, sortable=True),
-            ListColumnSchema(key="state_reason", label="State reason", order=5, sortable=False),
-            ListColumnSchema(key="resolution", label="Resolution", order=6, sortable=False),
-            ListColumnSchema(key="created_at", label="Created", order=7, sortable=True),
-            ListColumnSchema(key="updated_at", label="Updated", order=8, sortable=True),
+            ListColumnSchema(key="tags", label="Tags", type="tags", order=5, sortable=False),
+            ListColumnSchema(key="state_reason", label="State reason", order=6, sortable=False),
+            ListColumnSchema(key="resolution", label="Resolution", order=7, sortable=False),
+            ListColumnSchema(key="created_at", label="Created", order=8, sortable=True),
+            ListColumnSchema(key="updated_at", label="Updated", order=9, sortable=True),
         ]
         seen_field_keys = {c.key for c in columns_list}
+
+    if "tags" not in seen_field_keys:
+        seen_field_keys.add("tags")
+        next_order = max((c.order for c in columns_list), default=0) + 1
+        columns_list.append(
+            ListColumnSchema(key="tags", label="Tags", type="tags", order=next_order, sortable=False),
+        )
 
     artifact_types = flat.get("artifact_types") or []
     order = max((c.order for c in columns_list), default=0) + 1

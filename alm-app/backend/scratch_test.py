@@ -16,7 +16,7 @@ manifest = {
         },
         {
             "kind": "ArtifactType",
-            "id": "bug",
+            "id": "defect",
             "workflow_id": "wf1",
             "fields": [{"id": "title", "type": "string"}]
         }
@@ -29,5 +29,5 @@ print(f"ArtifactTypes: {len(flat['artifact_types'])}")
 assert len(flat['workflows']) == 1
 assert flat['workflows'][0]['id'] == "wf1"
 assert len(flat['artifact_types']) == 1
-assert flat['artifact_types'][0]['id'] == "bug"
+assert flat['artifact_types'][0]['id'] == "defect"
 print("SUCCESS!")

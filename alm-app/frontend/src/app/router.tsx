@@ -1,4 +1,9 @@
-import { createBrowserRouter, useRouteError, isRouteErrorResponse, Link } from "react-router-dom";
+import {
+  createBrowserRouter,
+  useRouteError,
+  isRouteErrorResponse,
+  Link,
+} from "react-router-dom";
 import { lazy, Suspense, type ComponentType } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "../shared/components/ui";
@@ -60,6 +65,9 @@ const ManifestPage = lazy(
 const ArtifactsPage = lazy(
   () => import("../features/artifacts/pages/ArtifactsPage"),
 );
+const RequirementsCoveragePage = lazy(
+  () => import("../features/artifacts/pages/RequirementsCoveragePage"),
+);
 const PlanningPage = lazy(
   () => import("../features/planning/pages/PlanningPage"),
 );
@@ -75,11 +83,12 @@ const QualityPage = lazy(
 const QualityTraceabilityPage = lazy(
   () => import("../features/quality/pages/QualityTraceabilityPage"),
 );
-const QualityTestsPage = lazy(() => import("../features/quality/pages/QualityTestsPage"));
-const QualitySuitesPage = lazy(() => import("../features/quality/pages/QualitySuitesPage"));
+const QualityDefectsPage = lazy(() => import("../features/quality/pages/QualityDefectsPage"));
+const QualityCatalogPage = lazy(() => import("../features/quality/pages/QualityCatalogPage"));
+const QualityCampaignPage = lazy(() => import("../features/quality/pages/QualityCampaignPage"));
 const QualityRunsPage = lazy(() => import("../features/quality/pages/QualityRunsPage"));
 const QualityCampaignsPage = lazy(() => import("../features/quality/pages/QualityCampaignsPage"));
-const ManualExecutionPlayerPage = lazy(() => import("../features/quality/pages/ManualExecutionPlayer"));
+const LegacyExecuteRedirect = lazy(() => import("../features/quality/pages/LegacyExecuteRedirect"));
 
 const OrgRedirect = lazy(() => import("./OrgRedirect"));
 
@@ -200,20 +209,28 @@ export const router = createBrowserRouter([
             element: withPermission("artifact:read", ArtifactsPage),
           },
           {
+            path: ":projectSlug/requirements/coverage",
+            element: withPermission("artifact:read", RequirementsCoveragePage),
+          },
+          {
             path: ":projectSlug/quality/traceability",
             element: withPermission("artifact:read", QualityTraceabilityPage),
           },
           {
-            path: ":projectSlug/quality/tests",
-            element: withPermission("artifact:read", QualityTestsPage),
+            path: ":projectSlug/quality/defects",
+            element: withPermission("artifact:read", QualityDefectsPage),
           },
           {
-            path: ":projectSlug/quality/suites",
-            element: withPermission("artifact:read", QualitySuitesPage),
+            path: ":projectSlug/quality/catalog",
+            element: withPermission("artifact:read", QualityCatalogPage),
+          },
+          {
+            path: ":projectSlug/quality/campaign",
+            element: withPermission("artifact:read", QualityCampaignPage),
           },
           {
             path: ":projectSlug/quality/runs/:runId/execute",
-            element: withPermission("artifact:read", ManualExecutionPlayerPage),
+            element: withPermission("artifact:read", LegacyExecuteRedirect),
           },
           {
             path: ":projectSlug/quality/runs",

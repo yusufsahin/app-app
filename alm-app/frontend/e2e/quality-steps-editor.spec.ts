@@ -10,7 +10,7 @@ test.describe("Quality test-case steps editor", () => {
     const nav = new ProjectNavigationPage(page);
     const quality = new QualityWorkspacePage(page);
     await nav.openProjectQuality();
-    await quality.openTests();
+    await quality.openCatalog();
     await quality.selectFirstQualityFolder();
 
     const base = Date.now();
@@ -20,44 +20,43 @@ test.describe("Quality test-case steps editor", () => {
     const artifactId = await quality.findQualityArtifactIdByTitle(tcTitle, "test-case");
     await quality.openLeafEditFromTree(artifactId);
 
-    const dialog = page.getByRole("dialog");
-    await expect(dialog.getByLabel(/action/i).nth(0)).toHaveValue("First action");
-    await expect(dialog.getByLabel(/action/i).nth(1)).toHaveValue("Second action");
+    const modal = page.getByTestId("quality-artifact-modal");
+    await expect(modal).toBeVisible();
+    await expect(modal.getByLabel(/action/i).nth(0)).toHaveValue("First action");
+    await expect(modal.getByLabel(/action/i).nth(1)).toHaveValue("Second action");
 
-    const secondCard = dialog.locator("[data-testid^=\"quality-step-card-\"]").nth(1);
-    await secondCard.hover();
+    const secondCard = modal.locator('[data-testid^="quality-step-card-"]').nth(1);
     const secondStepId = await secondCard.getAttribute("data-step-id");
     expect(secondStepId).toBeTruthy();
-    await dialog.getByTestId(`quality-step-delete-${secondStepId}`).click();
+    await modal.getByTestId(`quality-step-delete-${secondStepId!}`).click();
 
-    await expect(dialog.getByLabel(/action/i)).toHaveCount(1);
-    await expect(dialog.getByLabel(/action/i).first()).toHaveValue("First action");
+    await expect(modal.getByLabel(/action/i)).toHaveCount(1);
+    await expect(modal.getByLabel(/action/i).first()).toHaveValue("First action");
 
     await page.getByTestId("artifact-modal-save").click();
-    await expect(dialog).toBeHidden({ timeout: 15000 });
+    await expect(page.getByTestId("artifact-modal-title-input")).toBeHidden({ timeout: 15000 });
 
     await quality.openLeafEditFromTree(artifactId);
-    const dialog2 = page.getByRole("dialog");
-    await expect(dialog2.getByLabel(/action/i)).toHaveCount(1);
+    const modal2 = page.getByTestId("quality-artifact-modal");
+    await expect(modal2.getByLabel(/action/i)).toHaveCount(1);
 
     await quality.createTestCaseWithStepActions(`E2E Reorder ${base}`, ["Alpha", "Beta"]);
     const reorderId = await quality.findQualityArtifactIdByTitle(`E2E Reorder ${base}`, "test-case");
     await quality.openLeafEditFromTree(reorderId);
-    const dialog3 = page.getByRole("dialog");
-    const firstCard = dialog3.locator("[data-testid^=\"quality-step-card-\"]").first();
-    await firstCard.hover();
+    const modal3 = page.getByTestId("quality-artifact-modal");
+    const firstCard = modal3.locator('[data-testid^="quality-step-card-"]').first();
     const firstStepId = await firstCard.getAttribute("data-step-id");
     expect(firstStepId).toBeTruthy();
-    await dialog3.getByTestId(`quality-step-move-down-${firstStepId}`).click();
-    await expect(dialog3.getByLabel(/action/i).nth(0)).toHaveValue("Beta");
-    await expect(dialog3.getByLabel(/action/i).nth(1)).toHaveValue("Alpha");
+    await modal3.getByTestId(`quality-step-move-down-${firstStepId!}`).click();
+    await expect(modal3.getByLabel(/action/i).nth(0)).toHaveValue("Beta");
+    await expect(modal3.getByLabel(/action/i).nth(1)).toHaveValue("Alpha");
     await page.getByTestId("artifact-modal-save").click();
-    await expect(dialog3).toBeHidden({ timeout: 15000 });
+    await expect(page.getByTestId("artifact-modal-title-input")).toBeHidden({ timeout: 15000 });
 
     await quality.openLeafEditFromTree(reorderId);
-    const dialog4 = page.getByRole("dialog");
-    await expect(dialog4.getByLabel(/action/i).nth(0)).toHaveValue("Beta");
-    await expect(dialog4.getByLabel(/action/i).nth(1)).toHaveValue("Alpha");
+    const modal4 = page.getByTestId("quality-artifact-modal");
+    await expect(modal4.getByLabel(/action/i).nth(0)).toHaveValue("Beta");
+    await expect(modal4.getByLabel(/action/i).nth(1)).toHaveValue("Alpha");
     await page.getByTestId("artifact-modal-cancel").click();
   });
 });

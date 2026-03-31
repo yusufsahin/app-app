@@ -5,8 +5,8 @@ import { useArtifacts } from "../../../shared/api/artifactApi";
 import {
   qualityPath,
   qualityTraceabilityPath,
-  qualityTestsPath,
-  qualitySuitesPath,
+  qualityCatalogPath,
+  qualityCampaignPath,
   qualityRunsPath,
   qualityCampaignsPath,
 } from "../../../shared/utils/appPaths";
@@ -57,20 +57,21 @@ export function QualityHubHeader({
       {hasQualityTree ? (
         <div className="flex flex-wrap gap-2 border-b border-border pb-3">
           <Link
-            to={qualityTestsPath(orgSlug, projectSlug)}
+            to={qualityCatalogPath(orgSlug, projectSlug)}
             className={navClass}
-            data-testid="quality-nav-tests"
+            data-testid="quality-nav-catalog"
+            title="Catalog: browse groups and test cases"
           >
             <ListChecks className="size-3.5 shrink-0 opacity-70" />
-            Tests
+            Catalog
           </Link>
           <Link
-            to={qualitySuitesPath(orgSlug, projectSlug)}
+            to={qualityCampaignPath(orgSlug, projectSlug)}
             className={navClass}
-            data-testid="quality-nav-suites"
+            data-testid="quality-nav-campaign"
           >
             <Layers className="size-3.5 shrink-0 opacity-70" />
-            Suites
+            Campaign
           </Link>
           <Link
             to={qualityRunsPath(orgSlug, projectSlug)}

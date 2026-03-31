@@ -14,3 +14,4 @@ class ArtifactLinkDTO:
     to_artifact_id: uuid.UUID
     link_type: str
     created_at: str | None
+    sort_order: int | None = None

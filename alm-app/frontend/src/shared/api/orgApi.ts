@@ -45,6 +45,34 @@ export interface BurndownPoint {
   remaining_effort: number;
 }
 
+export interface TeamMember {
+  team_id: string;
+  user_id: string;
+  role: string;
+}
+
+export interface Team {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string;
+  created_at: string | null;
+  updated_at: string | null;
+  members: TeamMember[];
+}
+
+export interface Capacity {
+  id: string;
+  project_id: string;
+  cycle_node_id: string | null;
+  team_id: string | null;
+  user_id: string | null;
+  capacity_value: number;
+  unit: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 interface MetricsOptionsBase {
   cycleNodeIds?: string[];
   lastN?: number;
@@ -224,6 +252,55 @@ export function useProjectBurndown(
       const queryString = params.toString();
       const { data } = await apiClient.get<BurndownPoint[]>(
         `/orgs/${orgSlug}/projects/${projectId}/burndown${queryString ? `?${queryString}` : ""}`,
+      );
+      return data;
+    },
+    enabled: !!orgSlug && !!projectId,
+  });
+}
+
+export function useProjectTeams(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ["orgs", orgSlug, "projects", projectId, "teams"],
+    queryFn: async (): Promise<Team[]> => {
+      const { data } = await apiClient.get<Team[]>(
+        `/orgs/${orgSlug}/projects/${projectId}/teams`,
+      );
+      return data;
+    },
+    enabled: !!orgSlug && !!projectId,
+  });
+}
+
+export function useProjectCapacity(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+  options?: { cycleNodeId?: string; teamId?: string; userId?: string },
+) {
+  return useQuery({
+    queryKey: [
+      "orgs",
+      orgSlug,
+      "projects",
+      projectId,
+      "capacity",
+      options?.cycleNodeId,
+      options?.teamId,
+      options?.userId,
+    ],
+    queryFn: async (): Promise<Capacity[]> => {
+      const { data } = await apiClient.get<Capacity[]>(
+        `/orgs/${orgSlug}/projects/${projectId}/capacity`,
+        {
+          params: {
+            ...(options?.cycleNodeId ? { cycle_node_id: options.cycleNodeId } : {}),
+            ...(options?.teamId ? { team_id: options.teamId } : {}),
+            ...(options?.userId ? { user_id: options.userId } : {}),
+          },
+        },
       );
       return data;
     },

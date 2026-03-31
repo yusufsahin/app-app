@@ -39,17 +39,27 @@ export type AddTaskModalProps = {
   onSubmit: (values: Record<string, unknown>) => void;
   isPending: boolean;
   userOptions: Array<{ id: string; label: string }>;
+  projectTagOptions?: Array<{ id: string; name: string }>;
 };
 
 /** Edit task – parent provides schema; modal passes current values to onSubmit */
 export type EditTaskModalProps = {
   taskFormSchema: import("@/shared/types/formSchema").FormSchemaDto | null;
-  task: { id: string; title: string; description?: string | null; state?: string; assignee_id?: string | null; rank_order?: number | null };
+  task: {
+    id: string;
+    title: string;
+    description?: string | null;
+    state?: string;
+    assignee_id?: string | null;
+    rank_order?: number | null;
+    tags?: Array<{ id: string; name: string }>;
+  };
   values: Record<string, unknown>;
   onChange: (v: Record<string, unknown>) => void;
   onSubmit: (values: Record<string, unknown>) => void;
   isPending: boolean;
   userOptions: Array<{ id: string; label: string }>;
+  projectTagOptions?: Array<{ id: string; name: string }>;
 };
 
 /** Add link */
@@ -142,31 +152,24 @@ export type QualityArtifactModalProps = {
   artifactType: string;
   initialTitle?: string;
   initialDescription?: string;
-  initialSteps?: Array<{
-    id: string;
-    stepNumber: number;
-    name: string;
-    description: string;
-    expectedResult: string;
-    status: "passed" | "failed" | "blocked" | "not-executed";
-    actualResult?: string;
-    notes?: string;
-  }>;
+  initialSteps?: import("@/features/quality/types").TestPlanEntry[];
   enableStepsEditor?: boolean;
+  /** Load test cases for “Call to Test” picker; `projectId` is the API project UUID. */
+  testCasePickerContext?: {
+    orgSlug: string;
+    projectId: string;
+    excludeArtifactId?: string;
+  };
+  /** Open another test case from the steps editor (e.g. callee). */
+  onNavigateToTestCase?: (testCaseId: string) => void;
   isPending: boolean;
+  /** When enableStepsEditor, persisted as `custom_fields.test_params_json` (omit or null clears). */
+  initialTestParams?: import("@/features/quality/lib/testParams").TestParamsDocument | null;
   onSubmit: (payload: {
     title: string;
     description: string;
-    steps: Array<{
-      id: string;
-      stepNumber: number;
-      name: string;
-      description: string;
-      expectedResult: string;
-      status: "passed" | "failed" | "blocked" | "not-executed";
-      actualResult?: string;
-      notes?: string;
-    }>;
+    steps?: import("@/features/quality/types").TestPlanEntry[];
+    testParams?: import("@/features/quality/lib/testParams").TestParamsDocument | null;
   }) => Promise<void> | void;
 };
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from alm.artifact.domain.guard_evaluator import evaluate_guard
-from alm.artifact.domain.manifest_ast import _get_def, _to_ast_fallback
+from alm.artifact.domain.manifest_ast import get_def, to_ast_fallback
 from alm.artifact.domain.mpc_resolver import TYPE_KIND_ARTIFACT
 
 try:
@@ -77,13 +77,13 @@ def _normalize_workflow_transitions_for_mpc(raw: list[Any]) -> list[dict[str, An
 
 def _workflow_def_from_defs(manifest_bundle: dict[str, Any], type_id: str, ast: Any) -> dict[str, Any] | None:
     """Resolve workflow definition from manifest defs format using AST."""
-    at_def = _get_def(ast, TYPE_KIND_ARTIFACT, type_id)
+    at_def = get_def(ast, TYPE_KIND_ARTIFACT, type_id)
     if at_def is None:
         return None
     workflow_id = at_def.properties.get("workflow_id")
     if not workflow_id:
         return None
-    wf_def = _get_def(ast, "Workflow", workflow_id)
+    wf_def = get_def(ast, "Workflow", workflow_id)
     if wf_def is None:
         return None
     transitions = wf_def.properties.get("transitions") or []
@@ -105,7 +105,7 @@ def get_workflow_def(
     if ast is None:
         if not (manifest_bundle or {}).get("defs"):
             return None
-        ast = _to_ast_fallback(manifest_bundle)
+        ast = to_ast_fallback(manifest_bundle)
     return _workflow_def_from_defs(manifest_bundle, type_id, ast)
 
 

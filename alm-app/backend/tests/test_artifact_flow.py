@@ -92,8 +92,8 @@ class TestArtifactFlow:
         assert data["total"] == 0
         assert data["items"] == []
 
-    async def test_list_artifacts_tree_quality_and_type_test_suite_ok(self, client: AsyncClient):
-        """tree=quality with type=test-suite is accepted (empty project → zero rows)."""
+    async def test_list_artifacts_tree_testsuites_and_type_test_suite_ok(self, client: AsyncClient):
+        """tree=testsuites with type=test-suite is accepted (empty project → zero rows)."""
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
@@ -102,7 +102,7 @@ class TestArtifactFlow:
         resp = await client.get(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
-            params={"tree": "quality", "type": "test-suite"},
+            params={"tree": "testsuites", "type": "test-suite"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -127,7 +127,7 @@ class TestArtifactFlow:
         assert data["items"] == []
 
     async def test_quality_testcase_requires_quality_folder_parent(self, client: AsyncClient):
-        """Quality types must be created under a quality-folder (not root-quality or null)."""
+        """Test cases must be created under a quality-folder (not root-quality or null)."""
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
@@ -141,9 +141,9 @@ class TestArtifactFlow:
         roots_resp.raise_for_status()
         items = roots_resp.json()["items"]
         root_quality = next((a for a in items if a["artifact_type"] == "root-quality"), None)
-        quality_folder = next((a for a in items if a["artifact_type"] == "quality-folder"), None)
+        test_folder = next((a for a in items if a["artifact_type"] == "quality-folder"), None)
         assert root_quality is not None, "project must have root-quality"
-        if quality_folder is None:
+        if test_folder is None:
             mk_folder = await client.post(
                 f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
                 headers={"Authorization": f"Bearer {token}"},
@@ -155,8 +155,8 @@ class TestArtifactFlow:
                 },
             )
             assert mk_folder.status_code == 201
-            quality_folder = mk_folder.json()
-        assert quality_folder is not None
+            test_folder = mk_folder.json()
+        assert test_folder is not None
 
         # parent_id omitted -> rejected
         r1 = await client.post(
@@ -180,18 +180,18 @@ class TestArtifactFlow:
         r3 = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
-            json={"artifact_type": "test-case", "title": "TC under folder", "description": "", "parent_id": quality_folder["id"]},
+            json={"artifact_type": "test-case", "title": "TC under folder", "description": "", "parent_id": test_folder["id"]},
         )
         assert r3.status_code == 201
         created = r3.json()
         assert created["artifact_type"] == "test-case"
-        assert created["parent_id"] == quality_folder["id"]
+        assert created["parent_id"] == test_folder["id"]
 
         # list direct children of the folder within quality tree
         list_resp = await client.get(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
-            params={"tree": "quality", "parent_id": quality_folder["id"], "type": "test-case", "limit": 50, "offset": 0},
+            params={"tree": "quality", "parent_id": test_folder["id"], "type": "test-case", "limit": 50, "offset": 0},
         )
         list_resp.raise_for_status()
         data = list_resp.json()
@@ -199,8 +199,8 @@ class TestArtifactFlow:
         assert any(a["id"] == created["id"] for a in data["items"])
 
     @pytest.mark.parametrize("artifact_type", ["test-suite", "test-run", "test-campaign"])
-    async def test_quality_types_require_quality_folder_parent(self, client: AsyncClient, artifact_type: str):
-        """All quality types must be created under a quality-folder."""
+    async def test_quality_types_require_testsuite_folder_parent(self, client: AsyncClient, artifact_type: str):
+        """Suite/run/campaign types must be created under a testsuite-folder."""
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
@@ -209,22 +209,22 @@ class TestArtifactFlow:
         roots_resp = await client.get(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
-            params={"include_system_roots": "true", "tree": "quality", "limit": 200, "offset": 0},
+            params={"include_system_roots": "true", "tree": "testsuites", "limit": 200, "offset": 0},
         )
         roots_resp.raise_for_status()
         items = roots_resp.json()["items"]
-        root_quality = next((a for a in items if a["artifact_type"] == "root-quality"), None)
-        assert root_quality is not None
+        root_suites = next((a for a in items if a["artifact_type"] == "root-testsuites"), None)
+        assert root_suites is not None
 
-        # Ensure there is a quality-folder to attach under
+        # Ensure there is a testsuite-folder to attach under
         mk_folder = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
             json={
-                "artifact_type": "quality-folder",
+                "artifact_type": "testsuite-folder",
                 "title": "QA Folder",
                 "description": "",
-                "parent_id": root_quality["id"],
+                "parent_id": root_suites["id"],
             },
         )
         assert mk_folder.status_code == 201
@@ -237,18 +237,18 @@ class TestArtifactFlow:
             json={"artifact_type": artifact_type, "title": f"{artifact_type} no parent", "description": ""},
         )
         assert r1.status_code == 422
-        assert "quality-folder" in (r1.json().get("detail") or "")
+        assert "testsuite-folder" in (r1.json().get("detail") or "")
 
-        # parent_id = root-quality -> rejected
+        # parent_id = root-testsuites -> rejected
         r2 = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
-            json={"artifact_type": artifact_type, "title": f"{artifact_type} under root", "description": "", "parent_id": root_quality["id"]},
+            json={"artifact_type": artifact_type, "title": f"{artifact_type} under root", "description": "", "parent_id": root_suites["id"]},
         )
         assert r2.status_code == 422
-        assert "quality-folder" in (r2.json().get("detail") or "")
+        assert "testsuite-folder" in (r2.json().get("detail") or "")
 
-        # parent_id = quality-folder -> ok
+        # parent_id = testsuite-folder -> ok
         r3 = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
@@ -307,20 +307,20 @@ class TestArtifactFlow:
         )
         roots_resp.raise_for_status()
         items = roots_resp.json()["items"]
-        root_quality = next((a for a in items if a["artifact_type"] == "root-quality"), None)
-        assert root_quality is not None
+        root_tests = next((a for a in items if a["artifact_type"] == "root-quality"), None)
+        assert root_tests is not None
 
         f1 = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
-            json={"artifact_type": "quality-folder", "title": "Folder 1", "description": "", "parent_id": root_quality["id"]},
+            json={"artifact_type": "quality-folder", "title": "Folder 1", "description": "", "parent_id": root_tests["id"]},
         )
         assert f1.status_code == 201
         folder1 = f1.json()
         f2 = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
-            json={"artifact_type": "quality-folder", "title": "Folder 2", "description": "", "parent_id": root_quality["id"]},
+            json={"artifact_type": "quality-folder", "title": "Folder 2", "description": "", "parent_id": root_tests["id"]},
         )
         assert f2.status_code == 201
         folder2 = f2.json()
@@ -623,8 +623,8 @@ class TestArtifactFlow:
         list_data = list_resp.json()
         assert not any(a["id"] in ids for a in list_data["items"])
 
-    async def test_project_has_two_roots_after_create(self, client: AsyncClient):
-        """Creating a project with template yields three system root artifacts (requirement / quality / defect)."""
+    async def test_project_has_expected_roots_after_create(self, client: AsyncClient):
+        """Creating a project with template yields four system root artifacts (requirement / tests / testsuites / defect)."""
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
@@ -643,10 +643,14 @@ class TestArtifactFlow:
         )
         list_resp.raise_for_status()
         data = list_resp.json()
-        roots = [a for a in data["items"] if a["artifact_type"] in ("root-requirement", "root-quality", "root-defect")]
-        assert len(roots) == 3
+        roots = [
+            a
+            for a in data["items"]
+            if a["artifact_type"] in ("root-requirement", "root-quality", "root-testsuites", "root-defect")
+        ]
+        assert len(roots) == 4
         keys = {a["artifact_key"] for a in roots}
-        assert f"{code}-R0" in keys and f"{code}-Q0" in keys and f"{code}-D0" in keys
+        assert f"{code}-R0" in keys and f"{code}-Q0" in keys and f"{code}-TS0" in keys and f"{code}-D0" in keys
 
     async def test_delete_root_returns_422(self, client: AsyncClient):
         """Deleting a project root artifact must be rejected with 422 (ValidationError)."""

@@ -84,12 +84,14 @@ export function useCreateTenant(tokenOverride?: string) {
 }
 
 export function useMyTenants() {
-  const hasAccessToken = useAuthStore((s) => !!s.accessToken);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const hasAccessToken = !!accessToken;
   return useQuery({
-    queryKey: ["tenants"],
+    queryKey: ["tenants", accessToken ?? ""],
     queryFn: () =>
       apiClient.get<TenantListItem[]>("/tenants/").then((r) => r.data),
     enabled: hasAccessToken,
+    staleTime: 0,
   });
 }
 

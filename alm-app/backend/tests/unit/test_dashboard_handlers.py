@@ -67,7 +67,9 @@ class TestGetOrgDashboardStatsHandler:
         args, kwargs = artifact_repo.count_by_project.call_args
         assert args[0] == proj_id
         assert kwargs.get("exclude_root_artifact_types") is True
-        assert kwargs.get("root_type_ids_exclude") == frozenset({"root-requirement", "root-quality", "root-defect"})
+        assert kwargs.get("root_type_ids_exclude") == frozenset(
+            {"root-requirement", "root-quality", "root-testsuites", "root-defect"}
+        )
         task_repo.count_by_project_ids.assert_awaited_once_with([proj_id])
 
     async def test_empty_projects_returns_zeros(self) -> None:

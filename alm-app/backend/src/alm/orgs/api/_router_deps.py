@@ -35,6 +35,7 @@ from alm.artifact.api.schemas import (
     BatchTransitionRequest,
     PermittedTransitionItem,
     PermittedTransitionsResponse,
+    artifact_response_from_dto,
 )
 from alm.artifact.application.commands.create_artifact import CreateArtifact
 from alm.artifact.application.commands.delete_artifact import DeleteArtifact
@@ -45,9 +46,18 @@ from alm.artifact.application.queries.get_artifact import GetArtifact
 from alm.artifact.application.queries.get_permitted_transitions import GetPermittedTransitions
 from alm.artifact.application.queries.list_artifacts import ListArtifacts
 from alm.artifact.domain.mpc_resolver import manifest_defs_to_flat
-from alm.artifact_link.api.schemas import ArtifactLinkCreateRequest, ArtifactLinkResponse
+from alm.artifact_link.api.schemas import (
+    ArtifactLinkBulkCreateRequest,
+    ArtifactLinkBulkDeleteRequest,
+    ArtifactLinkBulkResultItem,
+    ArtifactLinkBulkResultResponse,
+    ArtifactLinkCreateRequest,
+    ArtifactLinkReorderRequest,
+    ArtifactLinkResponse,
+)
 from alm.artifact_link.application.commands.create_artifact_link import CreateArtifactLink
 from alm.artifact_link.application.commands.delete_artifact_link import DeleteArtifactLink
+from alm.artifact_link.application.commands.reorder_artifact_links import ReorderOutgoingArtifactLinks
 from alm.artifact_link.application.queries.list_artifact_links import ListArtifactLinks
 from alm.attachment.api.schemas import AttachmentResponse
 from alm.attachment.application.commands.create_attachment import CreateAttachment
@@ -58,6 +68,16 @@ from alm.attachment.domain.ports import FileStoragePort
 from alm.comment.api.schemas import CommentCreateRequest, CommentResponse
 from alm.comment.application.commands.create_comment import CreateComment
 from alm.comment.application.queries.list_comments_by_artifact import ListCommentsByArtifact
+from alm.capacity.api.schemas import (
+    CapacityCreateRequest,
+    CapacityResponse,
+    CapacityUpdateRequest,
+    capacity_response_from_dto,
+)
+from alm.capacity.application.commands.create_capacity import CreateCapacity
+from alm.capacity.application.commands.delete_capacity import DeleteCapacity
+from alm.capacity.application.commands.update_capacity import UpdateCapacity
+from alm.capacity.application.queries.list_capacity_by_project import ListCapacityByProject
 from alm.config.dependencies import get_file_storage, get_mediator
 from alm.cycle.api.schemas import IncrementCreateRequest, IncrementResponse, IncrementUpdateRequest
 from alm.cycle.application.commands.create_cycle import CreateIncrement
@@ -97,6 +117,10 @@ from alm.project.application.queries.get_project_manifest import GetProjectManif
 from alm.project.application.queries.get_velocity import GetVelocity
 from alm.project.application.queries.list_project_members import ListProjectMembers
 from alm.project.application.queries.list_projects import ListProjects
+from alm.project_tag.application.commands.create_project_tag import CreateProjectTag
+from alm.project_tag.application.commands.delete_project_tag import DeleteProjectTag
+from alm.project_tag.application.commands.rename_project_tag import RenameProjectTag
+from alm.project_tag.application.queries.list_project_tags import ListProjectTags
 from alm.saved_query.api.schemas import (
     SavedQueryCreateRequest,
     SavedQueryResponse,
@@ -120,6 +144,7 @@ from alm.shared.infrastructure.org_resolver import ResolvedOrg, resolve_org
 from alm.shared.infrastructure.security.dependencies import (
     CurrentUser,
     get_user_privileges,
+    require_list_schema_read_permission,
     require_permission,
 )
 from alm.shared.infrastructure.security.field_masking import (
@@ -128,7 +153,12 @@ from alm.shared.infrastructure.security.field_masking import (
     mask_artifact_list_for_user,
 )
 from alm.shared.infrastructure.security.manifest_acl import require_manifest_acl
-from alm.task.api.schemas import TaskCreateRequest, TaskResponse, TaskUpdateRequest
+from alm.task.api.schemas import (
+    TaskCreateRequest,
+    TaskResponse,
+    TaskUpdateRequest,
+    task_response_from_dto,
+)
 from alm.task.application.commands.create_task import CreateTask
 from alm.task.application.commands.delete_task import DeleteTask
 from alm.task.application.commands.update_task import UpdateTask

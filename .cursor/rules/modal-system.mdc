@@ -1,0 +1,29 @@
+---
+description: Global modal stack (ModalManager, modalApi, zustand) and React Router integration
+globs: alm-app/frontend/src/shared/modal/**/*
+alwaysApply: false
+---
+
+# Modal system (ALM frontend)
+
+## Stack
+
+- **Store**: [`alm-app/frontend/src/shared/modal/useModalStore.ts`](alm-app/frontend/src/shared/modal/useModalStore.ts) — `openModal`, `closeModal`, `updateModalProps`, optional `titleOverride`.
+- **API**: [`alm-app/frontend/src/shared/modal/modalApi.ts`](alm-app/frontend/src/shared/modal/modalApi.ts) — imperative entry points (`openQualityArtifact`, `openConfirm`, …). Prefer these over duplicating Dialog state for the same flows.
+- **Registry**: [`alm-app/frontend/src/shared/modal/modalRegistry.ts`](alm-app/frontend/src/shared/modal/modalRegistry.ts) — lazy components + default titles/options. New modal type → add here and to [`modalTypes.ts`](alm-app/frontend/src/shared/modal/modalTypes.ts).
+- **Chrome**: [`ModalWrapper.tsx`](alm-app/frontend/src/shared/modal/ModalWrapper.tsx) — `Dialog` + `DialogContent` + `DialogHeader` + **`DialogTitle` without a custom `id`** (Radix must own `titleId`; see [dialog-accessibility.mdc](dialog-accessibility.mdc)).
+- **Host**: [`ModalManager.tsx`](alm-app/frontend/src/shared/modal/ModalManager.tsx) — subscribes to the store, renders `ModalWrapper` + `Suspense` + modal body.
+
+## Dismiss when the route changes
+
+- [`ModalManager`](alm-app/frontend/src/shared/modal/ModalManager.tsx) closes any open modal in a `useEffect` when **`location.pathname`** changes.
+- **Do not** key that effect on **`location.key`**. React Router often issues a new `location.key` on **search-only** updates (`setSearchParams`, e.g. Quality tree `?under=`). Opening a modal in the same user action as updating search params would then call `closeModal()` immediately and look like a broken “New suite” / create flow.
+
+## Dirty close guard
+
+- [`modalCloseGuard.ts`](alm-app/frontend/src/shared/modal/modalCloseGuard.ts) — `ModalWrapper` calls `allowModalCloseAsync()` before `onClose`. Modals with unsaved edits should register a guard (see existing modals that use `setModalCloseGuard`).
+
+## When to use global modals vs local `Dialog`
+
+- **Global (`modalApi` + registry)**: cross-cutting flows opened from many places (create/rename/delete artifact, confirms), shared title/max-width behavior.
+- **Local `Dialog`**: state owned by one screen/component; no need for the global stack. Still follow [dialog-accessibility.mdc](dialog-accessibility.mdc).

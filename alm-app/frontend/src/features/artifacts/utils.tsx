@@ -19,9 +19,19 @@ import {
 import type { Artifact } from "../../shared/stores/artifactStore";
 import type { ListColumnSchema } from "../../shared/types/listSchema";
 import type { ManifestTreeRoot } from "../../shared/lib/manifestTreeRoots";
+import { formatDateTime as formatDateTimeShared } from "../../shared/utils/formatDateTime";
+
+export const formatDateTime = formatDateTimeShared;
 
 export const CORE_FIELD_KEYS = new Set(["artifact_type", "parent_id", "title", "description", "assignee_id"]);
 export const TITLE_MAX_LENGTH = 500;
+
+/** Manifest `artifact_types[].fields[]` — omit from metadata-driven forms (e.g. app-managed JSON). */
+export function isManifestFieldExcludedFromForms(field: unknown): boolean {
+  if (!field || typeof field !== "object") return false;
+  const o = field as Record<string, unknown>;
+  return Boolean(o.exclude_from_form_schema ?? o.excludeFromFormSchema);
+}
 
 const DEFAULT_SYSTEM_ROOT_TYPES = new Set(["root-requirement", "root-quality", "root-defect"]);
 
@@ -52,9 +62,6 @@ export function getSystemRootArtifactTypes(bundle: ManifestBundleLike | null | u
   return new Set(DEFAULT_SYSTEM_ROOT_TYPES);
 }
 
-/** @deprecated use getSystemRootArtifactTypes(manifest) for manifest-driven roots */
-export const ROOT_ARTIFACT_TYPES = DEFAULT_SYSTEM_ROOT_TYPES;
-
 export function isRootArtifact(
   artifact: { artifact_type: string },
   bundleOrRoots?: ManifestBundleLike | Set<string> | null,
@@ -62,16 +69,6 @@ export function isRootArtifact(
   const roots =
     bundleOrRoots instanceof Set ? bundleOrRoots : getSystemRootArtifactTypes(bundleOrRoots ?? undefined);
   return roots.has(artifact.artifact_type);
-}
-
-export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return "";
-  try {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? "" : d.toLocaleString();
-  } catch {
-    return "";
-  }
 }
 
 function escapeCsvCell(value: string | number | null | undefined): string {
@@ -89,6 +86,11 @@ function humanizeKey(key: string): string {
 }
 
 export function getArtifactCellValue(row: Artifact, columnKey: string): string | number | undefined | null {
+  if (columnKey === "tags") {
+    const t = row.tags;
+    if (!t?.length) return null;
+    return t.map((x) => x.name).join(", ");
+  }
   if (columnKey === "created_at" || columnKey === "updated_at") {
     const raw = columnKey === "created_at" ? row.created_at : row.updated_at;
     return formatDateTime(raw ?? undefined) || null;
@@ -131,7 +133,7 @@ function csvCellForColumn(
   return v === null || v === undefined ? "" : String(v);
 }
 
-/** Export CSV using list schema column order/labels when provided; otherwise legacy fixed columns. */
+/** Export CSV using list schema column order/labels when provided; otherwise a built-in default column set. */
 export function downloadArtifactsCsv(
   artifacts: Artifact[],
   members: { user_id: string; display_name?: string; email?: string }[] = [],
@@ -209,7 +211,6 @@ export function getArtifactIcon(
   }
   switch (type) {
     case "defect":
-    case "bug":
       return <Bug className="size-4" />;
     case "root-defect":
       return <Bug className="size-4" />;

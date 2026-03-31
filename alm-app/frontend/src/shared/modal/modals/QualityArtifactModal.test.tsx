@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { QualityArtifactModal } from "./QualityArtifactModal";
 import { renderWithQualityI18n } from "../../../test/renderWithQualityI18n";
 
@@ -12,6 +12,7 @@ function firstModalRoot(container: HTMLElement) {
 }
 
 describe("QualityArtifactModal", () => {
+
   it("disables save/create when title is empty and steps editor enabled", () => {
     const { container } = renderWithQualityI18n(
       <QualityArtifactModal
@@ -69,7 +70,34 @@ describe("QualityArtifactModal", () => {
       expect.objectContaining({
         title: "T",
         steps: expect.arrayContaining([expect.objectContaining({ name: "Act", stepNumber: 1 })]),
+        testParams: null,
       }),
     );
+  });
+
+  it("shows discard prompt when closing with unsaved title; confirm closes", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    renderWithQualityI18n(
+      <QualityArtifactModal
+        mode="edit"
+        artifactType="test-case"
+        initialTitle="Original"
+        enableStepsEditor={false}
+        isPending={false}
+        onSubmit={vi.fn()}
+        onClose={onClose}
+      />,
+    );
+    const titleInput = screen.getByTestId("artifact-modal-title-input");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Changed");
+    await user.click(screen.getByTestId("artifact-modal-cancel"));
+    expect(await screen.findByTestId("artifact-modal-discard-confirm")).toBeVisible();
+    await user.click(screen.getByTestId("artifact-modal-discard-cancel"));
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("artifact-modal-cancel"));
+    await user.click(screen.getByTestId("artifact-modal-discard-confirm"));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

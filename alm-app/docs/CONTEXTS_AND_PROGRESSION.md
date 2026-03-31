@@ -162,6 +162,8 @@ Bu aşamada context’ler: **Process, Artifact, Tenant/Project**. İlerleyiş: M
 
 Detaylı görev listesi için [REMAINING_PLAN.md](./REMAINING_PLAN.md) kullanılır. Güncel tamamlananlar: Faz A–B, D4 (Planning, Cycle backlog), Traceability (Links), Board (Kanban, type + cycle filtresi).
 
+**Uzun vadeli (Faz F):** SCM ↔ artifact izlenebilirliği — [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md); capacity ve forecast — [PLAN_ADVANCED_ANALYTICS.md](./PLAN_ADVANCED_ANALYTICS.md). Özet: [REMAINING_PLAN.md](./REMAINING_PLAN.md) (“Faz F” bölümü).
+
 ---
 
 ## 5. İlk Adım Önerisi (Sıralı)
@@ -180,7 +182,9 @@ Bundan sonra sırayla: Planning (D4 cycle/area/baseline/release), Traceability (
 
 - [manifest-dsl.md](./manifest-dsl.md) — DSL grammar ve semantik
 - [manifest-schema.md](./manifest-schema.md) — JSON/yapı
-- [REMAINING_PLAN.md](./REMAINING_PLAN.md) — Faz A–E görevleri
+- [REMAINING_PLAN.md](./REMAINING_PLAN.md) — Faz A–E ve Faz F (SCM, ileri analitik)
+- [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) — SCM traceability planı
+- [PLAN_ADVANCED_ANALYTICS.md](./PLAN_ADVANCED_ANALYTICS.md) — İleri analitik planı
 - [MANIFEST_METADATA_MASTER_PLAN.md](../../docs/MANIFEST_METADATA_MASTER_PLAN.md) — Manifest/metadata bütünleşik plan (tamamlananlar, kalan sabitler, tüm context sırası; repo kökü `docs/`)
 - [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) — Gap analizi (mevcut vs hedef)
 - [BOARD_CONTEXT.md](./BOARD_CONTEXT.md) — Board context taslağı (Kanban/Scrum)

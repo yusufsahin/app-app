@@ -100,7 +100,7 @@ export default function SettingsPage() {
       )}
 
       <Dialog open={archiveDialogOpen} onOpenChange={(open) => !archiving && setArchiveDialogOpen(open)}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Archive organization?</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">

@@ -4,7 +4,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 
-from fastapi import Depends
+from fastapi import Depends, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from alm.shared.domain.exceptions import AccessDenied
@@ -111,6 +111,23 @@ def require_permission(permission: str):  # type: ignore[no-untyped-def]
         codes = await get_user_privileges(user.tenant_id, user.id)
         if not _matches_permission(codes, permission):
             raise AccessDenied(f"Missing permission: {permission}")
+        return user
+
+    return Depends(_checker)
+
+
+def require_list_schema_read_permission():  # type: ignore[no-untyped-def]
+    """Permission to read list schema: same as listing artifacts (default) or tasks."""
+
+    async def _checker(
+        entity_type: str = Query("artifact"),
+        user: CurrentUser = Depends(get_current_user),
+    ) -> CurrentUser:
+        et = (entity_type or "artifact").strip().lower()
+        required = "task:read" if et == "task" else "artifact:read"
+        codes = await get_user_privileges(user.tenant_id, user.id)
+        if not _matches_permission(codes, required):
+            raise AccessDenied(f"Missing permission: {required}")
         return user
 
     return Depends(_checker)

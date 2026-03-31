@@ -33,6 +33,8 @@ def test_merge_quality_domain_adds_test_suite_and_links() -> None:
     ids = [d.get("id") for d in merged if isinstance(d, dict) and d.get("kind") == "ArtifactType"]
     assert "test-suite" in ids
     assert "quality-folder" in ids
+    assert "testsuite-folder" in ids
+    assert "root-testsuites" in ids
     link_ids = [d.get("id") for d in merged if isinstance(d, dict) and d.get("kind") == "LinkType"]
     assert "suite_includes_test" in link_ids
 
@@ -45,9 +47,12 @@ def test_merge_quality_domain_idempotent() -> None:
 
 
 def test_with_quality_manifest_bundle() -> None:
-    bundle = {"defs": _minimal_template_defs()}
+    bundle = {"defs": _minimal_template_defs(), "tree_roots": [{"tree_id": "quality", "root_artifact_type": "root-quality"}]}
     out = with_quality_manifest_bundle(bundle)
     assert quality_domain_already_in_defs(out["defs"])
+    tree_ids = [str(x.get("tree_id")) for x in out.get("tree_roots", []) if isinstance(x, dict)]
+    assert "quality" in tree_ids
+    assert "testsuites" in tree_ids
 
 
 def test_merge_preserves_when_non_dict_in_defs() -> None:

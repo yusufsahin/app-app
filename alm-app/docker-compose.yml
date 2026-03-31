@@ -34,6 +34,8 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  # If backend exits with "privileges does not exist" / schema verify fails, the pgdata volume
+  # is likely out of sync with Alembic: run `docker compose down -v` then `up --build`.
   backend:
     build:
       # Context must be parent of alm-manifest-app (repo root). From alm-app: ../..

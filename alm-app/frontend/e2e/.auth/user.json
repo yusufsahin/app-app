@@ -10,7 +10,7 @@
         },
         {
           "name": "access_token",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNjE5MDZlMy1hODZlLTQ5OTctOTkyOS02NWI5Yzg1M2Y3ZTIiLCJ0aWQiOiIzYzdlYjUyMC0yNjQ3LTQwZjctODE3Ni05ZDNlYTVlYzMyNDEiLCJyb2xlcyI6WyJhZG1pbiJdLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc0NDQ2ODA3LCJpYXQiOjE3NzQ0NDUwMDd9.o3REycPiHfmatRgDCzBKW54UcWfTGNVKPkMh7avfrpI"
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NTNkNjIxMy1kYzdmLTQyOWEtYWMzMC1mZTgwNDFmNTEyMzAiLCJ0aWQiOiJiMWJjYmZjNC02ZTRiLTRmOTQtODlhZC1jMTJlYmQ3MzZhNDUiLCJyb2xlcyI6WyJhZG1pbiJdLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc0NTY2MzAwLCJpYXQiOjE3NzQ1NjQ1MDB9.f6fF7jTBJ7vufcZ5dW43ETOMbVZcC25lxRcvbYi2eHc"
         },
         {
           "name": "alm-layout-ui",
@@ -18,11 +18,11 @@
         },
         {
           "name": "refresh_token",
-          "value": "188f6195aeb1452da863b820df15ddb9c7a83dfd9e1140a6b9599ab58ddbfd46"
+          "value": "55774c7d02164140b8a5c97cfe297aee5aa8a067e06b43828486e8fb728bdb2c"
         },
         {
           "name": "current_tenant",
-          "value": "{\"id\":\"3c7eb520-2647-40f7-8176-9d3ea5ec3241\",\"name\":\"Demo\",\"slug\":\"demo\",\"tier\":\"free\",\"roles\":[\"admin\"]}"
+          "value": "{\"id\":\"b1bcbfc4-6e4b-4f94-89ad-c12ebd736a45\",\"name\":\"Demo\",\"slug\":\"demo\",\"tier\":\"free\",\"roles\":[\"admin\"]}"
         }
       ]
     }

@@ -33,10 +33,15 @@ interface QualityFolderTreeNavProps {
   onDeleteLeaf?: (leafId: string) => void;
   /** Label for “create under folder” in the folder ⋯ menu (e.g. New test case / New suite). */
   newLeafLabel?: string;
+  treeId?: string;
+  rootArtifactType?: string;
+  folderArtifactType?: string;
+  /** Collection wording for manifest Campaign tree (`tree_id: testsuites`); default is Catalog groups. */
+  explorerLabels?: "quality" | "campaign";
 }
 
-function folderNavNodes(nodes: ArtifactNode[]): ArtifactNode[] {
-  return nodes.filter((n) => n.artifact_type === "root-quality" || n.artifact_type === "quality-folder");
+function folderNavNodes(nodes: ArtifactNode[], rootArtifactType: string, folderArtifactType: string): ArtifactNode[] {
+  return nodes.filter((n) => n.artifact_type === rootArtifactType || n.artifact_type === folderArtifactType);
 }
 
 function FolderTreeRows({
@@ -65,6 +70,8 @@ function FolderTreeRows({
   moveLeafLabel,
   deleteLeafLabel,
   leafActionsLabel,
+  rootArtifactType,
+  folderArtifactType,
 }: {
   nodes: ArtifactNode[];
   expandedIds: Set<string>;
@@ -91,13 +98,15 @@ function FolderTreeRows({
   moveLeafLabel: string;
   deleteLeafLabel: string;
   leafActionsLabel: string;
+  rootArtifactType: string;
+  folderArtifactType: string;
 }) {
-  const navNodes = folderNavNodes(nodes);
+  const navNodes = folderNavNodes(nodes, rootArtifactType, folderArtifactType);
 
   return (
     <>
       {navNodes.map((node) => {
-        const childFolders = folderNavNodes(node.children);
+        const childFolders = folderNavNodes(node.children, rootArtifactType, folderArtifactType);
         const leafChildren =
           leafArtifactType != null && leafArtifactType !== ""
             ? node.children
@@ -107,7 +116,7 @@ function FolderTreeRows({
                   (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base" }),
                 )
             : [];
-        const isRoot = node.artifact_type === "root-quality";
+        const isRoot = node.artifact_type === rootArtifactType;
         const hasFolderKids = childFolders.length > 0;
         const hasLeafKids = leafChildren.length > 0;
         const hasKids = hasFolderKids || hasLeafKids;
@@ -283,6 +292,8 @@ function FolderTreeRows({
                     moveLeafLabel={moveLeafLabel}
                     deleteLeafLabel={deleteLeafLabel}
                     leafActionsLabel={leafActionsLabel}
+                    rootArtifactType={rootArtifactType}
+                    folderArtifactType={folderArtifactType}
                   />
                 ) : null}
                 {leafChildren.map((leaf) => {
@@ -366,7 +377,7 @@ function FolderTreeRows({
 }
 
 /**
- * Prototype-style folder navigation for the Quality tree (`quality-folder` under `root-quality`).
+ * Prototype-style folder navigation for a selected tree/folder pair.
  * Uses URL `?under=<folder-uuid>`; list queries pass `parent_id` for direct children.
  */
 export function QualityFolderTreeNav({
@@ -384,9 +395,15 @@ export function QualityFolderTreeNav({
   onMoveLeaf,
   onDeleteLeaf,
   newLeafLabel: newLeafLabelProp,
+  treeId = "quality",
+  rootArtifactType = "root-quality",
+  folderArtifactType = "quality-folder",
+  explorerLabels = "quality",
 }: QualityFolderTreeNavProps) {
   const { t } = useTranslation("quality");
   const newLeafLabel = newLeafLabelProp ?? t("tree.newItem");
+  const tx = (qualityKey: string, campaignKey: string) =>
+    explorerLabels === "campaign" ? t(campaignKey) : t(qualityKey);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedUnder = searchParams.get("under")?.trim() || null;
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
@@ -405,18 +422,18 @@ export function QualityFolderTreeNav({
     undefined,
     undefined,
     undefined,
-    "quality",
+    treeId,
     true,
   );
 
   const roots = useMemo(() => getTreeRootsFromManifestBundle(manifestBundle), [manifestBundle]);
 
   const explorerTree = useMemo(() => {
-    const allow = new Set<string>(["root-quality", "quality-folder"]);
+    const allow = new Set<string>([rootArtifactType, folderArtifactType]);
     if (leafArtifactType) allow.add(leafArtifactType);
     const items = (treeData?.items ?? []).filter((a) => allow.has(a.artifact_type));
     return buildArtifactTree(items, roots);
-  }, [treeData?.items, roots, leafArtifactType]);
+  }, [treeData?.items, roots, leafArtifactType, rootArtifactType, folderArtifactType]);
 
   const toggle = (id: string) => {
     setExpandedIds((prev) => {
@@ -432,6 +449,7 @@ export function QualityFolderTreeNav({
       (prev) => {
         const p = new URLSearchParams(prev);
         p.delete("under");
+        p.delete("artifact");
         p.delete("page");
         return p;
       },
@@ -444,6 +462,7 @@ export function QualityFolderTreeNav({
       (prev) => {
         const p = new URLSearchParams(prev);
         p.set("under", id);
+        p.delete("artifact");
         p.delete("page");
         return p;
       },
@@ -455,14 +474,17 @@ export function QualityFolderTreeNav({
 
   return (
     <div className="flex h-full min-h-[280px] max-h-[calc(100vh-220px)] flex-col rounded-lg border border-border bg-card">
-      <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("tree.folders")}
+      <div
+        className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+        data-testid="quality-tree-explorer-heading"
+      >
+        {tx("tree.folders", "campaignExplorer.folders")}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {isLoading ? (
           <p className="px-2 text-xs text-muted-foreground">{t("tree.loading")}</p>
         ) : explorerTree.length === 0 ? (
-          <p className="px-2 text-xs text-muted-foreground">{t("tree.empty")}</p>
+          <p className="px-2 text-xs text-muted-foreground">{tx("tree.empty", "campaignExplorer.empty")}</p>
         ) : (
           <FolderTreeRows
             nodes={explorerTree}
@@ -474,10 +496,10 @@ export function QualityFolderTreeNav({
             onCreateFolderUnder={onCreateFolderUnder}
             onRenameFolder={onRenameFolder}
             onDeleteFolder={onDeleteFolder}
-            newSubfolderLabel={t("tree.newSubfolder")}
+            newSubfolderLabel={tx("tree.newSubfolder", "campaignExplorer.newSubfolder")}
             renameLabel={t("tree.rename")}
             deleteLabel={t("tree.delete")}
-            folderActionsLabel={t("tree.folderActions")}
+            folderActionsLabel={tx("tree.folderActions", "campaignExplorer.folderActions")}
             leafArtifactType={leafArtifactType}
             selectedArtifactId={selectedArtifactId ?? null}
             onNewLeafInFolder={onNewLeafInFolder}
@@ -490,6 +512,8 @@ export function QualityFolderTreeNav({
             moveLeafLabel={t("tree.moveLeaf")}
             deleteLeafLabel={t("tree.delete")}
             leafActionsLabel={t("tree.leafActions")}
+            rootArtifactType={rootArtifactType}
+            folderArtifactType={folderArtifactType}
           />
         )}
       </div>
@@ -503,7 +527,7 @@ export function QualityFolderTreeNav({
             onClick={onSelectRoot}
             data-testid="quality-tree-clear-filter"
           >
-            {t("tree.clearFilter")}
+            {tx("tree.clearFilter", "campaignExplorer.clearFilter")}
           </Button>
         </div>
       ) : null}

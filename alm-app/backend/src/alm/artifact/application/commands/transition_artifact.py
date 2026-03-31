@@ -25,6 +25,7 @@ from alm.artifact.domain.workflow_sm import get_permitted_triggers, get_transiti
 from alm.artifact.domain.workflow_sm import (
     is_valid_transition as workflow_is_valid_transition,
 )
+from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ConflictError, GuardDeniedError, PolicyDeniedError, ValidationError
 
@@ -57,11 +58,13 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         project_repo: ProjectRepository,
         process_template_repo: ProcessTemplateRepository,
         metrics: IArtifactTransitionMetrics,
+        tag_repo: ProjectTagRepository,
     ) -> None:
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
         self._metrics = metrics
+        self._tag_repo = tag_repo
 
     async def handle(self, command: Command) -> ArtifactDTO:
         assert isinstance(command, TransitionArtifact)
@@ -254,6 +257,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
                     span.set_attribute("artifact.transition.trigger", command.trigger)
         except Exception:  # noqa: S110
             pass
+        tag_map = await self._tag_repo.get_tags_by_artifact_ids([artifact.id])
         return ArtifactDTO(
             id=artifact.id,
             project_id=artifact.project_id,
@@ -266,6 +270,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
             cycle_node_id=getattr(artifact, "cycle_node_id", None),
             area_node_id=getattr(artifact, "area_node_id", None),
             area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
+            team_id=getattr(artifact, "team_id", None),
             custom_fields=artifact.custom_fields,
             artifact_key=artifact.artifact_key,
             state_reason=artifact.state_reason,
@@ -273,4 +278,5 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
             rank_order=artifact.rank_order,
             created_at=getattr(artifact, "created_at", None),
             updated_at=getattr(artifact, "updated_at", None),
+            tags=tag_map.get(artifact.id, ()),
         )

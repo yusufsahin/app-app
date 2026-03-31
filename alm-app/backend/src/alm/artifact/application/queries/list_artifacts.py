@@ -18,6 +18,7 @@ from alm.config.settings import settings
 from alm.cycle.domain.ports import CycleRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.query import Query, QueryHandler
 
 
@@ -40,6 +41,8 @@ class ListArtifacts(Query):
     include_system_roots: bool = False  # when True, include system root placeholder artifacts in list + total
     actor_roles: list[str] | None = None
     parent_id: uuid.UUID | None = None  # when set, only direct children of this parent (within tree subtree if any)
+    tag_id: uuid.UUID | None = None  # filter artifacts that have this project tag
+    team_id: uuid.UUID | None = None  # filter artifacts assigned to this team
 
 
 @dataclass
@@ -55,11 +58,13 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
         project_repo: ProjectRepository,
         cycle_repo: CycleRepository,
         process_template_repo: ProcessTemplateRepository,
+        tag_repo: ProjectTagRepository,
     ) -> None:
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
         self._cycle_repo = cycle_repo
         self._process_template_repo = process_template_repo
+        self._tag_repo = tag_repo
 
     async def handle(self, query: Query) -> ListArtifactsResult:
         assert isinstance(query, ListArtifacts)
@@ -123,6 +128,8 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             exclude_root_artifact_types=exclude_roots,
             root_type_ids_exclude=system_roots if exclude_roots else None,
             fts_regconfig=fts_cfg,
+            tag_id=query.tag_id,
+            team_id=query.team_id,
         )
         artifacts = await self._artifact_repo.list_by_project(
             query.project_id,
@@ -142,7 +149,10 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             exclude_root_artifact_types=exclude_roots,
             root_type_ids_exclude=system_roots if exclude_roots else None,
             fts_regconfig=fts_cfg,
+            tag_id=query.tag_id,
+            team_id=query.team_id,
         )
+        tag_map = await self._tag_repo.get_tags_by_artifact_ids([a.id for a in artifacts])
         items = [
             ArtifactDTO(
                 id=a.id,
@@ -161,8 +171,10 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
                 cycle_node_id=getattr(a, "cycle_node_id", None),
                 area_node_id=getattr(a, "area_node_id", None),
                 area_path_snapshot=getattr(a, "area_path_snapshot", None),
+                team_id=getattr(a, "team_id", None),
                 created_at=getattr(a, "created_at", None),
                 updated_at=getattr(a, "updated_at", None),
+                tags=tag_map.get(a.id, ()),
             )
             for a in artifacts
         ]

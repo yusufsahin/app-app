@@ -6,47 +6,9 @@ from alm.artifact.domain.workflow_sm import (
     get_workflow_engine,
     is_valid_transition,
 )
+from tests.support.manifests import MPC_ACL_REDACT_MANIFEST, MPC_WORKFLOW_REQ_FLOW_MANIFEST
 
-SAMPLE_MANIFEST = {
-    "schemaVersion": 1,
-    "namespace": "alm",
-    "name": "test",
-    "manifestVersion": "1.0.0",
-    "defs": [
-        {
-            "kind": "ACL",
-            "id": "acl_read",
-            "action": "read",
-            "resource": "artifact",
-            "roles": ["viewer"],
-            "effect": "allow",
-        },
-        {
-            "kind": "ACL",
-            "id": "acl_update",
-            "action": "update",
-            "resource": "artifact",
-            "roles": ["editor"],
-            "effect": "allow",
-        },
-        {
-            "kind": "ACL",
-            "id": "acl_delete",
-            "action": "delete",
-            "resource": "artifact",
-            "roles": ["admin"],
-            "effect": "allow",
-        },
-        {
-            "kind": "Redact",
-            "id": "artifact_redact",
-            "rules": [
-                {"field": "internal_notes", "roles": ["viewer"], "effect": "mask"},
-                {"field": "confidential_data", "roles": ["viewer", "editor"], "effect": "mask"},
-            ],
-        },
-    ],
-}
+SAMPLE_MANIFEST = MPC_ACL_REDACT_MANIFEST
 
 
 def test_redact_data_viewer():
@@ -92,31 +54,11 @@ def test_acl_check_admin():
 # Workflow engine tests
 # ---------------------------------------------------------------------------
 
-WORKFLOW_MANIFEST = {
-    "schemaVersion": 1,
-    "namespace": "alm",
-    "name": "workflow",
-    "manifestVersion": "1.0.0",
-    "defs": [
-        {"kind": "ArtifactType", "id": "requirement", "workflow_id": "req_flow"},
-        {
-            "kind": "Workflow",
-            "id": "req_flow",
-            "initial": "open",
-            "states": ["open", "in_progress", "closed"],
-            "finals": ["closed"],
-            "transitions": [
-                {"from": "open", "on": "start", "to": "in_progress"},
-                {"from": "in_progress", "on": "close", "to": "closed"},
-                {"from": "open", "on": "close", "to": "closed"},
-            ],
-        },
-    ],
-}
+WORKFLOW_MANIFEST = MPC_WORKFLOW_REQ_FLOW_MANIFEST
 
 
 def test_workflow_engine_builds_from_manifest():
-    engine = get_workflow_engine(WORKFLOW_MANIFEST, "requirement")
+    engine = get_workflow_engine(MPC_WORKFLOW_REQ_FLOW_MANIFEST, "requirement")
     assert engine is not None
     assert engine.initial_state == "open"
 

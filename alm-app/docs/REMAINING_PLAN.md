@@ -138,6 +138,21 @@ Bu blok [PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md](./PLAN_IMPROVEMENTS_D1_TASK
 
 ---
 
+## Faz F — SCM izlenebilirliği ve ileri analitik (uzun vadeli)
+
+**Hedef:** Kod ile iş kalemi arasında sistematik bağlantı; kapasite ve tahmin ile planlama derinliği.
+
+| # | Başlık | Doküman | Not |
+|---|--------|---------|-----|
+| F1 | SCM traceability (PR/commit, webhook opsiyonel) | [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) | Artifact detay + API; GitHub/GitLab soyutlama |
+| F2 | İleri analitik (capacity, load vs capacity, forecast) | [PLAN_ADVANCED_ANALYTICS.md](./PLAN_ADVANCED_ANALYTICS.md) | P4/P5 üzerine; capacity [PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md](./PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md) §3 ile uyumlu |
+
+**Gap özeti:** [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) — Traceability ve Planning satırları.
+
+**Çıktı:** İki plandan bağımsız yürütülebilir; önerilen sıra: capacity/load (F2 A1–A2) ile planning güçlendirilir, SCM MVP (F1 S1) paralel veya hemen sonra.
+
+---
+
 ## Takip
 
 - Bu dosyada görevler tamamlandıkça `[x]` ile işaretlenebilir veya tarih eklenebilir.

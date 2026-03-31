@@ -75,12 +75,16 @@ export function useSwitchTenant() {
 }
 
 export function useCurrentUser() {
-  const hasAccessToken = useAuthStore((s) => !!s.accessToken);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const hasAccessToken = !!accessToken;
   return useQuery({
-    queryKey: ["auth", "me"],
+    // Include token in the key so a new session never reuses a fresh (still error) cache entry
+    // from before login under the global default staleTime (30s).
+    queryKey: ["auth", "me", accessToken ?? ""],
     queryFn: () =>
       apiClient.get<CurrentUserResponse>("/auth/me").then((r) => r.data),
     enabled: hasAccessToken,
+    staleTime: 0,
   });
 }
 

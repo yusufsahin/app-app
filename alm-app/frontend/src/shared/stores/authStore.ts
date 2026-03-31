@@ -2,22 +2,26 @@ import { create } from "zustand";
 import { devtools, persist, type StorageValue } from "zustand/middleware";
 import { useTenantStore } from "./tenantStore";
 
-/** Persist auth tokens using legacy keys so existing sessions keep working. */
+const ACCESS_TOKEN_KEY = "alm_access_token";
+const REFRESH_TOKEN_KEY = "alm_refresh_token";
+
 const authStorage = {
   getItem: (): StorageValue<{ accessToken: string | null; refreshToken: string | null }> | null => {
-    const accessToken = localStorage.getItem("access_token");
-    const refreshToken = localStorage.getItem("refresh_token");
+    const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
     if (!accessToken) return null;
     return { state: { accessToken, refreshToken } };
   },
   setItem: (_: string, value: StorageValue<{ accessToken: string | null; refreshToken: string | null }>) => {
     const { accessToken, refreshToken } = value.state;
-    if (accessToken) localStorage.setItem("access_token", accessToken);
-    if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
+    if (accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    else localStorage.removeItem(ACCESS_TOKEN_KEY);
+    if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    else localStorage.removeItem(REFRESH_TOKEN_KEY);
   },
   removeItem: () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
   },
 };
 

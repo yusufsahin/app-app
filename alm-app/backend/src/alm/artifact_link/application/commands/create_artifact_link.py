@@ -5,6 +5,8 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from sqlalchemy.exc import IntegrityError
+
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact_link.application.dtos import ArtifactLinkDTO
 from alm.artifact_link.domain.entities import ArtifactLink
@@ -60,13 +62,26 @@ class CreateArtifactLinkHandler(CommandHandler[ArtifactLinkDTO]):
         ):
             raise ValidationError("Link already exists between these artifacts with this type")
 
+        sort_order: int | None = None
+        if link_type == "suite_includes_test":
+            mx = await self._link_repo.max_sort_order_for_outgoing(
+                command.project_id,
+                command.from_artifact_id,
+                link_type,
+            )
+            sort_order = (mx + 1) if mx is not None else 0
+
         link = ArtifactLink.create(
             project_id=command.project_id,
             from_artifact_id=command.from_artifact_id,
             to_artifact_id=command.to_artifact_id,
             link_type=link_type,
+            sort_order=sort_order,
         )
-        await self._link_repo.add(link)
+        try:
+            await self._link_repo.add(link)
+        except IntegrityError as exc:
+            raise ValidationError("Link already exists between these artifacts with this type") from exc
 
         return ArtifactLinkDTO(
             id=link.id,
@@ -75,4 +90,5 @@ class CreateArtifactLinkHandler(CommandHandler[ArtifactLinkDTO]):
             to_artifact_id=link.to_artifact_id,
             link_type=link.link_type,
             created_at=link.created_at.isoformat() if link.created_at else None,
+            sort_order=link.sort_order,
         )

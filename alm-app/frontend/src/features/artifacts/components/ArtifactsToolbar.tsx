@@ -3,6 +3,7 @@
  */
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Plus,
   Download,
@@ -42,12 +43,14 @@ import { areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import type { ProblemDetail } from "../../../shared/api/types";
 import type { ManifestTreeRoot } from "../../../shared/lib/manifestTreeRoots";
 import type { ListColumnSchema } from "../../../shared/types/listSchema";
+import { requirementsCoveragePath } from "../../../shared/utils/appPaths";
 
 export type ToolbarFilterValues = {
   searchInput: string;
   savedQueryId: string;
   cycleNodeFilter: string;
   areaNodeFilter: string;
+  tagFilter: string;
   sortBy: ArtifactSortBy;
   sortOrder: ArtifactSortOrder;
   showDeleted: boolean;
@@ -56,6 +59,7 @@ export type ToolbarFilterValues = {
 type Increment = { id: string; path?: string; name?: string };
 type AreaNode = { id: string; path?: string; name?: string };
 type SavedQuery = { id: string; name: string; visibility?: string };
+type ProjectTagOption = { id: string; name: string };
 type Bundle = {
   artifact_types?: Array<{ id: string; name?: string }>;
 };
@@ -104,10 +108,13 @@ export interface ArtifactsToolbarProps {
     searchQuery: string;
     cycleNodeFilter: string;
     areaNodeFilter: string;
+    tagFilter: string;
     sortBy: ArtifactSortBy;
     sortOrder: ArtifactSortOrder;
   }) => Record<string, unknown>;
   showNotification: (message: string, severity?: "success" | "error" | "warning") => void;
+  projectTagOptions?: ProjectTagOption[];
+  onOpenTagsManager?: () => void;
 }
 
 export function ArtifactsToolbar({
@@ -140,7 +147,10 @@ export function ArtifactsToolbar({
   onCreateArtifact,
   listStateToFilterParams,
   showNotification,
+  projectTagOptions,
+  onOpenTagsManager,
 }: ArtifactsToolbarProps) {
+  const { t } = useTranslation("quality");
   const [newWorkItemOpen, setNewWorkItemOpen] = useState(false);
   const [myTasksOpen, setMyTasksOpen] = useState(false);
   const artifactTypes = bundle?.artifact_types ?? [];
@@ -156,6 +166,7 @@ export function ArtifactsToolbar({
     treeFilter,
     cycleNodeFilter,
     areaNodeFilter,
+    tagFilter,
     searchInput,
     sortBy,
     sortOrder,
@@ -166,6 +177,13 @@ export function ArtifactsToolbar({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold">Artifacts</h1>
+          {orgSlug && projectSlug ? (
+            <Button variant="outline" size="sm" asChild>
+              <Link to={requirementsCoveragePath(orgSlug, projectSlug)}>
+                {t("requirementCoverage.breadcrumb")}
+              </Link>
+            </Button>
+          ) : null}
           {orgSlug && projectSlug && (
             <DropdownMenu
               open={myTasksOpen}
@@ -390,6 +408,21 @@ export function ArtifactsToolbar({
                 ]}
                 selectProps={{ size: "sm", className: "min-w-[140px]", "aria-label": "Area" }}
               />
+              <RhfSelect<ToolbarFilterValues>
+                name="tagFilter"
+                control={toolbarForm.control}
+                label="Tag"
+                options={[
+                  { value: "", label: "All tags" },
+                  ...(projectTagOptions ?? []).map((t) => ({ value: t.id, label: t.name })),
+                ]}
+                selectProps={{ size: "sm", className: "min-w-[140px]", "aria-label": "Tag filter" }}
+              />
+              {onOpenTagsManager && (
+                <Button type="button" size="sm" variant="outline" onClick={onOpenTagsManager}>
+                  Manage tags
+                </Button>
+              )}
               <Select
                 value={stateFilter || "__all__"}
                 onValueChange={(v) => setListState({ stateFilter: v === "__all__" ? "" : v })}
@@ -468,6 +501,7 @@ export function ArtifactsToolbar({
                         searchQuery: listState.searchQuery,
                         cycleNodeFilter,
                         areaNodeFilter,
+                        tagFilter,
                         sortBy,
                         sortOrder,
                       });
@@ -496,7 +530,12 @@ export function ArtifactsToolbar({
                 <Save className="mr-1.5 size-4" />
                 Save filters
               </Button>
-              {(stateFilter || typeFilter || cycleNodeFilter || areaNodeFilter || searchInput) && (
+              {(stateFilter ||
+                typeFilter ||
+                cycleNodeFilter ||
+                areaNodeFilter ||
+                tagFilter ||
+                searchInput) && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -506,6 +545,7 @@ export function ArtifactsToolbar({
                       typeFilter: "",
                       cycleNodeFilter: "",
                       areaNodeFilter: "",
+                      tagFilter: "",
                       searchInput: "",
                     });
                     toolbarForm.reset({
@@ -513,6 +553,7 @@ export function ArtifactsToolbar({
                       searchInput: "",
                       cycleNodeFilter: "",
                       areaNodeFilter: "",
+                      tagFilter: "",
                     });
                   }}
                   aria-label="Clear filters"

@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 import contextlib
 
 from alm.artifact.infrastructure.models import ArtifactModel
+from alm.project_tag.infrastructure.models import ArtifactTagModel
 from alm.shared.application.mediator import buffer_events
 from alm.shared.audit.core import ChangeType
 from alm.shared.audit.interceptor import buffer_audit
@@ -76,6 +77,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         parent_id: uuid.UUID | None = None,
         root_artifact_id: uuid.UUID | None = None,
         fts_regconfig: str | None = None,
+        tag_id: uuid.UUID | None = None,
+        team_id: uuid.UUID | None = None,
     ) -> Any:
         """Apply common filters for list and count."""
         if root_artifact_id is not None:
@@ -93,6 +96,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             q = q.where(ArtifactModel.cycle_node_id == cycle_node_id)
         if area_node_id is not None:
             q = q.where(ArtifactModel.area_node_id == area_node_id)
+        if team_id is not None:
+            q = q.where(ArtifactModel.team_id == team_id)
         if search_query and search_query.strip():
             term = search_query.strip()
             cfg = _effective_fts_regconfig(fts_regconfig)
@@ -101,6 +106,16 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
                     search_fts=term
                 )
             )
+        if tag_id is not None:
+            tag_exists = (
+                select(1)
+                .select_from(ArtifactTagModel)
+                .where(
+                    ArtifactTagModel.artifact_id == ArtifactModel.id,
+                    ArtifactTagModel.tag_id == tag_id,
+                )
+            )
+            q = q.where(tag_exists.exists())
         return q
 
     async def count_by_project(
@@ -118,6 +133,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         exclude_root_artifact_types: bool = False,
         root_type_ids_exclude: frozenset[str] | None = None,
         fts_regconfig: str | None = None,
+        tag_id: uuid.UUID | None = None,
+        team_id: uuid.UUID | None = None,
     ) -> int:
         q = select(func.count(ArtifactModel.id)).where(
             ArtifactModel.project_id == project_id,
@@ -134,6 +151,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             parent_id=parent_id,
             root_artifact_id=root_artifact_id,
             fts_regconfig=fts_regconfig,
+            tag_id=tag_id,
+            team_id=team_id,
         )
         to_ex = self._root_types_to_exclude(exclude_root_artifact_types, root_type_ids_exclude)
         if to_ex:
@@ -170,6 +189,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         exclude_root_artifact_types: bool = False,
         root_type_ids_exclude: frozenset[str] | None = None,
         fts_regconfig: str | None = None,
+        tag_id: uuid.UUID | None = None,
+        team_id: uuid.UUID | None = None,
     ) -> list[Artifact]:
         q = select(ArtifactModel).where(
             ArtifactModel.project_id == project_id,
@@ -186,6 +207,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             parent_id=parent_id,
             root_artifact_id=root_artifact_id,
             fts_regconfig=fts_regconfig,
+            tag_id=tag_id,
+            team_id=team_id,
         )
         to_ex = self._root_types_to_exclude(exclude_root_artifact_types, root_type_ids_exclude)
         if to_ex:
@@ -211,7 +234,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             select(func.count(ArtifactModel.id)).where(
                 ArtifactModel.project_id.in_(project_ids),
                 ArtifactModel.deleted_at.is_(None),
-                ArtifactModel.artifact_type.in_(["defect", "bug"]),
+                ArtifactModel.artifact_type == "defect",
                 ArtifactModel.state.notin_(["closed", "done"]),
             )
         )
@@ -260,6 +283,22 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         entities = [self._to_entity(m) for m in result.scalars().all()]
         return [e for e in entities if spec.is_satisfied_by(e)]
 
+    async def list_by_ids_in_project(
+        self,
+        project_id: uuid.UUID,
+        artifact_ids: list[uuid.UUID],
+    ) -> list[Artifact]:
+        if not artifact_ids:
+            return []
+        result = await self._session.execute(
+            select(ArtifactModel).where(
+                ArtifactModel.project_id == project_id,
+                ArtifactModel.id.in_(artifact_ids),
+                ArtifactModel.deleted_at.is_(None),
+            )
+        )
+        return [self._to_entity(m) for m in result.scalars().all()]
+
     async def add(self, artifact: Artifact) -> Artifact:
         model = ArtifactModel(
             id=artifact.id,
@@ -278,6 +317,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             cycle_node_id=artifact.cycle_node_id,
             area_node_id=artifact.area_node_id,
             area_path_snapshot=artifact.area_path_snapshot,
+            team_id=artifact.team_id,
         )
         self._session.add(model)
         await self._session.flush()
@@ -309,6 +349,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             "cycle_node_id": artifact.cycle_node_id,
             "area_node_id": artifact.area_node_id,
             "area_path_snapshot": artifact.area_path_snapshot,
+            "team_id": artifact.team_id,
         }
         if hasattr(artifact, "deleted_at"):
             values["deleted_at"] = artifact.deleted_at
@@ -350,6 +391,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             cycle_node_id=getattr(m, "cycle_node_id", None),
             area_node_id=getattr(m, "area_node_id", None),
             area_path_snapshot=getattr(m, "area_path_snapshot", None),
+            team_id=getattr(m, "team_id", None),
             created_at=getattr(m, "created_at", None),
             updated_at=getattr(m, "updated_at", None),
         )

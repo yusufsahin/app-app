@@ -8,24 +8,12 @@ from unittest.mock import patch
 import pytest
 
 from alm.artifact.domain.mpc_resolver import acl_check, evaluate_transition_policy, get_manifest_ast
-
-SAMPLE_MANIFEST_MINIMAL = {
-    "defs": [
-        {
-            "kind": "Workflow",
-            "id": "w",
-            "initial": "new",
-            "states": ["new", "active"],
-            "transitions": [{"from": "new", "to": "active", "on": "go"}],
-        },
-        {"kind": "ArtifactType", "id": "t", "workflow_id": "w"},
-    ],
-}
+from tests.support.manifests import MPC_CONTRACT_MINIMAL_MANIFEST
 
 
 @pytest.fixture
 def ast():
-    return get_manifest_ast(uuid.uuid4(), SAMPLE_MANIFEST_MINIMAL)
+    return get_manifest_ast(uuid.uuid4(), MPC_CONTRACT_MINIMAL_MANIFEST)
 
 
 def _transition_event(*, assignee: str | None = "u1") -> dict:

@@ -1,5 +1,7 @@
 # ALM Docker
 
+**Harici nginx / TLS** ile sunucu deploy: [docs/DEPLOY_EXTERNAL_NGINX.md](./docs/DEPLOY_EXTERNAL_NGINX.md) ve `docker-compose.prod.yml`. Örnek ortam değişkenleri: [prod.env.example](./prod.env.example) → `alm-app/.env` olarak kopyalayın.
+
 ```bash
 cd alm-app
 docker compose up --build -d

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.project.domain.ports import ProjectRepository
+from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
 
@@ -25,9 +26,11 @@ class RestoreArtifactHandler(CommandHandler[ArtifactDTO]):
         self,
         artifact_repo: ArtifactRepository,
         project_repo: ProjectRepository,
+        tag_repo: ProjectTagRepository,
     ) -> None:
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
+        self._tag_repo = tag_repo
 
     async def handle(self, command: Command) -> ArtifactDTO:
         assert isinstance(command, RestoreArtifact)
@@ -45,6 +48,8 @@ class RestoreArtifactHandler(CommandHandler[ArtifactDTO]):
 
         artifact.restore(by=command.restored_by)
         await self._artifact_repo.update(artifact)
+
+        tag_map = await self._tag_repo.get_tags_by_artifact_ids([artifact.id])
 
         return ArtifactDTO(
             id=artifact.id,
@@ -65,4 +70,5 @@ class RestoreArtifactHandler(CommandHandler[ArtifactDTO]):
             rank_order=artifact.rank_order,
             created_at=getattr(artifact, "created_at", None),
             updated_at=getattr(artifact, "updated_at", None),
+            tags=tag_map.get(artifact.id, ()),
         )

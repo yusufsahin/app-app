@@ -224,3 +224,13 @@ Uygulamaya geçmek için önerilen sıra:
 Takip: [REMAINING_PLAN.md](./REMAINING_PLAN.md) — "Plan: D1, Task schema, Capacity, Burndown, Team, Genel ACL" tablosu.
 
 — ↑ [Dokümanlar](README.md)
+
+---
+
+## 8. Decision Log (Convergence)
+
+- **Done-state policy (Velocity/Burndown):** Manifest-driven `burndown_done_states`; manifest yoksa fallback `done/closed/resolved`.
+- **Effort default field:** `story_points` (endpoint param ile override edilebilir).
+- **Capacity ownership model:** Hybrid (`team_id` ve/veya `user_id`).
+- **Team propagation scope:** Artifact/Task create-update payloadları + list filtreleri (`team_id`) + DTO/response alanları.
+- **Migration strategy:** `team_id` nullable eklenir; mevcut kayıtlar `NULL` kalır ve geriye dönük uyumluluk korunur.

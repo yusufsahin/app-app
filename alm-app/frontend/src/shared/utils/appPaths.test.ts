@@ -7,8 +7,10 @@ import {
   artifactDetailPath,
   qualityPath,
   qualityTraceabilityPath,
-  qualityTestsPath,
-  qualitySuitesPath,
+  qualityCatalogPath,
+  qualityCatalogArtifactPath,
+  qualityCampaignPath,
+  qualityDefectsPath,
 } from "./appPaths";
 
 describe("artifactsPath", () => {
@@ -100,8 +102,44 @@ describe("qualityTraceabilityPath", () => {
 });
 
 describe("quality section paths", () => {
-  it("returns tests and suites paths", () => {
-    expect(qualityTestsPath("o", "p")).toBe("/o/p/quality/tests");
-    expect(qualitySuitesPath("o", "p")).toBe("/o/p/quality/suites");
+  it("returns catalog (tests) and campaign workspace paths", () => {
+    expect(qualityCatalogPath("o", "p")).toBe("/o/p/quality/catalog");
+    expect(qualityCampaignPath("o", "p")).toBe("/o/p/quality/campaign");
+  });
+
+  it("builds catalog artifact URL with under and artifact", () => {
+    expect(qualityCatalogArtifactPath("o", "p", "tc-1", "folder-2")).toBe(
+      "/o/p/quality/catalog?under=folder-2&artifact=tc-1",
+    );
+  });
+
+  it("builds catalog artifact URL with artifact only when under omitted", () => {
+    expect(qualityCatalogArtifactPath("o", "p", "tc-1")).toBe("/o/p/quality/catalog?artifact=tc-1");
+  });
+});
+
+describe("qualityDefectsPath", () => {
+  it("returns defects subpath when no params", () => {
+    expect(qualityDefectsPath("my-org", "my-proj")).toBe("/my-org/my-proj/quality/defects");
+  });
+
+  it("adds page, q, and state when provided", () => {
+    expect(qualityDefectsPath("o", "p", { page: 2, q: "crash", state: "open" })).toBe(
+      "/o/p/quality/defects?page=2&q=crash&state=open",
+    );
+  });
+
+  it("omits page when 1 or unset with only q", () => {
+    expect(qualityDefectsPath("o", "p", { page: 1, q: "x" })).toBe("/o/p/quality/defects?q=x");
+  });
+
+  it("returns base when page 1 and no q or state", () => {
+    expect(qualityDefectsPath("o", "p", { page: 1 })).toBe("/o/p/quality/defects");
+  });
+
+  it("adds under when provided alone", () => {
+    expect(qualityDefectsPath("o", "p", { under: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee" })).toBe(
+      "/o/p/quality/defects?under=aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+    );
   });
 });

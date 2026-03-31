@@ -14,7 +14,9 @@ export interface CreateArtifactRequest {
   description?: string;
   parent_id?: string | null;
   assignee_id?: string | null;
+  team_id?: string | null;
   custom_fields?: Record<string, unknown>;
+  tag_ids?: string[];
 }
 
 export type ArtifactSortBy =
@@ -50,6 +52,10 @@ export interface ArtifactListParams {
   include_system_roots?: boolean;
   /** Direct children of this parent artifact (combined with `tree` subtree when set). */
   parent_id?: string;
+  /** Filter by project tag id. */
+  tag_id?: string;
+  /** Filter by assigned team id. */
+  team_id?: string;
 }
 
 /**
@@ -70,6 +76,8 @@ export function buildArtifactListParams(options: {
   tree?: string | null;
   includeSystemRoots?: boolean;
   parentId?: string | null;
+  tagId?: string | null;
+  teamId?: string | null;
 }): ArtifactListParams {
   const params: ArtifactListParams = {};
   const {
@@ -87,6 +95,8 @@ export function buildArtifactListParams(options: {
     tree,
     includeSystemRoots,
     parentId,
+    tagId,
+    teamId,
   } = options;
   if (stateFilter) params.state = stateFilter;
   if (typeFilter) params.type = typeFilter;
@@ -105,6 +115,10 @@ export function buildArtifactListParams(options: {
   if (includeSystemRoots) params.include_system_roots = true;
   const parentTrim = parentId?.trim();
   if (parentTrim) params.parent_id = parentTrim;
+  const tagTrim = tagId?.trim();
+  if (tagTrim) params.tag_id = tagTrim;
+  const teamTrim = teamId?.trim();
+  if (teamTrim) params.team_id = teamTrim;
   return params;
 }
 
@@ -125,6 +139,10 @@ export function useArtifacts(
   tree?: string | null,
   includeSystemRoots?: boolean,
   parentId?: string | null,
+  tagId?: string | null,
+  teamId?: string | null,
+  /** When false, the query does not run (e.g. wait for a prerequisite like defect root). */
+  queryEnabled: boolean = true,
 ) {
   const params = buildArtifactListParams({
     stateFilter,
@@ -141,6 +159,8 @@ export function useArtifacts(
     tree,
     includeSystemRoots,
     parentId,
+    tagId,
+    teamId,
   });
 
   return useQuery({
@@ -164,6 +184,9 @@ export function useArtifacts(
       tree || null,
       includeSystemRoots ?? false,
       parentId?.trim() || null,
+      tagId?.trim() || null,
+      teamId?.trim() || null,
+      queryEnabled,
     ],
     queryFn: async (): Promise<ArtifactsListResult> => {
       const { data } = await apiClient.get<ArtifactsListResult>(
@@ -172,6 +195,59 @@ export function useArtifacts(
       );
       return data;
     },
+    enabled: !!orgSlug && !!projectId && queryEnabled,
+  });
+}
+
+const ARTIFACT_LIST_PAGE_SIZE = 500;
+
+/** Fetches every page for the given list filters until all items are loaded (for large catalogs). */
+export async function fetchAllArtifactsPages(
+  orgSlug: string,
+  projectId: string,
+  baseParams: Omit<ArtifactListParams, "limit" | "offset">,
+  pageSize = ARTIFACT_LIST_PAGE_SIZE,
+): Promise<ArtifactsListResult> {
+  let offset = 0;
+  const items: Artifact[] = [];
+  let total = 0;
+  let allowed_actions: string[] | undefined;
+  for (;;) {
+    const params: ArtifactListParams = { ...baseParams, limit: pageSize, offset };
+    const { data } = await apiClient.get<ArtifactsListResult>(
+      `/orgs/${orgSlug}/projects/${projectId}/artifacts`,
+      { params: Object.keys(params).length ? params : undefined },
+    );
+    items.push(...data.items);
+    total = data.total;
+    allowed_actions ??= data.allowed_actions;
+    if (data.items.length === 0 || data.items.length < pageSize || items.length >= total) break;
+    offset += pageSize;
+  }
+  return { items, total, allowed_actions };
+}
+
+/** All test cases in the quality tree (paginated on the client until `total` is reached). */
+export function useAllQualityTestCases(orgSlug: string | undefined, projectId: string | undefined) {
+  const baseParams = buildArtifactListParams({
+    typeFilter: "test-case",
+    sortBy: "title",
+    sortOrder: "asc",
+    tree: "quality",
+    includeSystemRoots: false,
+  });
+  return useQuery({
+    queryKey: [
+      "orgs",
+      orgSlug,
+      "projects",
+      projectId,
+      "artifacts",
+      "all-pages",
+      "quality",
+      "test-case",
+    ],
+    queryFn: () => fetchAllArtifactsPages(orgSlug!, projectId!, baseParams),
     enabled: !!orgSlug && !!projectId,
   });
 }
@@ -206,6 +282,8 @@ export function useCreateArtifact(orgSlug: string | undefined, projectId: string
       };
       if (payload.parent_id != null && payload.parent_id !== "") body.parent_id = payload.parent_id;
       if (payload.assignee_id != null && payload.assignee_id !== "") body.assignee_id = payload.assignee_id;
+      if (payload.team_id != null && payload.team_id !== "") body.team_id = payload.team_id;
+      if (payload.tag_ids != null && payload.tag_ids.length > 0) body.tag_ids = payload.tag_ids;
       const { data } = await apiClient.post<Artifact>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts`,
         body,
@@ -224,10 +302,12 @@ export interface UpdateArtifactRequest {
   title?: string;
   description?: string | null;
   assignee_id?: string | null;
+  team_id?: string | null;
   cycle_node_id?: string | null;
   area_node_id?: string | null;
   parent_id?: string | null;
   custom_fields?: Record<string, unknown>;
+  tag_ids?: string[];
 }
 
 export interface PermittedTransitionItem {
@@ -299,10 +379,12 @@ export function useUpdateArtifact(
       if (payload.title !== undefined) body.title = payload.title;
       if (payload.description !== undefined) body.description = payload.description;
       if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id ?? null;
+      if (payload.team_id !== undefined) body.team_id = payload.team_id ?? null;
       if (payload.cycle_node_id !== undefined) body.cycle_node_id = payload.cycle_node_id ?? null;
       if (payload.area_node_id !== undefined) body.area_node_id = payload.area_node_id ?? null;
       if (payload.parent_id !== undefined) body.parent_id = payload.parent_id ?? null;
       if (payload.custom_fields !== undefined) body.custom_fields = payload.custom_fields;
+      if (payload.tag_ids !== undefined) body.tag_ids = payload.tag_ids;
       const { data } = await apiClient.patch<Artifact>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}`,
         body,

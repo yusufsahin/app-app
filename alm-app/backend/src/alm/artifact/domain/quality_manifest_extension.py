@@ -1,6 +1,11 @@
-"""Inject Quality domain (test-suite, test-run, test-campaign, folders, links) into manifest defs.
+"""Inject Quality / Campaign domain into manifest defs (metadata-driven artifact types).
 
-Used by process template seed and by merge_manifest_metadata_defaults (idempotent).
+Merges test execution types used under manifest ``tree_id: testsuites`` (product: **Campaign**):
+``root-testsuites``, ``testsuite-folder`` (**collection** container), ``test-suite``, ``test-run``,
+``test-campaign``, plus link types. Technical ids stay stable for stored data; display ``name`` fields
+match the Campaign / collection metaphor.
+
+Used by process template seed and by ``merge_manifest_metadata_defaults`` (idempotent).
 """
 
 from __future__ import annotations
@@ -39,22 +44,36 @@ _QUALITY_EXTRA_LINK_TYPES: list[dict[str, Any]] = [
     {"kind": "LinkType", "id": "campaign_includes_suite", "name": "Campaign includes suite"},
 ]
 
+# Stable manifest slug ``testsuites``; UI labels it "Campaign" (see frontend ``manifestTreeRoots``).
+_TESTSUITES_TREE_ROOT: dict[str, str] = {"tree_id": "testsuites", "root_artifact_type": "root-testsuites"}
+
 
 def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dict[str, Any]]:
     return [
         {
             "kind": "ArtifactType",
+            "id": "root-testsuites",
+            "name": "Project root (Campaign)",
+            "workflow_id": "root",
+            "child_types": ["testsuite-folder", "test-suite", "test-run", "test-campaign"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
             "id": "quality-folder",
-            "name": "Quality folder",
+            "name": "Catalog group",
             "workflow_id": "root",
             "parent_types": ["root-quality", "quality-folder"],
-            "child_types": [
-                "quality-folder",
-                "test-case",
-                "test-suite",
-                "test-run",
-                "test-campaign",
-            ],
+            "child_types": ["quality-folder", "test-case"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "testsuite-folder",
+            "name": "Campaign collection",
+            "workflow_id": "root",
+            "parent_types": ["root-testsuites", "testsuite-folder"],
+            "child_types": ["testsuite-folder", "test-suite", "test-run", "test-campaign"],
             "fields": [],
         },
         {
@@ -62,7 +81,7 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
             "id": "test-suite",
             "name": "Test suite",
             "workflow_id": test_case_workflow_id,
-            "parent_types": ["root-quality", "quality-folder"],
+            "parent_types": ["root-testsuites", "testsuite-folder"],
             "child_types": [],
             "fields": [{"id": "suite_note", "name": "Notes", "type": "string"}],
         },
@@ -71,7 +90,7 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
             "id": "test-run",
             "name": "Test run",
             "workflow_id": "quality_run",
-            "parent_types": ["root-quality", "quality-folder"],
+            "parent_types": ["root-testsuites", "testsuite-folder"],
             "child_types": [],
             "fields": [
                 {"id": "environment", "name": "Environment", "type": "string"},
@@ -83,7 +102,7 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
             "id": "test-campaign",
             "name": "Test campaign",
             "workflow_id": "quality_campaign",
-            "parent_types": ["root-quality", "quality-folder"],
+            "parent_types": ["root-testsuites", "testsuite-folder"],
             "child_types": [],
             "fields": [
                 {"id": "target_environment", "name": "Target environment", "type": "string"},
@@ -131,9 +150,6 @@ def _inject_quality_domain_defs(defs: list[dict[str, Any]]) -> list[dict[str, An
                     "child_types": [
                         "quality-folder",
                         "test-case",
-                        "test-suite",
-                        "test-run",
-                        "test-campaign",
                     ],
                 }
             )
@@ -186,9 +202,25 @@ def merge_quality_domain_into_defs(defs: list[Any]) -> list[Any]:
     return _inject_quality_domain_defs(coerced)
 
 
+def _merge_test_tree_roots(bundle: dict[str, Any]) -> dict[str, Any]:
+    raw_roots = bundle.get("tree_roots")
+    roots = [r for r in raw_roots if isinstance(r, dict)] if isinstance(raw_roots, list) else []
+    cleaned: list[dict[str, Any]] = []
+    has_campaign_tree = False
+    for root in roots:
+        tree_id = str(root.get("tree_id") or root.get("id") or "").strip().lower()
+        if tree_id == "testsuites":
+            has_campaign_tree = True
+        cleaned.append(root)
+    if not has_campaign_tree:
+        cleaned.append(dict(_TESTSUITES_TREE_ROOT))
+    return {**bundle, "tree_roots": cleaned}
+
+
 def with_quality_manifest_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     """Return bundle copy path for seed: inject Quality defs when defs list is present."""
     raw_defs = bundle.get("defs")
     if not isinstance(raw_defs, list):
-        return bundle
-    return {**bundle, "defs": merge_quality_domain_into_defs(list(raw_defs))}
+        return _merge_test_tree_roots(bundle)
+    merged = {**bundle, "defs": merge_quality_domain_into_defs(list(raw_defs))}
+    return _merge_test_tree_roots(merged)

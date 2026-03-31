@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from alm.artifact.domain.manifest_workflow_metadata import (
@@ -11,6 +12,52 @@ from alm.artifact.domain.manifest_workflow_metadata import (
 )
 from alm.form_schema.domain.entities import FormFieldSchema, FormSchema
 from alm.shared.domain.ports import IManifestDefsFlattener
+
+_CREATE_ARTIFACT_CORE_KEYS = frozenset({"artifact_type", "parent_id", "title", "description", "assignee_id"})
+
+
+def _condition_only_matches_artifact_type(cond: dict[str, Any] | None, at_filter: str) -> bool:
+    """True when the condition is equivalent to artifact_type == at_filter (narrowed create)."""
+    if not cond or not isinstance(cond, dict):
+        return False
+    field = cond.get("field")
+    if field not in ("artifact_type", "typeName"):
+        return False
+    if "in" in cond:
+        vals = cond["in"]
+        if not isinstance(vals, list) or not vals:
+            return False
+        return {str(v).strip() for v in vals} == {at_filter}
+    eq_val = cond.get("eq")
+    if eq_val is not None:
+        return str(eq_val).strip() == at_filter
+    return False
+
+
+def _strip_redundant_type_conditions(fld: FormFieldSchema, at_filter: str) -> FormFieldSchema:
+    """Drop visible_when/required_when that only restate the narrowed artifact_type (form UX + eval)."""
+    vw = fld.visible_when
+    rw = fld.required_when
+    new_vw = None if _condition_only_matches_artifact_type(vw, at_filter) else vw
+    new_rw = None if _condition_only_matches_artifact_type(rw, at_filter) else rw
+    if new_vw != vw or new_rw != rw:
+        return replace(fld, visible_when=new_vw, required_when=new_rw)
+    return fld
+
+
+def _manifest_field_excluded_from_forms(field_def: dict[str, Any]) -> bool:
+    """When true, field is documented on the artifact type but omitted from create/edit form schemas."""
+    return bool(field_def.get("exclude_from_form_schema") or field_def.get("excludeFromFormSchema"))
+
+
+def _artifact_type_declares_field(artifact_types: list[dict[str, Any]], type_id: str, field_key: str) -> bool:
+    for at in artifact_types:
+        if not isinstance(at, dict) or at.get("id") != type_id:
+            continue
+        for fld in at.get("fields") or []:
+            if isinstance(fld, dict) and fld.get("id") == field_key:
+                return True
+    return False
 
 
 def _humanize_id(obj_id: str) -> str:
@@ -23,8 +70,14 @@ def _humanize_id(obj_id: str) -> str:
 def build_artifact_create_form_schema(
     manifest_bundle: dict[str, Any],
     flattener: IManifestDefsFlattener,
+    artifact_type: str | None = None,
 ) -> FormSchema:
-    """Build form schema for artifact create context from manifest."""
+    """Build form schema for artifact create context from manifest.
+
+    When ``artifact_type`` is set to a known manifest type id, returned schema
+    narrows the type choice to that id and omits custom fields declared only on
+    other artifact types (merged create form otherwise shows every manifest field).
+    """
     flat = flattener.flatten(manifest_bundle or {})
     artifact_types = flat.get("artifact_types", [])
 
@@ -91,13 +144,29 @@ def build_artifact_create_form_schema(
         )
     )
 
+    # team_id - entity_ref team (optional)
+    fields.append(
+        FormFieldSchema(
+            key="team_id",
+            type="entity_ref",
+            label_key="Team (optional)",
+            required=False,
+            entity_ref="team",
+            order=38,
+        )
+    )
+
     # Custom fields from all artifact types (merged; type-specific via visibleWhen)
     order = 40
     seen_keys: set[str] = set()
     for at in artifact_types:
         for f in at.get("fields", []) or []:
+            if not isinstance(f, dict):
+                continue
             fid = f.get("id")
             if not fid or fid in seen_keys:
+                continue
+            if _manifest_field_excluded_from_forms(f):
                 continue
             seen_keys.add(fid)
 
@@ -128,6 +197,17 @@ def build_artifact_create_form_schema(
                     if isinstance(o, dict)
                 ]
 
+            entity_ref_val = None
+            allowed_parent_types_val = None
+            if field_type == "entity_ref":
+                raw_er = f.get("entity_ref")
+                entity_ref_val = str(raw_er).strip() if raw_er else None
+                raw_pt = f.get("allowed_parent_types") or f.get("allowedParentTypes")
+                if isinstance(raw_pt, list):
+                    allowed_parent_types_val = [str(x).strip() for x in raw_pt if str(x).strip()]
+                    if not allowed_parent_types_val:
+                        allowed_parent_types_val = None
+
             fields.append(
                 FormFieldSchema(
                     key=fid,
@@ -138,12 +218,42 @@ def build_artifact_create_form_schema(
                     visible_when=visible_when,
                     required_when=required_when,
                     options=options,
+                    entity_ref=entity_ref_val,
+                    allowed_parent_types=allowed_parent_types_val,
                 )
             )
             order += 1
 
     # Sort by order
     fields.sort(key=lambda f: (f.order, f.key))
+
+    at_filter = (artifact_type or "").strip()
+    known_ids = {at["id"] for at in artifact_types if isinstance(at, dict) and at.get("id")}
+    if at_filter and at_filter in known_ids:
+        single_opt = next((o for o in type_options if o["id"] == at_filter), None)
+        label = single_opt["label"] if single_opt else _humanize_id(at_filter)
+        narrowed_options = ({"id": at_filter, "label": label},)
+        narrowed_fields: list[FormFieldSchema] = []
+        for fld in fields:
+            if fld.key in _CREATE_ARTIFACT_CORE_KEYS:
+                if fld.key == "artifact_type":
+                    narrowed_fields.append(
+                        FormFieldSchema(
+                            key="artifact_type",
+                            type="choice",
+                            label_key="Type",
+                            required=True,
+                            options=[{"id": at_filter, "label": label}],
+                            default_value=at_filter,
+                            order=fld.order,
+                        )
+                    )
+                else:
+                    narrowed_fields.append(fld)
+            elif _artifact_type_declares_field(artifact_types, at_filter, fld.key):
+                narrowed_fields.append(_strip_redundant_type_conditions(fld, at_filter))
+        fields = narrowed_fields
+        type_options = list(narrowed_options)
 
     return FormSchema(
         entity_type="artifact",
@@ -160,10 +270,10 @@ def build_artifact_edit_form_schema(
 ) -> FormSchema:
     """Build form schema for artifact edit context.
 
-    Returns core fields (title, description, assignee, cycle, area) plus any
-    custom fields defined in the manifest for the given artifact_type.
+    Returns core fields (title, description, assignee, cycle, area, project tags)
+    plus any custom fields defined in the manifest for the given artifact_type.
     """
-    core_keys = {"title", "description", "assignee_id", "cycle_node_id", "area_node_id"}
+    core_keys = {"title", "description", "assignee_id", "cycle_node_id", "area_node_id", "tag_ids"}
 
     fields: list[FormFieldSchema] = [
         FormFieldSchema(key="title", type="string", label_key="Title", required=True, order=10),
@@ -175,6 +285,14 @@ def build_artifact_edit_form_schema(
             required=False,
             entity_ref="user",
             order=30,
+        ),
+        FormFieldSchema(
+            key="team_id",
+            type="entity_ref",
+            label_key="Team (optional)",
+            required=False,
+            entity_ref="team",
+            order=35,
         ),
     ]
     at_key = artifact_type or ""
@@ -201,6 +319,16 @@ def build_artifact_edit_form_schema(
             )
         )
 
+    fields.append(
+        FormFieldSchema(
+            key="tag_ids",
+            type="tag_list",
+            label_key="Tags",
+            required=False,
+            order=55,
+        )
+    )
+
     if artifact_type and manifest_bundle:
         flat = flattener.flatten(manifest_bundle)
         artifact_types = flat.get("artifact_types") or []
@@ -208,8 +336,12 @@ def build_artifact_edit_form_schema(
         if at_def:
             order = 100
             for f in at_def.get("fields") or []:
+                if not isinstance(f, dict):
+                    continue
                 fid = f.get("id")
                 if not fid or fid in core_keys:
+                    continue
+                if _manifest_field_excluded_from_forms(f):
                     continue
                 field_type = f.get("type", "string")
                 options = None
@@ -222,6 +354,16 @@ def build_artifact_edit_form_schema(
                         for o in (f["options"] if isinstance(f["options"], list) else [])
                         if isinstance(o, dict)
                     ]
+                entity_ref_val = None
+                allowed_parent_types_val = None
+                if field_type == "entity_ref":
+                    raw_er = f.get("entity_ref")
+                    entity_ref_val = str(raw_er).strip() if raw_er else None
+                    raw_pt = f.get("allowed_parent_types") or f.get("allowedParentTypes")
+                    if isinstance(raw_pt, list):
+                        allowed_parent_types_val = [str(x).strip() for x in raw_pt if str(x).strip()]
+                        if not allowed_parent_types_val:
+                            allowed_parent_types_val = None
                 fields.append(
                     FormFieldSchema(
                         key=fid,
@@ -232,6 +374,8 @@ def build_artifact_edit_form_schema(
                         visible_when=f.get("visibleWhen") or f.get("visible_when"),
                         required_when=f.get("requiredWhen") or f.get("required_when"),
                         options=options,
+                        entity_ref=entity_ref_val,
+                        allowed_parent_types=allowed_parent_types_val,
                     )
                 )
                 order += 1
@@ -280,6 +424,21 @@ def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None)
             order=40,
         ),
         FormFieldSchema(
+            key="team_id",
+            type="entity_ref",
+            label_key="Team (optional)",
+            required=False,
+            entity_ref="team",
+            order=42,
+        ),
+        FormFieldSchema(
+            key="tag_ids",
+            type="tag_list",
+            label_key="Tags",
+            required=False,
+            order=45,
+        ),
+        FormFieldSchema(
             key="rank_order",
             type="number",
             label_key="Rank order",
@@ -304,7 +463,7 @@ def build_form_schema(
 ) -> FormSchema | None:
     """Build form schema for given entity type and context."""
     if entity_type == "artifact" and context == "create":
-        return build_artifact_create_form_schema(manifest_bundle, flattener)
+        return build_artifact_create_form_schema(manifest_bundle, flattener, artifact_type=artifact_type)
     if entity_type == "artifact" and context == "edit":
         return build_artifact_edit_form_schema(manifest_bundle, flattener, artifact_type=artifact_type)
     if entity_type == "task" and context in ("create", "edit"):

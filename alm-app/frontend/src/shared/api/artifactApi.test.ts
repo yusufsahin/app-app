@@ -1,8 +1,30 @@
 /**
  * E1: Unit tests for artifact list params builder and batch transition response shape.
  */
-import { describe, it, expect } from "vitest";
-import { buildArtifactListParams, type BatchResultResponse } from "./artifactApi";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import {
+  buildArtifactListParams,
+  fetchAllArtifactsPages,
+  type BatchResultResponse,
+} from "./artifactApi";
+import { apiClient } from "./client";
+
+function mkArtifact(id: string) {
+  return {
+    id,
+    project_id: "p1",
+    artifact_type: "task",
+    title: `T-${id}`,
+    description: "",
+    state: "new",
+    assignee_id: null,
+    parent_id: null,
+  };
+}
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("buildArtifactListParams", () => {
   it("returns empty object when no options", () => {
@@ -81,6 +103,12 @@ describe("buildArtifactListParams", () => {
     });
   });
 
+  it("maps team_id when teamId is non-empty", () => {
+    expect(buildArtifactListParams({ teamId: "  team-123  " })).toEqual({
+      team_id: "team-123",
+    });
+  });
+
   it("combines parent_id with tree and include_system_roots", () => {
     expect(
       buildArtifactListParams({
@@ -152,5 +180,81 @@ describe("BatchResultResponse", () => {
       results: { "id-1": "conflict_error" },
     };
     expect(res.results?.["id-1"]).toBe("conflict_error");
+  });
+});
+
+describe("fetchAllArtifactsPages", () => {
+  it("stops when page returns fewer than page size", async () => {
+    const getSpy = vi
+      .spyOn(apiClient, "get")
+      .mockResolvedValueOnce({
+        data: {
+          items: [mkArtifact("1"), mkArtifact("2")],
+          total: 2,
+          allowed_actions: ["read"],
+        },
+      } as never);
+
+    const out = await fetchAllArtifactsPages("o1", "p1", { state: "new" }, 3);
+
+    expect(out.total).toBe(2);
+    expect(out.items).toHaveLength(2);
+    expect(out.allowed_actions).toEqual(["read"]);
+    expect(getSpy).toHaveBeenCalledTimes(1);
+    expect(getSpy.mock.calls[0]?.[1]).toMatchObject({
+      params: { state: "new", limit: 3, offset: 0 },
+    });
+  });
+
+  it("continues paging until collected items reach total", async () => {
+    const getSpy = vi
+      .spyOn(apiClient, "get")
+      .mockResolvedValueOnce({
+        data: {
+          items: [mkArtifact("1"), mkArtifact("2")],
+          total: 3,
+          allowed_actions: ["read"],
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        data: {
+          items: [mkArtifact("3"), mkArtifact("4")],
+          total: 3,
+          allowed_actions: ["update"],
+        },
+      } as never);
+
+    const out = await fetchAllArtifactsPages("o1", "p1", { type: "task" }, 2);
+
+    expect(out.total).toBe(3);
+    expect(out.items.map((x) => x.id)).toEqual(["1", "2", "3", "4"]);
+    expect(out.allowed_actions).toEqual(["read"]);
+    expect(getSpy).toHaveBeenCalledTimes(2);
+    expect(getSpy.mock.calls[1]?.[1]).toMatchObject({
+      params: { type: "task", limit: 2, offset: 2 },
+    });
+  });
+
+  it("stops when API returns empty page", async () => {
+    const getSpy = vi
+      .spyOn(apiClient, "get")
+      .mockResolvedValueOnce({
+        data: {
+          items: [mkArtifact("1"), mkArtifact("2")],
+          total: 10,
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        data: {
+          items: [],
+          total: 10,
+        },
+      } as never);
+
+    const out = await fetchAllArtifactsPages("o1", "p1", {}, 2);
+
+    expect(out.items).toHaveLength(2);
+    expect(out.total).toBe(10);
+    expect(getSpy).toHaveBeenCalledTimes(2);
   });
 });

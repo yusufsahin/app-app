@@ -1,20 +1,33 @@
-import QualityArtifactWorkspace from "../components/QualityArtifactWorkspace";
+import { useTranslation } from "react-i18next";
+import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
+import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
+import { QualityRunsHubPanel } from "../components/QualityRunsHubPanel";
 
 export default function QualityRunsPage() {
+  const { t } = useTranslation("quality");
+  const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
+
+  if (projectSlug && orgSlug && !projectsLoading && !project) {
+    return (
+      <div className="mx-auto max-w-5xl py-6">
+        <ProjectNotFoundView orgSlug={orgSlug} projectSlug={projectSlug} />
+      </div>
+    );
+  }
+
   return (
-    <QualityArtifactWorkspace
-      artifactType="test-run"
-      pageLabel="Test runs"
-      description="Execution records linked to suites."
-      createCta="Create run"
-      emptyLabel="No runs in this folder."
-      linkConfig={{
-        linkType: "run_for_suite",
-        targetType: "test-suite",
-        title: "Run for suite",
-      }}
-      runExecute
-      allowFolderCreate
-    />
+    <div className="mx-auto w-full max-w-[min(1600px,100%)] px-4 pb-6 pt-6">
+      {orgSlug && projectSlug ? (
+        <ProjectBreadcrumbs
+          currentPageLabel={t("runsHub.pageTitle")}
+          projectName={project?.name}
+          trailBeforeCurrent={[{ label: t("pages.breadcrumbQuality"), to: `/${orgSlug}/${projectSlug}/quality` }]}
+          showBackToProject={false}
+        />
+      ) : null}
+      <div className="mt-4">
+        <QualityRunsHubPanel treeId="testsuites" />
+      </div>
+    </div>
   );
 }

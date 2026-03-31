@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import { useMemo } from "react";
 import {
   Button,
+  Checkbox,
   Input,
   Label,
   Select,
@@ -16,8 +17,8 @@ import {
 import { cn } from "../ui/utils";
 import type { DescriptionInputMode, FormFieldSchema, FormSchemaDto } from "../../types/formSchema";
 import { DescriptionField } from "./DescriptionField";
-import { TestStepsEditor } from "../../../features/quality/components/TestStepsEditor";
-import type { TestStep } from "../../../features/quality/types";
+import { TestStepsEditor, type TestCasePickerContext } from "../../../features/quality/components/TestStepsEditor";
+import { parseTestPlan, serializeTestPlan } from "../../../features/quality/lib/testPlan";
 
 export interface ParentArtifactOption {
   id: string;
@@ -43,8 +44,12 @@ export interface MetadataDrivenFormProps {
   userOptions?: UserOption[];
   cycleOptions?: Array<{ id: string; label: string }>;
   areaOptions?: Array<{ id: string; label: string }>;
+  /** Project work-item tags (task form `tag_ids` / `tag_list`). */
+  projectTagOptions?: Array<{ id: string; name: string }>;
   errors?: Record<string, string>;
   disableNativeRequired?: boolean;
+  /** When set, test step rows can reference other test cases (Call to Test). */
+  qualityTestCasePickerContext?: TestCasePickerContext;
 }
 
 function evaluateVisibleWhen(
@@ -114,8 +119,10 @@ export function MetadataDrivenForm({
   userOptions = [],
   cycleOptions = [],
   areaOptions = [],
+  projectTagOptions = [],
   errors = {},
   disableNativeRequired = false,
+  qualityTestCasePickerContext,
 }: MetadataDrivenFormProps) {
   const visibleFields = useMemo(
     () => getVisibleFields(schema, values).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
@@ -275,6 +282,36 @@ export function MetadataDrivenForm({
             );
           }
 
+          if (field.type === "tag_list") {
+            const err = errors[field.key];
+            const selected = Array.isArray(val) ? (val as string[]) : [];
+            return (
+              <div key={field.key} className="w-full space-y-2">
+                {field.label_key ? <Label>{field.label_key}</Label> : null}
+                {projectTagOptions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No project tags yet.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-x-4 gap-y-2">
+                    {projectTagOptions.map((t) => (
+                      <label key={t.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={selected.includes(t.id)}
+                          onCheckedChange={(c) => {
+                            const on = c === true;
+                            const next = on ? [...selected, t.id] : selected.filter((x) => x !== t.id);
+                            updateField(field.key, next);
+                          }}
+                        />
+                        <span>{t.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {err ? <p className="text-sm text-destructive">{err}</p> : null}
+              </div>
+            );
+          }
+
           if (field.type === "number") {
             const err = errors[field.key];
             return (
@@ -357,18 +394,16 @@ export function MetadataDrivenForm({
 
           if (field.key === "test_steps_json") {
             const err = errors[field.key];
-            let steps: TestStep[] = [];
-            try {
-              steps = typeof val === "string" ? JSON.parse(val) : (val as TestStep[]) || [];
-            } catch {
-              steps = [];
-            }
+            const steps = parseTestPlan(val);
             return (
               <div key={field.key} className="w-full space-y-1.5">
                 <TestStepsEditor
                   steps={steps}
-                  onChange={(newSteps) => updateField(field.key, JSON.stringify(newSteps))}
+                  onChange={(newSteps) =>
+                    updateField(field.key, JSON.stringify(serializeTestPlan(newSteps)))
+                  }
                   readOnly={disabled}
+                  testCasePickerContext={qualityTestCasePickerContext}
                 />
                 {err && <p className="text-sm text-destructive">{err}</p>}
               </div>

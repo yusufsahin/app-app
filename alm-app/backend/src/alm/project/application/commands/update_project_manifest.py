@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from alm.artifact.domain.governance_adapter import ALMGovernanceAdapter
@@ -76,7 +76,7 @@ class UpdateProjectManifestHandler(CommandHandler[dict[str, Any] | None]):
             raise ValidationError("Process template version not found")
 
         # New version row so we don't mutate shared versions; unique version string per save
-        version_suffix = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        version_suffix = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         new_version = ProcessTemplateVersion(
             id=uuid.uuid4(),
             template_id=current_version.template_id,

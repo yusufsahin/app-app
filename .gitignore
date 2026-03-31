@@ -55,7 +55,6 @@ htmlcov/
 
 # Nested git repos
 manifest-platform-core-suite/
-Metadatadriventestmanagement/.git
 
 # Claude Code worktrees (nested clones; must not be tracked as submodules)
 alm-app/frontend/.claude/worktrees/

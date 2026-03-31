@@ -33,6 +33,7 @@ class Artifact(AggregateRoot):
         cycle_node_id: uuid.UUID | None = None,
         area_node_id: uuid.UUID | None = None,
         area_path_snapshot: str | None = None,
+        team_id: uuid.UUID | None = None,
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
     ) -> None:
@@ -47,6 +48,7 @@ class Artifact(AggregateRoot):
         self.cycle_node_id = cycle_node_id
         self.area_node_id = area_node_id
         self.area_path_snapshot = area_path_snapshot
+        self.team_id = team_id
         self.custom_fields: dict[str, Any] = custom_fields or {}
         self.artifact_key = artifact_key
         self.state_reason = state_reason
@@ -73,6 +75,7 @@ class Artifact(AggregateRoot):
         cycle_node_id: uuid.UUID | None = None,
         area_node_id: uuid.UUID | None = None,
         area_path_snapshot: str | None = None,
+        team_id: uuid.UUID | None = None,
     ) -> Artifact:
         """Create artifact and register ArtifactCreated domain event."""
         artifact = cls(
@@ -90,6 +93,7 @@ class Artifact(AggregateRoot):
             cycle_node_id=cycle_node_id,
             area_node_id=area_node_id,
             area_path_snapshot=area_path_snapshot,
+            team_id=team_id,
         )
         artifact._register_event(
             ArtifactCreated(
@@ -138,4 +142,5 @@ class Artifact(AggregateRoot):
             "custom_fields": self.custom_fields,
             "state": self.state,
             "artifact_type": self.artifact_type,
+            "team_id": str(self.team_id) if self.team_id else None,
         }

@@ -10,9 +10,10 @@ export function ModalManager() {
   const location = useLocation();
   const { isOpened, modalType, modalProps, titleOverride, closeModal } = useModalStore();
 
+  // `location.key` changes on search-only updates (`?under=`), which closed modals opened in the same flow as `setSearchParams`.
   useEffect(() => {
     closeModal();
-  }, [location.key, closeModal]);
+  }, [location.pathname, closeModal]);
 
   if (!isOpened || !modalType) return null;
 

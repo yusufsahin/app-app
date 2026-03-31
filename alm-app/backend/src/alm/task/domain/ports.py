@@ -17,6 +17,7 @@ class TaskRepository:
         self,
         artifact_id: uuid.UUID,
         include_deleted: bool = False,
+        team_id: uuid.UUID | None = None,
     ) -> list[Task]: ...
 
     @abstractmethod
@@ -24,6 +25,7 @@ class TaskRepository:
         self,
         project_id: uuid.UUID,
         assignee_id: uuid.UUID,
+        team_id: uuid.UUID | None = None,
     ) -> list[Task]: ...
 
     @abstractmethod

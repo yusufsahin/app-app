@@ -34,9 +34,3 @@ def get_def(ast: Any, kind: str, def_id: str) -> Any | None:
 
 def get_defs_by_kind(ast: Any, kind: str) -> list[Any]:
     return [d for d in ast.defs if d.kind == kind]
-
-
-# Legacy names used by workflow_sm and tests
-_to_ast_fallback = to_ast_fallback
-_get_def = get_def
-_get_defs_by_kind = get_defs_by_kind

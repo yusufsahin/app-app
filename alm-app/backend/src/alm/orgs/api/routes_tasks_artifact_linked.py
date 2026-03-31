@@ -16,6 +16,7 @@ router = APIRouter()
 async def list_tasks_by_project_and_assignee(
     project_id: uuid.UUID,
     assignee_id: str,
+    team_id: uuid.UUID | None = Query(None, description="Optional team filter"),
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("task:read"),
     _acl: None = require_manifest_acl("artifact", "read"),
@@ -28,23 +29,10 @@ async def list_tasks_by_project_and_assignee(
             tenant_id=org.tenant_id,
             project_id=project_id,
             assignee_id=effective_assignee,
+            team_id=team_id,
         )
     )
-    return [
-        TaskResponse(
-            id=d.id,
-            project_id=d.project_id,
-            artifact_id=d.artifact_id,
-            title=d.title,
-            state=d.state,
-            description=d.description,
-            assignee_id=d.assignee_id,
-            rank_order=d.rank_order,
-            created_at=d.created_at,
-            updated_at=d.updated_at,
-        )
-        for d in dtos
-    ]
+    return [task_response_from_dto(d) for d in dtos]
 
 
 @router.get(
@@ -54,6 +42,7 @@ async def list_tasks_by_project_and_assignee(
 async def list_tasks_by_artifact(
     project_id: uuid.UUID,
     artifact_id: uuid.UUID,
+    team_id: uuid.UUID | None = Query(None, description="Optional team filter"),
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("task:read"),
     _acl: None = require_manifest_acl("artifact", "read"),
@@ -64,23 +53,10 @@ async def list_tasks_by_artifact(
             tenant_id=org.tenant_id,
             project_id=project_id,
             artifact_id=artifact_id,
+            team_id=team_id,
         )
     )
-    return [
-        TaskResponse(
-            id=d.id,
-            project_id=d.project_id,
-            artifact_id=d.artifact_id,
-            title=d.title,
-            state=d.state,
-            description=d.description,
-            assignee_id=d.assignee_id,
-            rank_order=d.rank_order,
-            created_at=d.created_at,
-            updated_at=d.updated_at,
-        )
-        for d in dtos
-    ]
+    return [task_response_from_dto(d) for d in dtos]
 
 
 @router.post(
@@ -107,23 +83,11 @@ async def create_task(
             state=body.state,
             assignee_id=body.assignee_id,
             rank_order=body.rank_order,
+            team_id=body.team_id,
+            tag_ids=body.tag_ids,
         )
     )
-    return TaskResponse(
-        id=dto.id,
-        project_id=dto.project_id,
-        artifact_id=dto.artifact_id,
-        title=dto.title,
-        state=dto.state,
-        description=dto.description,
-        assignee_id=dto.assignee_id,
-        rank_order=dto.rank_order,
-        cycle_node_id=getattr(dto, "cycle_node_id", None),
-        area_node_id=getattr(dto, "area_node_id", None),
-        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
-        created_at=dto.created_at,
-        updated_at=dto.updated_at,
-    )
+    return task_response_from_dto(dto)
 
 
 @router.get(
@@ -147,21 +111,7 @@ async def get_task(
     )
     if dto is None:
         raise EntityNotFound("Task", task_id)
-    return TaskResponse(
-        id=dto.id,
-        project_id=dto.project_id,
-        artifact_id=dto.artifact_id,
-        title=dto.title,
-        state=dto.state,
-        description=dto.description,
-        assignee_id=dto.assignee_id,
-        rank_order=dto.rank_order,
-        cycle_node_id=getattr(dto, "cycle_node_id", None),
-        area_node_id=getattr(dto, "area_node_id", None),
-        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
-        created_at=dto.created_at,
-        updated_at=dto.updated_at,
-    )
+    return task_response_from_dto(dto)
 
 
 @router.patch(
@@ -179,33 +129,21 @@ async def update_task(
     mediator: Mediator = Depends(get_mediator),
 ) -> TaskResponse:
     updates = body.model_dump(exclude_unset=True)
-    dto = await mediator.send(
-        UpdateTask(
-            tenant_id=org.tenant_id,
-            project_id=project_id,
-            task_id=task_id,
-            title=updates.get("title"),
-            state=updates.get("state"),
-            description=updates.get("description"),
-            assignee_id=updates.get("assignee_id"),
-            rank_order=updates.get("rank_order"),
-        )
+    cmd_kwargs: dict = dict(
+        tenant_id=org.tenant_id,
+        project_id=project_id,
+        task_id=task_id,
+        title=updates.get("title"),
+        state=updates.get("state"),
+        description=updates.get("description"),
+        assignee_id=updates.get("assignee_id"),
+        rank_order=updates.get("rank_order"),
+        team_id=updates.get("team_id"),
     )
-    return TaskResponse(
-        id=dto.id,
-        project_id=dto.project_id,
-        artifact_id=dto.artifact_id,
-        title=dto.title,
-        state=dto.state,
-        description=dto.description,
-        assignee_id=dto.assignee_id,
-        rank_order=dto.rank_order,
-        cycle_node_id=getattr(dto, "cycle_node_id", None),
-        area_node_id=getattr(dto, "area_node_id", None),
-        area_path_snapshot=getattr(dto, "area_path_snapshot", None),
-        created_at=dto.created_at,
-        updated_at=dto.updated_at,
-    )
+    if "tag_ids" in updates:
+        cmd_kwargs["tag_ids"] = updates["tag_ids"]
+    dto = await mediator.send(UpdateTask(**cmd_kwargs))
+    return task_response_from_dto(dto)
 
 
 @router.delete(

@@ -9,6 +9,7 @@ import pytest
 
 from alm.project.application.commands.create_project import CreateProject, CreateProjectHandler
 from alm.tenant.domain.entities import Tenant
+from tests.support.manifests import CREATE_PROJECT_ROOTS_MANIFEST_BUNDLE
 
 
 @pytest.mark.asyncio
@@ -71,3 +72,39 @@ async def test_create_project_explicit_slug_skips_tenant_default() -> None:
     await handler.handle(cmd)
     process_repo.find_version_by_template_slug.assert_awaited_once_with("basic")
     tenant_repo.find_by_id.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_project_creates_manifest_roots_for_tests_and_suites() -> None:
+    tenant_id = uuid.uuid4()
+    manifest_bundle = CREATE_PROJECT_ROOTS_MANIFEST_BUNDLE
+
+    tenant_repo = AsyncMock()
+    tenant_repo.find_by_id = AsyncMock(return_value=Tenant(name="T", slug="t", id=tenant_id))
+    version_id = uuid.uuid4()
+    version = AsyncMock(id=version_id, manifest_bundle=manifest_bundle)
+    process_repo = AsyncMock()
+    process_repo.find_version_by_template_slug = AsyncMock(return_value=version)
+    process_repo.find_version_by_id = AsyncMock(return_value=version)
+    project_repo = AsyncMock()
+    project_repo.find_by_tenant_and_code = AsyncMock(return_value=None)
+    project_repo.find_by_tenant_and_slug = AsyncMock(return_value=None)
+    project_repo.add = AsyncMock(side_effect=lambda p: p)
+    member_repo = AsyncMock()
+    artifact_repo = AsyncMock()
+
+    handler = CreateProjectHandler(
+        project_repo=project_repo,
+        process_template_repo=process_repo,
+        project_member_repo=member_repo,
+        artifact_repo=artifact_repo,
+        tenant_repo=tenant_repo,
+    )
+    cmd = CreateProject(tenant_id=tenant_id, code="ZX", name="Rooted Project")
+    await handler.handle(cmd)
+
+    created_root_types = [call.args[0].artifact_type for call in artifact_repo.add.await_args_list]
+    assert "root-requirement" in created_root_types
+    assert "root-quality" in created_root_types
+    assert "root-testsuites" in created_root_types
+    assert "root-defect" in created_root_types

@@ -1,7 +1,8 @@
 """Merge optional manifest metadata defaults (idempotent) for backfill and upgrades.
 
-Also merges Quality domain defs (test-suite, test-run, test-campaign, quality-folder, link types)
-when not already present — see ``quality_manifest_extension.merge_quality_domain_into_defs``.
+Also merges Quality / Campaign domain defs (``tree_id: testsuites``: collections, test-suite,
+test-run, test-campaign; catalog quality-folder; link types) when not already present — see
+``quality_manifest_extension.merge_quality_domain_into_defs``.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from alm.artifact.domain.quality_manifest_extension import merge_quality_domain_
 _DEFAULT_TREE_ROOTS: list[dict[str, str]] = [
     {"tree_id": "requirement", "root_artifact_type": "root-requirement"},
     {"tree_id": "quality", "root_artifact_type": "root-quality"},
+    {"tree_id": "testsuites", "root_artifact_type": "root-testsuites"},
     {"tree_id": "defect", "root_artifact_type": "root-defect"},
 ]
 

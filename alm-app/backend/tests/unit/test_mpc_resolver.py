@@ -17,54 +17,14 @@ from alm.artifact.domain.mpc_resolver import (
     manifest_defs_to_flat,
 )
 from alm.artifact.domain.workflow_sm import get_initial_state, is_valid_transition
+from tests.support.manifests import (
+    MANIFEST_DEFS_LINK_TYPE_BLOCKS_RICH,
+    MANIFEST_DEFS_LINK_TYPES_SIMPLE,
+    MANIFEST_DEFS_WORKFLOW_TRIGGER_LABEL,
+    MPC_RESOLVER_SAMPLE_MANIFEST,
+)
 
-SAMPLE_MANIFEST = {
-    "schemaVersion": 1,
-    "namespace": "alm",
-    "name": "basic",
-    "manifestVersion": "1.0.0",
-    "defs": [
-        {
-            "kind": "Workflow",
-            "id": "basic",
-            "initial": "new",
-            "finals": ["closed"],
-            "states": ["new", "active", "resolved", "closed"],
-            "transitions": [
-                {"from": "new", "to": "active", "on": "start", "on_enter": ["log_transition"]},
-                {"from": "active", "to": "resolved", "on": "resolve"},
-                {"from": "resolved", "to": "closed", "on": "close"},
-                {"from": "closed", "to": "active", "on": "reopen"},
-            ],
-        },
-        {
-            "kind": "ArtifactType",
-            "id": "requirement",
-            "workflow_id": "basic",
-            "parent_types": ["feature", "epic"],
-            "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
-        },
-        {
-            "kind": "ArtifactType",
-            "id": "feature",
-            "workflow_id": "basic",
-            "parent_types": ["epic"],
-            "child_types": ["requirement"],
-        },
-        {
-            "kind": "ArtifactType",
-            "id": "epic",
-            "workflow_id": "basic",
-            "child_types": ["feature"],
-        },
-        {
-            "kind": "TransitionPolicy",
-            "id": "assignee_active",
-            "when": {"state": "active"},
-            "require": "assignee",
-        },
-    ],
-}
+SAMPLE_MANIFEST = MPC_RESOLVER_SAMPLE_MANIFEST
 
 
 class TestMpcResolver:
@@ -165,13 +125,7 @@ class TestMpcResolver:
         assert flat["link_types"] == []
 
     def test_manifest_defs_to_flat_link_types(self):
-        manifest = {
-            "defs": [
-                {"kind": "LinkType", "id": "blocks", "name": "Blocks"},
-                {"kind": "LinkType", "id": "relates-to", "name": "Relates To"},
-            ],
-        }
-        flat = manifest_defs_to_flat(manifest)
+        flat = manifest_defs_to_flat(MANIFEST_DEFS_LINK_TYPES_SIMPLE)
         assert flat["link_types"] == [
             {"id": "blocks", "name": "Blocks"},
             {"id": "relates-to", "name": "Relates To"},
@@ -180,21 +134,7 @@ class TestMpcResolver:
         assert flat["artifact_types"] == []
 
     def test_manifest_defs_to_flat_link_type_optional_metadata(self):
-        manifest = {
-            "defs": [
-                {
-                    "kind": "LinkType",
-                    "id": "blocks",
-                    "name": "Blocks",
-                    "direction": "directed",
-                    "cardinality": "many-to-many",
-                    "from_types": ["task"],
-                    "to_types": ["requirement"],
-                    "description": "Task blocks requirement",
-                },
-            ],
-        }
-        flat = manifest_defs_to_flat(manifest)
+        flat = manifest_defs_to_flat(MANIFEST_DEFS_LINK_TYPE_BLOCKS_RICH)
         assert flat["link_types"] == [
             {
                 "id": "blocks",
@@ -208,21 +148,7 @@ class TestMpcResolver:
         ]
 
     def test_manifest_defs_to_flat_preserves_trigger_and_label(self):
-        manifest = {
-            "defs": [
-                {
-                    "kind": "Workflow",
-                    "id": "w",
-                    "initial": "new",
-                    "states": ["new", "active"],
-                    "transitions": [
-                        {"from": "new", "to": "active", "trigger": "start", "trigger_label": "Start"},
-                    ],
-                },
-                {"kind": "ArtifactType", "id": "req", "workflow_id": "w"},
-            ],
-        }
-        flat = manifest_defs_to_flat(manifest)
+        flat = manifest_defs_to_flat(MANIFEST_DEFS_WORKFLOW_TRIGGER_LABEL)
         assert len(flat["workflows"]) == 1
         assert flat["workflows"][0]["transitions"][0] == {
             "from": "new",
