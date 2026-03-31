@@ -37,6 +37,25 @@ export interface RunMetricsDocumentV2 {
 function normalizeRow(row: TestExecutionResultRow): TestExecutionResultRow {
   return {
     ...row,
+    stepResults: Array.isArray(row.stepResults)
+      ? row.stepResults.map((step) => ({
+          ...step,
+          linkedDefectIds: Array.isArray(step.linkedDefectIds)
+            ? step.linkedDefectIds.filter((id): id is string => typeof id === "string" && id.length > 0)
+            : undefined,
+          attachmentIds: Array.isArray(step.attachmentIds)
+            ? step.attachmentIds.filter((id): id is string => typeof id === "string" && id.length > 0)
+            : undefined,
+          attachmentNames: Array.isArray(step.attachmentNames)
+            ? step.attachmentNames.filter((name): name is string => typeof name === "string" && name.length > 0)
+            : undefined,
+          lastEvidenceAt: typeof step.lastEvidenceAt === "string" ? step.lastEvidenceAt : null,
+          expectedResultSnapshot:
+            typeof step.expectedResultSnapshot === "string" ? step.expectedResultSnapshot : undefined,
+          stepNameSnapshot: typeof step.stepNameSnapshot === "string" ? step.stepNameSnapshot : undefined,
+          stepNumber: typeof step.stepNumber === "number" ? step.stepNumber : undefined,
+        }))
+      : [],
     configurationId: row.configurationId ?? null,
     configurationName: row.configurationName ?? row.configurationSnapshot?.name ?? row.configurationSnapshot?.label ?? null,
     configurationSnapshot: row.configurationSnapshot ?? null,

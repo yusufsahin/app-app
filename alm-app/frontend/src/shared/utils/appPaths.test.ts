@@ -11,6 +11,7 @@ import {
   qualityCatalogArtifactPath,
   qualityCampaignPath,
   qualityDefectsPath,
+  requirementsTraceabilityPath,
 } from "./appPaths";
 
 describe("artifactsPath", () => {
@@ -141,5 +142,23 @@ describe("qualityDefectsPath", () => {
     expect(qualityDefectsPath("o", "p", { under: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee" })).toBe(
       "/o/p/quality/defects?under=aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
     );
+  });
+});
+
+describe("requirementsTraceabilityPath", () => {
+  it("returns traceability matrix path when no params", () => {
+    expect(requirementsTraceabilityPath("o", "p")).toBe("/o/p/requirements/traceability");
+  });
+
+  it("adds filters and tab params", () => {
+    expect(
+      requirementsTraceabilityPath("o", "p", {
+        under: "u1",
+        scopeRun: "r1",
+        q: "login",
+        reverse: false,
+        tab: "relationships",
+      }),
+    ).toBe("/o/p/requirements/traceability?under=u1&scopeRun=r1&q=login&reverse=0&tab=relationships");
   });
 });

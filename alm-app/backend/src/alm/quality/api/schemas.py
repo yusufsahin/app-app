@@ -30,6 +30,8 @@ class LastExecutionStatusRequest(BaseModel):
 class LastExecutionStepStatusItem(BaseModel):
     step_id: str
     status: str
+    linked_defect_ids: list[str] = Field(default_factory=list)
+    attachment_ids: list[str] = Field(default_factory=list)
 
 
 class LastExecutionStatusItem(BaseModel):
@@ -112,3 +114,48 @@ class RequirementCoverageAnalysisResponse(BaseModel):
     cache_hit: bool
     nodes: list[RequirementCoverageNodeResponse]
     leaves: list[RequirementCoverageLeafResponse]
+
+
+class TraceabilityMatrixColumnResponse(BaseModel):
+    test_id: uuid.UUID
+    artifact_key: str | None = None
+    title: str
+
+
+class TraceabilityMatrixCellResponse(BaseModel):
+    test_id: uuid.UUID
+    linked: bool = True
+    status: str | None = None
+    run_id: uuid.UUID | None = None
+    run_title: str | None = None
+
+
+class TraceabilityMatrixRowResponse(BaseModel):
+    requirement_id: uuid.UUID
+    parent_id: uuid.UUID | None = None
+    artifact_key: str | None = None
+    title: str
+    cells: list[TraceabilityMatrixCellResponse] = Field(default_factory=list)
+
+
+class TraceabilityRelationshipResponse(BaseModel):
+    requirement_id: uuid.UUID
+    requirement_parent_id: uuid.UUID | None = None
+    requirement_artifact_key: str | None = None
+    requirement_title: str
+    test_id: uuid.UUID
+    test_artifact_key: str | None = None
+    test_title: str
+    link_type: str
+    status: str | None = None
+    run_id: uuid.UUID | None = None
+    run_title: str | None = None
+
+
+class RequirementTraceabilityMatrixResponse(BaseModel):
+    computed_at: datetime
+    cache_hit: bool
+    truncated: bool = False
+    rows: list[TraceabilityMatrixRowResponse] = Field(default_factory=list)
+    columns: list[TraceabilityMatrixColumnResponse] = Field(default_factory=list)
+    relationships: list[TraceabilityRelationshipResponse] = Field(default_factory=list)

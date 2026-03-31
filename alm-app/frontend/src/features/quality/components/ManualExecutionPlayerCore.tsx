@@ -52,7 +52,26 @@ import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { qualityRunExecuteAbsoluteUrl } from "../lib/qualityRunPaths";
 import { buildBugReportMarkdown } from "../lib/bugReportMarkdown";
 import { findRootDefectId, pickDefectArtifactType } from "../lib/defectManifestHelpers";
-import { CreateDefectFromExecutionDialog } from "./CreateDefectFromExecutionDialog";
+import {
+  CreateDefectFromExecutionDialog,
+  type DefectCreatedPayload,
+} from "./CreateDefectFromExecutionDialog";
+
+function mergeUniqueStrings(...values: Array<string[] | undefined>): string[] | undefined {
+  const merged = values.flatMap((items) => items ?? []).filter((item) => item.length > 0);
+  if (merged.length === 0) return undefined;
+  return Array.from(new Set(merged));
+}
+
+function buildStepResultFromStep(step: TestStep): StepResult {
+  return {
+    stepId: String(step.id),
+    status: "not-executed",
+    expectedResultSnapshot: step.expectedResult,
+    stepNameSnapshot: step.name,
+    stepNumber: step.stepNumber,
+  };
+}
 
 function mergeSavedExecution(
   saved: TestExecutionResultRow | undefined,
@@ -76,10 +95,7 @@ function mergeSavedExecution(
     return {
       testId,
       status: "not-executed",
-      stepResults: expanded.map((step) => ({
-        stepId: String(step.id),
-        status: "not-executed" as const,
-      })),
+      stepResults: expanded.map((step) => buildStepResultFromStep(step)),
       expandedStepsSnapshot: expanded,
     };
   }
@@ -100,10 +116,7 @@ function mergeSavedExecution(
   return carryParams({
     testId,
     status: "not-executed",
-    stepResults: expanded.map((step) => ({
-      stepId: String(step.id),
-      status: "not-executed" as const,
-    })),
+    stepResults: expanded.map((step) => buildStepResultFromStep(step)),
     expandedStepsSnapshot: expanded,
   });
 }
@@ -270,10 +283,12 @@ export function ManualExecutionPlayerCore({
             return mergeSavedExecution(savedRow, test.id, parseTestSteps(test.custom_fields?.test_steps_json));
           })
         : (saved ?? []);
-    setSelectedConfigurationIdByTestId(selections);
-    setTestExecutionResults(initialResults);
-    setCurrentTestIndex(0);
-    setIsInitialized(true);
+    queueMicrotask(() => {
+      setSelectedConfigurationIdByTestId(selections);
+      setTestExecutionResults(initialResults);
+      setCurrentTestIndex(0);
+      setIsInitialized(true);
+    });
   }, [
     run,
     runLoading,
@@ -294,9 +309,16 @@ export function ManualExecutionPlayerCore({
 
   const currentResult = testExecutionResults[resolvedTestIndex];
   const currentTest = activeTests.find((t) => t.id === currentResult?.testId);
+  const currentTestId = currentTest?.id ?? null;
   const currentResolvedConfig = currentTest ? resolvedConfigByTestId[currentTest.id] : undefined;
-  const currentTestSteps = currentResolvedConfig?.steps.length
-    ? currentResolvedConfig.steps.map((step) => ({
+  const currentResolvedSteps = currentResolvedConfig?.steps ?? null;
+  const currentTestStepsJson = currentTest?.custom_fields?.test_steps_json;
+  const currentTestStepsKey =
+    typeof currentTestStepsJson === "string"
+      ? currentTestStepsJson
+      : JSON.stringify(currentTestStepsJson ?? null);
+  const currentTestSteps = currentResolvedSteps?.length
+    ? currentResolvedSteps.map((step) => ({
         id: step.id,
         stepNumber: step.step_number,
         name: step.name,
@@ -304,8 +326,8 @@ export function ManualExecutionPlayerCore({
         expectedResult: step.expected_result,
         status: step.status,
       }))
-    : currentTest
-      ? parseTestSteps(currentTest.custom_fields?.test_steps_json)
+    : currentTestStepsJson
+      ? parseTestSteps(currentTestStepsJson)
       : [];
 
   const currentParamDoc = currentTest
@@ -313,18 +335,18 @@ export function ManualExecutionPlayerCore({
     : null;
 
   useEffect(() => {
-    if (!isInitialized || !currentTest) return;
+    if (!isInitialized || !currentTestId) return;
     let cancelled = false;
     void resolveExecutionConfig(
       orgSlug,
       projectSlug,
       runId,
-      currentTest.id,
-      selectedConfigurationIdByTestId[currentTest.id] ?? null,
+      currentTestId,
+      selectedConfigurationIdByTestId[currentTestId] ?? null,
     )
       .then((resolved) => {
         if (cancelled) return;
-        setResolvedConfigByTestId((prev) => ({ ...prev, [currentTest.id]: resolved }));
+        setResolvedConfigByTestId((prev) => ({ ...prev, [currentTestId]: resolved }));
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -338,7 +360,7 @@ export function ManualExecutionPlayerCore({
     return () => {
       cancelled = true;
     };
-  }, [isInitialized, currentTest?.id, orgSlug, projectSlug, runId, selectedConfigurationIdByTestId]);
+  }, [isInitialized, currentTestId, orgSlug, projectSlug, runId, selectedConfigurationIdByTestId]);
 
   useEffect(() => {
     if (!isInitialized || appliedTestDeepLink.current) return;
@@ -360,7 +382,9 @@ export function ManualExecutionPlayerCore({
     if (idx < 0) {
       toast.error(t("execution.deepLinkInvalidTest"));
     } else {
-      setCurrentTestIndex(idx);
+      queueMicrotask(() => {
+        setCurrentTestIndex(idx);
+      });
     }
     appliedTestDeepLink.current = true;
   }, [
@@ -375,9 +399,21 @@ export function ManualExecutionPlayerCore({
 
   useEffect(() => {
     const sid = deepLinkStepId?.trim();
-    if (!sid || !isInitialized || !currentTest) return;
-    if (deepLinkTestId?.trim() && currentTest.id !== deepLinkTestId.trim()) return;
-    const exists = currentTestSteps.some((s) => String(s.id) === sid);
+    if (!sid || !isInitialized || !currentTestId) return;
+    if (deepLinkTestId?.trim() && currentTestId !== deepLinkTestId.trim()) return;
+    const effectSteps = currentResolvedSteps?.length
+      ? currentResolvedSteps.map((step) => ({
+          id: step.id,
+          stepNumber: step.step_number,
+          name: step.name,
+          description: step.description,
+          expectedResult: step.expected_result,
+          status: step.status,
+        }))
+      : currentTestStepsJson
+        ? parseTestSteps(currentTestStepsJson)
+        : [];
+    const exists = effectSteps.some((s) => String(s.id) === sid);
     if (!exists) {
       if (!deepLinkStepInvalidToastRef.current) {
         deepLinkStepInvalidToastRef.current = true;
@@ -395,9 +431,18 @@ export function ManualExecutionPlayerCore({
       });
     }, 150);
     return () => clearTimeout(tmr);
-  }, [isInitialized, currentTest?.id, deepLinkStepId, deepLinkTestId, currentTestSteps, t]);
+  }, [
+    isInitialized,
+    currentTestId,
+    deepLinkStepId,
+    deepLinkTestId,
+    currentResolvedSteps,
+    currentTestStepsJson,
+    currentTestStepsKey,
+    t,
+  ]);
 
-  const defectFormDefaults = useMemo(() => {
+  const defectFormDefaults = (() => {
     if (!defectDialog || !currentTest || !run) return null;
     return {
       title: `${run.title ?? "Run"} — Step ${defectDialog.step.stepNumber}`,
@@ -408,7 +453,7 @@ export function ManualExecutionPlayerCore({
         stepResult: defectDialog.stepResult,
       }),
     };
-  }, [defectDialog, currentTest, run]);
+  })();
 
   // Handlers
   const handleStepUpdate = (
@@ -433,6 +478,19 @@ export function ManualExecutionPlayerCore({
         status: updatedStatus,
         actualResult: actualResult !== undefined ? actualResult : existing.actualResult,
         notes: notes !== undefined ? notes : existing.notes,
+        linkedDefectIds: existing.linkedDefectIds,
+        attachmentIds: existing.attachmentIds,
+        attachmentNames: existing.attachmentNames,
+        lastEvidenceAt: existing.lastEvidenceAt ?? null,
+        expectedResultSnapshot:
+          existing.expectedResultSnapshot ??
+          currentTestSteps.find((step) => String(step.id) === stepId)?.expectedResult,
+        stepNameSnapshot:
+          existing.stepNameSnapshot ??
+          currentTestSteps.find((step) => String(step.id) === stepId)?.name,
+        stepNumber:
+          existing.stepNumber ??
+          currentTestSteps.find((step) => String(step.id) === stepId)?.stepNumber,
       };
 
       testResult.stepResults[stepResultIndex] = updatedStepResult;
@@ -453,6 +511,61 @@ export function ManualExecutionPlayerCore({
     }
   };
 
+  const handleDefectCreated = useCallback(
+    (payload: DefectCreatedPayload) => {
+      if (!defectDialog) return;
+      let nextResults: TestExecutionResultRow[] = [];
+      setTestExecutionResults((prev) => {
+        nextResults = prev.map((row, rowIndex) => {
+          if (rowIndex !== resolvedTestIndex) return row;
+          return {
+            ...row,
+            stepResults: row.stepResults.map((stepResult) => {
+              if (stepResult.stepId !== String(defectDialog.step.id)) return stepResult;
+              return {
+                ...stepResult,
+                status: payload.executionContext.step_status === "blocked" ? "blocked" : "failed",
+                linkedDefectIds: mergeUniqueStrings(stepResult.linkedDefectIds, [payload.defectId]),
+                attachmentIds: mergeUniqueStrings(stepResult.attachmentIds, payload.runAttachmentIds),
+                attachmentNames: mergeUniqueStrings(stepResult.attachmentNames, payload.runAttachmentNames),
+                lastEvidenceAt:
+                  payload.runAttachmentIds.length > 0 ? new Date().toISOString() : stepResult.lastEvidenceAt ?? null,
+                expectedResultSnapshot:
+                  stepResult.expectedResultSnapshot ?? defectDialog.step.expectedResult,
+                stepNameSnapshot: stepResult.stepNameSnapshot ?? defectDialog.step.name,
+                stepNumber: stepResult.stepNumber ?? defectDialog.step.stepNumber,
+              };
+            }),
+          };
+        });
+        return nextResults;
+      });
+      if (run && nextResults.length > 0) {
+        void updateRunMutation.mutateAsync({
+          custom_fields: {
+            ...run.custom_fields,
+            run_metrics_json: stringifyRunMetricsPayload(nextResults),
+          },
+        });
+      }
+      void queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectSlug, "artifacts", runId, "attachments"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectSlug, "artifacts", runId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectSlug, "artifacts"],
+      });
+      toast.success(
+        t("execution.defect.runnerLinkedSuccess", {
+          step: defectDialog.step.stepNumber,
+        }),
+      );
+    },
+    [defectDialog, orgSlug, projectSlug, queryClient, resolvedTestIndex, run, runId, t, updateRunMutation],
+  );
+
   const handleCopyBugReport = (step: TestStep, stepResult: StepResult) => {
     if (!currentTest || !run) return;
     const md = buildBugReportMarkdown({
@@ -465,14 +578,14 @@ export function ManualExecutionPlayerCore({
     toast.success(t("execution.bugReportCopied", { step: step.stepNumber }));
   };
 
-  const handleCopyExecuteLink = useCallback(() => {
+  const handleCopyExecuteLink = () => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const url = qualityRunExecuteAbsoluteUrl(origin, orgSlug, executePathProjectSlug, runId, {
-      test: currentTest?.id,
+      test: currentTestId ?? undefined,
     });
     void navigator.clipboard.writeText(url);
     toast.success(t("execution.linkCopied"));
-  }, [orgSlug, executePathProjectSlug, runId, currentTest?.id, t]);
+  };
 
   const handlePassAllSteps = () => {
     if (!currentResult) return;
@@ -490,6 +603,13 @@ export function ManualExecutionPlayerCore({
         status: "passed" as const,
         actualResult: existing?.actualResult || "As expected",
         notes: existing?.notes || "",
+        linkedDefectIds: existing?.linkedDefectIds,
+        attachmentIds: existing?.attachmentIds,
+        attachmentNames: existing?.attachmentNames,
+        lastEvidenceAt: existing?.lastEvidenceAt ?? null,
+        expectedResultSnapshot: existing?.expectedResultSnapshot ?? step.expectedResult,
+        stepNameSnapshot: existing?.stepNameSnapshot ?? step.name,
+        stepNumber: existing?.stepNumber ?? step.stepNumber,
       };
     });
 
@@ -953,6 +1073,17 @@ export function ManualExecutionPlayerCore({
           defaultDescription={defectFormDefaults.description}
           canCreateArtifact={canCreateDefect}
           canUpdateArtifact={canUpdateArtifacts}
+          stepContext={{
+            stepId: String(defectDialog.step.id),
+            stepName: defectDialog.step.name,
+            stepNumber: defectDialog.step.stepNumber,
+            stepStatus: defectDialog.stepResult.status,
+            actualResult: defectDialog.stepResult.actualResult,
+            notes: defectDialog.stepResult.notes,
+            expectedResult: defectDialog.step.expectedResult,
+          }}
+          manualRunnerMode
+          onCreated={handleDefectCreated}
         />
       ) : null}
 

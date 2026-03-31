@@ -54,7 +54,13 @@ async def batch_last_execution_status(
             configuration_name=d.configuration_name,
             param_row_index=d.param_row_index,
             step_results=[
-                LastExecutionStepStatusItem(step_id=s.step_id, status=s.status) for s in d.step_results
+                LastExecutionStepStatusItem(
+                    step_id=s.step_id,
+                    status=s.status,
+                    linked_defect_ids=s.linked_defect_ids,
+                    attachment_ids=s.attachment_ids,
+                )
+                for s in d.step_results
             ],
         )
         for d in dtos

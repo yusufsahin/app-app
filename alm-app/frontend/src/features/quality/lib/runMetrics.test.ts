@@ -18,6 +18,18 @@ describe("runMetrics", () => {
     expect(parseRunMetricsPayload(s)).toEqual([
       {
         ...results[0],
+        stepResults: [
+          {
+            ...results[0]!.stepResults[0],
+            linkedDefectIds: undefined,
+            attachmentIds: undefined,
+            attachmentNames: undefined,
+            lastEvidenceAt: null,
+            expectedResultSnapshot: undefined,
+            stepNameSnapshot: undefined,
+            stepNumber: undefined,
+          },
+        ],
         configurationId: null,
         configurationName: null,
         configurationSnapshot: null,

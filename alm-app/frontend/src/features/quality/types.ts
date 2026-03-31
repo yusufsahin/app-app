@@ -32,4 +32,11 @@ export interface StepResult {
   status: 'passed' | 'failed' | 'blocked' | 'not-executed';
   actualResult?: string;
   notes?: string;
+  linkedDefectIds?: string[];
+  attachmentIds?: string[];
+  attachmentNames?: string[];
+  lastEvidenceAt?: string | null;
+  expectedResultSnapshot?: string;
+  stepNameSnapshot?: string;
+  stepNumber?: number;
 }

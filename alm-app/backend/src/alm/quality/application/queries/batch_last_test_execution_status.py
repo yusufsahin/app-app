@@ -17,6 +17,8 @@ from alm.quality.application.run_metrics_v1 import (
     configuration_name_from_metrics_row,
     metrics_row_for_test_id,
     normalize_execution_status,
+    step_attachment_ids_from_metrics_row,
+    step_defect_ids_from_metrics_row,
     step_statuses_from_metrics_row,
 )
 from alm.shared.application.query import Query, QueryHandler
@@ -44,6 +46,8 @@ class BatchLastTestExecutionStatus(Query):
 class LastExecutionStepStatusDTO:
     step_id: str
     status: str
+    linked_defect_ids: list[str] = field(default_factory=list)
+    attachment_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -219,8 +223,15 @@ class BatchLastTestExecutionStatusHandler(QueryHandler[list[LastTestExecutionSta
                 st = normalize_execution_status(row.get("status")) or "not-executed"
                 pri = row.get("paramRowIndex")
                 pidx: int | None = pri if isinstance(pri, int) else None
+                step_defects = step_defect_ids_from_metrics_row(row)
+                step_attachments = step_attachment_ids_from_metrics_row(row)
                 steps = [
-                    LastExecutionStepStatusDTO(step_id=sid, status=sst)
+                    LastExecutionStepStatusDTO(
+                        step_id=sid,
+                        status=sst,
+                        linked_defect_ids=step_defects.get(sid, []),
+                        attachment_ids=step_attachments.get(sid, []),
+                    )
                     for sid, sst in step_statuses_from_metrics_row(row)
                 ]
                 results[tid] = LastTestExecutionStatusDTO(

@@ -73,6 +73,48 @@ def step_statuses_from_metrics_row(row: dict[str, Any]) -> list[tuple[str, str]]
     return out
 
 
+def step_defect_ids_from_metrics_row(row: dict[str, Any]) -> dict[str, list[str]]:
+    """Map ``step_id -> linked defect ids`` for execution evidence-aware rows."""
+    out: dict[str, list[str]] = {}
+    sr = row.get("stepResults")
+    if not isinstance(sr, list):
+        return out
+    for item in sr:
+        if not isinstance(item, dict):
+            continue
+        sid = str(item.get("stepId") or "").strip()
+        if not sid:
+            continue
+        raw_ids = item.get("linkedDefectIds")
+        if not isinstance(raw_ids, list):
+            continue
+        ids = [str(v).strip() for v in raw_ids if str(v).strip()]
+        if ids:
+            out[sid] = ids
+    return out
+
+
+def step_attachment_ids_from_metrics_row(row: dict[str, Any]) -> dict[str, list[str]]:
+    """Map ``step_id -> attachment ids`` for execution evidence-aware rows."""
+    out: dict[str, list[str]] = {}
+    sr = row.get("stepResults")
+    if not isinstance(sr, list):
+        return out
+    for item in sr:
+        if not isinstance(item, dict):
+            continue
+        sid = str(item.get("stepId") or "").strip()
+        if not sid:
+            continue
+        raw_ids = item.get("attachmentIds")
+        if not isinstance(raw_ids, list):
+            continue
+        ids = [str(v).strip() for v in raw_ids if str(v).strip()]
+        if ids:
+            out[sid] = ids
+    return out
+
+
 def configuration_id_from_metrics_row(row: dict[str, Any]) -> str | None:
     raw = row.get("configurationId")
     if isinstance(raw, str) and raw.strip():

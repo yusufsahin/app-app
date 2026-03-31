@@ -265,6 +265,10 @@ from alm.quality.application.queries.requirement_coverage_analysis import (
     RequirementCoverageAnalysis,
     RequirementCoverageAnalysisHandler,
 )
+from alm.quality.application.queries.requirement_traceability_matrix import (
+    RequirementTraceabilityMatrix,
+    RequirementTraceabilityMatrixHandler,
+)
 from alm.realtime.event_handlers import on_artifact_state_changed_realtime
 
 # ── Saved query commands ──
@@ -1087,6 +1091,15 @@ def register_all_handlers() -> None:
     register_query_handler(
         RequirementCoverageAnalysis,
         lambda s: RequirementCoverageAnalysisHandler(
+            project_repo=SqlAlchemyProjectRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            link_repo=SqlAlchemyArtifactLinkRepository(s),
+            process_template_repo=SqlAlchemyProcessTemplateRepository(s),
+        ),
+    )
+    register_query_handler(
+        RequirementTraceabilityMatrix,
+        lambda s: RequirementTraceabilityMatrixHandler(
             project_repo=SqlAlchemyProjectRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
             link_repo=SqlAlchemyArtifactLinkRepository(s),

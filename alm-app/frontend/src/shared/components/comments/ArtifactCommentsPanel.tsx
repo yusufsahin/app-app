@@ -1,4 +1,4 @@
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { Button, Skeleton } from "../ui";
 import { RhfTextField } from "../forms";
 import { useCommentsByArtifact, useCreateComment } from "../../api/commentApi";
@@ -67,7 +67,7 @@ export function ArtifactCommentsPanel({
   const createCommentMutation = useCreateComment(orgSlug, projectId, artifactId);
 
   const commentForm = useForm<CommentFormValues>({ defaultValues: { body: "" } });
-  const commentBody = commentForm.watch("body");
+  const commentBody = useWatch({ control: commentForm.control, name: "body" });
 
   if (!orgSlug || !projectId || !artifactId) {
     return null;

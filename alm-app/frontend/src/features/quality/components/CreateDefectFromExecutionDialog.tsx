@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Loader2, Paperclip, X } from "lucide-react";
+import { Camera, Clipboard, Loader2, Paperclip, X } from "lucide-react";
 import {
+  Badge,
   Button,
   Dialog,
   DialogContent,
@@ -18,20 +19,43 @@ import { apiClient } from "../../../shared/api/client";
 import { toast } from "sonner";
 import { isDefectAttachmentFileAllowed } from "../lib/defectAttachmentRules";
 import { artifactDetailPath } from "../../../shared/utils/appPaths";
+import type { Attachment } from "../../../shared/api/attachmentApi";
 
 async function uploadAttachment(
   orgSlug: string,
   projectId: string,
   artifactId: string,
   file: File,
-): Promise<void> {
+): Promise<Attachment> {
   const formData = new FormData();
   formData.append("file", file);
-  await apiClient.post(
+  const { data } = await apiClient.post<Attachment>(
     `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/attachments`,
     formData,
   );
+  return data;
 }
+
+type ExecutionContextPayload = {
+  run_id: string;
+  test_case_id: string;
+  source: "manual_runner";
+  step_id?: string;
+  step_name?: string;
+  step_order?: number;
+  step_status?: string;
+  actual_result?: string;
+  notes?: string;
+  expected_result?: string;
+};
+
+export type DefectCreatedPayload = {
+  defectId: string;
+  runAttachmentIds: string[];
+  runAttachmentNames: string[];
+  defectAttachmentIds: string[];
+  executionContext: ExecutionContextPayload;
+};
 
 export type CreateDefectFromExecutionDialogProps = {
   open: boolean;
@@ -47,6 +71,17 @@ export type CreateDefectFromExecutionDialogProps = {
   defaultDescription: string;
   canCreateArtifact: boolean;
   canUpdateArtifact: boolean;
+  stepContext?: {
+    stepId: string;
+    stepName: string;
+    stepNumber: number;
+    stepStatus: string;
+    actualResult?: string;
+    notes?: string;
+    expectedResult?: string;
+  } | null;
+  manualRunnerMode?: boolean;
+  onCreated?: (payload: DefectCreatedPayload) => void;
 };
 
 export function CreateDefectFromExecutionDialog({
@@ -63,6 +98,9 @@ export function CreateDefectFromExecutionDialog({
   defaultDescription,
   canCreateArtifact,
   canUpdateArtifact,
+  stepContext,
+  manualRunnerMode = false,
+  onCreated,
 }: CreateDefectFromExecutionDialogProps) {
   const { t } = useTranslation("quality");
   const navigate = useNavigate();
@@ -75,6 +113,21 @@ export function CreateDefectFromExecutionDialog({
   const [uploadIndex, setUploadIndex] = useState(0);
 
   const createArtifact = useCreateArtifact(orgSlug, projectId);
+  const executionContext = useMemo<ExecutionContextPayload>(
+    () => ({
+      run_id: runId,
+      test_case_id: testCaseId,
+      source: "manual_runner",
+      step_id: stepContext?.stepId,
+      step_name: stepContext?.stepName,
+      step_order: stepContext?.stepNumber,
+      step_status: stepContext?.stepStatus,
+      actual_result: stepContext?.actualResult,
+      notes: stepContext?.notes,
+      expected_result: stepContext?.expectedResult,
+    }),
+    [runId, testCaseId, stepContext],
+  );
 
   useEffect(() => {
     if (open) {
@@ -122,6 +175,56 @@ export function CreateDefectFromExecutionDialog({
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const captureScreenshot = useCallback(async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
+      toast.error(t("execution.defect.captureUnsupported"));
+      return;
+    }
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      });
+      const track = stream.getVideoTracks()[0];
+      if (!track) {
+        toast.error(t("execution.defect.captureFailed"));
+        return;
+      }
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      video.muted = true;
+      await video.play();
+      await new Promise((resolve) => {
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) resolve(undefined);
+        else video.onloadeddata = () => resolve(undefined);
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        toast.error(t("execution.defect.captureFailed"));
+        return;
+      }
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) {
+        toast.error(t("execution.defect.captureFailed"));
+        return;
+      }
+      const safeStep = stepContext?.stepNumber != null ? `step-${stepContext.stepNumber}` : "step";
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const file = new File([blob], `manual-runner-${safeStep}-${timestamp}.png`, { type: "image/png" });
+      addFiles([file]);
+      toast.success(t("execution.defect.captureAdded"));
+    } catch {
+      toast.error(t("execution.defect.captureFailed"));
+    } finally {
+      stream?.getTracks().forEach((item) => item.stop());
+    }
+  }, [addFiles, stepContext?.stepNumber, t]);
+
   const handleSubmit = async () => {
     if (!defectParentId) {
       toast.error(t("execution.defect.noDefectRoot"));
@@ -143,11 +246,7 @@ export function CreateDefectFromExecutionDialog({
         description,
         parent_id: defectParentId,
         custom_fields: {
-          execution_context_json: {
-            run_id: runId,
-            test_case_id: testCaseId,
-            source: "manual_execution",
-          },
+          execution_context_json: executionContext,
         },
       });
       defectId = created.id;
@@ -178,13 +277,22 @@ export function CreateDefectFromExecutionDialog({
       }
     }
 
+    const runAttachmentIds: string[] = [];
+    const runAttachmentNames: string[] = [];
+    const defectAttachmentIds: string[] = [];
     if (files.length > 0) {
       setSubmitPhase("uploading");
       let i = 0;
       for (const file of files) {
         setUploadIndex(i + 1);
         try {
-          await uploadAttachment(orgSlug, projectId, defectId, file);
+          const defectAttachment = await uploadAttachment(orgSlug, projectId, defectId, file);
+          defectAttachmentIds.push(defectAttachment.id);
+          if (canUpdateArtifact) {
+            const runAttachment = await uploadAttachment(orgSlug, projectId, runId, file);
+            runAttachmentIds.push(runAttachment.id);
+            runAttachmentNames.push(runAttachment.file_name);
+          }
         } catch {
           toast.error(t("execution.defect.uploadFailed", { name: file.name }));
         }
@@ -208,6 +316,13 @@ export function CreateDefectFromExecutionDialog({
     } else {
       toast.success(t("execution.defect.createdSuccess"), { action: openDefectAction });
     }
+    onCreated?.({
+      defectId,
+      runAttachmentIds,
+      runAttachmentNames,
+      defectAttachmentIds,
+      executionContext,
+    });
     onOpenChange(false);
     setSubmitPhase("idle");
   };
@@ -226,6 +341,18 @@ export function CreateDefectFromExecutionDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {manualRunnerMode && stepContext ? (
+            <div className="rounded-md border border-border/80 bg-muted/30 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">{t("execution.defect.stepBadge", { step: stepContext.stepNumber })}</Badge>
+                <Badge variant="secondary">{stepContext.stepStatus}</Badge>
+              </div>
+              <p className="mt-2 text-sm font-medium">{stepContext.stepName}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t("execution.defect.manualRunnerHint")}
+              </p>
+            </div>
+          ) : null}
           <p className="text-xs text-muted-foreground">{t("execution.defect.pasteHint")}</p>
 
           <div className="space-y-2">
@@ -273,6 +400,14 @@ export function CreateDefectFromExecutionDialog({
                   />
                 </label>
               </Button>
+              <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void captureScreenshot()}>
+                <Camera className="mr-1 size-4" />
+                {t("execution.defect.captureScreen")}
+              </Button>
+              <div className="inline-flex items-center gap-1 rounded-md border border-dashed px-2 py-1 text-[11px] text-muted-foreground">
+                <Clipboard className="size-3.5" />
+                {t("execution.defect.clipboardShortcut")}
+              </div>
             </div>
             {files.length > 0 ? (
               <ul className="space-y-1 text-xs">
