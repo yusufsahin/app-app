@@ -28,6 +28,12 @@ class BatchLastTestExecutionStatus(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     test_ids: list[uuid.UUID]
+    """When set, only metrics from this test-run artifact are considered."""
+    scope_run_id: uuid.UUID | None = None
+    """When set (and scope_run_id is None), only runs linked via run_for_suite to this suite."""
+    scope_suite_id: uuid.UUID | None = None
+    """When set (and no narrower scope), only runs linked to suites under this campaign."""
+    scope_campaign_id: uuid.UUID | None = None
 
 
 @dataclass
@@ -95,8 +101,39 @@ class BatchLastTestExecutionStatusHandler(QueryHandler[list[LastTestExecutionSta
         if project is None or project.tenant_id != query.tenant_id:
             raise ValidationError("Project not found")
 
-        candidates = await self._link_repo.list_candidate_run_test_pairs(query.project_id, ordered_unique)
-        run_ids = list({r for r, _ in candidates})
+        if query.scope_run_id is not None:
+            runs_check = await self._artifact_repo.list_by_ids_in_project(
+                query.project_id, [query.scope_run_id]
+            )
+            if len(runs_check) != 1 or runs_check[0].artifact_type != "test-run":
+                raise ValidationError("scope_run_id must be a test-run in this project")
+            run_ids = [query.scope_run_id]
+        else:
+            candidates = await self._link_repo.list_candidate_run_test_pairs(query.project_id, ordered_unique)
+            if query.scope_suite_id is not None:
+                allowed = set(
+                    await self._link_repo.list_run_ids_for_suite_targets(
+                        query.project_id, [query.scope_suite_id]
+                    )
+                )
+                candidates = [(r, t) for r, t in candidates if r in allowed]
+            elif query.scope_campaign_id is not None:
+                outgoing = await self._link_repo.list_outgoing_links_from_artifacts(
+                    query.project_id, [query.scope_campaign_id]
+                )
+                suite_ids = [
+                    link.to_artifact_id
+                    for link in outgoing
+                    if link.link_type == "campaign_includes_suite"
+                ]
+                if not suite_ids:
+                    candidates = []
+                else:
+                    allowed = set(
+                        await self._link_repo.list_run_ids_for_suite_targets(query.project_id, suite_ids)
+                    )
+                    candidates = [(r, t) for r, t in candidates if r in allowed]
+            run_ids = list({r for r, _ in candidates})
         if not run_ids:
             return [
                 LastTestExecutionStatusDTO(

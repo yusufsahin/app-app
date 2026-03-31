@@ -65,6 +65,9 @@ const ManifestPage = lazy(
 const ArtifactsPage = lazy(
   () => import("../features/artifacts/pages/ArtifactsPage"),
 );
+const RequirementsCoveragePage = lazy(
+  () => import("../features/artifacts/pages/RequirementsCoveragePage"),
+);
 const PlanningPage = lazy(
   () => import("../features/planning/pages/PlanningPage"),
 );
@@ -204,6 +207,10 @@ export const router = createBrowserRouter([
           {
             path: ":projectSlug/artifacts",
             element: withPermission("artifact:read", ArtifactsPage),
+          },
+          {
+            path: ":projectSlug/requirements/coverage",
+            element: withPermission("artifact:read", RequirementsCoveragePage),
           },
           {
             path: ":projectSlug/quality/traceability",

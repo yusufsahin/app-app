@@ -79,6 +79,25 @@ test.describe("Quality — Campaign workspace", () => {
     await expect(quality.suiteLinkEditor()).toBeVisible({ timeout: 20000 });
   });
 
+  test("navigates to requirement coverage from Artifacts toolbar", async ({ page }) => {
+    test.setTimeout(45000);
+    await page.goto("/");
+    await expect(page).not.toHaveURL(/\/login/);
+    await page.waitForLoadState("networkidle");
+    const orgPath = new URL(page.url()).pathname;
+    const orgSlug = orgPath.split("/").filter(Boolean)[0];
+    expect(orgSlug).toBeTruthy();
+    await page.getByTestId("project-card").first().click({ timeout: 10000 });
+    await page.waitForURL(new RegExp(`/${orgSlug}/[a-z0-9-]+`), { timeout: 10000 });
+    await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Artifacts" }).click();
+    await page.waitForURL(/\/artifacts/, { timeout: 10000 });
+    await page.getByRole("link", { name: /Coverage analysis|Kapsam analizi/i }).click();
+    await page.waitForURL(/\/requirements\/coverage/, { timeout: 10000 });
+    await expect(
+      page.getByRole("heading", { name: /Requirement coverage|Gereksinim kapsamı/i }),
+    ).toBeVisible({ timeout: 15000 });
+  });
+
   test("navigates to Quality hub and Traceability from project", async ({ page }) => {
     test.setTimeout(45000);
     const nav = new ProjectNavigationPage(page);
@@ -105,6 +124,23 @@ test.describe("Quality — Campaign workspace", () => {
     await sidebar.getByRole("link", { name: "Catalog" }).click();
     await page.waitForURL(/\/quality\/catalog/, { timeout: 10000 });
     await expect(page.getByText("Catalog", { exact: true }).first()).toBeVisible({ timeout: 10000 });
+  });
+
+  test("run overview modal shows sub-tabs (Summary, Steps, …)", async ({ page }) => {
+    test.setTimeout(60000);
+    const nav = new ProjectNavigationPage(page);
+    const quality = new QualityWorkspacePage(page);
+    await nav.openProjectQuality();
+    await quality.openRunsAllRunsTab();
+    const detailsBtn = page.getByRole("button", { name: /Details|Ayrıntı/i }).first();
+    test.skip(!(await detailsBtn.isVisible().catch(() => false)), "No runs list / Details in this environment.");
+    await detailsBtn.click();
+    await expect(page.getByTestId("quality-manual-execution-modal")).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId("quality-run-overview-tab-summary")).toBeVisible();
+    await expect(page.getByTestId("quality-run-overview-tab-steps")).toBeVisible();
+    await expect(page.getByTestId("quality-run-overview-tab-parameters")).toBeVisible();
+    await page.getByTestId("quality-run-overview-tab-steps").click();
+    await expect(page.getByTestId("quality-run-overview-panel")).toBeVisible();
   });
 
   test("supports quality folder navigation and creates test-case under selected folder", async ({ page }) => {

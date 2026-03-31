@@ -3,6 +3,7 @@
  */
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Plus,
   Download,
@@ -42,6 +43,7 @@ import { areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import type { ProblemDetail } from "../../../shared/api/types";
 import type { ManifestTreeRoot } from "../../../shared/lib/manifestTreeRoots";
 import type { ListColumnSchema } from "../../../shared/types/listSchema";
+import { requirementsCoveragePath } from "../../../shared/utils/appPaths";
 
 export type ToolbarFilterValues = {
   searchInput: string;
@@ -148,6 +150,7 @@ export function ArtifactsToolbar({
   projectTagOptions,
   onOpenTagsManager,
 }: ArtifactsToolbarProps) {
+  const { t } = useTranslation("quality");
   const [newWorkItemOpen, setNewWorkItemOpen] = useState(false);
   const [myTasksOpen, setMyTasksOpen] = useState(false);
   const artifactTypes = bundle?.artifact_types ?? [];
@@ -174,6 +177,13 @@ export function ArtifactsToolbar({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold">Artifacts</h1>
+          {orgSlug && projectSlug ? (
+            <Button variant="outline" size="sm" asChild>
+              <Link to={requirementsCoveragePath(orgSlug, projectSlug)}>
+                {t("requirementCoverage.breadcrumb")}
+              </Link>
+            </Button>
+          ) : null}
           {orgSlug && projectSlug && (
             <DropdownMenu
               open={myTasksOpen}

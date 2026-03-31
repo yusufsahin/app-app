@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQueries } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { PlayCircle } from "lucide-react";
@@ -24,7 +24,6 @@ type Props = {
 export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, links, linksLoading }: Props) {
   const { t } = useTranslation("quality");
   const navigate = useNavigate();
-  const location = useLocation();
   const incoming = incomingRunForSuiteLinks(links, suiteId);
   const runIds = incoming.slice(0, MAX_RECENT).map((l) => l.from_artifact_id);
 
@@ -114,7 +113,7 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
                     size="sm"
                     title={t("runsHub.executeInModal")}
                     onClick={() =>
-                      navigateToManualExecution(navigate, orgSlug, projectSlug, runId, { location })
+                      navigateToManualExecution(navigate, orgSlug, projectSlug, runId)
                     }
                   >
                     <PlayCircle className="mr-1 size-4 shrink-0" aria-hidden />
@@ -125,7 +124,7 @@ export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, 
                     variant="ghost"
                     size="sm"
                     onClick={() =>
-                      navigateToRunDetails(navigate, orgSlug, projectSlug, runId, { location })
+                      navigateToRunDetails(navigate, orgSlug, projectSlug, runId)
                     }
                   >
                     {t("runsHub.openDetails")}

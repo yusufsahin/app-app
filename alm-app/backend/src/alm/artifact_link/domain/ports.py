@@ -90,3 +90,20 @@ class ArtifactLinkRepository:
         suite_ids: list[uuid.UUID],
     ) -> list[ArtifactLink]:
         """Outgoing ``suite_includes_test`` links from each suite id."""
+
+    @abstractmethod
+    async def list_links_to_artifacts(
+        self,
+        project_id: uuid.UUID,
+        to_artifact_ids: list[uuid.UUID],
+        link_types: list[str],
+    ) -> list[ArtifactLink]:
+        """Links whose ``to_artifact_id`` is in the set and ``link_type`` is in ``link_types``."""
+
+    @abstractmethod
+    async def list_run_ids_for_suite_targets(
+        self,
+        project_id: uuid.UUID,
+        suite_ids: list[uuid.UUID],
+    ) -> list[uuid.UUID]:
+        """Distinct test-run artifact ids with outgoing ``run_for_suite`` to one of ``suite_ids``."""

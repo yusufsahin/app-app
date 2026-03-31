@@ -80,6 +80,30 @@ export function qualityCatalogPath(orgSlug: string, projectSlug: string): string
   return `/${orgSlug}/${projectSlug}/quality/catalog`;
 }
 
+/** Requirement tree coverage analysis (verifies + last execution). */
+export function requirementsCoveragePath(
+  orgSlug: string,
+  projectSlug: string,
+  params?: {
+    under?: string;
+    scopeRun?: string;
+    scopeSuite?: string;
+    scopeCampaign?: string;
+    refresh?: boolean;
+  },
+): string {
+  const base = `/${orgSlug}/${projectSlug}/requirements/coverage`;
+  if (!params || Object.keys(params).length === 0) return base;
+  const search = new URLSearchParams();
+  if (params.under) search.set("under", params.under);
+  if (params.scopeRun) search.set("scopeRun", params.scopeRun);
+  if (params.scopeSuite) search.set("scopeSuite", params.scopeSuite);
+  if (params.scopeCampaign) search.set("scopeCampaign", params.scopeCampaign);
+  if (params.refresh) search.set("refresh", "1");
+  const q = search.toString();
+  return q ? `${base}?${q}` : base;
+}
+
 /** Catalog deep link: optional `under` folder + `artifact` test case (tree-detail workspace). */
 export function qualityCatalogArtifactPath(
   orgSlug: string,

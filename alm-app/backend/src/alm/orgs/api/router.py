@@ -19,6 +19,7 @@ from alm.orgs.api.routes_projects import (
     router as _r1,
 )
 from alm.orgs.api.routes_quality_last_execution import router as _r16
+from alm.orgs.api.routes_requirement_coverage import router as _r18
 from alm.orgs.api.routes_roles import router as _r14
 from alm.orgs.api.routes_saved_queries import router as _r6
 from alm.orgs.api.routes_tasks_artifact_linked import router as _r2
@@ -45,3 +46,4 @@ router.include_router(_r13)
 router.include_router(_r14)
 router.include_router(_r16)
 router.include_router(_r17)
+router.include_router(_r18)

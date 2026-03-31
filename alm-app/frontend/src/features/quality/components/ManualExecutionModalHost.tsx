@@ -10,23 +10,23 @@ import {
 } from "../../../shared/components/ui/dialog";
 import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
 import { useArtifact } from "../../../shared/api/artifactApi";
-import { formatRunEnvironmentLabel, summarizeRunMetricsFromCustomFields } from "../lib/runMetrics";
+import { formatRunEnvironmentLabel } from "../lib/runMetrics";
+import {
+  RUN_MODAL_TABS,
+  RUN_OVERVIEW_TABS,
+  parseRunOverviewTabParam,
+  type RunOverviewTab,
+} from "../lib/qualityOpenManualRunner";
+
+const RUN_MODAL_TAB_STRINGS = new Set<string>(RUN_MODAL_TABS);
 import { ManualExecutionPlayerCore } from "./ManualExecutionPlayerCore";
+import { QualityRunOverviewBody } from "./QualityRunOverviewBody";
 import { isArtifactUuid } from "../lib/qualityRunPaths";
 
 type RunModalView = "overview" | "execution";
 
 function toRunModalView(value: string | null): RunModalView {
   return value === "execution" ? "execution" : "overview";
-}
-
-function getPrimaryActionForRunState(state: string | null | undefined): "continue" | "rerun" | "start" | "details" {
-  const normalized = (state ?? "").trim().toLowerCase();
-  if (!normalized) return "details";
-  if (["queued", "in_progress", "paused"].includes(normalized)) return "continue";
-  if (["failed", "completed", "cancelled"].includes(normalized)) return "rerun";
-  if (["draft", "not_started"].includes(normalized)) return "start";
-  return "details";
 }
 
 /**
@@ -41,9 +41,19 @@ export function ManualExecutionModalHost() {
 
   const runExecute = searchParams.get("runExecute")?.trim() ?? "";
   const runViewRaw = searchParams.get("runView");
-  const runView = toRunModalView(runViewRaw);
+  const runTabParam = searchParams.get("runTab")?.trim() || null;
   const runTest = searchParams.get("runTest")?.trim() || undefined;
   const runStep = searchParams.get("runStep")?.trim() || undefined;
+  const runOverviewTabRaw = searchParams.get("runOverviewTab");
+
+  const runView: RunModalView =
+    toRunModalView(runViewRaw) === "execution" || runTabParam === "runner" ? "execution" : "overview";
+
+  const overviewTabSource =
+    runView === "overview" && runTabParam && runTabParam !== "runner"
+      ? runTabParam
+      : runOverviewTabRaw;
+  const overviewTab = parseRunOverviewTabParam(overviewTabSource);
 
   const open = Boolean(
     orgSlug &&
@@ -61,6 +71,8 @@ export function ManualExecutionModalHost() {
         n.delete("runView");
         n.delete("runTest");
         n.delete("runStep");
+        n.delete("runOverviewTab");
+        n.delete("runTab");
         return n;
       },
       { replace: true },
@@ -86,6 +98,34 @@ export function ManualExecutionModalHost() {
     }
   }, [runExecute, runViewRaw, setSearchParams]);
 
+  useEffect(() => {
+    const raw = searchParams.get("runOverviewTab");
+    if (raw && !(RUN_OVERVIEW_TABS as readonly string[]).includes(raw)) {
+      setSearchParams(
+        (prev) => {
+          const n = new URLSearchParams(prev);
+          n.delete("runOverviewTab");
+          return n;
+        },
+        { replace: true },
+      );
+    }
+  }, [runExecute, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const raw = searchParams.get("runTab");
+    if (raw && !RUN_MODAL_TAB_STRINGS.has(raw)) {
+      setSearchParams(
+        (prev) => {
+          const n = new URLSearchParams(prev);
+          n.delete("runTab");
+          return n;
+        },
+        { replace: true },
+      );
+    }
+  }, [runExecute, searchParams, setSearchParams]);
+
   const handleExit = useCallback(() => {
     stripExecutionParams();
   }, [stripExecutionParams]);
@@ -95,7 +135,32 @@ export function ManualExecutionModalHost() {
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
-          next.set("runView", view);
+          next.delete("runView");
+          if (view === "execution") {
+            next.set("runTab", "runner");
+            next.delete("runOverviewTab");
+          } else if (next.get("runTab") === "runner") {
+            next.delete("runTab");
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const setOverviewTab = useCallback(
+    (tab: RunOverviewTab) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("runOverviewTab");
+          if (tab === "summary") {
+            next.delete("runTab");
+          } else {
+            next.set("runTab", tab);
+          }
           return next;
         },
         { replace: true },
@@ -158,58 +223,38 @@ export function ManualExecutionModalHost() {
             </div>
 
             {runView === "overview" ? (
-              <div className="h-full overflow-auto p-4" data-testid="quality-run-overview-panel">
+              <div
+                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                data-testid="quality-run-overview-panel"
+              >
                 {runQuery.isPending ? (
-                  <p className="text-sm text-muted-foreground">{t("runsHub.modalLoadingRun")}</p>
+                  <div className="overflow-auto p-4">
+                    <p className="text-sm text-muted-foreground">{t("runsHub.modalLoadingRun")}</p>
+                  </div>
                 ) : runQuery.isError || !runQuery.data ? (
-                  <p className="text-sm text-muted-foreground">{t("runsHub.modalRunUnavailable")}</p>
+                  <div className="overflow-auto p-4">
+                    <p className="text-sm text-muted-foreground">{t("runsHub.modalRunUnavailable")}</p>
+                  </div>
                 ) : (
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">{runQuery.data.description || "—"}</p>
-                    <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                      {(() => {
-                        const summary = summarizeRunMetricsFromCustomFields(
-                          runQuery.data.custom_fields as Record<string, unknown> | undefined,
-                        );
-                        return (
-                          <>
-                            <div className="rounded-md border px-3 py-2">{t("runsHub.modalPassed", { count: summary.passed })}</div>
-                            <div className="rounded-md border px-3 py-2">{t("runsHub.modalFailed", { count: summary.failed })}</div>
-                            <div className="rounded-md border px-3 py-2">{t("runsHub.modalBlocked", { count: summary.blocked })}</div>
-                            <div className="rounded-md border px-3 py-2">
-                              {t("runsHub.modalNotRun", { count: summary.notExecuted })}
-                            </div>
-                          </>
-                        );
-                      })()}
+                  <>
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                      <QualityRunOverviewBody
+                        orgSlug={orgSlug}
+                        projectSlug={projectSlug}
+                        projectId={project.id}
+                        run={runQuery.data}
+                        runArtifactId={runExecute}
+                        overviewTab={overviewTab}
+                        onOverviewTabChange={setOverviewTab}
+                        onOpenExecution={() => setRunView("execution")}
+                      />
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {(() => {
-                        const action = getPrimaryActionForRunState(runQuery.data.state);
-                        if (action === "details") {
-                          return (
-                            <Button type="button" onClick={() => setRunView("execution")}>
-                              {t("runsHub.modalOpenExecution")}
-                            </Button>
-                          );
-                        }
-                        const labelKey =
-                          action === "continue"
-                            ? "runsHub.modalContinueRun"
-                            : action === "rerun"
-                              ? "runsHub.modalRerun"
-                              : "runsHub.modalStartRun";
-                        return (
-                          <Button type="button" onClick={() => setRunView("execution")}>
-                            {t(labelKey)}
-                          </Button>
-                        );
-                      })()}
+                    <div className="border-t border-border/60 bg-background px-4 py-3">
                       <Button type="button" variant="outline" onClick={handleExit}>
                         {t("common.close")}
                       </Button>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
             ) : (

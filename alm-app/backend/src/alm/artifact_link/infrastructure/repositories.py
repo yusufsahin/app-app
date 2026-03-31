@@ -234,6 +234,41 @@ class SqlAlchemyArtifactLinkRepository(ArtifactLinkRepository):
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 
+    async def list_links_to_artifacts(
+        self,
+        project_id: uuid.UUID,
+        to_artifact_ids: list[uuid.UUID],
+        link_types: list[str],
+    ) -> list[ArtifactLink]:
+        if not to_artifact_ids or not link_types:
+            return []
+        result = await self._session.execute(
+            select(ArtifactLinkModel).where(
+                ArtifactLinkModel.project_id == project_id,
+                ArtifactLinkModel.to_artifact_id.in_(to_artifact_ids),
+                ArtifactLinkModel.link_type.in_(link_types),
+            )
+        )
+        return [self._to_entity(m) for m in result.scalars().all()]
+
+    async def list_run_ids_for_suite_targets(
+        self,
+        project_id: uuid.UUID,
+        suite_ids: list[uuid.UUID],
+    ) -> list[uuid.UUID]:
+        if not suite_ids:
+            return []
+        result = await self._session.execute(
+            select(ArtifactLinkModel.from_artifact_id)
+            .where(
+                ArtifactLinkModel.project_id == project_id,
+                ArtifactLinkModel.to_artifact_id.in_(suite_ids),
+                ArtifactLinkModel.link_type == "run_for_suite",
+            )
+            .distinct()
+        )
+        return [row[0] for row in result.all()]
+
     @staticmethod
     def _to_entity(m: ArtifactLinkModel) -> ArtifactLink:
         return ArtifactLink(

@@ -37,6 +37,9 @@ async def batch_last_execution_status(
             tenant_id=org.tenant_id,
             project_id=project_id,
             test_ids=body.test_ids,
+            scope_run_id=body.scope_run_id,
+            scope_suite_id=body.scope_suite_id,
+            scope_campaign_id=body.scope_campaign_id,
         )
     )
     items = [

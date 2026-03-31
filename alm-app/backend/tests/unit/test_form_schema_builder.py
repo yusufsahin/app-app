@@ -118,7 +118,15 @@ class TestFormSchemaBuilder:
         assert schema.context == "create"
         assert schema.artifact_type_options == ()
         field_keys = [f.key for f in schema.fields]
-        assert field_keys == ["title", "description", "state", "assignee_id", "tag_ids", "rank_order"]
+        assert field_keys == [
+            "title",
+            "description",
+            "state",
+            "assignee_id",
+            "team_id",
+            "tag_ids",
+            "rank_order",
+        ]
         state_field = next(f for f in schema.fields if f.key == "state")
         assert state_field.type == "choice"
         assert state_field.default_value == "todo"

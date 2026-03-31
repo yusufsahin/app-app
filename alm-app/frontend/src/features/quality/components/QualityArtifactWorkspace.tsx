@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState, useCallback } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { Pencil, PlayCircle, Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -119,7 +119,6 @@ export default function QualityArtifactWorkspace({
   const queryClient = useQueryClient();
   const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [suiteCommandOpen, setSuiteCommandOpen] = useState(false);
@@ -1449,9 +1448,7 @@ export default function QualityArtifactWorkspace({
               type="button"
               title={t("runsHub.executeInNewWindow")}
               onClick={() =>
-                navigateToManualExecution(navigate, orgSlug, projectSlug, selectedArtifactId, {
-                  location,
-                })
+                navigateToManualExecution(navigate, orgSlug, projectSlug, selectedArtifactId)
               }
             >
               <PlayCircle className="mr-2 size-4" />
