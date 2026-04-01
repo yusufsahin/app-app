@@ -508,6 +508,28 @@ LIST_SCHEMA_ARTIFACT_LIST_COLUMN_OVERRIDE: dict[str, Any] = {
     }
 }
 
+LIST_SCHEMA_DEFECTS_SURFACE_OVERRIDE: dict[str, Any] = {
+    "artifact_list": {
+        "surfaces": {
+            "defects": {
+                "fixed_columns": ["title", "severity", "updated_at"],
+                "exclude_columns": ["artifact_key", "artifact_type", "state", "tags", "created_at", "state_reason", "resolution"],
+                "extra_column_limit": 2,
+            }
+        }
+    }
+}
+
+LIST_SCHEMA_BACKLOG_SURFACE_OVERRIDE: dict[str, Any] = {
+    "artifact_list": {
+        "surfaces": {
+            "backlog": {
+                "fixed_columns": ["title", "state", "severity", "updated_at"],
+            }
+        }
+    }
+}
+
 # ---------------------------------------------------------------------------
 # manifest_workflow_metadata (task states, tree roots, resolution targets)
 # ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@ export interface Artifact {
   state_reason?: string | null;
   resolution?: string | null;
   rank_order?: number | null;
-  cycle_node_id?: string | null;
+  cycle_id?: string | null;
   area_node_id?: string | null;
   area_path_snapshot?: string | null;
   created_at?: string | null;
@@ -40,7 +40,7 @@ export type ArtifactSortBy =
   | "created_at"
   | "updated_at";
 export type ArtifactSortOrder = "asc" | "desc";
-export type ArtifactViewMode = "table" | "tree" | "board";
+export type ArtifactViewMode = "table" | "tree";
 
 /** Tree filter: empty = all trees; otherwise a tree_id from manifest ``tree_roots``. Default is `requirement` (Artifacts list excludes quality test cases until user picks "All trees"). */
 export type ArtifactTreeFilter = string;
@@ -51,8 +51,8 @@ export interface ArtifactListState {
   stateFilter: string;
   typeFilter: string;
   treeFilter: ArtifactTreeFilter;
-  cycleNodeFilter: string;
-  releaseCycleNodeFilter: string;
+  cycleFilter: string;
+  releaseFilter: string;
   areaNodeFilter: string;
   tagFilter: string;
   searchInput: string;
@@ -100,8 +100,8 @@ const defaultListState: ArtifactListState = {
   stateFilter: "",
   typeFilter: "",
   treeFilter: "requirement",
-  cycleNodeFilter: "",
-  releaseCycleNodeFilter: "",
+  cycleFilter: "",
+  releaseFilter: "",
   areaNodeFilter: "",
   tagFilter: "",
   searchInput: "",

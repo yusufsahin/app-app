@@ -13,7 +13,7 @@ router = APIRouter()
 )
 async def list_capacity(
     project_id: uuid.UUID,
-    cycle_node_id: uuid.UUID | None = Query(None),
+    cycle_id: uuid.UUID | None = Query(None),
     team_id: uuid.UUID | None = Query(None),
     user_id: uuid.UUID | None = Query(None),
     org: ResolvedOrg = Depends(resolve_org),
@@ -24,7 +24,7 @@ async def list_capacity(
         ListCapacityByProject(
             tenant_id=org.tenant_id,
             project_id=project_id,
-            cycle_node_id=cycle_node_id,
+            cycle_id=cycle_id,
             team_id=team_id,
             user_id=user_id,
         )
@@ -48,7 +48,7 @@ async def create_capacity(
         CreateCapacity(
             tenant_id=org.tenant_id,
             project_id=project_id,
-            cycle_node_id=body.cycle_node_id,
+            cycle_id=body.cycle_id,
             team_id=body.team_id,
             user_id=body.user_id,
             capacity_value=body.capacity_value,
@@ -76,7 +76,7 @@ async def update_capacity(
             tenant_id=org.tenant_id,
             project_id=project_id,
             capacity_id=capacity_id,
-            cycle_node_id=updates.get("cycle_node_id"),
+            cycle_id=updates.get("cycle_id"),
             team_id=updates.get("team_id"),
             user_id=updates.get("user_id"),
             capacity_value=updates.get("capacity_value"),

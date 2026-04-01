@@ -10,13 +10,13 @@ describe("buildVelocityParams", () => {
 
   it("includes release, cycles and last_n", () => {
     const params = buildVelocityParams({
-      cycleNodeIds: ["c1", "c2"],
-      releaseCycleNodeId: "r1",
+      cycleIds: ["c1", "c2"],
+      releaseId: "r1",
       lastN: 8,
       effortField: "effort",
     });
-    expect(params.getAll("cycle_node_id")).toEqual(["c1", "c2"]);
-    expect(params.get("release_cycle_node_id")).toBe("r1");
+    expect(params.getAll("cycle_id")).toEqual(["c1", "c2"]);
+    expect(params.get("release_id")).toBe("r1");
     expect(params.get("last_n")).toBe("8");
     expect(params.get("effort_field")).toBe("effort");
   });
@@ -26,9 +26,9 @@ describe("buildVelocityParams", () => {
     expect(params.get("last_n")).toBe("0");
   });
 
-  it("omits empty releaseCycleNodeId", () => {
-    const params = buildVelocityParams({ releaseCycleNodeId: "" });
-    expect(params.get("release_cycle_node_id")).toBeNull();
+  it("omits empty releaseId", () => {
+    const params = buildVelocityParams({ releaseId: "" });
+    expect(params.get("release_id")).toBeNull();
   });
 });
 
@@ -40,8 +40,8 @@ describe("buildBurndownParams", () => {
   });
 
   it("includes cycle ids in order", () => {
-    const params = buildBurndownParams({ cycleNodeIds: ["x", "y"] });
-    expect(params.getAll("cycle_node_id")).toEqual(["x", "y"]);
+    const params = buildBurndownParams({ cycleIds: ["x", "y"] });
+    expect(params.getAll("cycle_id")).toEqual(["x", "y"]);
   });
 
   it("sets custom effort field and omits last_n when undefined", () => {

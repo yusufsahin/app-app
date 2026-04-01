@@ -3,6 +3,7 @@ import type {
   ConfirmModalProps,
   DeleteArtifactModalProps,
   CreateArtifactModalProps,
+  EditArtifactModalProps,
   AddTaskModalProps,
   EditTaskModalProps,
   AddLinkModalProps,
@@ -25,6 +26,9 @@ export const modalApi = {
 
   openCreateArtifact: (props: CreateArtifactModalProps, options?: OpenModalOptions) =>
     useModalStore.getState().openModal("CreateArtifactModal", props, options),
+
+  openEditArtifact: (props: EditArtifactModalProps, options?: OpenModalOptions) =>
+    useModalStore.getState().openModal("EditArtifactModal", props, options),
 
   openAddTask: (props: AddTaskModalProps, options?: OpenModalOptions) =>
     useModalStore.getState().openModal("AddTaskModal", props, options),

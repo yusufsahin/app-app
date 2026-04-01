@@ -146,7 +146,7 @@ class TraceabilityRelationshipResponse(BaseModel):
     test_id: uuid.UUID
     test_artifact_key: str | None = None
     test_title: str
-    link_type: str
+    relationship_type: str
     status: str | None = None
     run_id: uuid.UUID | None = None
     run_title: str | None = None

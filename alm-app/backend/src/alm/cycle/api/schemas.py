@@ -1,4 +1,4 @@
-"""Increment API schemas (pamera IterationNode-like)."""
+"""Cadence API schemas."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class IncrementCreateRequest(BaseModel):
+class CadenceCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     parent_id: uuid.UUID | None = None
     sort_order: int = 0
@@ -17,10 +17,10 @@ class IncrementCreateRequest(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     state: str = "planned"
-    type: str = "iteration"
+    type: str = "cycle"
 
 
-class IncrementUpdateRequest(BaseModel):
+class CadenceUpdateRequest(BaseModel):
     name: str | None = Field(None, max_length=255)
     goal: str | None = None
     start_date: date | None = None
@@ -30,7 +30,7 @@ class IncrementUpdateRequest(BaseModel):
     type: str | None = None
 
 
-class IncrementResponse(BaseModel):
+class CadenceResponse(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
     name: str
@@ -42,7 +42,7 @@ class IncrementResponse(BaseModel):
     start_date: date | None
     end_date: date | None
     state: str
-    type: str  # "release" | "iteration"
+    type: str  # "release" | "cycle"
     created_at: str | None
     updated_at: str | None
     children: list[Any] = []

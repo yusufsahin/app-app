@@ -267,7 +267,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
             state=artifact.state,
             assignee_id=artifact.assignee_id,
             parent_id=artifact.parent_id,
-            cycle_node_id=getattr(artifact, "cycle_node_id", None),
+            cycle_id=getattr(artifact, "cycle_id", None),
             area_node_id=getattr(artifact, "area_node_id", None),
             area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
             team_id=getattr(artifact, "team_id", None),

@@ -1,4 +1,4 @@
-"""Increment DTOs."""
+"""Cadence DTOs."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from datetime import date
 
 
 @dataclass
-class IncrementDTO:
+class CadenceDTO:
     id: uuid.UUID
     project_id: uuid.UUID
     name: str
@@ -20,7 +20,7 @@ class IncrementDTO:
     start_date: date | None
     end_date: date | None
     state: str
-    type: str  # "release" | "iteration"
+    type: str  # "release" | "cycle"
     created_at: str | None
     updated_at: str | None
-    children: list[IncrementDTO] = field(default_factory=list)
+    children: list["CadenceDTO"] = field(default_factory=list)

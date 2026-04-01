@@ -10,7 +10,7 @@ from alm.capacity.application.dtos import CapacityDTO
 
 
 class CapacityCreateRequest(BaseModel):
-    cycle_node_id: uuid.UUID | None = None
+    cycle_id: uuid.UUID | None = None
     team_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None
     capacity_value: float
@@ -18,7 +18,7 @@ class CapacityCreateRequest(BaseModel):
 
 
 class CapacityUpdateRequest(BaseModel):
-    cycle_node_id: uuid.UUID | None = None
+    cycle_id: uuid.UUID | None = None
     team_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None
     capacity_value: float | None = None
@@ -28,7 +28,7 @@ class CapacityUpdateRequest(BaseModel):
 class CapacityResponse(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
-    cycle_node_id: uuid.UUID | None = None
+    cycle_id: uuid.UUID | None = None
     team_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None
     capacity_value: float
@@ -41,7 +41,7 @@ def capacity_response_from_dto(d: CapacityDTO) -> CapacityResponse:
     return CapacityResponse(
         id=d.id,
         project_id=d.project_id,
-        cycle_node_id=d.cycle_node_id,
+        cycle_id=d.cycle_id,
         team_id=d.team_id,
         user_id=d.user_id,
         capacity_value=d.capacity_value,

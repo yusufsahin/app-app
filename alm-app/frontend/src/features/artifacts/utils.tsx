@@ -1,5 +1,5 @@
 /**
- * Shared artifact helpers for ArtifactsPage and subcomponents.
+ * Shared artifact helpers for backlog and artifact-focused surfaces.
  */
 import type { ReactElement } from "react";
 import {
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { Artifact } from "../../shared/stores/artifactStore";
 import type { ListColumnSchema } from "../../shared/types/listSchema";
+import type { ListSchemaDto } from "../../shared/types/listSchema";
 import type { ManifestTreeRoot } from "../../shared/lib/manifestTreeRoots";
 import { formatDateTime as formatDateTimeShared } from "../../shared/utils/formatDateTime";
 
@@ -25,6 +26,27 @@ export const formatDateTime = formatDateTimeShared;
 
 export const CORE_FIELD_KEYS = new Set(["artifact_type", "parent_id", "title", "description", "assignee_id"]);
 export const TITLE_MAX_LENGTH = 500;
+export const BACKLOG_VISIBLE_COLUMN_KEYS = new Set([
+  "artifact_key",
+  "artifact_type",
+  "title",
+  "state",
+  "priority",
+  "story_points",
+  "assignee_id",
+  "tags",
+  "updated_at",
+]);
+
+export function filterListSchemaForBacklog(
+  schema: ListSchemaDto | null | undefined,
+): ListSchemaDto | null | undefined {
+  if (!schema) return schema;
+  return {
+    ...schema,
+    columns: schema.columns.filter((column) => BACKLOG_VISIBLE_COLUMN_KEYS.has(column.key)),
+  };
+}
 
 /** Manifest `artifact_types[].fields[]` — omit from metadata-driven forms (e.g. app-managed JSON). */
 export function isManifestFieldExcludedFromForms(field: unknown): boolean {
@@ -104,7 +126,7 @@ export function getArtifactCellValue(row: Artifact, columnKey: string): string |
     "resolution",
     "assignee_id",
     "parent_id",
-    "cycle_node_id",
+    "cycle_id",
     "area_node_id",
     "area_path_snapshot",
     "rank_order",
@@ -181,7 +203,7 @@ export function downloadArtifactsCsv(
   const url = URL.createObjectURL(blob);
   const el = document.createElement("a");
   el.href = url;
-  el.download = `artifacts-${new Date().toISOString().slice(0, 10)}.csv`;
+  el.download = `backlog-${new Date().toISOString().slice(0, 10)}.csv`;
   el.click();
   URL.revokeObjectURL(url);
 }

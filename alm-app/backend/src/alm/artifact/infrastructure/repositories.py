@@ -71,8 +71,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         state_filter: str | None,
         type_filter: str | None,
         search_query: str | None,
-        cycle_node_id: uuid.UUID | None = None,
-        cycle_node_ids: list[uuid.UUID] | None = None,
+        cycle_id: uuid.UUID | None = None,
+        cycle_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
         parent_id: uuid.UUID | None = None,
         root_artifact_id: uuid.UUID | None = None,
@@ -90,10 +90,10 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             q = q.where(ArtifactModel.state == state_filter)
         if type_filter:
             q = q.where(ArtifactModel.artifact_type == type_filter)
-        if cycle_node_ids:
-            q = q.where(ArtifactModel.cycle_node_id.in_(cycle_node_ids))
-        elif cycle_node_id is not None:
-            q = q.where(ArtifactModel.cycle_node_id == cycle_node_id)
+        if cycle_ids:
+            q = q.where(ArtifactModel.cycle_id.in_(cycle_ids))
+        elif cycle_id is not None:
+            q = q.where(ArtifactModel.cycle_id == cycle_id)
         if area_node_id is not None:
             q = q.where(ArtifactModel.area_node_id == area_node_id)
         if team_id is not None:
@@ -124,8 +124,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         state_filter: str | None = None,
         type_filter: str | None = None,
         search_query: str | None = None,
-        cycle_node_id: uuid.UUID | None = None,
-        cycle_node_ids: list[uuid.UUID] | None = None,
+        cycle_id: uuid.UUID | None = None,
+        cycle_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
         parent_id: uuid.UUID | None = None,
         include_deleted: bool = False,
@@ -145,8 +145,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             state_filter,
             type_filter,
             search_query,
-            cycle_node_id=cycle_node_id,
-            cycle_node_ids=cycle_node_ids,
+            cycle_id=cycle_id,
+            cycle_ids=cycle_ids,
             area_node_id=area_node_id,
             parent_id=parent_id,
             root_artifact_id=root_artifact_id,
@@ -176,8 +176,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         state_filter: str | None = None,
         type_filter: str | None = None,
         search_query: str | None = None,
-        cycle_node_id: uuid.UUID | None = None,
-        cycle_node_ids: list[uuid.UUID] | None = None,
+        cycle_id: uuid.UUID | None = None,
+        cycle_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
         parent_id: uuid.UUID | None = None,
         sort_by: str | None = None,
@@ -201,8 +201,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             state_filter,
             type_filter,
             search_query,
-            cycle_node_id=cycle_node_id,
-            cycle_node_ids=cycle_node_ids,
+            cycle_id=cycle_id,
+            cycle_ids=cycle_ids,
             area_node_id=area_node_id,
             parent_id=parent_id,
             root_artifact_id=root_artifact_id,
@@ -314,7 +314,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             state_reason=artifact.state_reason,
             resolution=artifact.resolution,
             rank_order=artifact.rank_order,
-            cycle_node_id=artifact.cycle_node_id,
+            cycle_id=artifact.cycle_id,
             area_node_id=artifact.area_node_id,
             area_path_snapshot=artifact.area_path_snapshot,
             team_id=artifact.team_id,
@@ -346,7 +346,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             "state_reason": artifact.state_reason,
             "resolution": artifact.resolution,
             "rank_order": artifact.rank_order,
-            "cycle_node_id": artifact.cycle_node_id,
+            "cycle_id": artifact.cycle_id,
             "area_node_id": artifact.area_node_id,
             "area_path_snapshot": artifact.area_path_snapshot,
             "team_id": artifact.team_id,
@@ -388,7 +388,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             state_reason=getattr(m, "state_reason", None),
             resolution=getattr(m, "resolution", None),
             rank_order=getattr(m, "rank_order", None),
-            cycle_node_id=getattr(m, "cycle_node_id", None),
+            cycle_id=getattr(m, "cycle_id", None),
             area_node_id=getattr(m, "area_node_id", None),
             area_path_snapshot=getattr(m, "area_path_snapshot", None),
             team_id=getattr(m, "team_id", None),
@@ -402,19 +402,19 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
     async def sum_effort_by_cycles(
         self,
         project_id: uuid.UUID,
-        cycle_node_ids: list[uuid.UUID],
+        cycle_ids: list[uuid.UUID],
         done_states: tuple[str, ...],
         effort_field: str,
     ) -> list[tuple[uuid.UUID, float]]:
         """Sum effort from custom_fields[effort_field] per cycle (artifacts in done_states)."""
-        if not cycle_node_ids or not done_states:
+        if not cycle_ids or not done_states:
             return []
-        totals: dict[uuid.UUID, float] = {c: 0.0 for c in cycle_node_ids}
-        for cid in cycle_node_ids:
+        totals: dict[uuid.UUID, float] = {c: 0.0 for c in cycle_ids}
+        for cid in cycle_ids:
             artifacts = await self.list_by_project(
                 project_id,
                 state_filter=None,
-                cycle_node_id=cid,
+                cycle_id=cid,
                 limit=5000,
                 include_deleted=False,
             )
@@ -426,23 +426,23 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
                 if val is not None:
                     with contextlib.suppress(TypeError, ValueError):
                         totals[cid] += float(val)
-        return [(cid, totals[cid]) for cid in cycle_node_ids]
+        return [(cid, totals[cid]) for cid in cycle_ids]
 
     async def sum_total_effort_by_cycles(
         self,
         project_id: uuid.UUID,
-        cycle_node_ids: list[uuid.UUID],
+        cycle_ids: list[uuid.UUID],
         effort_field: str,
     ) -> list[tuple[uuid.UUID, float]]:
         """Sum effort from custom_fields[effort_field] per cycle (all artifacts in cycle)."""
-        if not cycle_node_ids:
+        if not cycle_ids:
             return []
-        totals: dict[uuid.UUID, float] = {c: 0.0 for c in cycle_node_ids}
-        for cid in cycle_node_ids:
+        totals: dict[uuid.UUID, float] = {c: 0.0 for c in cycle_ids}
+        for cid in cycle_ids:
             artifacts = await self.list_by_project(
                 project_id,
                 state_filter=None,
-                cycle_node_id=cid,
+                cycle_id=cid,
                 limit=5000,
                 include_deleted=False,
             )
@@ -452,4 +452,4 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
                 if val is not None:
                     with contextlib.suppress(TypeError, ValueError):
                         totals[cid] += float(val)
-        return [(cid, totals[cid]) for cid in cycle_node_ids]
+        return [(cid, totals[cid]) for cid in cycle_ids]

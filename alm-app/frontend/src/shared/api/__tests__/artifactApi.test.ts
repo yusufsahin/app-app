@@ -32,12 +32,12 @@ describe('buildArtifactListParams', () => {
         expect(params).toEqual({ tree: 'quality', include_system_roots: true });
     });
 
-    it('should prioritize releaseCycleNodeId over cycleNodeId', () => {
-        const params = buildArtifactListParams({ cycleNodeId: 'c1', releaseCycleNodeId: 'r1' });
-        expect(params).toEqual({ release_cycle_node_id: 'r1' });
+    it('should prioritize releaseId over cycleId', () => {
+        const params = buildArtifactListParams({ cycleId: 'c1', releaseId: 'r1' });
+        expect(params).toEqual({ release_id: 'r1' });
         
-        const params2 = buildArtifactListParams({ cycleNodeId: 'c1' });
-        expect(params2).toEqual({ cycle_node_id: 'c1' });
+        const params2 = buildArtifactListParams({ cycleId: 'c1' });
+        expect(params2).toEqual({ cycle_id: 'c1' });
     });
 
     it('should include areaNodeId and parentId', () => {

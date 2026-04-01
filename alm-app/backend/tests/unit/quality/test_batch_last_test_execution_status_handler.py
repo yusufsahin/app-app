@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from alm.artifact.domain.entities import Artifact
-from alm.artifact_link.domain.entities import ArtifactLink
+from alm.relationship.domain.entities import Relationship
 from alm.quality.application.queries.batch_last_test_execution_status import (
     BatchLastTestExecutionStatus,
     BatchLastTestExecutionStatusHandler,
@@ -19,7 +19,7 @@ async def test_handler_empty_test_ids():
     h = BatchLastTestExecutionStatusHandler(
         project_repo=AsyncMock(),
         artifact_repo=AsyncMock(),
-        link_repo=AsyncMock(),
+        relationship_repo=AsyncMock(),
     )
     out = await h.handle(
         BatchLastTestExecutionStatus(
@@ -36,7 +36,7 @@ async def test_handler_too_many_ids():
     h = BatchLastTestExecutionStatusHandler(
         project_repo=AsyncMock(),
         artifact_repo=AsyncMock(),
-        link_repo=AsyncMock(),
+        relationship_repo=AsyncMock(),
     )
     tid = uuid.uuid4()
     ids = [uuid.uuid4() for _ in range(MAX_TEST_IDS + 1)]
@@ -62,13 +62,13 @@ async def test_handler_no_candidates_returns_nulls():
     project_repo = AsyncMock()
     project_repo.find_by_id = AsyncMock(return_value=project)
 
-    link_repo = AsyncMock()
-    link_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[])
+    relationship_repo = AsyncMock()
+    relationship_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[])
 
     h = BatchLastTestExecutionStatusHandler(
         project_repo=project_repo,
         artifact_repo=AsyncMock(),
-        link_repo=link_repo,
+        relationship_repo=relationship_repo,
     )
     out = await h.handle(
         BatchLastTestExecutionStatus(tenant_id=tenant, project_id=proj, test_ids=[test_id])
@@ -116,17 +116,17 @@ async def test_handler_returns_status_and_step_results_from_run_metrics():
         updated_at=datetime(2025, 1, 2, 12, 0, 0, tzinfo=timezone.utc),
     )
 
-    link_direct = ArtifactLink.create(
+    link_direct = Relationship.create(
         project_id=proj,
-        from_artifact_id=run_id,
-        to_artifact_id=test_id,
-        link_type="includes_test",
+        source_artifact_id=run_id,
+        target_artifact_id=test_id,
+        relationship_type="includes_test",
     )
 
-    link_repo = AsyncMock()
-    link_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[(run_id, test_id)])
-    link_repo.list_outgoing_links_from_artifacts = AsyncMock(return_value=[link_direct])
-    link_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
+    relationship_repo = AsyncMock()
+    relationship_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[(run_id, test_id)])
+    relationship_repo.list_outgoing_relationships_from_artifacts = AsyncMock(return_value=[link_direct])
+    relationship_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
 
     artifact_repo = AsyncMock()
     artifact_repo.list_by_ids_in_project = AsyncMock(return_value=[run_art])
@@ -134,7 +134,7 @@ async def test_handler_returns_status_and_step_results_from_run_metrics():
     h = BatchLastTestExecutionStatusHandler(
         project_repo=project_repo,
         artifact_repo=artifact_repo,
-        link_repo=link_repo,
+        relationship_repo=relationship_repo,
     )
     out = await h.handle(
         BatchLastTestExecutionStatus(tenant_id=tenant, project_id=proj, test_ids=[test_id])
@@ -182,7 +182,7 @@ async def test_scope_run_id_wrong_artifact_raises():
     h = BatchLastTestExecutionStatusHandler(
         project_repo=project_repo,
         artifact_repo=artifact_repo,
-        link_repo=AsyncMock(),
+        relationship_repo=AsyncMock(),
     )
     with pytest.raises(ValidationError, match="scope_run_id"):
         await h.handle(
@@ -219,17 +219,17 @@ async def test_scope_run_id_skips_candidate_query_uses_only_that_run():
         updated_at=datetime(2025, 1, 3, tzinfo=timezone.utc),
     )
 
-    link_direct = ArtifactLink.create(
+    link_direct = Relationship.create(
         project_id=proj,
-        from_artifact_id=run_id,
-        to_artifact_id=test_id,
-        link_type="includes_test",
+        source_artifact_id=run_id,
+        target_artifact_id=test_id,
+        relationship_type="includes_test",
     )
 
-    link_repo = AsyncMock()
-    link_repo.list_candidate_run_test_pairs = AsyncMock()
-    link_repo.list_outgoing_links_from_artifacts = AsyncMock(return_value=[link_direct])
-    link_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
+    relationship_repo = AsyncMock()
+    relationship_repo.list_candidate_run_test_pairs = AsyncMock()
+    relationship_repo.list_outgoing_relationships_from_artifacts = AsyncMock(return_value=[link_direct])
+    relationship_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
 
     artifact_repo = AsyncMock()
     artifact_repo.list_by_ids_in_project = AsyncMock(side_effect=[[run_art], [run_art]])
@@ -237,7 +237,7 @@ async def test_scope_run_id_skips_candidate_query_uses_only_that_run():
     h = BatchLastTestExecutionStatusHandler(
         project_repo=project_repo,
         artifact_repo=artifact_repo,
-        link_repo=link_repo,
+        relationship_repo=relationship_repo,
     )
     out = await h.handle(
         BatchLastTestExecutionStatus(
@@ -247,7 +247,7 @@ async def test_scope_run_id_skips_candidate_query_uses_only_that_run():
             scope_run_id=run_id,
         )
     )
-    link_repo.list_candidate_run_test_pairs.assert_not_called()
+    relationship_repo.list_candidate_run_test_pairs.assert_not_called()
     assert len(out) == 1
     assert out[0].status == "passed"
     assert out[0].run_id == run_id
@@ -289,26 +289,26 @@ async def test_scope_suite_id_filters_candidates():
         updated_at=datetime(2025, 1, 10, tzinfo=timezone.utc),
     )
 
-    link_kept = ArtifactLink.create(
+    link_kept = Relationship.create(
         project_id=proj,
-        from_artifact_id=run_kept,
-        to_artifact_id=test_id,
-        link_type="includes_test",
+        source_artifact_id=run_kept,
+        target_artifact_id=test_id,
+        relationship_type="includes_test",
     )
-    link_dropped = ArtifactLink.create(
+    link_dropped = Relationship.create(
         project_id=proj,
-        from_artifact_id=run_dropped,
-        to_artifact_id=test_id,
-        link_type="includes_test",
+        source_artifact_id=run_dropped,
+        target_artifact_id=test_id,
+        relationship_type="includes_test",
     )
 
-    link_repo = AsyncMock()
-    link_repo.list_candidate_run_test_pairs = AsyncMock(
+    relationship_repo = AsyncMock()
+    relationship_repo.list_candidate_run_test_pairs = AsyncMock(
         return_value=[(run_dropped, test_id), (run_kept, test_id)]
     )
-    link_repo.list_run_ids_for_suite_targets = AsyncMock(return_value=[run_kept])
-    link_repo.list_outgoing_links_from_artifacts = AsyncMock(return_value=[link_kept])
-    link_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
+    relationship_repo.list_run_ids_for_suite_targets = AsyncMock(return_value=[run_kept])
+    relationship_repo.list_outgoing_relationships_from_artifacts = AsyncMock(return_value=[link_kept])
+    relationship_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
 
     artifact_repo = AsyncMock()
     artifact_repo.list_by_ids_in_project = AsyncMock(return_value=[kept_art, dropped_art])
@@ -316,7 +316,7 @@ async def test_scope_suite_id_filters_candidates():
     h = BatchLastTestExecutionStatusHandler(
         project_repo=project_repo,
         artifact_repo=artifact_repo,
-        link_repo=link_repo,
+        relationship_repo=relationship_repo,
     )
     out = await h.handle(
         BatchLastTestExecutionStatus(
@@ -326,7 +326,7 @@ async def test_scope_suite_id_filters_candidates():
             scope_suite_id=suite_id,
         )
     )
-    link_repo.list_run_ids_for_suite_targets.assert_awaited_once_with(proj, [suite_id])
+    relationship_repo.list_run_ids_for_suite_targets.assert_awaited_once_with(proj, [suite_id])
     assert len(out) == 1
     assert out[0].run_id == run_kept
     assert out[0].status == "passed"
@@ -345,16 +345,16 @@ async def test_scope_campaign_id_no_suites_yields_nulls():
     project_repo = AsyncMock()
     project_repo.find_by_id = AsyncMock(return_value=project)
 
-    link_repo = AsyncMock()
-    link_repo.list_candidate_run_test_pairs = AsyncMock(
+    relationship_repo = AsyncMock()
+    relationship_repo.list_candidate_run_test_pairs = AsyncMock(
         return_value=[(uuid.uuid4(), test_id)]
     )
-    link_repo.list_outgoing_links_from_artifacts = AsyncMock(return_value=[])
+    relationship_repo.list_outgoing_relationships_from_artifacts = AsyncMock(return_value=[])
 
     h = BatchLastTestExecutionStatusHandler(
         project_repo=project_repo,
         artifact_repo=AsyncMock(),
-        link_repo=link_repo,
+        relationship_repo=relationship_repo,
     )
     out = await h.handle(
         BatchLastTestExecutionStatus(
@@ -366,7 +366,7 @@ async def test_scope_campaign_id_no_suites_yields_nulls():
     )
     assert len(out) == 1
     assert out[0].status is None
-    link_repo.list_run_ids_for_suite_targets.assert_not_called()
+    relationship_repo.list_run_ids_for_suite_targets.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -384,11 +384,11 @@ async def test_scope_campaign_id_filters_via_campaign_suites():
     project_repo = AsyncMock()
     project_repo.find_by_id = AsyncMock(return_value=project)
 
-    campaign_link = ArtifactLink.create(
+    campaign_link = Relationship.create(
         project_id=proj,
-        from_artifact_id=campaign_id,
-        to_artifact_id=suite_id,
-        link_type="campaign_includes_suite",
+        source_artifact_id=campaign_id,
+        target_artifact_id=suite_id,
+        relationship_type="campaign_includes_suite",
     )
 
     metrics = {"v": 1, "results": [{"testId": str(test_id), "status": "passed"}]}
@@ -402,23 +402,23 @@ async def test_scope_campaign_id_filters_via_campaign_suites():
         updated_at=datetime(2025, 1, 4, tzinfo=timezone.utc),
     )
 
-    link_run = ArtifactLink.create(
+    link_run = Relationship.create(
         project_id=proj,
-        from_artifact_id=run_id,
-        to_artifact_id=test_id,
-        link_type="includes_test",
+        source_artifact_id=run_id,
+        target_artifact_id=test_id,
+        relationship_type="includes_test",
     )
 
-    link_repo = AsyncMock()
-    link_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[(run_id, test_id)])
-    link_repo.list_outgoing_links_from_artifacts = AsyncMock(
+    relationship_repo = AsyncMock()
+    relationship_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[(run_id, test_id)])
+    relationship_repo.list_outgoing_relationships_from_artifacts = AsyncMock(
         side_effect=[
             [campaign_link],
             [link_run],
         ]
     )
-    link_repo.list_run_ids_for_suite_targets = AsyncMock(return_value=[run_id])
-    link_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
+    relationship_repo.list_run_ids_for_suite_targets = AsyncMock(return_value=[run_id])
+    relationship_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
 
     artifact_repo = AsyncMock()
     artifact_repo.list_by_ids_in_project = AsyncMock(return_value=[run_art])
@@ -426,7 +426,7 @@ async def test_scope_campaign_id_filters_via_campaign_suites():
     h = BatchLastTestExecutionStatusHandler(
         project_repo=project_repo,
         artifact_repo=artifact_repo,
-        link_repo=link_repo,
+        relationship_repo=relationship_repo,
     )
     out = await h.handle(
         BatchLastTestExecutionStatus(
@@ -436,7 +436,7 @@ async def test_scope_campaign_id_filters_via_campaign_suites():
             scope_campaign_id=campaign_id,
         )
     )
-    link_repo.list_run_ids_for_suite_targets.assert_awaited_once_with(proj, [suite_id])
+    relationship_repo.list_run_ids_for_suite_targets.assert_awaited_once_with(proj, [suite_id])
     assert len(out) == 1
     assert out[0].run_id == run_id
     assert out[0].status == "passed"
@@ -473,17 +473,17 @@ async def test_scope_configuration_id_filters_matching_metrics_row():
         updated_at=datetime(2025, 1, 2, 12, 0, 0, tzinfo=timezone.utc),
     )
 
-    link_direct = ArtifactLink.create(
+    link_direct = Relationship.create(
         project_id=proj,
-        from_artifact_id=run_id,
-        to_artifact_id=test_id,
-        link_type="includes_test",
+        source_artifact_id=run_id,
+        target_artifact_id=test_id,
+        relationship_type="includes_test",
     )
 
-    link_repo = AsyncMock()
-    link_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[(run_id, test_id)])
-    link_repo.list_outgoing_links_from_artifacts = AsyncMock(return_value=[link_direct])
-    link_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
+    relationship_repo = AsyncMock()
+    relationship_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[(run_id, test_id)])
+    relationship_repo.list_outgoing_relationships_from_artifacts = AsyncMock(return_value=[link_direct])
+    relationship_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
 
     artifact_repo = AsyncMock()
     artifact_repo.list_by_ids_in_project = AsyncMock(return_value=[run_art])
@@ -491,7 +491,7 @@ async def test_scope_configuration_id_filters_matching_metrics_row():
     h = BatchLastTestExecutionStatusHandler(
         project_repo=project_repo,
         artifact_repo=artifact_repo,
-        link_repo=link_repo,
+        relationship_repo=relationship_repo,
     )
     out = await h.handle(
         BatchLastTestExecutionStatus(

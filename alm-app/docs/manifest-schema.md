@@ -75,6 +75,30 @@ Sunucu, manifest kaydedilirken veya okunurken `merge_manifest_metadata_defaults`
 - **system_roots**: Silinemez / yeniden üstlenemez kök artifact tip id listesi. Yoksa `defs` içinde `is_system_root` veya `flags.is_system_root` olan `ArtifactType` satırları; o da yoksa `root-requirement`, `root-quality`, `root-defect`.
 - **planning**: `cycle_for_types` / `area_for_types`: `null` veya alan yok = tüm tipler; `[]` = hiçbiri; dolu liste = sadece bu tipler formda cycle/area alanını görür.
 - **artifact_list.columns**: Tablo kolonları (sıra, `visible`, `sortable`, `label`). Verilirse çekirdek kolonlar bu liste ile kısıtlanır; manifest alanları (`artifact_types[].fields`) hâlâ ek kolon olarak eklenir.
+- **artifact_list.surfaces.\<surface\>**: Surface-bazlı liste politikası. `backlog` ve `defects` gibi surface'ler için kolon davranışı manifest'ten ayarlanabilir.
+
+```json
+"artifact_list": {
+  "columns": [
+    { "key": "title", "label": "Summary", "order": 1, "sortable": true },
+    { "key": "state", "order": 2 }
+  ],
+  "surfaces": {
+    "backlog": {
+      "fixed_columns": ["artifact_key", "title", "state", "priority", "updated_at"]
+    },
+    "defects": {
+      "fixed_columns": ["title", "severity", "updated_at"],
+      "exclude_columns": ["artifact_key", "artifact_type", "state_reason", "resolution"],
+      "extra_column_limit": 2
+    }
+  }
+}
+```
+
+- **fixed_columns**: Surface açıldığında öncelikli / sabit kolon kümesi. Backend liste şeması bu kolonları surface contract'ı olarak döner.
+- **exclude_columns**: Bu surface'te hiç görünmemesi gereken kolonlar.
+- **extra_column_limit**: Sabit kolonlardan sonra eklenecek ek manifest alanı sayısı. Özellikle defects benzeri triage görünümleri için kullanışlıdır.
 - **burndown_done_states**: Burndown’da “tamamlanmış” sayılacak state id listesi. API `done_states` göndermezse proje manifest’inden okunur.
 - **ArtifactType.icon**: UI’da lucide ikon anahtarı (örn. `file-text`, `bug`, `list-checks`); API flat manifest’te tip nesnesine yansır.
 - **search_locale**: Artifact listesi FTS (`q`) için PostgreSQL `regconfig` adı (allowlist: `english`, `simple`, `turkish`, …). Yoksa `ALM_FULLTEXT_SEARCH_CONFIG` / sunucu varsayılanı kullanılır.

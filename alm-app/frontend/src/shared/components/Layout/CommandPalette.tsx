@@ -39,7 +39,7 @@ export function CommandPalette({
   onSelect,
   title = "Quick navigation",
   placeholder = "Search or jump to…",
-  description = "Search pages, projects, or go to Artifacts…",
+  description = "Search pages, projects, or go to Backlog…",
 }: CommandPaletteProps) {
   const handleSelect = (path: string) => {
     onSelect(path);

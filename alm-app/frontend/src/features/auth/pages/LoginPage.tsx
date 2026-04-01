@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useNavigate, Link } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Card, CardContent, Button } from "../../../shared/components/ui";
 import { RhfTextField } from "../../../shared/components/forms";
@@ -22,6 +22,7 @@ const FORM_ID = "login-form";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const login = useLogin();
   const setTokens = useAuthStore((s) => s.setTokens);
   const setTenant = useTenantStore((s) => s.setTenant);
@@ -32,6 +33,18 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
   const { handleSubmit } = form;
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const reason = params.get("reason");
+    if (reason === "tenant-context") {
+      setError("Your session lost organization context. Sign in again and reselect your organization.");
+      return;
+    }
+    if (reason === "session-expired") {
+      setError("Your session expired. Sign in again to continue.");
+    }
+  }, [location.search]);
 
   const onSubmit = async (data: LoginFormData) => {
     setError(null);

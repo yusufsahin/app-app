@@ -5,7 +5,7 @@ import { PlayCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "../../../shared/api/client";
 import type { Artifact } from "../../../shared/stores/artifactStore";
-import { incomingRunForSuiteLinks, type ArtifactLink } from "../../../shared/api/artifactLinkApi";
+import { incomingRunForSuiteRelationships, type ArtifactRelationship } from "../../../shared/api/relationshipApi";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Skeleton } from "../../../shared/components/ui";
 import { formatRunEnvironmentLabel, summarizeRunMetricsFromCustomFields } from "../lib/runMetrics";
 import { navigateToManualExecution, navigateToRunDetails } from "../lib/qualityOpenManualRunner";
@@ -17,15 +17,15 @@ type Props = {
   projectId: string;
   projectSlug: string;
   suiteId: string;
-  links: ArtifactLink[] | undefined;
+  links: ArtifactRelationship[] | undefined;
   linksLoading: boolean;
 };
 
 export function SuiteRecentRunsCard({ orgSlug, projectId, projectSlug, suiteId, links, linksLoading }: Props) {
   const { t } = useTranslation("quality");
   const navigate = useNavigate();
-  const incoming = incomingRunForSuiteLinks(links, suiteId);
-  const runIds = incoming.slice(0, MAX_RECENT).map((l) => l.from_artifact_id);
+  const incoming = incomingRunForSuiteRelationships(links, suiteId);
+  const runIds = incoming.slice(0, MAX_RECENT).map((relationship) => relationship.source_artifact_id);
 
   const runQueries = useQueries({
     queries: runIds.map((id) => ({

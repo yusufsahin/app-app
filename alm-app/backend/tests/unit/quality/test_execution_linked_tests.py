@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from alm.artifact_link.domain.entities import ArtifactLink
+from alm.relationship.domain.entities import Relationship
 from alm.quality.application.execution_linked_tests import linked_execution_test_ids_for_run
 
 pid = uuid.uuid4()
@@ -14,12 +14,12 @@ def _link(
     *,
     so: int | None = None,
     created: str = "2024-01-01T00:00:00+00:00",
-) -> ArtifactLink:
-    return ArtifactLink(
+) -> Relationship:
+    return Relationship(
         project_id=pid,
-        from_artifact_id=fid,
-        to_artifact_id=tid,
-        link_type=lt,
+        source_artifact_id=fid,
+        target_artifact_id=tid,
+        relationship_type=lt,
         sort_order=so,
         created_at=datetime.fromisoformat(created.replace("Z", "+00:00")),
     )

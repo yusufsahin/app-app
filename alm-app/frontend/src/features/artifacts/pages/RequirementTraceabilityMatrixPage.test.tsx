@@ -9,12 +9,14 @@ import { renderWithQualityI18n } from "../../../test/renderWithQualityI18n";
 import RequirementTraceabilityMatrixPage from "./RequirementTraceabilityMatrixPage";
 
 const setSearchParamsMock = vi.fn();
+const buildWorkbookBlobMock = vi.fn();
+const downloadBlobFileMock = vi.fn();
 
 const matrixHookMock = vi.fn();
 const summaryHookMock = vi.fn();
 
-vi.mock("./useArtifactsPageProject", () => ({
-  useArtifactsPageProject: () => ({
+vi.mock("./useBacklogWorkspaceProject", () => ({
+  useBacklogWorkspaceProject: () => ({
     orgSlug: "org",
     projectSlug: "proj",
     project: { id: "project-id", name: "Demo project" },
@@ -40,11 +42,19 @@ vi.mock("../../../shared/api/requirementTraceabilityApi", () => ({
   useRequirementTraceabilityMatrixSummary: (...args: unknown[]) => summaryHookMock(...args),
 }));
 
+vi.mock("../../../shared/lib/xlsxExport", () => ({
+  buildWorkbookBlob: (...args: unknown[]) => buildWorkbookBlobMock(...args),
+  downloadBlobFile: (...args: unknown[]) => downloadBlobFileMock(...args),
+}));
+
 describe("RequirementTraceabilityMatrixPage", () => {
   beforeEach(() => {
     setSearchParamsMock.mockReset();
     matrixHookMock.mockReset();
     summaryHookMock.mockReset();
+    buildWorkbookBlobMock.mockReset();
+    downloadBlobFileMock.mockReset();
+    buildWorkbookBlobMock.mockResolvedValue(new Blob(["xlsx"]));
 
     matrixHookMock.mockReturnValue({
       isPending: false,
@@ -187,5 +197,20 @@ describe("RequirementTraceabilityMatrixPage", () => {
     expect(screen.getByText("Narrow before rendering")).toBeInTheDocument();
     expect(screen.getAllByText("Current slice is too large for a readable matrix").length).toBeGreaterThan(0);
     expect(screen.getByText("Project-wide scope is too large without an `under` subtree root.")).toBeInTheDocument();
+  });
+
+  it("exports the traceability workbook as xlsx", async () => {
+    const user = userEvent.setup();
+    renderWithQualityI18n(
+      <MemoryRouter initialEntries={["/org/proj/requirements/traceability"]}>
+        <RequirementTraceabilityMatrixPage />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Export Excel" }));
+
+    expect(buildWorkbookBlobMock).toHaveBeenCalledTimes(1);
+    expect(downloadBlobFileMock).toHaveBeenCalledTimes(1);
+    expect(downloadBlobFileMock.mock.calls[0]?.[1]).toMatch(/traceability-matrix-.*\.xlsx$/);
   });
 });

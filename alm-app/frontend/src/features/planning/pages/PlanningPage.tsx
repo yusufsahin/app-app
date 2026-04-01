@@ -7,16 +7,16 @@ import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import {
-  useIncrements,
+  useCadences,
   useAreaNodes,
-  useCreateIncrement,
+  useCreateCadence,
   useCreateAreaNode,
-  useUpdateIncrement,
+  useUpdateCadence,
   useUpdateAreaNode,
-  useDeleteIncrement,
+  useDeleteCadence,
   useDeleteAreaNode,
-  incrementDisplayLabelWithType,
-  type Increment,
+  cadenceDisplayLabelWithType,
+  type Cadence,
   type AreaNode,
 } from "../../../shared/api/planningApi";
 import { useArtifacts, useUpdateArtifact } from "../../../shared/api/artifactApi";
@@ -32,11 +32,11 @@ function CycleTreeItem({
   onDelete,
   onAddChild,
 }: {
-  node: Increment;
+  node: Cadence;
   level: number;
-  onRename: (n: Increment) => void;
-  onDelete: (n: Increment) => void;
-  onAddChild: (n: Increment) => void;
+  onRename: (n: Cadence) => void;
+  onDelete: (n: Cadence) => void;
+  onAddChild: (n: Cadence) => void;
 }) {
   const [open, setOpen] = useState(true);
   const hasChildren = node.children?.length > 0;
@@ -69,10 +69,10 @@ function CycleTreeItem({
               className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium ${
                 node.type === "release" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
               }`}
-              title={node.type === "release" ? "Release" : "Iteration"}
+              title={node.type === "release" ? "Release" : "Cycle"}
             >
               {node.type === "release" ? <Package className="size-3" /> : <IterationCw className="size-3" />}
-              {node.type === "release" ? "Release" : "Iteration"}
+              {node.type === "release" ? "Release" : "Cycle"}
             </span>
           </div>
           {node.path || node.state ? (
@@ -85,7 +85,7 @@ function CycleTreeItem({
           <button
             type="button"
             className="rounded p-1.5 hover:bg-muted"
-            aria-label="Add iteration"
+            aria-label="Add cycle"
             onClick={() => onAddChild(node)}
           >
             <Plus className="size-4" />
@@ -225,7 +225,7 @@ function BacklogArtifactRow({
   cycleNodesFlat,
   showNotification,
 }: {
-  artifact: { id: string; artifact_key?: string | null; title?: string; state?: string; cycle_node_id?: string | null };
+  artifact: { id: string; artifact_key?: string | null; title?: string; state?: string; cycle_id?: string | null };
   orgSlug: string | undefined;
   projectId: string | undefined;
   projectSlug: string | undefined;
@@ -233,7 +233,7 @@ function BacklogArtifactRow({
   showNotification: (message: string, severity: "success" | "error" | "info") => void;
 }) {
   const updateArtifact = useUpdateArtifact(orgSlug, projectId, artifact.id);
-  const currentCycleId = artifact.cycle_node_id ?? "";
+  const currentCycleId = artifact.cycle_id ?? "";
 
   type RowCycleValues = { cycleId: string };
   const rowForm = useForm<RowCycleValues>({ defaultValues: { cycleId: currentCycleId } });
@@ -252,7 +252,7 @@ function BacklogArtifactRow({
     }
     if (watchedCycleId !== currentCycleId) {
       updateArtifact.mutate(
-        { cycle_node_id: watchedCycleId || null },
+        { cycle_id: watchedCycleId || null },
         {
           onSuccess: () => showNotification("Artifact assigned to cycle", "success"),
           onError: (err: Error) =>
@@ -319,10 +319,10 @@ export default function PlanningPage() {
   const [addMode, setAddMode] = useState<"cycles" | "areas">("cycles");
   const [addParentId, setAddParentId] = useState<string | null>(null);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
-  const [renameNode, setRenameNode] = useState<Increment | AreaNode | null>(null);
+  const [renameNode, setRenameNode] = useState<Cadence | AreaNode | null>(null);
 
   const addForm = useForm<{ name: string }>({ defaultValues: { name: "" } });
-  const renameForm = useForm<{ name: string; type?: "release" | "iteration" }>({ defaultValues: { name: "", type: "iteration" } });
+  const renameForm = useForm<{ name: string; type?: "release" | "cycle" }>({ defaultValues: { name: "", type: "cycle" } });
   const { reset: resetAddForm, handleSubmit: handleAddSubmit } = addForm;
   const { reset: resetRenameForm, handleSubmit: handleRenameSubmit } = renameForm;
   useEffect(() => {
@@ -330,28 +330,28 @@ export default function PlanningPage() {
       const isCycle = "goal" in renameNode;
       resetRenameForm({
         name: renameNode.name,
-        ...(isCycle && { type: (renameNode as Increment).type }),
+        ...(isCycle && { type: (renameNode as Cadence).type }),
       });
     }
   }, [renameNode, resetRenameForm]);
 
-  const { data: increments = [], isLoading: incrementsLoading } = useIncrements(
+  const { data: cadences = [], isLoading: cadencesLoading } = useCadences(
     orgSlug,
     project?.id,
     false,
   );
-  const { data: incrementsFlatIterations = [] } = useIncrements(orgSlug, project?.id, true, "iteration");
-  const { data: incrementsFlatReleases = [] } = useIncrements(orgSlug, project?.id, true, "release");
+  const { data: cycleCadences = [] } = useCadences(orgSlug, project?.id, true, "cycle");
+  const { data: releaseCadences = [] } = useCadences(orgSlug, project?.id, true, "release");
   const { data: areaNodes = [], isLoading: areasLoading } = useAreaNodes(
     orgSlug,
     project?.id,
     false,
   );
-  const createIncrement = useCreateIncrement(orgSlug, project?.id);
+  const createCadence = useCreateCadence(orgSlug, project?.id);
   const createArea = useCreateAreaNode(orgSlug, project?.id);
-  const updateIncrement = useUpdateIncrement(orgSlug, project?.id);
+  const updateCadence = useUpdateCadence(orgSlug, project?.id);
   const updateArea = useUpdateAreaNode(orgSlug, project?.id);
-  const deleteIncrement = useDeleteIncrement(orgSlug, project?.id);
+  const deleteCadence = useDeleteCadence(orgSlug, project?.id);
   const deleteArea = useDeleteAreaNode(orgSlug, project?.id);
   const showNotification = useNotificationStore((s) => s.showNotification);
   const setListState = useArtifactStore((s) => s.setListState);
@@ -379,7 +379,7 @@ export default function PlanningPage() {
     resetAddForm({ name: "" });
     setAddDialogOpen(true);
   };
-  const handleAddChildCycle = (parent: Increment) => {
+  const handleAddChildCycle = (parent: Cadence) => {
     setAddMode("cycles");
     setAddParentId(parent.id);
     resetAddForm({ name: "" });
@@ -389,13 +389,13 @@ export default function PlanningPage() {
     const name = data.name.trim();
     if (!name) return;
     if (addMode === "cycles") {
-      const type = addParentId ? "iteration" : "release";
-      createIncrement.mutate(
-        { name, parent_id: addParentId || undefined, type },
+      const type = addParentId ? "cycle" : "release";
+      createCadence.mutate(
+        { name, parent_id: addParentId || undefined, type: type === "release" ? "release" : "cycle" },
         {
           onSuccess: () => {
             setAddDialogOpen(false);
-            showNotification(addParentId ? "Iteration added" : "Release added", "success");
+            showNotification(addParentId ? "Cycle added" : "Release added", "success");
           },
           onError: (e: Error) => showNotification(e?.message ?? "Failed to add", "error"),
         },
@@ -427,7 +427,7 @@ export default function PlanningPage() {
     setAddDialogOpen(true);
   };
 
-  const handleRenameCycle = (node: Increment) => {
+  const handleRenameCycle = (node: Cadence) => {
     setRenameNode(node);
     setRenameDialogOpen(true);
   };
@@ -435,17 +435,17 @@ export default function PlanningPage() {
     setRenameNode(node);
     setRenameDialogOpen(true);
   };
-  const onSubmitRename = (data: { name: string; type?: "release" | "iteration" }) => {
+  const onSubmitRename = (data: { name: string; type?: "release" | "cycle" }) => {
     const name = data.name.trim();
     if (!name || !renameNode) return;
     if ("goal" in renameNode) {
-      updateIncrement.mutate(
-        { incrementId: renameNode.id, body: { name, ...(data.type && { type: data.type }) } },
+      updateCadence.mutate(
+        { cadenceId: renameNode.id, body: { name, ...(data.type && { type: data.type }) } },
         {
           onSuccess: () => {
             setRenameDialogOpen(false);
             setRenameNode(null);
-            showNotification("Cycle updated", "success");
+            showNotification("Cadence updated", "success");
           },
           onError: (e: Error) => showNotification(e?.message ?? "Failed to update", "error"),
         },
@@ -465,14 +465,14 @@ export default function PlanningPage() {
     }
   };
 
-  const handleDeleteCycle = (node: Increment) => {
+  const handleDeleteCycle = (node: Cadence) => {
     const isRelease = node.type === "release";
     const message = isRelease
-      ? `Delete release "${node.name}"? If it has iterations, delete those first.`
-      : `Delete iteration "${node.name}"?`;
+      ? `Delete release "${node.name}"? If it has cycles, delete those first.`
+      : `Delete cycle "${node.name}"?`;
     if (!window.confirm(message)) return;
-    deleteIncrement.mutate(node.id, {
-      onSuccess: () => showNotification(isRelease ? "Release deleted" : "Iteration deleted", "success"),
+    deleteCadence.mutate(node.id, {
+      onSuccess: () => showNotification(isRelease ? "Release deleted" : "Cycle deleted", "success"),
       onError: (e: Error) => showNotification(e?.message ?? "Failed to delete", "error"),
     });
   };
@@ -499,14 +499,14 @@ export default function PlanningPage() {
             <h1 className="text-2xl font-bold">Planning</h1>
           </div>
           <p className="mb-4 text-sm text-muted-foreground">
-            Releases and iterations (cycles) and Areas for backlog and assignment.
+            Manage release and cycle cadences alongside area structures for work planning.
           </p>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "cycles" | "areas" | "backlog")} className="mb-4 border-b">
             <TabsList className="w-full justify-start rounded-none border-b-0 bg-transparent p-0">
               <TabsTrigger value="cycles" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
                 <GitBranch className="size-4" />
-                Releases & iterations{!incrementsLoading ? ` (${increments.length})` : ""}
+                Releases & Cycles{!cadencesLoading ? ` (${cadences.length})` : ""}
               </TabsTrigger>
               <TabsTrigger value="areas" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none">
                 <Folder className="size-4" />
@@ -522,22 +522,22 @@ export default function PlanningPage() {
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="size-2 rounded-full bg-primary" />
-                  <h2 className="text-lg font-semibold">Release & iteration tree</h2>
+                  <h2 className="text-lg font-semibold">Releases & cycles</h2>
                 </div>
-                <Button size="sm" onClick={handleAddCycle} disabled={incrementsLoading}>
+                <Button size="sm" onClick={handleAddCycle} disabled={cadencesLoading}>
                   <Plus className="size-4" />
                   Add release
                 </Button>
               </div>
-              {incrementsLoading ? (
+              {cadencesLoading ? (
                 <Skeleton className="h-28 rounded-md" />
-              ) : increments.length === 0 ? (
+              ) : cadences.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No releases. Add a release, then add iterations (sprints) under it.
+                  No releases yet. Add a release, then add cycles under it.
                 </p>
               ) : (
                 <div>
-                  {increments.map((node) => (
+                  {cadences.map((node) => (
                     <CycleTreeItem
                       key={node.id}
                       node={node}
@@ -597,16 +597,16 @@ export default function PlanningPage() {
                       control={backlogForm.control}
                       label="Release"
                       placeholder="All releases"
-                      options={[{ value: "", label: "All releases" }, ...incrementsFlatReleases.map((c) => ({ value: c.id, label: incrementDisplayLabelWithType(c) }))]}
+                      options={[{ value: "", label: "All releases" }, ...releaseCadences.map((c) => ({ value: c.id, label: cadenceDisplayLabelWithType(c) }))]}
                     />
                   </div>
                   <div className="min-w-[220px]">
                     <RhfSelect<{ releaseId: string; cycleId: string }>
                       name="cycleId"
                       control={backlogForm.control}
-                      label="Iteration"
-                      placeholder="Select iteration"
-                      options={[{ value: "", label: "All iterations" }, ...incrementsFlatIterations.map((c) => ({ value: c.id, label: incrementDisplayLabelWithType(c) }))]}
+                      label="Cycle"
+                      placeholder="Select cycle"
+                      options={[{ value: "", label: "All cycles" }, ...cycleCadences.map((c) => ({ value: c.id, label: cadenceDisplayLabelWithType(c) }))]}
                     />
                   </div>
                 </div>
@@ -615,20 +615,20 @@ export default function PlanningPage() {
                 <>
                   <div className="mb-2 flex items-center gap-2">
                     <p className="text-sm text-muted-foreground">
-                      {backlogTotal} artifact(s){selectedBacklogReleaseId ? " in this release" : " in this iteration"}
+                      {backlogTotal} artifact(s){selectedBacklogReleaseId ? " in this release" : " in this cycle"}
                     </p>
                     <Button size="sm" variant="ghost" asChild>
                       <Link
-                        to={orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}/artifacts` : "#"}
-                        onClick={() => setListState({ cycleNodeFilter: selectedBacklogCycleId || "", releaseCycleNodeFilter: selectedBacklogReleaseId || "" })}
+                        to={orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}/backlog` : "#"}
+                        onClick={() => setListState({ cycleFilter: selectedBacklogCycleId || "", releaseFilter: selectedBacklogReleaseId || "" })}
                       >
-                        View all in Artifacts
+                        View all in Backlog
                       </Link>
                     </Button>
                   </div>
                   {backlogArtifacts.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No artifacts in this {selectedBacklogReleaseId ? "release" : "iteration"}.
+                      No backlog items in this {selectedBacklogReleaseId ? "release" : "cycle"}.
                     </p>
                   ) : (
                     <div className="space-y-0">
@@ -639,7 +639,7 @@ export default function PlanningPage() {
                           orgSlug={orgSlug}
                           projectId={project?.id}
                           projectSlug={projectSlug}
-                          cycleNodesFlat={incrementsFlatIterations}
+                          cycleNodesFlat={cycleCadences}
                           showNotification={showNotification}
                         />
                       ))}
@@ -648,7 +648,7 @@ export default function PlanningPage() {
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Select a release or iteration to view its backlog.
+                  Select a release or cycle to view its backlog.
                 </p>
               )}
             </TabsContent>
@@ -661,7 +661,7 @@ export default function PlanningPage() {
           <DialogTitle>
             {addMode === "cycles"
               ? addParentId
-                ? "Add iteration"
+                ? "Add cycle"
                 : "Add release"
               : "Add area"}
           </DialogTitle>
@@ -686,7 +686,7 @@ export default function PlanningPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={addMode === "cycles" ? createIncrement.isPending : createArea.isPending}
+                  disabled={addMode === "cycles" ? createCadence.isPending : createArea.isPending}
                 >
                   Add
                 </Button>
@@ -710,20 +710,20 @@ export default function PlanningPage() {
         <FormProvider {...renameForm}>
           <form onSubmit={handleRenameSubmit(onSubmitRename)} noValidate>
             <div className="grid gap-4 py-4">
-              <RhfTextField<{ name: string; type?: "release" | "iteration" }>
+              <RhfTextField<{ name: string; type?: "release" | "cycle" }>
                 name="name"
                 label="Name"
                 // eslint-disable-next-line jsx-a11y/no-autofocus -- dialog first field
                 autoFocus
               />
               {renameNode && "goal" in renameNode && (
-                <RhfSelect<{ name: string; type?: "release" | "iteration" }>
+                <RhfSelect<{ name: string; type?: "release" | "cycle" }>
                   name="type"
                   control={renameForm.control}
                   label="Type"
                   options={[
                     { value: "release", label: "Release" },
-                    { value: "iteration", label: "Iteration" },
+                    { value: "cycle", label: "Cycle" },
                   ]}
                 />
               )}

@@ -14,7 +14,7 @@ async def main() -> None:
     import alm.admin.infrastructure.models  # noqa: F401
     import alm.area.infrastructure.models  # noqa: F401
     import alm.artifact.infrastructure.models  # noqa: F401
-    import alm.artifact_link.infrastructure.models  # noqa: F401
+    import alm.relationship.infrastructure.models  # noqa: F401
     import alm.attachment.infrastructure.models  # noqa: F401
     import alm.auth.infrastructure.models  # noqa: F401
     import alm.comment.infrastructure.models  # noqa: F401
@@ -29,12 +29,10 @@ async def main() -> None:
     import alm.team.infrastructure.models  # noqa: F401
     import alm.tenant.infrastructure.models  # noqa: F401
     import alm.workflow_rule.infrastructure.models  # noqa: F401
-    from alm.config.seed import seed_demo_data, seed_privileges, seed_process_templates
+    from alm.config.seed import run_startup_seeds
     from alm.shared.infrastructure.db.session import async_session_factory
 
-    await seed_privileges(async_session_factory)
-    await seed_process_templates(async_session_factory)
-    await seed_demo_data(async_session_factory)
+    await run_startup_seeds(async_session_factory)
     print("seed_done")
 
 

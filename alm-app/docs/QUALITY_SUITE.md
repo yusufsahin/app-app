@@ -7,7 +7,7 @@ Proje içinde kalite çalışması için ayrı giriş noktaları:
 **Test case parametreleri (`test_params_json`, adımlarda `${name}`):** [QUALITY_TEST_PARAMS_USER_GUIDE.md](./QUALITY_TEST_PARAMS_USER_GUIDE.md)
 
 | Route | Açıklama |
-|-------|----------|
+| ----- | -------- |
 | `/:orgSlug/:projectSlug/quality` | Hub + artifact listesi (Artifacts ile aynı API) |
 | `/:orgSlug/:projectSlug/quality/catalog` | **Catalog** — test case’ler (`tree_id: quality`, `quality-folder` grupları) |
 | `/:orgSlug/:projectSlug/quality/campaign` | **Campaign** — `test-suite` (collections = `testsuite-folder`) |
@@ -68,7 +68,7 @@ tree_roots:
 #   name: Verified by
 ```
 
-Kaliteye özel liste kolonları: [MANIFEST_METADATA_MASTER_PLAN.md](../../docs/MANIFEST_METADATA_MASTER_PLAN.md) ve `artifact_list.columns`.
+Kaliteye özel liste kolonları artık `artifact_list.columns` yanında surface-bazlı contract ile de ayarlanabilir: `artifact_list.surfaces.defects`.
 
 İsteğe bağlı — manifest kökünde liste şemasını daraltmak (örnek; proje ihtiyacına göre uyarlayın):
 
@@ -80,7 +80,20 @@ artifact_list:
     - { key: title, label: Title, order: 3, sortable: true }
     - { key: state, label: State, order: 4, sortable: true }
     - { key: updated_at, label: Updated, order: 5, sortable: true }
+  surfaces:
+    defects:
+      fixed_columns: [title, severity, updated_at]
+      exclude_columns: [artifact_key, artifact_type, state_reason, resolution]
+      extra_column_limit: 2
+    backlog:
+      fixed_columns: [artifact_key, title, state, priority, updated_at]
 ```
+
+Yorum:
+
+- `columns`: genel artifact liste kolon tabanı
+- `surfaces.defects`: `QualityDefectsPage` gibi triage görünümleri için daraltılmış kolon politikası
+- `surfaces.backlog`: backlog tabular/tree-detail workspace için varsayılan kolon kümesi
 
 ## Testler (birim + API)
 

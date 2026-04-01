@@ -1,4 +1,4 @@
-"""Add sort_order to artifact_links for ordered suite membership.
+"""Add sort_order to relationships for ordered suite membership.
 
 Revision ID: 037
 Revises: 036
@@ -16,22 +16,22 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column(
-        "artifact_links",
+        "relationships",
         sa.Column("sort_order", sa.Integer(), nullable=True),
     )
-    # Backfill: per (from_artifact_id, link_type), order by created_at ascending → 0..n-1
+    # Backfill: per (source_artifact_id, relationship_type), order by created_at ascending → 0..n-1
     op.execute(
         sa.text(
             """
-            UPDATE artifact_links al
+            UPDATE relationships al
             SET sort_order = sub.rn
             FROM (
                 SELECT id,
                        (ROW_NUMBER() OVER (
-                           PARTITION BY from_artifact_id, link_type
+                           PARTITION BY source_artifact_id, relationship_type
                            ORDER BY created_at ASC
                        ) - 1)::integer AS rn
-                FROM artifact_links
+                FROM relationships
             ) AS sub
             WHERE al.id = sub.id
             """
@@ -40,4 +40,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column("artifact_links", "sort_order")
+    op.drop_column("relationships", "sort_order")

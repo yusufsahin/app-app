@@ -7,6 +7,16 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class LookupSchema:
+    """Normalized lookup descriptor for metadata-driven editors."""
+
+    kind: str
+    multi: bool = False
+    label_field: str | None = None
+    value_field: str | None = None
+
+
+@dataclass(frozen=True)
 class FormFieldSchema:
     """Schema for a single form field."""
 
@@ -21,6 +31,10 @@ class FormFieldSchema:
     required_when: dict[str, Any] | None = None
     entity_ref: str | None = None  # artifact, user
     allowed_parent_types: list[str] | None = None  # for parent_id entity_ref
+    editable: bool = False
+    surfaces: tuple[str, ...] = ("form",)
+    lookup: LookupSchema | None = None
+    write_target: str | None = None  # root, custom_field
 
 
 @dataclass(frozen=True)
@@ -44,6 +58,11 @@ class ListColumnSchema:
     order: int = 0
     sortable: bool = True
     width: int | None = None
+    editable: bool = False
+    surfaces: tuple[str, ...] = ()
+    lookup: LookupSchema | None = None
+    write_target: str | None = None  # root, custom_field
+    write_key: str | None = None
 
 
 @dataclass(frozen=True)

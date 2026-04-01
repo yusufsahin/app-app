@@ -23,7 +23,7 @@ DEFAULT_EFFORT_FIELD = "story_points"
 class GetBurndown(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
-    cycle_node_ids: list[uuid.UUID] | None = None
+    cycle_ids: list[uuid.UUID] | None = None
     last_n: int | None = None
     effort_field: str = DEFAULT_EFFORT_FIELD
     done_states: tuple[str, ...] = DEFAULT_DONE_STATES
@@ -31,7 +31,7 @@ class GetBurndown(Query):
 
 @dataclass
 class BurndownPointDTO:
-    cycle_node_id: uuid.UUID
+    cycle_id: uuid.UUID
     cycle_name: str
     total_effort: float
     completed_effort: float
@@ -66,7 +66,7 @@ class GetBurndownHandler(QueryHandler[list[BurndownPointDTO]]):
         manifest_done = resolve_burndown_done_states(manifest)
         effective_done = query.done_states if query.done_states != DEFAULT_BURNDOWN_DONE_STATES else manifest_done
 
-        cycle_ids = query.cycle_node_ids
+        cycle_ids = query.cycle_ids
         if cycle_ids is None:
             cycles = await self._cycle_repo.list_by_project(query.project_id)
             if not cycles:
@@ -98,7 +98,7 @@ class GetBurndownHandler(QueryHandler[list[BurndownPointDTO]]):
 
         return [
             BurndownPointDTO(
-                cycle_node_id=cid,
+                cycle_id=cid,
                 cycle_name=name_by_id.get(cid, ""),
                 total_effort=total_by_id.get(cid, 0.0),
                 completed_effort=completed_by_id.get(cid, 0.0),

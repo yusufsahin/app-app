@@ -53,7 +53,7 @@ class IPermissionCache(ABC):
 
 
 class IManifestDefsFlattener(ABC):
-    """Convert manifest defs to flat workflows, artifact_types, and link_types.
+    """Convert manifest defs to flat workflows, artifact_types, and relationship_types.
 
     Implemented in artifact infrastructure.
     """

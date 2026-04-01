@@ -21,7 +21,7 @@ import { RhfSelect } from "../../../shared/components/forms";
 import { useOrgProjects } from "../../../shared/api/orgApi";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import { useProjectManifest } from "../../../shared/api/manifestApi";
-import { useIncrements, useAreaNodes, incrementDisplayLabel, areaNodeDisplayLabel } from "../../../shared/api/planningApi";
+import { useCadences, useAreaNodes, cadenceDisplayLabel, areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import { useArtifacts, useTransitionArtifactById } from "../../../shared/api/artifactApi";
 import type { Artifact } from "../../../shared/stores/artifactStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
@@ -58,17 +58,19 @@ export default function BoardPage() {
     projects?.find((p) => p.slug === projectSlug) ??
     (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
   const { data: manifest, isLoading: manifestLoading } = useProjectManifest(orgSlug, project?.id);
-  const { data: incrementsFlat = [] } = useIncrements(orgSlug, project?.id, true, "iteration");
+  const { data: cycleCadences = [] } = useCadences(orgSlug, project?.id, true, "cycle");
   const { data: areaNodesFlat = [] } = useAreaNodes(orgSlug, project?.id, true);
 
-  type BoardFilterValues = { typeFilter: string; cycleFilter: string; areaFilter: string };
+  type BoardFilterValues = { typeFilter: string; releaseFilter: string; cycleFilter: string; areaFilter: string };
   const filterForm = useForm<BoardFilterValues>({
-    defaultValues: { typeFilter: "", cycleFilter: "", areaFilter: "" },
+    defaultValues: { typeFilter: "", releaseFilter: "", cycleFilter: "", areaFilter: "" },
   });
   const { control } = filterForm;
   const typeFilter = useWatch({ control, name: "typeFilter" }) ?? "";
+  const releaseFilter = useWatch({ control, name: "releaseFilter" }) ?? "";
   const cycleFilter = useWatch({ control, name: "cycleFilter" }) ?? "";
   const areaFilter = useWatch({ control, name: "areaFilter" }) ?? "";
+  const { data: releaseCadences = [] } = useCadences(orgSlug, project?.id, true, "release");
 
   const { data: artifactsData, isLoading: artifactsLoading } = useArtifacts(
     orgSlug,
@@ -81,8 +83,8 @@ export default function BoardPage() {
     200,
     0,
     false,
-    cycleFilter || undefined,
-    undefined,
+    releaseFilter ? undefined : (cycleFilter || undefined),
+    releaseFilter || undefined,
     areaFilter || undefined,
     undefined,
     true,
@@ -192,11 +194,12 @@ export default function BoardPage() {
               <Link
                 to={artifactsPath(orgSlug, projectSlug, {
                   type: typeFilter || undefined,
-                  cycleNodeFilter: cycleFilter || undefined,
+                  releaseFilter: releaseFilter || undefined,
+                  cycleFilter: cycleFilter || undefined,
                   areaNodeFilter: areaFilter || undefined,
                 })}
               >
-                View in Artifacts
+                View in Backlog
               </Link>
             </Button>
             <FormProvider {...filterForm}>
@@ -213,14 +216,26 @@ export default function BoardPage() {
                     />
                   </div>
                 )}
-                {incrementsFlat.length > 0 && (
+                {cycleCadences.length > 0 && (
+                  <div className="min-w-[180px]">
+                    <RhfSelect<BoardFilterValues>
+                      name="releaseFilter"
+                      control={control}
+                      label="Release"
+                      placeholder="All"
+                      options={[{ value: "", label: "All" }, ...releaseCadences.map((c) => ({ value: c.id, label: c.path || c.name }))]}
+                      selectProps={{ size: "sm" }}
+                    />
+                  </div>
+                )}
+                {cycleCadences.length > 0 && (
                   <div className="min-w-[180px]">
                     <RhfSelect<BoardFilterValues>
                       name="cycleFilter"
                       control={control}
                       label="Cycle"
                       placeholder="All"
-                      options={[{ value: "", label: "All" }, ...incrementsFlat.map((c) => ({ value: c.id, label: incrementDisplayLabel(c) }))]}
+                      options={[{ value: "", label: "All" }, ...cycleCadences.map((c) => ({ value: c.id, label: cadenceDisplayLabel(c) }))]}
                       selectProps={{ size: "sm" }}
                     />
                   </div>

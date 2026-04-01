@@ -10,7 +10,7 @@ from dataclasses import dataclass
 class CapacityDTO:
     id: uuid.UUID
     project_id: uuid.UUID
-    cycle_node_id: uuid.UUID | None
+    cycle_id: uuid.UUID | None
     team_id: uuid.UUID | None
     user_id: uuid.UUID | None
     capacity_value: float

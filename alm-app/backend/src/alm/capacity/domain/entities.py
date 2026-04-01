@@ -14,7 +14,7 @@ class Capacity(AggregateRoot):
         project_id: uuid.UUID,
         *,
         id: uuid.UUID | None = None,
-        cycle_node_id: uuid.UUID | None = None,
+        cycle_id: uuid.UUID | None = None,
         team_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
         capacity_value: float = 0.0,
@@ -24,7 +24,7 @@ class Capacity(AggregateRoot):
     ) -> None:
         super().__init__(id=id)
         self.project_id = project_id
-        self.cycle_node_id = cycle_node_id
+        self.cycle_id = cycle_id
         self.team_id = team_id
         self.user_id = user_id
         self.capacity_value = float(capacity_value)

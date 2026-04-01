@@ -3,24 +3,24 @@
  */
 import { describe, it, expect } from "vitest";
 import {
-  incrementDisplayLabel,
+  cadenceDisplayLabel,
   areaNodeDisplayLabel,
-  incrementDisplayLabelWithType,
+  cadenceDisplayLabelWithType,
   getReleaseNameForCycle,
 } from "./planningApi";
 
-describe("incrementDisplayLabel", () => {
+describe("cadenceDisplayLabel", () => {
   it("returns name when path is missing", () => {
-    expect(incrementDisplayLabel({ name: "Sprint 1" })).toBe("Sprint 1");
+    expect(cadenceDisplayLabel({ name: "Cycle 1" })).toBe("Cycle 1");
   });
 
   it("returns name when path is empty", () => {
-    expect(incrementDisplayLabel({ name: "Sprint 1", path: "" })).toBe("Sprint 1");
+    expect(cadenceDisplayLabel({ name: "Cycle 1", path: "" })).toBe("Cycle 1");
   });
 
   it("returns name (path) when path is present", () => {
-    expect(incrementDisplayLabel({ name: "Sprint 1", path: "2024-Q1/S1" })).toBe(
-      "Sprint 1 (2024-Q1/S1)",
+    expect(cadenceDisplayLabel({ name: "Cycle 1", path: "2024-Q1/C1" })).toBe(
+      "Cycle 1 (2024-Q1/C1)",
     );
   });
 });
@@ -37,13 +37,13 @@ describe("areaNodeDisplayLabel", () => {
   });
 });
 
-describe("incrementDisplayLabelWithType", () => {
+describe("cadenceDisplayLabelWithType", () => {
   it("renders release type badge", () => {
-    expect(incrementDisplayLabelWithType({ name: "R1", type: "release" })).toBe("R1 · Release");
+    expect(cadenceDisplayLabelWithType({ name: "R1", type: "release" })).toBe("R1 · Release");
   });
 
-  it("defaults to iteration badge when type is missing", () => {
-    expect(incrementDisplayLabelWithType({ name: "I1" })).toBe("I1 · Iteration");
+  it("defaults to cycle badge when type is missing", () => {
+    expect(cadenceDisplayLabelWithType({ name: "C1" })).toBe("C1 · Cycle");
   });
 });
 
@@ -51,10 +51,10 @@ describe("getReleaseNameForCycle", () => {
   const tree = [
     { id: "r1", parent_id: null, path: "Release 1", type: "release" as const },
     { id: "r2", parent_id: null, type: "release" as const },
-    { id: "i1", parent_id: "r1", path: "Release 1/Iter 1", type: "iteration" as const },
-    { id: "i2", parent_id: "i1", path: "Release 1/Iter 1/Sub", type: "iteration" as const },
-    { id: "i3", parent_id: null, path: "Loose Iter", type: "iteration" as const },
-    { id: "i4", parent_id: "r2", path: "NoPathRelease/Iter", type: "iteration" as const },
+    { id: "c1", parent_id: "r1", path: "Release 1/Cycle 1", type: "cycle" as const },
+    { id: "c2", parent_id: "c1", path: "Release 1/Cycle 1/Sub", type: "cycle" as const },
+    { id: "c3", parent_id: null, path: "Loose Cycle", type: "cycle" as const },
+    { id: "c4", parent_id: "r2", path: "NoPathRelease/Cycle", type: "cycle" as const },
   ];
 
   it("returns null for missing or unknown id", () => {
@@ -66,15 +66,15 @@ describe("getReleaseNameForCycle", () => {
     expect(getReleaseNameForCycle("r1", tree)).toBe("Release 1");
   });
 
-  it("walks parents recursively for nested iterations", () => {
-    expect(getReleaseNameForCycle("i2", tree)).toBe("Release 1");
+  it("walks parents recursively for nested cycles", () => {
+    expect(getReleaseNameForCycle("c2", tree)).toBe("Release 1");
   });
 
-  it("returns null when iteration has no parent", () => {
-    expect(getReleaseNameForCycle("i3", tree)).toBeNull();
+  it("returns null when cycle has no parent", () => {
+    expect(getReleaseNameForCycle("c3", tree)).toBeNull();
   });
 
   it("falls back to release id when release path is missing", () => {
-    expect(getReleaseNameForCycle("i4", tree)).toBe("r2");
+    expect(getReleaseNameForCycle("c4", tree)).toBe("r2");
   });
 });

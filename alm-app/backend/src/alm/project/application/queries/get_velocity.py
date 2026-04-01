@@ -24,8 +24,8 @@ DEFAULT_EFFORT_FIELD = "story_points"
 class GetVelocity(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
-    cycle_node_ids: list[uuid.UUID] | None = None  # specific cycles
-    release_cycle_node_id: uuid.UUID | None = None  # when set, use iteration ids under this release
+    cycle_ids: list[uuid.UUID] | None = None  # specific cycles
+    release_id: uuid.UUID | None = None  # when set, use cycle ids under this release
     last_n: int | None = None  # or last N cycles by path order
     effort_field: str = DEFAULT_EFFORT_FIELD
     done_states: tuple[str, ...] = DEFAULT_DONE_STATES
@@ -33,7 +33,7 @@ class GetVelocity(Query):
 
 @dataclass
 class VelocityPointDTO:
-    cycle_node_id: uuid.UUID
+    cycle_id: uuid.UUID
     cycle_name: str
     total_effort: float
 
@@ -66,9 +66,9 @@ class GetVelocityHandler(QueryHandler[list[VelocityPointDTO]]):
         manifest_done = resolve_burndown_done_states(manifest)
         effective_done = query.done_states if query.done_states != DEFAULT_BURNDOWN_DONE_STATES else manifest_done
 
-        cycle_ids = query.cycle_node_ids
-        if query.release_cycle_node_id:
-            release_node = await self._cycle_repo.find_by_id(query.release_cycle_node_id)
+        cycle_ids = query.cycle_ids
+        if query.release_id:
+            release_node = await self._cycle_repo.find_by_id(query.release_id)
             if release_node and release_node.project_id == query.project_id:
                 all_cycles = await self._cycle_repo.list_by_project(query.project_id)
                 release_path = getattr(release_node, "path", "") or ""
@@ -98,7 +98,7 @@ class GetVelocityHandler(QueryHandler[list[VelocityPointDTO]]):
 
         return [
             VelocityPointDTO(
-                cycle_node_id=cid,
+                cycle_id=cid,
                 cycle_name=name_by_id.get(cid, ""),
                 total_effort=sum_by_id.get(cid, 0.0),
             )

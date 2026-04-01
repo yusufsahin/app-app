@@ -20,7 +20,7 @@ Bu doküman ALM uygulamasının **mevcut durum** ile **hedef** arasındaki boşl
 | **Rate limit** | Tenant bazlı Redis sliding window, 429 + Retry-After | Tier (Free/Pro/Enterprise) | D2 tamamlandı |
 | **Admin** | Health, access audit, admin user CRUD/soft delete, tenant archive; UI: Members admin, Audit sayfası, Archive org | Admin context | G1–G5 + UI tamamlandı |
 
-**Not:** Sprint entity yok; **Cycle (CycleNode)** ile iteration/planning yapılır. Artifact’lar `cycle_node_id` ile cycle’a atanır.
+**Not:** Sprint entity yok; planlama zaman ekseni domain'de **Cadence**, UI'da ise **Release/Cycle** olarak temsil edilir. Artifact'lar `cycle_id` ile cycle'a atanır.
 
 ---
 
@@ -28,15 +28,15 @@ Bu doküman ALM uygulamasının **mevcut durum** ile **hedef** arasındaki boşl
 
 | Özellik | ALM | Hedef | Gap |
 |--------|-----|-------|-----|
-| Cycle (iteration) tree API | CycleNode CRUD, flat/tree | Var | — |
+| Release/Cycle tree API | Cadence CRUD, flat/tree | Var | — |
 | Area tree API | AreaNode CRUD, rename, move, activate/deactivate | Var | — |
-| Artifact’a cycle/area atama | Backend (cycle_node_id, area_node_id) | Var | — |
+| Artifact’a cycle/area atama | Backend (cycle_id, area_node_id) | Var | — |
 | **Planning UI** | Cycle/area ağacı, Cycle backlog sekmesi, list’te cycle/area filtre | Cycle/area ağacı, artifact atama, list’te cycle/area filtre | — |
-| Backlog / cycle planning ekranı | Cycle backlog (seçili cycle’a göre artifact listesi, cycle atama, View all in Artifacts) | Backlog listesi, cycle’a atama (cycle_node_id) | — |
+| Backlog / cycle planning ekranı | Cycle backlog (seçili cycle’a göre artifact listesi, cycle atama, View all in Artifacts) | Backlog listesi, cycle’a atama (cycle_id) | — |
 | Velocity | Cycle bazlı velocity API + grafik | Raporlama | — ([REMAINING_PLAN.md](./REMAINING_PLAN.md) P4 ✓) |
 | Burndown | Cycle bazlı burndown API + grafik | Raporlama | — ([REMAINING_PLAN.md](./REMAINING_PLAN.md) P5 ✓) |
 | Team | Team + TeamMember, CRUD; artifact/task team_id + filtre | Takım bağlama | — ([REMAINING_PLAN.md](./REMAINING_PLAN.md) P6 ✓) |
-| Capacity (planlanan süre / müsaitlik) | Yok | Sprint/iteration planlama | [PLAN_ADVANCED_ANALYTICS.md](./PLAN_ADVANCED_ANALYTICS.md) A1; ayrıca [PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md](./PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md) §3 |
+| Capacity (planlanan süre / müsaitlik) | Yok | Sprint/cycle planlama | [PLAN_ADVANCED_ANALYTICS.md](./PLAN_ADVANCED_ANALYTICS.md) A1; ayrıca [PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md](./PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md) §3 |
 
 **Özet:** Planning UI, cycle bazlı velocity/burndown ve team bağlamı tamam; **capacity** (kişi veya takım bazlı planlanan saat / availability) ve ileri analitik sonraki aşamada.
 
@@ -70,7 +70,7 @@ Bu doküman ALM uygulamasının **mevcut durum** ile **hedef** arasındaki boşl
 | State | state | Var |
 | Tip | type_filter | Var |
 | Metin arama | q (FTS) | Var |
-| Cycle | cycle_node_id | Var |
+| Cycle | cycle_id | Var |
 | Area | area_node_id | Var |
 
 ---

@@ -33,7 +33,7 @@ export function setPinnedSlugs(orgSlug: string | undefined, slugs: string[]): vo
 }
 
 /** Project-scoped path segments (must match router). */
-export const PROJECT_SEGMENTS = ["manifest", "planning", "artifacts", "board", "automation"] as const;
+export const PROJECT_SEGMENTS = ["manifest", "planning", "backlog", "board", "automation"] as const;
 
 export function getProjectSegment(pathname: string): string | null {
   const parts = pathname.split("/").filter(Boolean);

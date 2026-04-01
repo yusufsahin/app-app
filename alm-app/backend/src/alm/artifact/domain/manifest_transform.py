@@ -16,21 +16,21 @@ def to_ast(manifest_bundle: dict[str, Any]) -> Any:
 
 
 def manifest_defs_to_flat(manifest_bundle: dict[str, Any]) -> dict[str, Any]:
-    """Convert defs format to flat workflows + artifact_types + link_types for frontend consumption."""
+    """Convert defs format to flat workflows + artifact_types + relationship_types for frontend consumption."""
     if not manifest_bundle:
-        return {"workflows": [], "artifact_types": [], "link_types": []}
+        return {"workflows": [], "artifact_types": [], "relationship_types": []}
 
     defs_list = manifest_bundle.get("defs", [])
     if not defs_list:
         return {
             "workflows": list(manifest_bundle.get("workflows") or []),
             "artifact_types": list(manifest_bundle.get("artifact_types") or []),
-            "link_types": list(manifest_bundle.get("link_types") or []),
+            "relationship_types": list(manifest_bundle.get("relationship_types") or []),
         }
 
     workflows: list[dict[str, Any]] = []
     artifact_types: list[dict[str, Any]] = []
-    link_types: list[dict[str, Any]] = []
+    relationship_types: list[dict[str, Any]] = []
 
     for d in defs_list:
         if not isinstance(d, dict):
@@ -89,9 +89,9 @@ def manifest_defs_to_flat(manifest_bundle: dict[str, Any]) -> dict[str, Any]:
             ):
                 if d.get(opt) is not None:
                     lt[opt] = d[opt]
-            link_types.append(lt)
+            relationship_types.append(lt)
 
-    return {"workflows": workflows, "artifact_types": artifact_types, "link_types": link_types}
+    return {"workflows": workflows, "artifact_types": artifact_types, "relationship_types": relationship_types}
 
 
 def _humanize_id(obj_id: str) -> str:

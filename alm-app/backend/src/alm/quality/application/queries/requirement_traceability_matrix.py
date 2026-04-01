@@ -17,7 +17,6 @@ from alm.artifact.domain.manifest_workflow_metadata import (
     resolve_tree_root_artifact_type,
 )
 from alm.artifact.domain.ports import ArtifactRepository
-from alm.artifact_link.domain.ports import ArtifactLinkRepository
 from alm.config.settings import settings
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
@@ -26,6 +25,8 @@ from alm.quality.application.queries.batch_last_test_execution_status import (
     BatchLastTestExecutionStatusHandler,
     LastTestExecutionStatusDTO,
 )
+from alm.relationship.domain.ports import RelationshipRepository
+from alm.relationship.domain.types import VERIFIES
 from alm.shared.application.query import Query, QueryHandler
 from alm.shared.domain.exceptions import ValidationError
 
@@ -43,7 +44,7 @@ class RequirementTraceabilityMatrix(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     under_artifact_id: uuid.UUID | None = None
-    link_types: tuple[str, ...] = ("verifies",)
+    relationship_types: tuple[str, ...] = (VERIFIES,)
     include_reverse_verifies: bool = True
     scope_run_id: uuid.UUID | None = None
     scope_suite_id: uuid.UUID | None = None
@@ -86,7 +87,7 @@ class TraceabilityRelationshipDTO:
     test_id: uuid.UUID
     test_artifact_key: str | None
     test_title: str
-    link_type: str
+    relationship_type: str
     status: str | None
     run_id: uuid.UUID | None
     run_title: str | None
@@ -107,7 +108,7 @@ class RequirementTraceabilityMatrixSummary(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     under_artifact_id: uuid.UUID | None = None
-    link_types: tuple[str, ...] = ("verifies",)
+    relationship_types: tuple[str, ...] = (VERIFIES,)
     include_reverse_verifies: bool = True
     scope_run_id: uuid.UUID | None = None
     scope_suite_id: uuid.UUID | None = None
@@ -188,7 +189,7 @@ def _summary_cache_set(key: str, val: RequirementTraceabilityMatrixSummaryResult
 
 
 def _cache_key(q: RequirementTraceabilityMatrix) -> str:
-    lt = ",".join(sorted(q.link_types))
+    lt = ",".join(sorted(q.relationship_types))
     return "|".join(
         [
             str(q.project_id),
@@ -204,7 +205,7 @@ def _cache_key(q: RequirementTraceabilityMatrix) -> str:
 
 
 def _summary_cache_key(q: RequirementTraceabilityMatrixSummary) -> str:
-    lt = ",".join(sorted(q.link_types))
+    lt = ",".join(sorted(q.relationship_types))
     return "|".join(
         [
             "summary",
@@ -238,7 +239,7 @@ class _MatrixPreparedContext:
     full_tree_total: int
     subtree_total: int
     artifacts: list[Any]
-    link_types: list[str]
+    relationship_types: list[str]
 
 
 async def _prepare_matrix_context(
@@ -280,7 +281,7 @@ async def _prepare_matrix_context(
             full_tree_total=0,
             subtree_total=0,
             artifacts=[],
-            link_types=list(query.link_types) if query.link_types else ["verifies"],
+            relationship_types=list(query.relationship_types) if query.relationship_types else ["verifies"],
         )
 
     root_artifact_id = roots[0].id
@@ -326,7 +327,7 @@ async def _prepare_matrix_context(
         full_tree_total=full_tree_total,
         subtree_total=subtree_total,
         artifacts=artifacts,
-        link_types=list(query.link_types) if query.link_types else ["verifies"],
+        relationship_types=list(query.relationship_types) if query.relationship_types else ["verifies"],
     )
 
 
@@ -337,12 +338,12 @@ class RequirementTraceabilityMatrixHandler(
         self,
         project_repo: ProjectRepository,
         artifact_repo: ArtifactRepository,
-        link_repo: ArtifactLinkRepository,
+        relationship_repo: RelationshipRepository,
         process_template_repo: ProcessTemplateRepository,
     ) -> None:
         self._project_repo = project_repo
         self._artifact_repo = artifact_repo
-        self._link_repo = link_repo
+        self._relationship_repo = relationship_repo
         self._process_template_repo = process_template_repo
 
     async def handle(self, query: Query) -> RequirementTraceabilityMatrixResult:
@@ -405,42 +406,42 @@ class RequirementTraceabilityMatrixHandler(
         leaf_ids = {n for n in node_ids if not children[n]}
         leaf_artifacts = [a for a in nodes_cover if a.id in leaf_ids]
 
-        link_types = ctx.link_types
+        relationship_types = ctx.relationship_types
         req_ids_list = list(leaf_ids)
         tests_by_req: dict[uuid.UUID, set[uuid.UUID]] = defaultdict(set)
-        link_type_by_pair: dict[tuple[uuid.UUID, uuid.UUID], str] = {}
+        relationship_type_by_pair: dict[tuple[uuid.UUID, uuid.UUID], str] = {}
 
         for i in range(0, len(req_ids_list), LINK_QUERY_CHUNK):
             chunk = req_ids_list[i : i + LINK_QUERY_CHUNK]
-            links_in = await self._link_repo.list_links_to_artifacts(
-                query.project_id, chunk, link_types
+            links_in = await self._relationship_repo.list_relationships_to_artifacts(
+                query.project_id, chunk, relationship_types
             )
             for ln in links_in:
-                tests_by_req[ln.to_artifact_id].add(ln.from_artifact_id)
-                link_type_by_pair[(ln.to_artifact_id, ln.from_artifact_id)] = ln.link_type
+                tests_by_req[ln.target_artifact_id].add(ln.source_artifact_id)
+                relationship_type_by_pair[(ln.target_artifact_id, ln.source_artifact_id)] = ln.relationship_type
 
         if query.include_reverse_verifies:
             for i in range(0, len(req_ids_list), LINK_QUERY_CHUNK):
                 chunk = req_ids_list[i : i + LINK_QUERY_CHUNK]
-                out_links = await self._link_repo.list_outgoing_links_from_artifacts(
+                out_links = await self._relationship_repo.list_outgoing_relationships_from_artifacts(
                     query.project_id, chunk
                 )
                 cand_tos: list[uuid.UUID] = []
                 for ln in out_links:
-                    if ln.link_type not in link_types:
+                    if ln.relationship_type not in relationship_types:
                         continue
-                    cand_tos.append(ln.to_artifact_id)
+                    cand_tos.append(ln.target_artifact_id)
                 if not cand_tos:
                     continue
                 uniq = list({x for x in cand_tos})
                 arts = await self._artifact_repo.list_by_ids_in_project(query.project_id, uniq)
                 test_ids = {a.id for a in arts if a.artifact_type == "test-case"}
                 for ln in out_links:
-                    if ln.link_type not in link_types:
+                    if ln.relationship_type not in relationship_types:
                         continue
-                    if ln.to_artifact_id in test_ids:
-                        tests_by_req[ln.from_artifact_id].add(ln.to_artifact_id)
-                        link_type_by_pair[(ln.from_artifact_id, ln.to_artifact_id)] = ln.link_type
+                    if ln.target_artifact_id in test_ids:
+                        tests_by_req[ln.source_artifact_id].add(ln.target_artifact_id)
+                        relationship_type_by_pair[(ln.source_artifact_id, ln.target_artifact_id)] = ln.relationship_type
 
         # Drop empty rows early so the matrix stays requirement-leaf oriented and bounded.
         candidate_leafs = [a for a in leaf_artifacts if tests_by_req.get(a.id)]
@@ -465,7 +466,7 @@ class RequirementTraceabilityMatrixHandler(
         batch_handler = BatchLastTestExecutionStatusHandler(
             project_repo=self._project_repo,
             artifact_repo=self._artifact_repo,
-            link_repo=self._link_repo,
+            relationship_repo=self._relationship_repo,
         )
         status_by_test: dict[uuid.UUID, LastTestExecutionStatusDTO] = {}
         for i in range(0, len(all_test_ids), TEST_STATUS_CHUNK):
@@ -575,7 +576,7 @@ class RequirementTraceabilityMatrixHandler(
                         test_title=test_artifact_by_id.get(tid).title
                         if tid in test_artifact_by_id
                         else str(tid),
-                        link_type=link_type_by_pair.get((art.id, tid), "verifies"),
+                        relationship_type=relationship_type_by_pair.get((art.id, tid), "verifies"),
                         status=dto.status if dto else None,
                         run_id=dto.run_id if dto else None,
                         run_title=dto.run_title if dto else None,
@@ -619,12 +620,12 @@ class RequirementTraceabilityMatrixSummaryHandler(
         self,
         project_repo: ProjectRepository,
         artifact_repo: ArtifactRepository,
-        link_repo: ArtifactLinkRepository,
+        relationship_repo: RelationshipRepository,
         process_template_repo: ProcessTemplateRepository,
     ) -> None:
         self._project_repo = project_repo
         self._artifact_repo = artifact_repo
-        self._link_repo = link_repo
+        self._relationship_repo = relationship_repo
         self._process_template_repo = process_template_repo
 
     async def handle(self, query: Query) -> RequirementTraceabilityMatrixSummaryResult:
@@ -697,23 +698,23 @@ class RequirementTraceabilityMatrixSummaryHandler(
         tests_by_req: dict[uuid.UUID, set[uuid.UUID]] = defaultdict(set)
         for i in range(0, len(req_ids_list), LINK_QUERY_CHUNK):
             chunk = req_ids_list[i : i + LINK_QUERY_CHUNK]
-            links_in = await self._link_repo.list_links_to_artifacts(query.project_id, chunk, ctx.link_types)
+            links_in = await self._relationship_repo.list_relationships_to_artifacts(query.project_id, chunk, ctx.relationship_types)
             for ln in links_in:
-                tests_by_req[ln.to_artifact_id].add(ln.from_artifact_id)
+                tests_by_req[ln.target_artifact_id].add(ln.source_artifact_id)
 
         if query.include_reverse_verifies:
             for i in range(0, len(req_ids_list), LINK_QUERY_CHUNK):
                 chunk = req_ids_list[i : i + LINK_QUERY_CHUNK]
-                out_links = await self._link_repo.list_outgoing_links_from_artifacts(query.project_id, chunk)
-                cand_tos = [ln.to_artifact_id for ln in out_links if ln.link_type in ctx.link_types]
+                out_links = await self._relationship_repo.list_outgoing_relationships_from_artifacts(query.project_id, chunk)
+                cand_tos = [ln.target_artifact_id for ln in out_links if ln.relationship_type in ctx.relationship_types]
                 if not cand_tos:
                     continue
                 uniq = list({x for x in cand_tos})
                 arts = await self._artifact_repo.list_by_ids_in_project(query.project_id, uniq)
                 test_ids = {a.id for a in arts if a.artifact_type == "test-case"}
                 for ln in out_links:
-                    if ln.link_type in ctx.link_types and ln.to_artifact_id in test_ids:
-                        tests_by_req[ln.from_artifact_id].add(ln.to_artifact_id)
+                    if ln.relationship_type in ctx.relationship_types and ln.target_artifact_id in test_ids:
+                        tests_by_req[ln.source_artifact_id].add(ln.target_artifact_id)
 
         test_ids_all = list({tid for tids in tests_by_req.values() for tid in tids})
         test_artifact_by_id: dict[uuid.UUID, Any] = {}

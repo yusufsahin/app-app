@@ -21,9 +21,9 @@ Her projede **dört kök artifact** vardır: **Root-Requirement** (Requirements 
 - **Test artifact:** Root-Tests altındaki iş öğeleri (`test-folder`, `test-case`).
 - **Campaign tree artifacts:** Root-TestSuites altındaki iş öğeleri (`testsuite-folder` = koleksiyon, `test-suite`, `test-run`, `test-campaign`).
 - **Defect artifact:** Root-Defect altındaki hata/defect tipleri (defect, bug vb.).
-- **Trace (artifact link):** İki artifact arasındaki ilişki; `link_type` örn. `verifies`, `tests`, `blocks`. Requirement–quality ve defect–test izlenebilirliği için kullanılır.
+- **Trace (relationship):** İki artifact arasındaki ilişki; `relationship_type` örn. `verifies`, `tests`, `blocks`. Requirement–quality ve defect–test izlenebilirliği için kullanılır.
 
 ## İleride
 
 - Quality modülü (TestCase, TestRun, execution) Root-Quality altında genişleyecek.
-- Trace için mevcut artifact link (`link_type=verifies` / `tests`) kullanılır; ek trace tablosu yok.
+- Trace için mevcut relationship modeli (`relationship_type=verifies` / `tests`) kullanılır; ek trace tablosu yok.

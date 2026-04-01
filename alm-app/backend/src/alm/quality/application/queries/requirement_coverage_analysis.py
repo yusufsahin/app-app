@@ -17,7 +17,6 @@ from alm.artifact.domain.manifest_workflow_metadata import (
     resolve_tree_root_artifact_type,
 )
 from alm.artifact.domain.ports import ArtifactRepository
-from alm.artifact_link.domain.ports import ArtifactLinkRepository
 from alm.config.settings import settings
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.domain.ports import ProjectRepository
@@ -32,6 +31,8 @@ from alm.quality.application.requirement_coverage_rollups import (
     accumulate_subtree_counts_for_leaves,
     worst_status_among_tests,
 )
+from alm.relationship.domain.ports import RelationshipRepository
+from alm.relationship.domain.types import VERIFIES
 from alm.shared.application.query import Query, QueryHandler
 from alm.shared.domain.exceptions import ValidationError
 
@@ -47,7 +48,7 @@ class RequirementCoverageAnalysis(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     under_artifact_id: uuid.UUID | None = None
-    link_types: tuple[str, ...] = ("verifies",)
+    relationship_types: tuple[str, ...] = (VERIFIES,)
     include_reverse_verifies: bool = True
     scope_run_id: uuid.UUID | None = None
     scope_suite_id: uuid.UUID | None = None
@@ -116,7 +117,7 @@ def _cache_set(key: str, val: RequirementCoverageAnalysisResult) -> None:
 
 
 def _cache_key(q: RequirementCoverageAnalysis) -> str:
-    lt = ",".join(sorted(q.link_types))
+    lt = ",".join(sorted(q.relationship_types))
     return "|".join(
         [
             str(q.project_id),
@@ -135,12 +136,12 @@ class RequirementCoverageAnalysisHandler(QueryHandler[RequirementCoverageAnalysi
         self,
         project_repo: ProjectRepository,
         artifact_repo: ArtifactRepository,
-        link_repo: ArtifactLinkRepository,
+        relationship_repo: RelationshipRepository,
         process_template_repo: ProcessTemplateRepository,
     ) -> None:
         self._project_repo = project_repo
         self._artifact_repo = artifact_repo
-        self._link_repo = link_repo
+        self._relationship_repo = relationship_repo
         self._process_template_repo = process_template_repo
 
     async def handle(self, query: Query) -> RequirementCoverageAnalysisResult:
@@ -256,46 +257,46 @@ class RequirementCoverageAnalysisHandler(QueryHandler[RequirementCoverageAnalysi
         leaf_ids = {n for n in node_ids if not children[n]}
         parent_by_id = {a.id: a.parent_id for a in nodes_cover}
 
-        link_types = list(query.link_types) if query.link_types else ["verifies"]
+        relationship_types = list(query.relationship_types) if query.relationship_types else ["verifies"]
         req_ids_list = list(node_ids)
 
         tests_by_req: dict[uuid.UUID, set[uuid.UUID]] = defaultdict(set)
         for i in range(0, len(req_ids_list), LINK_QUERY_CHUNK):
             chunk = req_ids_list[i : i + LINK_QUERY_CHUNK]
-            links_in = await self._link_repo.list_links_to_artifacts(
-                query.project_id, chunk, link_types
+            links_in = await self._relationship_repo.list_relationships_to_artifacts(
+                query.project_id, chunk, relationship_types
             )
             for ln in links_in:
-                tests_by_req[ln.to_artifact_id].add(ln.from_artifact_id)
+                tests_by_req[ln.target_artifact_id].add(ln.source_artifact_id)
 
         if query.include_reverse_verifies:
             for i in range(0, len(req_ids_list), LINK_QUERY_CHUNK):
                 chunk = req_ids_list[i : i + LINK_QUERY_CHUNK]
-                out_links = await self._link_repo.list_outgoing_links_from_artifacts(
+                out_links = await self._relationship_repo.list_outgoing_relationships_from_artifacts(
                     query.project_id, chunk
                 )
                 cand_tos: list[uuid.UUID] = []
                 for ln in out_links:
-                    if ln.link_type not in link_types:
+                    if ln.relationship_type not in relationship_types:
                         continue
-                    cand_tos.append(ln.to_artifact_id)
+                    cand_tos.append(ln.target_artifact_id)
                 if not cand_tos:
                     continue
                 uniq = list({x for x in cand_tos})
                 arts = await self._artifact_repo.list_by_ids_in_project(query.project_id, uniq)
                 test_ids = {a.id for a in arts if a.artifact_type == "test-case"}
                 for ln in out_links:
-                    if ln.link_type not in link_types:
+                    if ln.relationship_type not in relationship_types:
                         continue
-                    if ln.to_artifact_id in test_ids:
-                        tests_by_req[ln.from_artifact_id].add(ln.to_artifact_id)
+                    if ln.target_artifact_id in test_ids:
+                        tests_by_req[ln.source_artifact_id].add(ln.target_artifact_id)
 
         all_test_ids = list({t for s in tests_by_req.values() for t in s})
 
         batch_handler = BatchLastTestExecutionStatusHandler(
             project_repo=self._project_repo,
             artifact_repo=self._artifact_repo,
-            link_repo=self._link_repo,
+            relationship_repo=self._relationship_repo,
         )
         status_by_test: dict[uuid.UUID, LastTestExecutionStatusDTO] = {}
         for i in range(0, len(all_test_ids), TEST_STATUS_CHUNK):

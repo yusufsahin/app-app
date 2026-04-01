@@ -16,13 +16,33 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-/** On 401 (Unauthorized) only: token invalid/expired → logout and redirect to login. 403 = no permission, do not redirect. */
-function redirectToLogin(): void {
-  useAuthStore.getState().logout();
-  if (typeof window === "undefined") return;
+function buildAppUrl(path: string): string {
+  if (typeof window === "undefined") return path;
   const base =
     window.location.origin + (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-  if (base) window.location.href = `${base}/login`;
+  return `${base}${path}`;
+}
+
+function redirectToLogin(reason?: "session-expired" | "tenant-context"): void {
+  useAuthStore.getState().logout();
+  if (typeof window === "undefined") return;
+  const suffix = reason ? `?reason=${reason}` : "";
+  window.location.href = buildAppUrl(`/login${suffix}`);
+}
+
+function isTenantContextError(problem: ProblemDetail | undefined, requestUrl: string | undefined): boolean {
+  const detail = (problem?.detail ?? "").toLowerCase();
+  const normalizedUrl = (requestUrl ?? "").toLowerCase();
+
+  if (
+    detail.includes("switch to this organization first") ||
+    detail.includes("tenant context") ||
+    detail.includes("token type must be 'access'")
+  ) {
+    return true;
+  }
+
+  return normalizedUrl === "/auth/me" || normalizedUrl === "/tenants/" || normalizedUrl === "/tenants";
 }
 
 apiClient.interceptors.response.use(
@@ -31,10 +51,14 @@ apiClient.interceptors.response.use(
     if (axios.isAxiosError(error) && error.response) {
       const status = error.response.status;
       if (status === 401) {
-        redirectToLogin();
+        redirectToLogin("session-expired");
         return Promise.reject(error);
       }
       const problem = error.response.data as ProblemDetail;
+      if (status === 403 && isTenantContextError(problem, error.config?.url)) {
+        redirectToLogin("tenant-context");
+        return Promise.reject(problem);
+      }
       return Promise.reject(problem);
     }
     return Promise.reject(error);

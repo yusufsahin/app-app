@@ -26,7 +26,7 @@ class ArtifactDTO:
     state_reason: str | None = None
     resolution: str | None = None
     rank_order: float | None = None
-    cycle_node_id: uuid.UUID | None = None
+    cycle_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
     area_path_snapshot: str | None = None
     team_id: uuid.UUID | None = None

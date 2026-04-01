@@ -23,7 +23,7 @@ class CapacityModel(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    cycle_node_id: Mapped[uuid.UUID | None] = mapped_column(
+    cycle_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("cycle_nodes.id", ondelete="SET NULL"),
         nullable=True,

@@ -1,14 +1,14 @@
 /**
- * Planning API: cycle nodes (iterations) and area nodes (area path) for a project.
+ * Planning API: cadences (release/cycle) and area nodes for a project.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
 
-// ── Cycle nodes (iterations) ──
+// ── Cadences (releases/cycles) ──
 
-export type IncrementType = "release" | "iteration";
+export type CadenceType = "release" | "cycle";
 
-export interface Increment {
+export interface Cadence {
   id: string;
   project_id: string;
   name: string;
@@ -20,13 +20,13 @@ export interface Increment {
   start_date: string | null;
   end_date: string | null;
   state: string;
-  type: IncrementType;
+  type: CadenceType;
   created_at: string | null;
   updated_at: string | null;
-  children: Increment[];
+  children: Cadence[];
 }
 
-export interface IncrementCreateRequest {
+export interface CadenceCreateRequest {
   name: string;
   parent_id?: string | null;
   sort_order?: number;
@@ -34,58 +34,58 @@ export interface IncrementCreateRequest {
   start_date?: string | null;
   end_date?: string | null;
   state?: string;
-  type?: IncrementType;
+  type?: CadenceType;
 }
 
-export interface IncrementUpdateRequest {
+export interface CadenceUpdateRequest {
   name?: string;
   goal?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   state?: string | null;
   sort_order?: number | null;
-  type?: IncrementType | null;
+  type?: CadenceType | null;
 }
 
-/** Display label for cycle in dropdowns (name + optional path). */
-export function incrementDisplayLabel(node: { name: string; path?: string }): string {
+/** Display label for a cadence in dropdowns (name + optional path). */
+export function cadenceDisplayLabel(node: { name: string; path?: string }): string {
   return node.path ? `${node.name} (${node.path})` : node.name;
 }
 
-/** Display label with type badge for dropdowns: "Sprint 1 (Iteration)" or "2024-R1 (Release)". */
-function resolveCycleNodeType(node: { type?: IncrementType }): IncrementType {
-  return node.type ?? "iteration";
+/** Display label with type badge for dropdowns: "Cycle 1 · Cycle" or "2026-R1 · Release". */
+function resolveCadenceType(node: { type?: CadenceType }): CadenceType {
+  return node.type ?? "cycle";
 }
 
-export function incrementDisplayLabelWithType(node: { name: string; path?: string; type?: IncrementType }): string {
-  const base = incrementDisplayLabel(node);
-  const k = resolveCycleNodeType(node) === "release" ? "Release" : "Iteration";
+export function cadenceDisplayLabelWithType(node: { name: string; path?: string; type?: CadenceType }): string {
+  const base = cadenceDisplayLabel(node);
+  const k = resolveCadenceType(node) === "release" ? "Release" : "Cycle";
   return `${base} · ${k}`;
 }
 
-/** Get release name for a cycle (parent release node name). cycleTree = flat list with parent_id/path/type. */
+/** Get release name for a cycle cadence (parent release cadence name). */
 export function getReleaseNameForCycle(
-  cycleNodeId: string | null | undefined,
-  cycleTree: Array<{ id: string; parent_id: string | null; path?: string; type?: IncrementType }>,
+  cycleCadenceId: string | null | undefined,
+  cadenceTree: Array<{ id: string; parent_id: string | null; path?: string; type?: CadenceType }>,
 ): string | null {
-  if (!cycleNodeId) return null;
-  const node = cycleTree.find((c) => c.id === cycleNodeId);
+  if (!cycleCadenceId) return null;
+  const node = cadenceTree.find((c) => c.id === cycleCadenceId);
   if (!node) return null;
-  if (resolveCycleNodeType(node) === "release") return node.path ?? null;
+  if (resolveCadenceType(node) === "release") return node.path ?? null;
   if (!node.parent_id) return null;
-  const parent = cycleTree.find((c) => c.id === node.parent_id);
+  const parent = cadenceTree.find((c) => c.id === node.parent_id);
   if (!parent) return null;
-  if (resolveCycleNodeType(parent) === "release") return parent.path ?? parent.id;
-  return getReleaseNameForCycle(parent.id, cycleTree);
+  if (resolveCadenceType(parent) === "release") return parent.path ?? parent.id;
+  return getReleaseNameForCycle(parent.id, cadenceTree);
 }
 
-function normalizeIncrement(node: Increment): Increment {
-  const nodeType = resolveCycleNodeType(node);
-  const children = Array.isArray(node.children) ? node.children.map(normalizeIncrement) : [];
+function normalizeCadence(node: Cadence): Cadence {
+  const nodeType = resolveCadenceType(node);
+  const children = Array.isArray(node.children) ? node.children.map(normalizeCadence) : [];
   return { ...node, type: nodeType, children };
 }
 
-function normalizeIncrementRequest(body: IncrementCreateRequest | IncrementUpdateRequest): Record<string, unknown> {
+function normalizeCadenceRequest(body: CadenceCreateRequest | CadenceUpdateRequest): Record<string, unknown> {
   const out: Record<string, unknown> = { ...body };
   const nodeType = body.type ?? undefined;
   if (nodeType) {
@@ -99,91 +99,91 @@ export function areaNodeDisplayLabel(node: { name: string; path?: string }): str
   return node.path ? `${node.name} (${node.path})` : node.name;
 }
 
-export function useIncrements(
+export function useCadences(
   orgSlug: string | undefined,
   projectId: string | undefined,
   flat = false,
-  type?: IncrementType,
+  type?: CadenceType,
 ) {
   return useQuery({
-    queryKey: ["orgs", orgSlug, "projects", projectId, "increments", flat, type],
-    queryFn: async (): Promise<Increment[]> => {
+    queryKey: ["orgs", orgSlug, "projects", projectId, "cadences", flat, type],
+    queryFn: async (): Promise<Cadence[]> => {
       const params: { flat: boolean; type?: string } = { flat };
       if (type) {
         params.type = type;
       }
-      const { data } = await apiClient.get<Increment[]>(
-        `/orgs/${orgSlug}/projects/${projectId}/increments`,
+      const { data } = await apiClient.get<Cadence[]>(
+        `/orgs/${orgSlug}/projects/${projectId}/cadences`,
         { params },
       );
-      return data.map(normalizeIncrement);
+      return data.map(normalizeCadence);
     },
     enabled: !!orgSlug && !!projectId,
   });
 }
 
-export function useCreateIncrement(
+export function useCreateCadence(
   orgSlug: string | undefined,
   projectId: string | undefined,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (body: IncrementCreateRequest): Promise<Increment> => {
-      const { data } = await apiClient.post<Increment>(
-        `/orgs/${orgSlug}/projects/${projectId}/increments`,
-        normalizeIncrementRequest(body),
+    mutationFn: async (body: CadenceCreateRequest): Promise<Cadence> => {
+      const { data } = await apiClient.post<Cadence>(
+        `/orgs/${orgSlug}/projects/${projectId}/cadences`,
+        normalizeCadenceRequest(body),
       );
-      return normalizeIncrement(data);
+      return normalizeCadence(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["orgs", orgSlug, "projects", projectId, "increments"],
+        queryKey: ["orgs", orgSlug, "projects", projectId, "cadences"],
       });
     },
   });
 }
 
-export function useUpdateIncrement(
+export function useUpdateCadence(
   orgSlug: string | undefined,
   projectId: string | undefined,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      incrementId,
+      cadenceId,
       body,
     }: {
-      incrementId: string;
-      body: IncrementUpdateRequest;
-    }): Promise<Increment> => {
-      const { data } = await apiClient.patch<Increment>(
-        `/orgs/${orgSlug}/projects/${projectId}/increments/${incrementId}`,
-        normalizeIncrementRequest(body),
+      cadenceId: string;
+      body: CadenceUpdateRequest;
+    }): Promise<Cadence> => {
+      const { data } = await apiClient.patch<Cadence>(
+        `/orgs/${orgSlug}/projects/${projectId}/cadences/${cadenceId}`,
+        normalizeCadenceRequest(body),
       );
-      return normalizeIncrement(data);
+      return normalizeCadence(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["orgs", orgSlug, "projects", projectId, "increments"],
+        queryKey: ["orgs", orgSlug, "projects", projectId, "cadences"],
       });
     },
   });
 }
 
-export function useDeleteIncrement(
+export function useDeleteCadence(
   orgSlug: string | undefined,
   projectId: string | undefined,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (incrementId: string): Promise<void> => {
+    mutationFn: async (cadenceId: string): Promise<void> => {
       await apiClient.delete(
-        `/orgs/${orgSlug}/projects/${projectId}/increments/${incrementId}`,
+        `/orgs/${orgSlug}/projects/${projectId}/cadences/${cadenceId}`,
       );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["orgs", orgSlug, "projects", projectId, "increments"],
+        queryKey: ["orgs", orgSlug, "projects", projectId, "cadences"],
       });
     },
   });

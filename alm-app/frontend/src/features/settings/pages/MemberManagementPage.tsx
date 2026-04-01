@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { Button, Card, CardContent, Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter, Skeleton, Badge } from "../../../shared/components/ui";
 import { UserPlus, CircleUser, Trash2, Users, UserX, Settings2 } from "lucide-react";
@@ -16,16 +16,20 @@ import InviteMemberModal from "../components/InviteMemberModal";
 import CreateUserModal from "../components/CreateUserModal";
 import { SettingsPageWrapper } from "../components/SettingsPageWrapper";
 import { OrgSettingsBreadcrumbs } from "../../../shared/components/Layout";
+import { MetadataDrivenGrid } from "../../../shared/components/lists/MetadataDrivenGrid";
+import type { TabularColumnModel } from "../../../shared/components/lists/types";
 
 type MemberRow = TenantMember & { deleted_at?: string | null; role_slugs?: string[] };
 
-const baseColumns: Array<{
+interface MemberColumn {
   field: keyof MemberRow | "actions";
   headerName: string;
   minWidth?: number;
   render?: (row: MemberRow) => React.ReactNode;
   valueFormatter?: (value: unknown, row: MemberRow) => string;
-}> = [
+}
+
+const baseColumns: MemberColumn[] = [
   {
     field: "display_name",
     headerName: "Name",
@@ -123,7 +127,7 @@ export default function MemberManagementPage() {
       }))
     : (orgMembers ?? []).map((m) => ({ ...m, deleted_at: null }));
 
-  const allColumns = [
+  const allColumns: MemberColumn[] = [
     ...baseColumns,
     ...(includeDeleted
       ? [
@@ -157,6 +161,31 @@ export default function MemberManagementPage() {
         ]
       : []),
   ];
+
+  const gridColumns = useMemo<TabularColumnModel<MemberRow>[]>(() => allColumns
+    .filter((column) => column.field !== "actions")
+    .map((column) => ({
+      key: String(column.field),
+      label: column.headerName,
+      width: column.minWidth,
+      editorKind: "readonly",
+      isSupported: true,
+      isEditable: () => false,
+      getRawValue: (row) => row[column.field as keyof MemberRow],
+      getDisplayValue: (row, value) => {
+        if (column.render) {
+          const rendered = column.render(row);
+          return typeof rendered === "string" ? rendered : "";
+        }
+        if (column.valueFormatter) {
+          return column.valueFormatter(value, row);
+        }
+        return value != null && value !== "" ? String(value) : "—";
+      },
+      renderDisplay: column.render
+        ? (row) => column.render?.(row)
+        : undefined,
+    })), [allColumns]);
 
   const handleConfirmRemove = async () => {
     if (!removeDialogUser) return;
@@ -261,46 +290,16 @@ export default function MemberManagementPage() {
       )}
 
       <div className="overflow-hidden rounded-lg border bg-card">
-        <table className="w-full table-auto border-collapse text-left text-sm">
-          <thead className="bg-muted/50 font-semibold">
-            <tr>
-              {allColumns.map((col) => (
-                <th key={col.field} className="border-b px-4 py-3" style={{ minWidth: col.minWidth }}>
-                  {col.headerName}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.user_id} className="border-b last:border-0 hover:bg-muted/30">
-                {allColumns.map((col) => {
-                  if (col.field === "actions" && col.render) {
-                    return (
-                      <td key={col.field} className="px-4 py-2">
-                        {col.render(row)}
-                      </td>
-                    );
-                  }
-                  if (col.render) {
-                    return (
-                      <td key={col.field} className="px-4 py-2" style={{ minWidth: col.minWidth }}>
-                        {col.render(row)}
-                      </td>
-                    );
-                  }
-                  const raw = row[col.field as keyof MemberRow];
-                  const value = "valueFormatter" in col && col.valueFormatter ? col.valueFormatter(raw, row) : raw != null ? String(raw) : "—";
-                  return (
-                    <td key={col.field} className="px-4 py-2" style={{ minWidth: col.minWidth }}>
-                      {value}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <MetadataDrivenGrid<MemberRow>
+          columns={gridColumns}
+          data={rows}
+          getRowKey={(row) => row.user_id}
+          emptyMessage="No members found."
+          renderRowActions={includeDeleted ? (row) => {
+            const actionsColumn = allColumns.find((column) => column.field === "actions");
+            return actionsColumn?.render?.(row) ?? null;
+          } : undefined}
+        />
       </div>
 
       <InviteMemberModal

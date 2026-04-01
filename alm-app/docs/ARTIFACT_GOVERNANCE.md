@@ -41,10 +41,10 @@ Ortam değişkeni: `GATE_TIER` (`pr` \| `nightly` \| `release`). Varsayılan: `p
 - `scripts/flaky_quarantine_check.py` — Release tier quarantine
 - `scripts/report.py` — KPI özet çıktısı
 - `scripts/risk_gate.py` — Zincir: `--phase preflight` (validate + risk + select + flaky_quarantine) veya `--phase posttest` (derive + run_gates + publish + report + kpi_threshold_check)
-- `scripts/export_traceability_graph.py` — `artifact_links` + `artifacts.custom_fields.governance_artifact_id` → YAML (inceleme sonrası `traceability_graph.yaml` ile birleştirilir)
+- `scripts/export_traceability_graph.py` — relationship verisi + `artifacts.custom_fields.governance_artifact_id` → YAML (inceleme sonrası `traceability_graph.yaml` ile birleştirilir)
 
-## artifact_link (ürün içi)
+## relationships (ürün içi)
 
-Çalışan uygulamada traceability için birincil kaynak `artifact_links` API/modelidir; CI’da graf doğrulaması için `traceability_graph.yaml` senkron tutulabilir veya export edilebilir.
+Çalışan uygulamada traceability için birincil kaynak `relationships` API/modelidir; CI’da graf doğrulaması için `traceability_graph.yaml` senkron tutulabilir veya export edilebilir.
 
-**Export eşlemesi:** Uç artifact kayıtlarında `custom_fields.governance_artifact_id` değeri, `artifact_catalog.yaml` içindeki `artifact_id` ile aynı olmalıdır (aksi halde satır atlanır). `settings.seed_demo_data` açıkken demo kurulumu, örnek `artifact_link` satırları ve bu alanlarla doldurulmuş üç governance-anchor kaydı oluşturur (`seed_demo_data`).
+**Export eşlemesi:** Uç artifact kayıtlarında `custom_fields.governance_artifact_id` değeri, `artifact_catalog.yaml` içindeki `artifact_id` ile aynı olmalıdır (aksi halde satır atlanır). `settings.seed_demo_data` açıkken demo kurulumu, örnek relationship kayıtları ve bu alanlarla doldurulmuş üç governance-anchor kaydı oluşturur (`seed_demo_data`).

@@ -99,7 +99,7 @@ export function QualityHubHeader({
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Quality</h1>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Work items under the Quality tree in this project. Same data as Artifacts with a quality-focused entry
+              Work items under the Quality tree in this project. Same data as Backlog with a quality-focused entry
               and optional traceability links between artifacts.
             </p>
           </div>
@@ -119,7 +119,7 @@ export function QualityHubHeader({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Quality tree</CardTitle>
-            <CardDescription>Artifacts under the manifest Quality root (excluding list pagination).</CardDescription>
+            <CardDescription>Backlog items under the manifest Quality root (excluding list pagination).</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingTotal ? (

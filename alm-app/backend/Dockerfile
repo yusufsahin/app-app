@@ -26,6 +26,6 @@ COPY alm-manifest-app/alm-app/backend/alembic.ini .
 COPY alm-manifest-app/alm-app/backend/alm_meta/ alm_meta/
 COPY alm-manifest-app/alm-app/backend/scripts/docker_verify_schema.py scripts/
 COPY alm-manifest-app/alm-app/backend/entrypoint.sh .
-RUN chmod +x entrypoint.sh
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 EXPOSE 8000
 ENTRYPOINT ["./entrypoint.sh"]

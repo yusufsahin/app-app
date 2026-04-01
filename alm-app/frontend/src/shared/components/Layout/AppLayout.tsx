@@ -54,6 +54,7 @@ import { useNotificationStore } from "../../stores/notificationStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { hasPermission } from "../../utils/permissions";
 import { useRealtime } from "../../realtime/useRealtime";
+import { useLayoutUI } from "../../contexts/LayoutUIContext";
 import { ThemeToggle } from "../../../app/theme/ThemeToggle";
 import CreateProjectModal from "../../../features/projects/components/CreateProjectModal";
 import { ManualExecutionModalHost } from "../../../features/quality/components/ManualExecutionModalHost";
@@ -87,12 +88,17 @@ const NAV_ITEMS: NavItem[] = [
 
 const PROJECT_NAV_ITEMS: NavItem[] = [
   { label: "Overview", path: "", icon: <FolderOpen className="size-4" />, permission: "project:read" },
-  { label: "Artifacts", path: "artifacts", icon: <List className="size-4" />, permission: "artifact:read" },
+  { label: "Backlog", path: "backlog", icon: <List className="size-4" />, permission: "artifact:read" },
   { label: "Quality", path: "quality", icon: <ClipboardCheck className="size-4" />, permission: "artifact:read" },
   { label: "Board", path: "board", icon: <Columns className="size-4" />, permission: "artifact:read" },
   { label: "Planning", path: "planning", icon: <Calendar className="size-4" />, permission: "project:read" },
   { label: "Automation", path: "automation", icon: <Sparkles className="size-4" />, permission: "project:read" },
 ];
+
+const PROJECT_OVERVIEW_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "");
+const PROJECT_WORK_ITEMS = PROJECT_NAV_ITEMS.filter((item) => ["backlog", "board", "planning"].includes(item.path));
+const PROJECT_QUALITY_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "quality");
+const PROJECT_AUTOMATION_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "automation");
 
 export default function AppLayout() {
   const { t } = useTranslation("quality");
@@ -133,6 +139,7 @@ export default function AppLayout() {
   const [tenantPopoverOpen, setTenantPopoverOpen] = useState(false);
   const createModalOpen = useProjectStore((s) => s.listState.createModalOpen);
   const setCreateModalOpen = useProjectStore((s) => s.setCreateModalOpen);
+  const { sidebarCollapsed, setSidebarCollapsed } = useLayoutUI();
 
   useEffect(() => {
     if (!orgSlug) return;
@@ -197,7 +204,7 @@ export default function AppLayout() {
       const artifactRead = hasPermission(permissions, "artifact:read");
       const projectRead = hasPermission(permissions, "project:read");
       if (artifactRead) {
-        quickLinks.push({ id: "goto-artifacts", label: "Go to Artifacts", path: `/${orgSlug}/${projectSlug}/artifacts`, icon: <List className="size-4" /> });
+        quickLinks.push({ id: "goto-backlog", label: "Go to Backlog", path: `/${orgSlug}/${projectSlug}/backlog`, icon: <List className="size-4" /> });
         quickLinks.push({ id: "goto-quality", label: "Go to Quality", path: `/${orgSlug}/${projectSlug}/quality`, icon: <ClipboardCheck className="size-4" /> });
         quickLinks.push({
           id: "goto-quality-trace",
@@ -320,10 +327,49 @@ export default function AppLayout() {
     if (item.permissionAny) return item.permissionAny.some((p) => hasPermission(permissions, p));
     return true;
   });
+  const projectOverviewItems = PROJECT_OVERVIEW_ITEMS.filter((item) => projectNavItems.includes(item));
+  const projectWorkItems = PROJECT_WORK_ITEMS.filter((item) => projectNavItems.includes(item));
+  const projectQualityItems = PROJECT_QUALITY_ITEMS.filter((item) => projectNavItems.includes(item));
+  const projectAutomationItems = PROJECT_AUTOMATION_ITEMS.filter((item) => projectNavItems.includes(item));
+
+  const renderProjectNavItem = (item: NavItem) => {
+    const basePath = orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "";
+    const fullPath = item.path ? `${basePath}/${item.path}` : basePath;
+    const isActive = item.path === ""
+      ? location.pathname === basePath || location.pathname === `${basePath}/`
+      : location.pathname.startsWith(`${basePath}/${item.path}`);
+    return (
+      <div key={item.path || "overview"}>
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+            <Link to={fullPath}>{item.icon}<span>{item.label}</span></Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+        {item.path === "quality" && !sidebarCollapsed ? (
+          <div className="ml-4 mt-1 space-y-1 border-l border-sidebar-border/60 pl-2">
+            {qualitySubnavItems.map((sub) => {
+              const subPath = `${basePath}/${sub.path}`;
+              const subActive = location.pathname.startsWith(subPath);
+              return (
+                <SidebarMenuItem key={sub.path}>
+                  <SidebarMenuButton asChild isActive={subActive} tooltip={sub.label}>
+                    <Link to={subPath}>{sub.icon}<span>{sub.label}</span></Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
-    <SidebarProvider>
-      <Sidebar>
+    <SidebarProvider
+      open={!sidebarCollapsed}
+      onOpenChange={(open) => setSidebarCollapsed(!open)}
+    >
+      <Sidebar collapsible="icon">
         <SidebarHeader className="border-b border-sidebar-border">
           <Popover open={tenantPopoverOpen} onOpenChange={setTenantPopoverOpen}>
             <PopoverTrigger asChild>
@@ -335,7 +381,7 @@ export default function AppLayout() {
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <Network className="size-5" />
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className={`min-w-0 flex-1 ${sidebarCollapsed ? "hidden" : ""}`}>
                   <p className="truncate text-sm font-semibold">{currentTenant?.name ?? "ALM"}</p>
                   <p className="truncate text-xs text-muted-foreground">Management Suite</p>
                 </div>
@@ -397,40 +443,31 @@ export default function AppLayout() {
               <SidebarSeparator />
               <SidebarGroup>
                 <SidebarGroupLabel>Project</SidebarGroupLabel>
-                <ProjectSwitcher onNavigate={() => {}} />
-                <SidebarMenu>
-                  {projectNavItems.map((item) => {
-                    const basePath = orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "";
-                    const fullPath = item.path ? `${basePath}/${item.path}` : basePath;
-                    const isActive = item.path === ""
-                      ? location.pathname === basePath || location.pathname === `${basePath}/`
-                      : location.pathname.startsWith(`${basePath}/${item.path}`);
-                    return (
-                      <div key={item.path || "overview"}>
-                        <SidebarMenuItem>
-                          <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-                            <Link to={fullPath}>{item.icon}<span>{item.label}</span></Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                        {item.path === "quality" ? (
-                          <div className="ml-4 mt-1 space-y-1 border-l border-sidebar-border/60 pl-2">
-                            {qualitySubnavItems.map((sub) => {
-                              const subPath = `${basePath}/${sub.path}`;
-                              const subActive = location.pathname.startsWith(subPath);
-                              return (
-                                <SidebarMenuItem key={sub.path}>
-                                  <SidebarMenuButton asChild isActive={subActive} tooltip={sub.label}>
-                                    <Link to={subPath}>{sub.icon}<span>{sub.label}</span></Link>
-                                  </SidebarMenuButton>
-                                </SidebarMenuItem>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </SidebarMenu>
+                <ProjectSwitcher collapsed={sidebarCollapsed} onNavigate={() => {}} />
+                {projectOverviewItems.length > 0 && (
+                  <>
+                    <SidebarGroupLabel>Overview</SidebarGroupLabel>
+                    <SidebarMenu>{projectOverviewItems.map(renderProjectNavItem)}</SidebarMenu>
+                  </>
+                )}
+                {projectWorkItems.length > 0 && (
+                  <>
+                    <SidebarGroupLabel>Work Management</SidebarGroupLabel>
+                    <SidebarMenu>{projectWorkItems.map(renderProjectNavItem)}</SidebarMenu>
+                  </>
+                )}
+                {projectQualityItems.length > 0 && (
+                  <>
+                    <SidebarGroupLabel>Quality</SidebarGroupLabel>
+                    <SidebarMenu>{projectQualityItems.map(renderProjectNavItem)}</SidebarMenu>
+                  </>
+                )}
+                {projectAutomationItems.length > 0 && (
+                  <>
+                    <SidebarGroupLabel>Automation</SidebarGroupLabel>
+                    <SidebarMenu>{projectAutomationItems.map(renderProjectNavItem)}</SidebarMenu>
+                  </>
+                )}
               </SidebarGroup>
             </>
           )}
@@ -464,7 +501,7 @@ export default function AppLayout() {
                     {userInitial}
                   </AvatarFallback>
                 </Avatar>
-                <div className="min-w-0 flex-1 text-left">
+                <div className={`min-w-0 flex-1 text-left ${sidebarCollapsed ? "hidden" : ""}`}>
                   <p className="truncate text-sm font-medium">{user?.display_name}</p>
                   <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
                 </div>
@@ -560,7 +597,7 @@ export default function AppLayout() {
         groups={commandPaletteGroups}
         onSelect={(path) => navigate(path)}
         placeholder="Search or jump to…"
-        description="Search pages, projects, or go to Artifacts…"
+        description="Search pages, projects, or go to Backlog…"
       />
       {orgSlug && (
         <CreateProjectModal

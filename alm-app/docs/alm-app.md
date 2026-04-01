@@ -698,7 +698,7 @@ def soft_delete_filter(select, compiler, **kw):
 | ------------------- | ------------------- | ----------------------------------------- |
 | Project            | Artifact            | Project silinince Artifact'lar da silinir |
 | Artifact           | Comment, Attachment | Artifact silinince child'lar da silinir   |
-| Task               | (none — standalone) | Task'lar bagimsiz silinir, artifact link kopar |
+| Task               | (none — standalone) | Task'lar bagimsiz silinir, relationship kopar |
 | Tenant             | Tum tenant verileri | Tenant deaktive → tum veri soft-delete    |
 | ManifestDocument   | ManifestVersion     | Document silinince version'lar da silinir |
 
@@ -1083,7 +1083,7 @@ changelog:
     changes:
       - type: added
         kind: Cycle
-        description: "Cycle kind (iteration) eklendi"
+        description: "Cycle kind (release/cycle hiyerarsisi) eklendi"
       - type: modified
         kind: Defect
         prop: severity
@@ -1338,7 +1338,7 @@ flowchart TB
 - Dashboard sayfasi (KPI cards, charts, activity feed)
 - Materialized view projections (`mv_project_summary` vb.)
 - Taskiq job: periyodik materialized view refresh
-- Cycle (CycleNode) zaten var; artifact cycle_node_id atama, cycle bazli filtre
+- Cycle (CycleNode) zaten var; artifact `cycle_id` atama, cycle bazli filtre
 - Search + filtering (PG FTS entegrasyonu ile UI)
 - Raporlama (proje bazli, cycle bazli)
 

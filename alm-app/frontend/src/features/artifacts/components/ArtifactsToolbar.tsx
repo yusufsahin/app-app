@@ -1,7 +1,7 @@
 /**
- * Toolbar for Artifacts page: title, My tasks dropdown, search, view mode, collapsible filters.
+ * Toolbar for Backlog page: title, My tasks dropdown, search, view mode, collapsible filters.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -9,11 +9,9 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
-  Users,
   RefreshCw,
   Save,
   Table2,
-  LayoutGrid,
   Network,
   FilterX,
   Loader2,
@@ -31,24 +29,43 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Label,
+  Checkbox as UICheckbox,
 } from "../../../shared/components/ui";
 import { RhfTextField, RhfSelect, RhfCheckbox } from "../../../shared/components/forms";
 import { modalApi } from "../../../shared/modal";
 import { downloadArtifactsCsv } from "../utils";
 import type { Artifact } from "../../../shared/stores/artifactStore";
-import type { ArtifactSortBy, ArtifactSortOrder } from "../../../shared/api/artifactApi";
+import {
+  buildArtifactListParams,
+  downloadArtifactImportTemplate,
+  exportArtifactsFile,
+  importArtifactsFile,
+  type ArtifactImportMode,
+  type ArtifactImportResult,
+  type ArtifactIoScope,
+  type ArtifactSortBy,
+  type ArtifactSortOrder,
+} from "../../../shared/api/artifactApi";
 import type { ArtifactListState } from "../../../shared/stores/artifactStore";
 import type { Task } from "../../../shared/api/taskApi";
 import { areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import type { ProblemDetail } from "../../../shared/api/types";
 import type { ManifestTreeRoot } from "../../../shared/lib/manifestTreeRoots";
 import type { ListColumnSchema } from "../../../shared/types/listSchema";
-import { requirementsCoveragePath, requirementsTraceabilityPath } from "../../../shared/utils/appPaths";
+import { artifactDetailPath, requirementsCoveragePath, requirementsTraceabilityPath } from "../../../shared/utils/appPaths";
 
 export type ToolbarFilterValues = {
   searchInput: string;
   savedQueryId: string;
-  cycleNodeFilter: string;
+  releaseFilter: string;
+  cycleFilter: string;
   areaNodeFilter: string;
   tagFilter: string;
   sortBy: ArtifactSortBy;
@@ -56,7 +73,7 @@ export type ToolbarFilterValues = {
   showDeleted: boolean;
 };
 
-type Increment = { id: string; path?: string; name?: string };
+type Cadence = { id: string; path?: string; name?: string };
 type AreaNode = { id: string; path?: string; name?: string };
 type SavedQuery = { id: string; name: string; visibility?: string };
 type ProjectTagOption = { id: string; name: string };
@@ -81,7 +98,8 @@ export interface ArtifactsToolbarProps {
   filterStates: string[];
   bundle: Bundle | undefined;
   treeRootOptions: ManifestTreeRoot[];
-  cycleNodesFlat: Increment[];
+  releaseCadenceOptions: Cadence[];
+  cycleNodesFlat: Cadence[];
   areaNodesFlat: AreaNode[];
   savedQueries: SavedQuery[];
   createSavedQueryMutation: {
@@ -106,7 +124,8 @@ export interface ArtifactsToolbarProps {
     typeFilter: string;
     treeFilter?: string;
     searchQuery: string;
-    cycleNodeFilter: string;
+    releaseFilter: string;
+    cycleFilter: string;
     areaNodeFilter: string;
     tagFilter: string;
     sortBy: ArtifactSortBy;
@@ -131,6 +150,7 @@ export function ArtifactsToolbar({
   filterStates,
   bundle,
   treeRootOptions,
+  releaseCadenceOptions,
   cycleNodesFlat,
   areaNodesFlat,
   savedQueries,
@@ -153,6 +173,13 @@ export function ArtifactsToolbar({
   const { t } = useTranslation("quality");
   const [newWorkItemOpen, setNewWorkItemOpen] = useState(false);
   const [myTasksOpen, setMyTasksOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importMode, setImportMode] = useState<ArtifactImportMode>("upsert");
+  const [importValidateOnly, setImportValidateOnly] = useState(true);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importResult, setImportResult] = useState<ArtifactImportResult | null>(null);
+  const [ioBusy, setIoBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const artifactTypes = bundle?.artifact_types ?? [];
   const canCreate =
     listResult?.allowed_actions?.includes("create") ??
@@ -164,7 +191,8 @@ export function ArtifactsToolbar({
     stateFilter,
     typeFilter,
     treeFilter,
-    cycleNodeFilter,
+    releaseFilter,
+    cycleFilter,
     areaNodeFilter,
     tagFilter,
     searchInput,
@@ -172,11 +200,85 @@ export function ArtifactsToolbar({
     sortOrder,
   } = listState;
 
+  const currentFilterParams = buildArtifactListParams({
+    stateFilter,
+    typeFilter,
+    sortBy,
+    sortOrder,
+    searchQuery: searchInput,
+    includeDeleted: listState.showDeleted,
+    cycleId: cycleFilter || null,
+    releaseId: releaseFilter || null,
+    areaNodeId: areaNodeFilter || null,
+    tree: treeFilter || null,
+    tagId: tagFilter || null,
+  });
+
+  async function handleExportAll(format: "csv" | "xlsx", scope: ArtifactIoScope) {
+    if (!orgSlug || !project?.id) return;
+    setIoBusy(true);
+    try {
+      await exportArtifactsFile(orgSlug, project.id, {
+        ...currentFilterParams,
+        format,
+        scope,
+      });
+      showNotification(`Exported ${scope} as ${format.toUpperCase()}.`, "success");
+    } catch (error) {
+      const detail = (error as ProblemDetail | undefined)?.detail;
+      showNotification(detail || "Export failed.", "error");
+    } finally {
+      setIoBusy(false);
+    }
+  }
+
+  async function handleTemplateDownload(format: "csv" | "xlsx", scope: Exclude<ArtifactIoScope, "runs">) {
+    if (!orgSlug || !project?.id) return;
+    setIoBusy(true);
+    try {
+      await downloadArtifactImportTemplate(orgSlug, project.id, { format, scope });
+      showNotification(`Downloaded ${scope} ${format.toUpperCase()} template.`, "success");
+    } catch (error) {
+      const detail = (error as ProblemDetail | undefined)?.detail;
+      showNotification(detail || "Template download failed.", "error");
+    } finally {
+      setIoBusy(false);
+    }
+  }
+
+  async function handleImportSubmit() {
+    if (!orgSlug || !project?.id || !importFile) return;
+    setIoBusy(true);
+    try {
+      const result = await importArtifactsFile(orgSlug, project.id, {
+        file: importFile,
+        scope: "generic",
+        mode: importMode,
+        validateOnly: importValidateOnly,
+      });
+      setImportResult(result);
+      const failures = result.failed_count;
+      const successes = result.created_count + result.updated_count + result.validated_count;
+      showNotification(
+        `${importValidateOnly ? "Validation" : "Import"} finished: ${successes} succeeded, ${failures} failed.`,
+        failures > 0 ? "warning" : "success",
+      );
+      if (!importValidateOnly && failures === 0) {
+        refetchArtifacts();
+      }
+    } catch (error) {
+      const detail = (error as ProblemDetail | undefined)?.detail;
+      showNotification(detail || "Import failed.", "error");
+    } finally {
+      setIoBusy(false);
+    }
+  }
+
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">Artifacts</h1>
+          <h1 className="text-2xl font-semibold">Backlog</h1>
           {orgSlug && projectSlug ? (
             <Button variant="outline" size="sm" asChild>
               <Link to={requirementsCoveragePath(orgSlug, projectSlug)}>
@@ -215,7 +317,7 @@ export function ArtifactsToolbar({
                   myTasks.map((task) => (
                     <DropdownMenuItem key={task.id} asChild>
                       <Link
-                        to={`/${orgSlug}/${projectSlug}/artifacts?artifact=${task.artifact_id}`}
+                        to={artifactDetailPath(orgSlug, projectSlug, task.artifact_id)}
                         className="block w-full min-w-0 no-underline"
                         onClick={() => setMyTasksOpen(false)}
                       >
@@ -255,17 +357,31 @@ export function ArtifactsToolbar({
             <Download className="mr-2 size-4" />
             Export CSV
           </Button>
-          <Button
-            variant="outline"
-            onClick={() =>
-              project &&
-              orgSlug &&
-              modalApi.openProjectMembers({ orgSlug, projectId: project.id, projectName: project.name })
-            }
-            aria-label="Manage project members"
-          >
-            <Users className="mr-2 size-4" />
-            Members
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={ioBusy}>
+                <Download className="mr-2 size-4" />
+                Export All
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleExportAll("csv", "generic")}>Artifacts CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportAll("xlsx", "generic")}>Artifacts XLSX</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={ioBusy}>
+                Templates
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleTemplateDownload("csv", "generic")}>Artifact CSV template</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleTemplateDownload("xlsx", "generic")}>Artifact XLSX template</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={ioBusy}>
+            Import
           </Button>
           {canCreate && artifactTypes.length > 0 &&
             (artifactTypes.length === 1 ? (
@@ -307,7 +423,7 @@ export function ArtifactsToolbar({
             placeholder="Search title, description, or key…"
             size="small"
             sx={{ minWidth: 220, flex: "1 1 200px" }}
-            inputProps={{ "aria-label": "Search artifacts" }}
+            inputProps={{ "aria-label": "Search backlog items" }}
           />
           <div
             className="flex rounded-md border border-border [&>button]:rounded-none [&>button:first-child]:rounded-l-md [&>button:last-child]:rounded-r-md [&>button:not(:first-child)]:border-l-0"
@@ -315,34 +431,24 @@ export function ArtifactsToolbar({
             aria-label="View mode"
           >
             <Button
-              variant={viewMode === "table" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setListState({ viewMode: "table" })}
-              className="rounded-none first:rounded-l-md last:rounded-r-md"
-              aria-label="Table view"
-            >
-              <Table2 className="mr-1.5 size-4" />
-              Table
-            </Button>
-            <Button
-              variant={viewMode === "board" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setListState({ viewMode: "board" })}
-              className="rounded-none"
-              aria-label="Board view"
-            >
-              <LayoutGrid className="mr-1.5 size-4" />
-              Board
-            </Button>
-            <Button
               variant={viewMode === "tree" ? "default" : "ghost"}
               size="sm"
               onClick={() => setListState({ viewMode: "tree" })}
-              className="rounded-none last:rounded-r-md"
+              className="rounded-none first:rounded-l-md"
               aria-label="Tree view"
             >
               <Network className="mr-1.5 size-4" />
               Tree
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setListState({ viewMode: "table" })}
+              className="rounded-none last:rounded-r-md"
+              aria-label="Tabular view"
+            >
+              <Table2 className="mr-1.5 size-4" />
+              Tabular
             </Button>
           </div>
         </div>
@@ -393,7 +499,17 @@ export function ArtifactsToolbar({
                 selectProps={{ size: "sm", className: "min-w-[160px]", displayEmpty: true, "aria-label": "Saved query" }}
               />
               <RhfSelect<ToolbarFilterValues>
-                name="cycleNodeFilter"
+                name="releaseFilter"
+                control={toolbarForm.control}
+                label="Release"
+                options={[
+                  { value: "", label: "All releases" },
+                  ...releaseCadenceOptions.map((c) => ({ value: c.id, label: c.path || c.name })),
+                ]}
+                selectProps={{ size: "sm", className: "min-w-[160px]", "aria-label": "Release" }}
+              />
+              <RhfSelect<ToolbarFilterValues>
+                name="cycleFilter"
                 control={toolbarForm.control}
                 label="Cycle"
                 options={[
@@ -490,7 +606,7 @@ export function ArtifactsToolbar({
                 name="showDeleted"
                 control={toolbarForm.control}
                 label="Show deleted"
-                checkboxProps={{ size: "small", "aria-label": "Show deleted artifacts" }}
+                checkboxProps={{ size: "small", "aria-label": "Show deleted backlog items" }}
               />
               <Button
                 size="sm"
@@ -506,7 +622,8 @@ export function ArtifactsToolbar({
                         typeFilter,
                         treeFilter,
                         searchQuery: listState.searchQuery,
-                        cycleNodeFilter,
+                        releaseFilter,
+                        cycleFilter,
                         areaNodeFilter,
                         tagFilter,
                         sortBy,
@@ -539,7 +656,8 @@ export function ArtifactsToolbar({
               </Button>
               {(stateFilter ||
                 typeFilter ||
-                cycleNodeFilter ||
+                releaseFilter ||
+                cycleFilter ||
                 areaNodeFilter ||
                 tagFilter ||
                 searchInput) && (
@@ -550,7 +668,8 @@ export function ArtifactsToolbar({
                     setListState({
                       stateFilter: "",
                       typeFilter: "",
-                      cycleNodeFilter: "",
+                      cycleFilter: "",
+                      releaseFilter: "",
                       areaNodeFilter: "",
                       tagFilter: "",
                       searchInput: "",
@@ -558,7 +677,8 @@ export function ArtifactsToolbar({
                     toolbarForm.reset({
                       ...toolbarForm.getValues(),
                       searchInput: "",
-                      cycleNodeFilter: "",
+                      cycleFilter: "",
+                      releaseFilter: "",
                       areaNodeFilter: "",
                       tagFilter: "",
                     });
@@ -573,6 +693,93 @@ export function ArtifactsToolbar({
           )}
         </div>
       </FormProvider>
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent aria-describedby={undefined} className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import artifacts</DialogTitle>
+            <DialogDescription className="sr-only">
+              Upload an artifact import file, choose the mode, and review row-level validation results.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="artifact-import-mode">Mode</Label>
+                <Select value={importMode} onValueChange={(value) => setImportMode(value as ArtifactImportMode)}>
+                  <SelectTrigger id="artifact-import-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="create">Create</SelectItem>
+                    <SelectItem value="update">Update</SelectItem>
+                    <SelectItem value="upsert">Upsert</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <div className="flex items-center gap-2 text-sm">
+                  <UICheckbox
+                    id="artifact-import-validate-only"
+                    checked={importValidateOnly}
+                    onCheckedChange={(checked) => setImportValidateOnly(checked === true)}
+                  />
+                  <Label htmlFor="artifact-import-validate-only">Validate only</Label>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="artifact-import-file">File</Label>
+              <input
+                id="artifact-import-file"
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.zip"
+                aria-label="Select import file"
+                onChange={(event) => {
+                  setImportFile(event.target.files?.[0] ?? null);
+                  setImportResult(null);
+                }}
+                className="block w-full text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Generic imports accept CSV or XLSX exports from the backlog module.
+              </p>
+            </div>
+            {importResult ? (
+              <div className="rounded-md border p-3">
+                <div className="mb-2 text-sm font-medium">
+                  Summary: created {importResult.created_count}, updated {importResult.updated_count}, validated{" "}
+                  {importResult.validated_count}, failed {importResult.failed_count}
+                </div>
+                <div className="max-h-56 space-y-1 overflow-auto text-xs">
+                  {importResult.rows.slice(0, 30).map((row, idx) => (
+                    <div key={`${row.sheet}-${row.row_number}-${idx}`} className="rounded border px-2 py-1">
+                      <span className="font-medium">
+                        {row.sheet} row {row.row_number}
+                      </span>{" "}
+                      <span className="uppercase text-muted-foreground">{row.status}</span>
+                      {row.artifact_key ? <span> {row.artifact_key}</span> : null}
+                      {row.message ? <div className="text-muted-foreground">{row.message}</div> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportOpen(false)}>
+              Close
+            </Button>
+            <Button onClick={() => void handleImportSubmit()} disabled={!importFile || ioBusy}>
+              {ioBusy ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              {importValidateOnly ? "Validate file" : "Import file"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
+
+export { ArtifactsToolbar as BacklogToolbar };
+export type { ArtifactsToolbarProps as BacklogToolbarProps };

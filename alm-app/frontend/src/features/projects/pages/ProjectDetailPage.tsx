@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useForm, FormProvider } from "react-hook-form";
-import { Settings, History, ClipboardList, CheckCircle, Bug } from "lucide-react";
+import { Settings, History, ClipboardList, CheckCircle, Bug, Users } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import {
   Breadcrumb,
@@ -26,6 +26,7 @@ import {
 } from "../../../shared/api/orgApi";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
+import { modalApi } from "../../../shared/modal";
 import { motion } from "motion/react";
 
 type SettingsFormValues = {
@@ -148,9 +149,22 @@ export default function ProjectDetailPage() {
         <div>
           {/* Stats row */}
           <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="sm:col-span-3 flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() =>
+                  orgSlug &&
+                  project?.id &&
+                  modalApi.openProjectMembers({ orgSlug, projectId: project.id, projectName: project.name })
+                }
+              >
+                <Users className="mr-2 size-4" />
+                Project members
+              </Button>
+            </div>
             {[
               {
-                label: "Total Artifacts",
+                label: "Total Backlog",
                 value: stats?.artifacts ?? 0,
                 color: "warning" as const,
                 icon: <ClipboardList className="size-7" />,
@@ -218,7 +232,7 @@ export default function ProjectDetailPage() {
                           <Link
                             to={
                               orgSlug && item.project_slug
-                                ? `/${orgSlug}/${item.project_slug}/artifacts`
+                                ? `/${orgSlug}/${item.project_slug}/backlog`
                                 : "#"
                             }
                             className="block px-0 py-3 no-underline text-foreground hover:opacity-80"

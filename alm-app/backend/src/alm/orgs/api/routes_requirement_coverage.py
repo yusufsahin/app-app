@@ -43,7 +43,7 @@ async def get_requirement_coverage_analysis(
     _acl: None = require_manifest_acl("artifact", "read"),
     mediator: Mediator = Depends(get_mediator),
     under: uuid.UUID | None = Query(None, description="Subtree root artifact id"),
-    link_types: str | None = Query(
+    relationship_types: str | None = Query(
         None,
         description="Comma-separated link types (default: verifies)",
     ),
@@ -64,7 +64,7 @@ async def get_requirement_coverage_analysis(
             status_code=422,
             detail="At most one of scope_run_id, scope_suite_id, scope_campaign_id",
         )
-    lt_raw = (link_types or "verifies").strip()
+    lt_raw = (relationship_types or "verifies").strip()
     lt_tuple = tuple(s.strip() for s in lt_raw.split(",") if s.strip())
     if not lt_tuple:
         lt_tuple = ("verifies",)
@@ -74,7 +74,7 @@ async def get_requirement_coverage_analysis(
                 tenant_id=org.tenant_id,
                 project_id=project_id,
                 under_artifact_id=under,
-                link_types=lt_tuple,
+                relationship_types=lt_tuple,
                 include_reverse_verifies=include_reverse_verifies,
                 scope_run_id=scope_run_id,
                 scope_suite_id=scope_suite_id,
@@ -134,7 +134,7 @@ async def get_requirement_traceability_matrix_summary(
     _acl: None = require_manifest_acl("artifact", "read"),
     mediator: Mediator = Depends(get_mediator),
     under: uuid.UUID | None = Query(None, description="Subtree root artifact id"),
-    link_types: str | None = Query(
+    relationship_types: str | None = Query(
         None,
         description="Comma-separated link types (default: verifies)",
     ),
@@ -159,7 +159,7 @@ async def get_requirement_traceability_matrix_summary(
             status_code=422,
             detail="At most one of scope_run_id, scope_suite_id, scope_campaign_id",
         )
-    lt_raw = (link_types or "verifies").strip()
+    lt_raw = (relationship_types or "verifies").strip()
     lt_tuple = tuple(s.strip() for s in lt_raw.split(",") if s.strip())
     if not lt_tuple:
         lt_tuple = ("verifies",)
@@ -169,7 +169,7 @@ async def get_requirement_traceability_matrix_summary(
                 tenant_id=org.tenant_id,
                 project_id=project_id,
                 under_artifact_id=under,
-                link_types=lt_tuple,
+                relationship_types=lt_tuple,
                 include_reverse_verifies=include_reverse_verifies,
                 scope_run_id=scope_run_id,
                 scope_suite_id=scope_suite_id,
@@ -222,7 +222,7 @@ async def get_requirement_traceability_matrix(
     _acl: None = require_manifest_acl("artifact", "read"),
     mediator: Mediator = Depends(get_mediator),
     under: uuid.UUID | None = Query(None, description="Subtree root artifact id"),
-    link_types: str | None = Query(
+    relationship_types: str | None = Query(
         None,
         description="Comma-separated link types (default: verifies)",
     ),
@@ -247,7 +247,7 @@ async def get_requirement_traceability_matrix(
             status_code=422,
             detail="At most one of scope_run_id, scope_suite_id, scope_campaign_id",
         )
-    lt_raw = (link_types or "verifies").strip()
+    lt_raw = (relationship_types or "verifies").strip()
     lt_tuple = tuple(s.strip() for s in lt_raw.split(",") if s.strip())
     if not lt_tuple:
         lt_tuple = ("verifies",)
@@ -257,7 +257,7 @@ async def get_requirement_traceability_matrix(
                 tenant_id=org.tenant_id,
                 project_id=project_id,
                 under_artifact_id=under,
-                link_types=lt_tuple,
+                relationship_types=lt_tuple,
                 include_reverse_verifies=include_reverse_verifies,
                 scope_run_id=scope_run_id,
                 scope_suite_id=scope_suite_id,
@@ -309,7 +309,7 @@ async def get_requirement_traceability_matrix(
                 test_id=rel.test_id,
                 test_artifact_key=rel.test_artifact_key,
                 test_title=rel.test_title,
-                link_type=rel.link_type,
+                relationship_type=rel.relationship_type,
                 status=rel.status,
                 run_id=rel.run_id,
                 run_title=rel.run_title,

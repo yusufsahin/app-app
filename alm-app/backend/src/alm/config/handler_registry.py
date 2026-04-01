@@ -65,26 +65,7 @@ from alm.artifact.domain.governance_adapter import ALMGovernanceAdapter
 from alm.artifact.infrastructure.metrics import PrometheusArtifactTransitionMetrics
 from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepository
 
-# ── Artifact link (traceability) commands ──
-from alm.artifact_link.application.commands.create_artifact_link import (
-    CreateArtifactLink,
-    CreateArtifactLinkHandler,
-)
-from alm.artifact_link.application.commands.delete_artifact_link import (
-    DeleteArtifactLink,
-    DeleteArtifactLinkHandler,
-)
-from alm.artifact_link.application.commands.reorder_artifact_links import (
-    ReorderOutgoingArtifactLinks,
-    ReorderOutgoingArtifactLinksHandler,
-)
-
-# ── Artifact link queries ──
-from alm.artifact_link.application.queries.list_artifact_links import (
-    ListArtifactLinks,
-    ListArtifactLinksHandler,
-)
-from alm.artifact_link.infrastructure.repositories import SqlAlchemyArtifactLinkRepository
+from alm.relationship.infrastructure.repositories import SqlAlchemyRelationshipRepository
 
 # ── Attachment commands ──
 from alm.attachment.application.commands.create_attachment import (
@@ -148,15 +129,15 @@ from alm.config.dependencies import get_manifest_flattener
 from alm.config.settings import settings
 
 # ── Cycle (planning tree) commands ──
-from alm.cycle.application.commands.create_cycle import CreateIncrement, CreateIncrementHandler
-from alm.cycle.application.commands.delete_cycle import DeleteIncrement, DeleteIncrementHandler
-from alm.cycle.application.commands.update_cycle import UpdateIncrement, UpdateIncrementHandler
-from alm.cycle.application.queries.get_cycle import GetIncrement, GetIncrementHandler
+from alm.cycle.application.commands.create_cycle import CreateCadence, CreateCadenceHandler
+from alm.cycle.application.commands.delete_cycle import DeleteCadence, DeleteCadenceHandler
+from alm.cycle.application.commands.update_cycle import UpdateCadence, UpdateCadenceHandler
+from alm.cycle.application.queries.get_cycle import GetCadence, GetCadenceHandler
 
 # ── Cycle queries ──
 from alm.cycle.application.queries.list_cycles_by_project import (
-    ListIncrementsByProject,
-    ListIncrementsByProjectHandler,
+    ListCadencesByProject,
+    ListCadencesByProjectHandler,
 )
 from alm.cycle.infrastructure.repositories import SqlAlchemyCycleRepository
 from alm.form_schema.application.queries.get_form_schema import (
@@ -224,6 +205,30 @@ from alm.project.application.queries.get_project_manifest import (
 from alm.project.application.queries.get_velocity import (
     GetVelocity,
     GetVelocityHandler,
+)
+from alm.relationship.application.commands.create_relationship import (
+    CreateRelationship,
+    CreateRelationshipHandler,
+)
+from alm.relationship.application.commands.delete_relationship import (
+    DeleteRelationship,
+    DeleteRelationshipHandler,
+)
+from alm.relationship.application.commands.reorder_relationships import (
+    ReorderOutgoingRelationships,
+    ReorderOutgoingRelationshipsHandler,
+)
+from alm.relationship.application.queries.list_relationship_type_options import (
+    ListRelationshipTypeOptions,
+    ListRelationshipTypeOptionsHandler,
+)
+from alm.relationship.application.queries.get_artifact_impact_analysis import (
+    GetArtifactImpactAnalysis,
+    GetArtifactImpactAnalysisHandler,
+)
+from alm.relationship.application.queries.list_relationships_for_artifact import (
+    ListRelationshipsForArtifact,
+    ListRelationshipsForArtifactHandler,
 )
 from alm.project.application.queries.list_project_members import (
     ListProjectMembers,
@@ -1054,32 +1059,48 @@ def register_all_handlers() -> None:
         ),
     )
 
-    # ── Artifact link (traceability) ──
     register_command_handler(
-        CreateArtifactLink,
-        lambda s: CreateArtifactLinkHandler(
-            link_repo=SqlAlchemyArtifactLinkRepository(s),
+        CreateRelationship,
+        lambda s: CreateRelationshipHandler(
+            relationship_repo=SqlAlchemyRelationshipRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     register_command_handler(
-        DeleteArtifactLink,
-        lambda s: DeleteArtifactLinkHandler(
-            link_repo=SqlAlchemyArtifactLinkRepository(s),
+        DeleteRelationship,
+        lambda s: DeleteRelationshipHandler(
+            relationship_repo=SqlAlchemyRelationshipRepository(s),
         ),
     )
     register_command_handler(
-        ReorderOutgoingArtifactLinks,
-        lambda s: ReorderOutgoingArtifactLinksHandler(
-            link_repo=SqlAlchemyArtifactLinkRepository(s),
+        ReorderOutgoingRelationships,
+        lambda s: ReorderOutgoingRelationshipsHandler(
+            relationship_repo=SqlAlchemyRelationshipRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     register_query_handler(
-        ListArtifactLinks,
-        lambda s: ListArtifactLinksHandler(
-            link_repo=SqlAlchemyArtifactLinkRepository(s),
+        ListRelationshipsForArtifact,
+        lambda s: ListRelationshipsForArtifactHandler(
+            relationship_repo=SqlAlchemyRelationshipRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_query_handler(
+        ListRelationshipTypeOptions,
+        lambda s: ListRelationshipTypeOptionsHandler(
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_query_handler(
+        GetArtifactImpactAnalysis,
+        lambda s: GetArtifactImpactAnalysisHandler(
+            project_repo=SqlAlchemyProjectRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            relationship_repo=SqlAlchemyRelationshipRepository(s),
         ),
     )
     register_query_handler(
@@ -1087,7 +1108,7 @@ def register_all_handlers() -> None:
         lambda s: BatchLastTestExecutionStatusHandler(
             project_repo=SqlAlchemyProjectRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
-            link_repo=SqlAlchemyArtifactLinkRepository(s),
+            relationship_repo=SqlAlchemyRelationshipRepository(s),
         ),
     )
     register_query_handler(
@@ -1095,7 +1116,7 @@ def register_all_handlers() -> None:
         lambda s: RequirementCoverageAnalysisHandler(
             project_repo=SqlAlchemyProjectRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
-            link_repo=SqlAlchemyArtifactLinkRepository(s),
+            relationship_repo=SqlAlchemyRelationshipRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
@@ -1104,7 +1125,7 @@ def register_all_handlers() -> None:
         lambda s: RequirementTraceabilityMatrixSummaryHandler(
             project_repo=SqlAlchemyProjectRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
-            link_repo=SqlAlchemyArtifactLinkRepository(s),
+            relationship_repo=SqlAlchemyRelationshipRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
@@ -1113,7 +1134,7 @@ def register_all_handlers() -> None:
         lambda s: RequirementTraceabilityMatrixHandler(
             project_repo=SqlAlchemyProjectRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
-            link_repo=SqlAlchemyArtifactLinkRepository(s),
+            relationship_repo=SqlAlchemyRelationshipRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
         ),
     )
@@ -1122,7 +1143,7 @@ def register_all_handlers() -> None:
         lambda s: ResolveTestExecutionConfigHandler(
             project_repo=SqlAlchemyProjectRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
-            link_repo=SqlAlchemyArtifactLinkRepository(s),
+            relationship_repo=SqlAlchemyRelationshipRepository(s),
         ),
     )
 
@@ -1225,37 +1246,37 @@ def register_all_handlers() -> None:
 
     # ── Cycle (planning tree) commands ──
     register_command_handler(
-        CreateIncrement,
-        lambda s: CreateIncrementHandler(
+        CreateCadence,
+        lambda s: CreateCadenceHandler(
             cycle_repo=SqlAlchemyCycleRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     register_command_handler(
-        UpdateIncrement,
-        lambda s: UpdateIncrementHandler(
+        UpdateCadence,
+        lambda s: UpdateCadenceHandler(
             cycle_repo=SqlAlchemyCycleRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     register_command_handler(
-        DeleteIncrement,
-        lambda s: DeleteIncrementHandler(
+        DeleteCadence,
+        lambda s: DeleteCadenceHandler(
             cycle_repo=SqlAlchemyCycleRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     # ── Cycle queries ──
     register_query_handler(
-        ListIncrementsByProject,
-        lambda s: ListIncrementsByProjectHandler(
+        ListCadencesByProject,
+        lambda s: ListCadencesByProjectHandler(
             cycle_repo=SqlAlchemyCycleRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     register_query_handler(
-        GetIncrement,
-        lambda s: GetIncrementHandler(
+        GetCadence,
+        lambda s: GetCadenceHandler(
             cycle_repo=SqlAlchemyCycleRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
         ),

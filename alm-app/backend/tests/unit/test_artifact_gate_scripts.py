@@ -153,14 +153,14 @@ def test_validate_metadata_passes_with_traceability_graph_for_critical_affected(
     traceability = {
         "links": [
             {
-                "from_artifact_id": "manifest_sample.cycle.minimal",
-                "to_artifact_id": "schema.cycle.v1",
-                "link_type": "sample_validates",
+                "source_artifact_id": "manifest_sample.cycle.minimal",
+                "target_artifact_id": "schema.cycle.v1",
+                "relationship_type": "sample_validates",
             },
             {
-                "from_artifact_id": "schema.cycle.v1",
-                "to_artifact_id": "rule_pack.cycle.v1",
-                "link_type": "schema_to_rules",
+                "source_artifact_id": "schema.cycle.v1",
+                "target_artifact_id": "rule_pack.cycle.v1",
+                "relationship_type": "schema_to_rules",
             },
         ]
     }

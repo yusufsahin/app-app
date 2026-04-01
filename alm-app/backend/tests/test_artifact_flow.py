@@ -51,8 +51,93 @@ async def _ensure_project(
     return create_resp.json()["id"]
 
 
+async def _get_project_manifest(client: AsyncClient, token: str, org_slug: str, project_id: str) -> dict:
+    resp = await client.get(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/manifest",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    resp.raise_for_status()
+    return resp.json()["manifest_bundle"]
+
+
 @pytest.mark.asyncio
 class TestArtifactFlow:
+    async def test_list_schema_backlog_surface_respects_manifest_override(self, client: AsyncClient):
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+
+        manifest_bundle = await _get_project_manifest(client, token, org_slug, project_id)
+        manifest_bundle["artifact_list"] = {
+            **(manifest_bundle.get("artifact_list") or {}),
+            "surfaces": {
+                **((manifest_bundle.get("artifact_list") or {}).get("surfaces") or {}),
+                "backlog": {
+                    "fixed_columns": ["title", "state", "updated_at", "severity"],
+                },
+            },
+        }
+        update_resp = await client.put(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/manifest",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"manifest_bundle": manifest_bundle},
+        )
+        update_resp.raise_for_status()
+
+        schema_resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/list-schema",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"entity_type": "artifact", "surface": "backlog"},
+        )
+        schema_resp.raise_for_status()
+        column_keys = [column["key"] for column in schema_resp.json()["columns"]]
+        assert column_keys == ["title", "state", "updated_at", "severity"]
+
+    async def test_list_schema_defects_surface_respects_manifest_override(self, client: AsyncClient):
+        token = await _register_and_get_token(client, _unique_email(), _unique_org())
+        tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+        tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+        project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+
+        manifest_bundle = await _get_project_manifest(client, token, org_slug, project_id)
+        manifest_bundle["artifact_list"] = {
+            **(manifest_bundle.get("artifact_list") or {}),
+            "surfaces": {
+                **((manifest_bundle.get("artifact_list") or {}).get("surfaces") or {}),
+                "defects": {
+                    "fixed_columns": ["title", "severity", "updated_at"],
+                    "exclude_columns": [
+                        "artifact_key",
+                        "artifact_type",
+                        "state",
+                        "tags",
+                        "created_at",
+                        "state_reason",
+                        "resolution",
+                    ],
+                    "extra_column_limit": 2,
+                },
+            },
+        }
+        update_resp = await client.put(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/manifest",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"manifest_bundle": manifest_bundle},
+        )
+        update_resp.raise_for_status()
+
+        schema_resp = await client.get(
+            f"/api/v1/orgs/{org_slug}/projects/{project_id}/list-schema",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"entity_type": "artifact", "surface": "defects"},
+        )
+        schema_resp.raise_for_status()
+        column_keys = [column["key"] for column in schema_resp.json()["columns"]]
+        assert column_keys[:3] == ["title", "severity", "updated_at"]
+        assert "state" not in column_keys
+        assert "artifact_key" not in column_keys
+
     async def test_list_artifacts_excludes_system_roots(self, client: AsyncClient):
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()

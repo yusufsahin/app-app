@@ -122,7 +122,7 @@ async def test_list_capacity_applies_optional_filters() -> None:
             SimpleNamespace(
                 id=row_id,
                 project_id=project_id,
-                cycle_node_id=cycle_id,
+                cycle_id=cycle_id,
                 team_id=team_id,
                 user_id=user_id,
                 capacity_value=12.0,
@@ -138,7 +138,7 @@ async def test_list_capacity_applies_optional_filters() -> None:
         ListCapacityByProject(
             tenant_id=tenant_id,
             project_id=project_id,
-            cycle_node_id=cycle_id,
+            cycle_id=cycle_id,
             team_id=team_id,
             user_id=user_id,
         )
@@ -148,7 +148,7 @@ async def test_list_capacity_applies_optional_filters() -> None:
     assert out[0].id == row_id
     capacity_repo.list_by_project.assert_awaited_once_with(
         project_id,
-        cycle_node_id=cycle_id,
+        cycle_id=cycle_id,
         team_id=team_id,
         user_id=user_id,
     )

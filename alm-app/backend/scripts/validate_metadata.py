@@ -165,10 +165,10 @@ def _validate_traceability_graph(
     for idx, link in enumerate(links):
         if not isinstance(link, dict):
             raise ValueError(f"links[{idx}] must be a mapping")
-        fr = link.get("from_artifact_id")
-        to = link.get("to_artifact_id")
+        fr = link.get("source_artifact_id")
+        to = link.get("target_artifact_id")
         if not fr or not to:
-            raise ValueError(f"links[{idx}] requires from_artifact_id and to_artifact_id")
+            raise ValueError(f"links[{idx}] requires source_artifact_id and target_artifact_id")
         fr_s, to_s = str(fr), str(to)
         if fr_s not in artifact_ids or to_s not in artifact_ids:
             raise ValueError(f"links[{idx}] references unknown artifact_id")

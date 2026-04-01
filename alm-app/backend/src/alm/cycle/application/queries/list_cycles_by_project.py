@@ -1,22 +1,22 @@
-"""List increments for a project (flat or tree)."""
+"""List cadences for a project (flat or tree)."""
 
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
 
-from alm.cycle.application.dtos import IncrementDTO
+from alm.cycle.application.dtos import CadenceDTO
 from alm.cycle.domain.ports import CycleRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.query import Query, QueryHandler
 
 
-def _build_tree(flat: list[IncrementDTO], parent_id: uuid.UUID | None) -> list[IncrementDTO]:
-    out: list[IncrementDTO] = []
+def _build_tree(flat: list[CadenceDTO], parent_id: uuid.UUID | None) -> list[CadenceDTO]:
+    out: list[CadenceDTO] = []
     for d in flat:
         if d.parent_id != parent_id:
             continue
-        child_dto = IncrementDTO(
+        child_dto = CadenceDTO(
             id=d.id,
             project_id=d.project_id,
             name=d.name,
@@ -38,14 +38,14 @@ def _build_tree(flat: list[IncrementDTO], parent_id: uuid.UUID | None) -> list[I
 
 
 @dataclass(frozen=True)
-class ListIncrementsByProject(Query):
+class ListCadencesByProject(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     flat: bool = True
     type: str | None = None
 
 
-class ListIncrementsByProjectHandler(QueryHandler[list[IncrementDTO]]):
+class ListCadencesByProjectHandler(QueryHandler[list[CadenceDTO]]):
     def __init__(
         self,
         cycle_repo: CycleRepository,
@@ -54,8 +54,8 @@ class ListIncrementsByProjectHandler(QueryHandler[list[IncrementDTO]]):
         self._cycle_repo = cycle_repo
         self._project_repo = project_repo
 
-    async def handle(self, query: Query) -> list[IncrementDTO]:
-        assert isinstance(query, ListIncrementsByProject)
+    async def handle(self, query: Query) -> list[CadenceDTO]:
+        assert isinstance(query, ListCadencesByProject)
 
         project = await self._project_repo.find_by_id(query.project_id)
         if project is None or project.tenant_id != query.tenant_id:
@@ -63,11 +63,11 @@ class ListIncrementsByProjectHandler(QueryHandler[list[IncrementDTO]]):
 
         nodes = await self._cycle_repo.list_by_project(query.project_id)
         type_filter_raw = query.type
-        if type_filter_raw and type_filter_raw.strip().lower() in ("release", "iteration"):
+        if type_filter_raw and type_filter_raw.strip().lower() in ("release", "cycle"):
             type_filter = type_filter_raw.strip().lower()
-            nodes = [n for n in nodes if (getattr(n, "type", "iteration") or "iteration") == type_filter]
+            nodes = [n for n in nodes if (getattr(n, "type", "cycle") or "cycle") == type_filter]
         flat_dtos = [
-            IncrementDTO(
+            CadenceDTO(
                 id=n.id,
                 project_id=n.project_id,
                 name=n.name,
@@ -79,7 +79,7 @@ class ListIncrementsByProjectHandler(QueryHandler[list[IncrementDTO]]):
                 start_date=n.start_date,
                 end_date=n.end_date,
                 state=n.state,
-                type=getattr(n, "type", "iteration") or "iteration",
+                type=getattr(n, "type", "cycle") or "cycle",
                 created_at=n.created_at.isoformat() if n.created_at else None,
                 updated_at=n.updated_at.isoformat() if n.updated_at else None,
             )

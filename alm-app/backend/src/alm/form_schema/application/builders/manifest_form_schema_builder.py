@@ -10,7 +10,7 @@ from alm.artifact.domain.manifest_workflow_metadata import (
     planning_area_field_allowed,
     planning_cycle_field_allowed,
 )
-from alm.form_schema.domain.entities import FormFieldSchema, FormSchema
+from alm.form_schema.domain.entities import FormFieldSchema, FormSchema, LookupSchema
 from alm.shared.domain.ports import IManifestDefsFlattener
 
 _CREATE_ARTIFACT_CORE_KEYS = frozenset({"artifact_type", "parent_id", "title", "description", "assignee_id"})
@@ -67,6 +67,23 @@ def _humanize_id(obj_id: str) -> str:
     return obj_id.replace("_", " ").replace("-", " ").title()
 
 
+def _infer_lookup(field_type: str, entity_ref: str | None = None) -> LookupSchema | None:
+    if field_type == "tag_list":
+        return LookupSchema(kind="tag", multi=True, label_field="label", value_field="id")
+    if field_type == "entity_ref" and entity_ref:
+        return LookupSchema(kind=entity_ref, label_field="label", value_field="id")
+    return None
+
+
+def _editable_surfaces(*surfaces: str) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(("form", *surfaces)))
+
+
+def _manifest_write_target(field_key: str) -> str:
+    root_fields = {"title", "description", "assignee_id", "team_id", "cycle_id", "area_node_id", "tag_ids", "state", "rank_order"}
+    return "root" if field_key in root_fields else "custom_field"
+
+
 def build_artifact_create_form_schema(
     manifest_bundle: dict[str, Any],
     flattener: IManifestDefsFlattener,
@@ -95,6 +112,9 @@ def build_artifact_create_form_schema(
             options=type_options,
             default_value=artifact_types[0]["id"] if artifact_types else "",
             order=0,
+            editable=False,
+            surfaces=("form",),
+            write_target="root",
         )
     )
 
@@ -107,6 +127,10 @@ def build_artifact_create_form_schema(
             required=False,
             entity_ref="artifact",
             order=10,
+            editable=True,
+            surfaces=("form",),
+            lookup=_infer_lookup("entity_ref", "artifact"),
+            write_target="root",
         )
     )
 
@@ -118,6 +142,9 @@ def build_artifact_create_form_schema(
             label_key="Title",
             required=True,
             order=20,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            write_target="root",
         )
     )
 
@@ -129,6 +156,9 @@ def build_artifact_create_form_schema(
             label_key="Description",
             required=False,
             order=30,
+            editable=True,
+            surfaces=("form", "detail"),
+            write_target="root",
         )
     )
 
@@ -141,6 +171,10 @@ def build_artifact_create_form_schema(
             required=False,
             entity_ref="user",
             order=35,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            lookup=_infer_lookup("entity_ref", "user"),
+            write_target="root",
         )
     )
 
@@ -153,6 +187,10 @@ def build_artifact_create_form_schema(
             required=False,
             entity_ref="team",
             order=38,
+            editable=True,
+            surfaces=("form", "detail"),
+            lookup=_infer_lookup("entity_ref", "team"),
+            write_target="root",
         )
     )
 
@@ -220,6 +258,10 @@ def build_artifact_create_form_schema(
                     options=options,
                     entity_ref=entity_ref_val,
                     allowed_parent_types=allowed_parent_types_val,
+                    editable=True,
+                    surfaces=("form",),
+                    lookup=_infer_lookup(field_type, entity_ref_val),
+                    write_target=_manifest_write_target(str(fid)),
                 )
             )
             order += 1
@@ -246,6 +288,9 @@ def build_artifact_create_form_schema(
                             options=[{"id": at_filter, "label": label}],
                             default_value=at_filter,
                             order=fld.order,
+                            editable=False,
+                            surfaces=("form",),
+                            write_target="root",
                         )
                     )
                 else:
@@ -273,11 +318,29 @@ def build_artifact_edit_form_schema(
     Returns core fields (title, description, assignee, cycle, area, project tags)
     plus any custom fields defined in the manifest for the given artifact_type.
     """
-    core_keys = {"title", "description", "assignee_id", "cycle_node_id", "area_node_id", "tag_ids"}
+    core_keys = {"title", "description", "assignee_id", "cycle_id", "area_node_id", "tag_ids"}
 
     fields: list[FormFieldSchema] = [
-        FormFieldSchema(key="title", type="string", label_key="Title", required=True, order=10),
-        FormFieldSchema(key="description", type="string", label_key="Description", required=False, order=20),
+        FormFieldSchema(
+            key="title",
+            type="string",
+            label_key="Title",
+            required=True,
+            order=10,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            write_target="root",
+        ),
+        FormFieldSchema(
+            key="description",
+            type="string",
+            label_key="Description",
+            required=False,
+            order=20,
+            editable=True,
+            surfaces=("form", "detail"),
+            write_target="root",
+        ),
         FormFieldSchema(
             key="assignee_id",
             type="entity_ref",
@@ -285,6 +348,10 @@ def build_artifact_edit_form_schema(
             required=False,
             entity_ref="user",
             order=30,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            lookup=_infer_lookup("entity_ref", "user"),
+            write_target="root",
         ),
         FormFieldSchema(
             key="team_id",
@@ -293,18 +360,26 @@ def build_artifact_edit_form_schema(
             required=False,
             entity_ref="team",
             order=35,
+            editable=True,
+            surfaces=("form", "detail"),
+            lookup=_infer_lookup("entity_ref", "team"),
+            write_target="root",
         ),
     ]
     at_key = artifact_type or ""
     if not artifact_type or planning_cycle_field_allowed(manifest_bundle, at_key):
         fields.append(
             FormFieldSchema(
-                key="cycle_node_id",
+                key="cycle_id",
                 type="entity_ref",
                 label_key="Cycle",
                 required=False,
                 entity_ref="cycle",
                 order=40,
+                editable=True,
+                surfaces=_editable_surfaces("tabular", "detail"),
+                lookup=_infer_lookup("entity_ref", "cycle"),
+                write_target="root",
             )
         )
     if not artifact_type or planning_area_field_allowed(manifest_bundle, at_key):
@@ -316,6 +391,10 @@ def build_artifact_edit_form_schema(
                 required=False,
                 entity_ref="area",
                 order=50,
+                editable=True,
+                surfaces=_editable_surfaces("tabular", "detail"),
+                lookup=_infer_lookup("entity_ref", "area"),
+                write_target="root",
             )
         )
 
@@ -326,6 +405,10 @@ def build_artifact_edit_form_schema(
             label_key="Tags",
             required=False,
             order=55,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            lookup=_infer_lookup("tag_list"),
+            write_target="root",
         )
     )
 
@@ -376,6 +459,10 @@ def build_artifact_edit_form_schema(
                         options=options,
                         entity_ref=entity_ref_val,
                         allowed_parent_types=allowed_parent_types_val,
+                        editable=True,
+                        surfaces=_editable_surfaces("tabular", "detail"),
+                        lookup=_infer_lookup(field_type, entity_ref_val),
+                        write_target=_manifest_write_target(str(fid)),
                     )
                 )
                 order += 1
@@ -398,6 +485,9 @@ def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None)
             label_key="Title",
             required=True,
             order=10,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            write_target="root",
         ),
         FormFieldSchema(
             key="description",
@@ -405,6 +495,9 @@ def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None)
             label_key="Description",
             required=False,
             order=20,
+            editable=True,
+            surfaces=("form", "detail"),
+            write_target="root",
         ),
         FormFieldSchema(
             key="state",
@@ -414,6 +507,9 @@ def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None)
             options=task_opts,
             default_value=initial_state,
             order=30,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            write_target="root",
         ),
         FormFieldSchema(
             key="assignee_id",
@@ -422,6 +518,10 @@ def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None)
             required=False,
             entity_ref="user",
             order=40,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            lookup=_infer_lookup("entity_ref", "user"),
+            write_target="root",
         ),
         FormFieldSchema(
             key="team_id",
@@ -430,6 +530,10 @@ def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None)
             required=False,
             entity_ref="team",
             order=42,
+            editable=True,
+            surfaces=("form", "detail"),
+            lookup=_infer_lookup("entity_ref", "team"),
+            write_target="root",
         ),
         FormFieldSchema(
             key="tag_ids",
@@ -437,6 +541,10 @@ def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None)
             label_key="Tags",
             required=False,
             order=45,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            lookup=_infer_lookup("tag_list"),
+            write_target="root",
         ),
         FormFieldSchema(
             key="rank_order",
@@ -444,6 +552,9 @@ def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None)
             label_key="Rank order",
             required=False,
             order=50,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            write_target="root",
         ),
     ]
     return FormSchema(

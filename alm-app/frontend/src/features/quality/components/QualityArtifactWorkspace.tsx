@@ -3,21 +3,28 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { Pencil, PlayCircle, Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
+import { toast } from "sonner";
+import { useBacklogWorkspaceProject } from "../../artifacts/pages/useBacklogWorkspaceProject";
 import { useProjectManifest } from "../../../shared/api/manifestApi";
 import {
+  buildArtifactListParams,
+  downloadArtifactImportTemplate,
+  exportArtifactsFile,
+  importArtifactsFile,
   useArtifact,
   useArtifacts,
   useCreateArtifact,
   useDeleteArtifact,
+  type ArtifactImportMode,
+  type ArtifactImportResult,
   type Artifact,
 } from "../../../shared/api/artifactApi";
 import {
-  sortOutgoingSuiteLinks,
-  useArtifactLinks,
-  useCreateArtifactLink,
-  useDeleteArtifactLink,
-} from "../../../shared/api/artifactLinkApi";
+  sortOutgoingRelationships,
+  useArtifactRelationships,
+  useCreateArtifactRelationship,
+  useDeleteArtifactRelationship,
+} from "../../../shared/api/relationshipApi";
 import { getDeclaredTreeRootsFromManifestBundle } from "../../../shared/lib/manifestTreeRoots";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import {
@@ -28,12 +35,19 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -117,11 +131,17 @@ export default function QualityArtifactWorkspace({
   const { t } = useTranslation("quality");
   const workspaceSubfoldersSwitchId = useId();
   const queryClient = useQueryClient();
-  const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
+  const { orgSlug, projectSlug, project, projectsLoading } = useBacklogWorkspaceProject();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [suiteCommandOpen, setSuiteCommandOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importMode, setImportMode] = useState<ArtifactImportMode>("upsert");
+  const [importValidateOnly, setImportValidateOnly] = useState(true);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importResult, setImportResult] = useState<ArtifactImportResult | null>(null);
+  const [ioBusy, setIoBusy] = useState(false);
   const { data: manifest } = useProjectManifest(orgSlug, project?.id);
   const selectedUnder = isUuid(searchParams.get("under")) ? searchParams.get("under") : null;
   const selectedArtifactId = isUuid(searchParams.get("artifact")) ? searchParams.get("artifact") : null;
@@ -130,6 +150,8 @@ export default function QualityArtifactWorkspace({
     [manifest?.manifest_bundle],
   );
   const hasTargetTree = treeRoots.some((t) => t.tree_id === treeId);
+  const isTestCaseWorkspace = artifactType === "test-case";
+  const showTestCaseIoActions = isTestCaseWorkspace;
   const showExplorerLeaves = QUALITY_EXPLORER_LEAF_TYPES.has(artifactType);
   /** Manifest `tree_id: testsuites` — product: Campaign; technical ids unchanged (`root-testsuites`, `testsuite-folder`). */
   const isCampaignTree = treeId === "testsuites";
@@ -201,9 +223,89 @@ export default function QualityArtifactWorkspace({
   const deleteArtifact = useDeleteArtifact(orgSlug, project?.id);
   const startSuiteRun = useStartSuiteRun(orgSlug, project?.id, projectSlug);
   const selectedArtifactQuery = useArtifact(orgSlug, project?.id, selectedArtifactId ?? undefined);
-  const linksQuery = useArtifactLinks(orgSlug, project?.id, selectedArtifactId ?? undefined);
-  const createLink = useCreateArtifactLink(orgSlug, project?.id, selectedArtifactId ?? undefined);
-  const deleteLink = useDeleteArtifactLink(orgSlug, project?.id, selectedArtifactId ?? undefined);
+  const linksQuery = useArtifactRelationships(orgSlug, project?.id, selectedArtifactId ?? undefined);
+  const createLink = useCreateArtifactRelationship(orgSlug, project?.id, selectedArtifactId ?? undefined);
+  const deleteLink = useDeleteArtifactRelationship(orgSlug, project?.id, selectedArtifactId ?? undefined);
+
+  const testCaseExportParams = buildArtifactListParams({
+    typeFilter: "test-case",
+    sortBy: "updated_at",
+    sortOrder: "desc",
+    tree: treeId,
+    parentId: selectedUnder,
+  });
+
+  const handleWorkspaceExport = useCallback(
+    async (format: "csv" | "xlsx") => {
+      if (!orgSlug || !project?.id || !isTestCaseWorkspace) return;
+      setIoBusy(true);
+      try {
+        await exportArtifactsFile(orgSlug, project.id, {
+          ...testCaseExportParams,
+          format,
+          scope: "testcases",
+        });
+        toast.success(`Exported test cases as ${format.toUpperCase()}.`);
+      } catch (error) {
+        const detail = (error as { detail?: string } | undefined)?.detail;
+        toast.error(detail || "Failed to export test cases.");
+      } finally {
+        setIoBusy(false);
+      }
+    },
+    [isTestCaseWorkspace, orgSlug, project?.id, testCaseExportParams],
+  );
+
+  const handleTemplateDownload = useCallback(
+    async (format: "csv" | "xlsx") => {
+      if (!orgSlug || !project?.id || !isTestCaseWorkspace) return;
+      setIoBusy(true);
+      try {
+        await downloadArtifactImportTemplate(orgSlug, project.id, { format, scope: "testcases" });
+        toast.success(`Downloaded test case ${format.toUpperCase()} template.`);
+      } catch (error) {
+        const detail = (error as { detail?: string } | undefined)?.detail;
+        toast.error(detail || "Failed to download template.");
+      } finally {
+        setIoBusy(false);
+      }
+    },
+    [isTestCaseWorkspace, orgSlug, project?.id],
+  );
+
+  const handleImportSubmit = useCallback(async () => {
+    if (!orgSlug || !project?.id || !importFile || !isTestCaseWorkspace) return;
+    setIoBusy(true);
+    try {
+      const result = await importArtifactsFile(orgSlug, project.id, {
+        file: importFile,
+        scope: "testcases",
+        mode: importMode,
+        validateOnly: importValidateOnly,
+      });
+      setImportResult(result);
+      const successCount = result.created_count + result.updated_count + result.validated_count;
+      toast[ result.failed_count > 0 ? "warning" : "success" ](
+        `${importValidateOnly ? "Validation" : "Import"} finished: ${successCount} succeeded, ${result.failed_count} failed.`,
+      );
+      if (!importValidateOnly && result.failed_count === 0) {
+        await listQuery.refetch();
+      }
+    } catch (error) {
+      const detail = (error as { detail?: string } | undefined)?.detail;
+      toast.error(detail || "Failed to import test cases.");
+    } finally {
+      setIoBusy(false);
+    }
+  }, [
+    importFile,
+    importMode,
+    importValidateOnly,
+    isTestCaseWorkspace,
+    listQuery,
+    orgSlug,
+    project?.id,
+  ]);
 
   const linkTargetsQuery = useArtifacts(
     orgSlug,
@@ -412,16 +514,16 @@ export default function QualityArtifactWorkspace({
   const selectedLinks = useMemo(() => {
     if (!linkConfig || !selectedArtifactId) return [];
     return (linksQuery.data ?? []).filter(
-      (l) => l.link_type === linkConfig.linkType && l.from_artifact_id === selectedArtifactId,
+      (l) => l.relationship_type === linkConfig.linkType && l.source_artifact_id === selectedArtifactId,
     );
   }, [linkConfig, linksQuery.data, selectedArtifactId]);
 
   const orderedSuiteLinks = useMemo(() => {
     if (!linkConfig || !selectedArtifactId) return [];
-    return sortOutgoingSuiteLinks(linksQuery.data ?? [], selectedArtifactId, linkConfig.linkType);
+    return sortOutgoingRelationships(linksQuery.data ?? [], selectedArtifactId, linkConfig.linkType);
   }, [linkConfig, linksQuery.data, selectedArtifactId]);
 
-  const linkedTargetIds = useMemo(() => new Set(selectedLinks.map((l) => l.to_artifact_id)), [selectedLinks]);
+  const linkedTargetIds = useMemo(() => new Set(selectedLinks.map((l) => l.target_artifact_id)), [selectedLinks]);
   const linkedTargets = linkTargets.filter((a) => linkedTargetIds.has(a.id));
   const availableTargets = linkTargets.filter((a) => !linkedTargetIds.has(a.id));
 
@@ -834,8 +936,8 @@ export default function QualityArtifactWorkspace({
   const addLink = async () => {
     if (!targetArtifactId || !linkConfig) return;
     await createLink.mutateAsync({
-      link_type: linkConfig.linkType,
-      to_artifact_id: targetArtifactId,
+      relationship_type: linkConfig.linkType,
+      target_artifact_id: targetArtifactId,
     });
     setTargetArtifactId("");
   };
@@ -889,14 +991,14 @@ export default function QualityArtifactWorkspace({
             <div className="space-y-2" data-testid="suite-includes-readonly-list">
               <p className="text-xs text-muted-foreground">{t("campaignExecution.suitePlanReadonlyContext")}</p>
               {orderedSuiteLinks.map((link, idx) => {
-                const row = suiteLinkedTargetsById.get(link.to_artifact_id);
+                const row = suiteLinkedTargetsById.get(link.target_artifact_id);
                 return (
                   <div
                     key={link.id}
                     className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
                   >
                     <span className="w-8 shrink-0 tabular-nums text-muted-foreground">{idx + 1}</span>
-                    <span className="min-w-0 flex-1 font-medium">{row?.title ?? link.to_artifact_id}</span>
+                    <span className="min-w-0 flex-1 font-medium">{row?.title ?? link.target_artifact_id}</span>
                   </div>
                 );
               })}
@@ -978,6 +1080,43 @@ export default function QualityArtifactWorkspace({
                 >
                   {createCta}
                 </Button>
+                {showTestCaseIoActions ? (
+                  <>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="outline" disabled={ioBusy}>
+                          Export
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem onClick={() => void handleWorkspaceExport("csv")}>
+                          Test cases CSV bundle
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => void handleWorkspaceExport("xlsx")}>
+                          Test cases XLSX
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="outline" disabled={ioBusy}>
+                          Test case templates
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem onClick={() => void handleTemplateDownload("csv")}>
+                          CSV bundle template
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => void handleTemplateDownload("xlsx")}>
+                          XLSX template
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button type="button" variant="outline" onClick={() => setImportDialogOpen(true)} disabled={ioBusy}>
+                      Import test cases
+                    </Button>
+                  </>
+                ) : null}
                 {allowFolderCreate ? (
                   <Button
                     type="button"
@@ -1142,8 +1281,6 @@ export default function QualityArtifactWorkspace({
                         projectId={project?.id}
                         projectSlug={projectSlug}
                         enableStepsEditor={enableStepsEditor}
-                        links={linksQuery.data}
-                        linksLoading={linksQuery.isPending}
                       />
                     ) : null}
                   </div>
@@ -1349,8 +1486,6 @@ export default function QualityArtifactWorkspace({
                         projectId={project?.id}
                         projectSlug={projectSlug}
                         enableStepsEditor={enableStepsEditor}
-                        links={linksQuery.data}
-                        linksLoading={linksQuery.isPending}
                       />
                     ) : null}
                   </div>
@@ -1393,7 +1528,7 @@ export default function QualityArtifactWorkspace({
                   <p className="text-sm text-muted-foreground">No linked items yet.</p>
                 ) : (
                   linkedTargets.map((target) => {
-                    const link = selectedLinks.find((l) => l.to_artifact_id === target.id);
+                    const link = selectedLinks.find((l) => l.target_artifact_id === target.id);
                     if (!link) return null;
                     return (
                       <div key={link.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
@@ -1465,6 +1600,85 @@ export default function QualityArtifactWorkspace({
               </Button>
             ) : null}
           </div>
+        ) : null}
+        {isTestCaseWorkspace ? (
+          <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+            <DialogContent aria-describedby={undefined} className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Import test cases</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Upload a test case workbook or CSV bundle, choose the import mode, and review row-level results.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="quality-testcase-import-mode">Mode</Label>
+                    <Select value={importMode} onValueChange={(value) => setImportMode(value as ArtifactImportMode)}>
+                      <SelectTrigger id="quality-testcase-import-mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="create">Create</SelectItem>
+                        <SelectItem value="update">Update</SelectItem>
+                        <SelectItem value="upsert">Upsert</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox checked={importValidateOnly} onCheckedChange={(checked) => setImportValidateOnly(checked === true)} />
+                      Validate only
+                    </label>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quality-testcase-import-file">File</Label>
+                  <Input
+                    id="quality-testcase-import-file"
+                    type="file"
+                    accept=".csv,.xlsx,.zip"
+                    aria-label="Select test case import file"
+                    onChange={(event) => {
+                      setImportFile(event.target.files?.[0] ?? null);
+                      setImportResult(null);
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use the XLSX template for workbook import or the ZIP bundle for CSV-based test case import.
+                  </p>
+                </div>
+                {importResult ? (
+                  <div className="rounded-md border p-3">
+                    <div className="mb-2 text-sm font-medium">
+                      Summary: created {importResult.created_count}, updated {importResult.updated_count}, validated{" "}
+                      {importResult.validated_count}, failed {importResult.failed_count}
+                    </div>
+                    <div className="max-h-56 space-y-1 overflow-auto text-xs">
+                      {importResult.rows.slice(0, 30).map((row, idx) => (
+                        <div key={`${row.sheet}-${row.row_number}-${idx}`} className="rounded border px-2 py-1">
+                          <span className="font-medium">
+                            {row.sheet} row {row.row_number}
+                          </span>{" "}
+                          <span className="uppercase text-muted-foreground">{row.status}</span>
+                          {row.artifact_key ? <span> {row.artifact_key}</span> : null}
+                          {row.message ? <div className="text-muted-foreground">{row.message}</div> : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+                  Close
+                </Button>
+                <Button onClick={() => void handleImportSubmit()} disabled={!importFile || ioBusy}>
+                  {importValidateOnly ? "Validate file" : "Import file"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         ) : null}
       </div>
 

@@ -1,11 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
-import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
+import { useBacklogWorkspaceProject } from "../../artifacts/pages/useBacklogWorkspaceProject";
 import { QualityRunsHubPanel } from "../components/QualityRunsHubPanel";
 
 export default function QualityRunsPage() {
   const { t } = useTranslation("quality");
-  const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
+  const { orgSlug, projectSlug, project, projectsLoading } = useBacklogWorkspaceProject();
 
   if (projectSlug && orgSlug && !projectsLoading && !project) {
     return (

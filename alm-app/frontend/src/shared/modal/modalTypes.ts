@@ -14,8 +14,9 @@ export type DeleteArtifactModalProps = {
   onConfirm: () => void;
 };
 
-/** Create artifact – parent provides schema and form state */
-export type CreateArtifactModalProps = {
+/** Shared backlog artifact modal props – parent provides schema and form state */
+type BacklogArtifactModalProps = {
+  mode?: "create" | "edit";
   formSchema: import("@/shared/types/formSchema").FormSchemaDto | null;
   formValues: Record<string, unknown>;
   formErrors: Record<string, string>;
@@ -30,6 +31,12 @@ export type CreateArtifactModalProps = {
   formSchemaError?: boolean;
   formSchema403?: boolean;
 };
+
+/** Create artifact – parent provides schema and form state */
+export type CreateArtifactModalProps = BacklogArtifactModalProps;
+
+/** Edit artifact – parent provides schema and form state */
+export type EditArtifactModalProps = BacklogArtifactModalProps;
 
 /** Add task – parent provides schema; modal passes current values to onSubmit */
 export type AddTaskModalProps = {
@@ -65,10 +72,15 @@ export type EditTaskModalProps = {
 /** Add link */
 export type AddLinkModalProps = {
   sourceArtifactId: string;
-  artifactOptions: Array<{ value: string; label: string }>;
-  /** When set (non-empty), replaces built-in link type presets (from project manifest link_types). */
-  linkTypeOptions?: Array<{ value: string; label: string }>;
-  onCreateLink: (linkType: string, targetArtifactId: string) => void;
+  artifactOptions: Array<{ value: string; label: string; artifactType?: string | null }>;
+  linkTypeOptions?: Array<{
+    value: string;
+    label: string;
+    category?: string;
+    allowedTargetTypes?: string[];
+    description?: string | null;
+  }>;
+  onCreateLink: (relationshipType: string, targetArtifactId: string) => void;
 };
 
 /** Save query */
@@ -177,6 +189,7 @@ export interface ModalPropsMap {
   ConfirmModal: ConfirmModalProps;
   DeleteArtifactModal: DeleteArtifactModalProps;
   CreateArtifactModal: CreateArtifactModalProps;
+  EditArtifactModal: EditArtifactModalProps;
   AddTaskModal: AddTaskModalProps;
   EditTaskModal: EditTaskModalProps;
   AddLinkModal: AddLinkModalProps;

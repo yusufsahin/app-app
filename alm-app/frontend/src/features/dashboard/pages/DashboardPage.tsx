@@ -42,7 +42,7 @@ import {
   type DashboardActivityItem,
 } from "../../../shared/api/orgApi";
 import { useProjectManifest } from "../../../shared/api/manifestApi";
-import { useIncrements } from "../../../shared/api/planningApi";
+import { useCadences } from "../../../shared/api/planningApi";
 import { StandardPageLayout } from "../../../shared/components/Layout";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import {
@@ -184,14 +184,14 @@ export default function DashboardPage() {
   const [showOnlySelectedProject, setShowOnlySelectedProject] = useState(false);
   const effectiveSlug = selectedSlug ?? defaultSlug;
   const selectedProject = effectiveSlug ? projects.find((p) => p.slug === effectiveSlug) : null;
-  const { data: releases = [] } = useIncrements(orgSlug, selectedProject?.id, true, "release");
+  const { data: releases = [] } = useCadences(orgSlug, selectedProject?.id, true, "release");
   const lastN = timeRange === "week" ? 4 : timeRange === "month" ? 8 : 16;
   const effectiveReleaseId = selectedReleaseId === "__all__" ? undefined : selectedReleaseId;
   const {
     data: velocityPoints = [],
     isLoading: velocityLoading,
   } = useProjectVelocity(orgSlug, selectedProject?.id, {
-    releaseCycleNodeId: effectiveReleaseId,
+    releaseId: effectiveReleaseId,
     lastN,
   });
   const {
@@ -216,15 +216,15 @@ export default function DashboardPage() {
       : activityList;
 
   const projectsPath = orgSlug ? `/${orgSlug}` : "#";
-  const artifactsPath =
-    orgSlug && selectedProject ? `/${orgSlug}/${selectedProject.slug}/artifacts` : undefined;
+  const backlogPath =
+    orgSlug && selectedProject ? `/${orgSlug}/${selectedProject.slug}/backlog` : undefined;
   const tasksPath =
     orgSlug && selectedProject && manifestSupportsTasks
-      ? `/${orgSlug}/${selectedProject.slug}/artifacts?type=task`
+      ? `/${orgSlug}/${selectedProject.slug}/backlog?type=task`
       : undefined;
   const openDefectsPath =
     orgSlug && selectedProject
-      ? `/${orgSlug}/${selectedProject.slug}/artifacts?type=defect&state=Open`
+      ? `/${orgSlug}/${selectedProject.slug}/backlog?type=defect&state=Open`
       : undefined;
   const planningPath =
     orgSlug && selectedProject ? `/${orgSlug}/${selectedProject.slug}/planning` : undefined;
@@ -232,7 +232,7 @@ export default function DashboardPage() {
   const statsChartData = stats
     ? [
         { name: "Projects", value: stats.projects, fill: COLORS[0] },
-        { name: "Artifacts", value: stats.artifacts, fill: COLORS[1] },
+        { name: "Backlog", value: stats.artifacts, fill: COLORS[1] },
         { name: "Tasks", value: stats.tasks, fill: COLORS[2] },
         { name: "Open Defects", value: stats.openDefects, fill: COLORS[3] },
       ]
@@ -375,10 +375,10 @@ export default function DashboardPage() {
             delay={0}
           />
           <StatCard
-            label="Artifacts"
+            label="Backlog"
             value={stats?.artifacts ?? 0}
             isLoading={isLoading}
-            to={artifactsPath}
+            to={backlogPath}
             color="warning"
             icon={<ClipboardList className="size-8" />}
             trend="+12% from last month"
@@ -552,7 +552,7 @@ export default function DashboardPage() {
               <div className="space-y-2">
                 {[
                   { label: "Projects", value: stats.projects, icon: <FolderOpen className="size-4 text-primary" /> },
-                  { label: "Total Artifacts", value: stats.artifacts, icon: <ClipboardList className="size-4 text-amber-500" /> },
+                  { label: "Total Backlog", value: stats.artifacts, icon: <ClipboardList className="size-4 text-amber-500" /> },
                   { label: "Tasks", value: stats.tasks, icon: <CheckCircle className="size-4 text-emerald-500" /> },
                   { label: "Open Defects", value: stats.openDefects, icon: <Bug className="size-4 text-red-500" /> },
                   { label: "Active Projects", value: projects.length, icon: <TrendingUp className="size-4 text-primary" /> },
@@ -644,7 +644,7 @@ export default function DashboardPage() {
                         <Link
                           to={
                             orgSlug && item.project_slug
-                              ? `/${orgSlug}/${item.project_slug}/artifacts`
+                              ? `/${orgSlug}/${item.project_slug}/backlog`
                               : "#"
                           }
                           className="block rounded-md py-2 no-underline text-foreground transition-colors hover:bg-muted/50"

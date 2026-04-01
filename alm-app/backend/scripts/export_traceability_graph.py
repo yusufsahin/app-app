@@ -1,4 +1,4 @@
-"""Export artifact_links rows to governance traceability YAML (catalog artifact_id strings).
+"""Export relationship rows to governance traceability YAML (catalog artifact_id strings).
 
 Maps each DB artifact row via custom_fields.governance_artifact_id (required for export).
 Writes YAML suitable for manual merge into alm_meta/traceability_graph.yaml after review.
@@ -53,12 +53,12 @@ async def _export(project_id: str | None, output: Path) -> int:
 
     sql = text(
         f"""
-        SELECT al.link_type,
+        SELECT al.relationship_type,
                fa.custom_fields AS from_cf,
                ta.custom_fields AS to_cf
-        FROM artifact_links al
-        JOIN artifacts fa ON fa.id = al.from_artifact_id
-        JOIN artifacts ta ON ta.id = al.to_artifact_id
+        FROM relationships al
+        JOIN artifacts fa ON fa.id = al.source_artifact_id
+        JOIN artifacts ta ON ta.id = al.target_artifact_id
         WHERE fa.deleted_at IS NULL
           AND ta.deleted_at IS NULL
           {proj_filter}
@@ -78,15 +78,15 @@ async def _export(project_id: str | None, output: Path) -> int:
         if not fid or not tid:
             skipped += 1
             continue
-        lt = row["link_type"]
+        lt = row["relationship_type"]
         if not isinstance(lt, str) or not lt.strip():
             skipped += 1
             continue
         links.append(
             {
-                "from_artifact_id": fid,
-                "to_artifact_id": tid,
-                "link_type": lt.strip(),
+                "source_artifact_id": fid,
+                "target_artifact_id": tid,
+                "relationship_type": lt.strip(),
             }
         )
 
@@ -94,23 +94,23 @@ async def _export(project_id: str | None, output: Path) -> int:
 
     output.parent.mkdir(parents=True, exist_ok=True)
     header = (
-        "# Exported from artifact_links; merge into alm_meta/traceability_graph.yaml after review.\n"
+        "# Exported from relationships; merge into alm_meta/traceability_graph.yaml after review.\n"
         "# Rows need custom_fields.governance_artifact_id on both endpoint artifacts.\n"
     )
     body = yaml.safe_dump({"links": links}, sort_keys=False, allow_unicode=True)
     output.write_text(header + body, encoding="utf-8")
 
-    print(f"[export_traceability_graph] wrote {len(links)} link(s) to {output}", flush=True)
+    print(f"[export_traceability_graph] wrote {len(links)} relationship(s) to {output}", flush=True)
     if skipped:
         print(
-            f"[export_traceability_graph] skipped {skipped} row(s) (missing governance_artifact_id or link_type)",
+            f"[export_traceability_graph] skipped {skipped} row(s) (missing governance_artifact_id or relationship_type)",
             flush=True,
         )
     return 0
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Export DB artifact_links to traceability_graph YAML")
+    parser = argparse.ArgumentParser(description="Export DB relationships to traceability_graph YAML")
     parser.add_argument(
         "--output",
         default="artifacts/traceability_graph.exported.yaml",

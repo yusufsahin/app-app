@@ -6,19 +6,19 @@ import { SuiteTestLinkModal } from "./SuiteTestLinkModal";
 import { renderWithQualityI18n } from "../../../test/renderWithQualityI18n";
 import { useArtifacts } from "../../../shared/api/artifactApi";
 import {
-  useArtifactLinks,
-  useBulkCreateArtifactLinks,
-  useBulkDeleteArtifactLinks,
-} from "../../../shared/api/artifactLinkApi";
+  useArtifactRelationships,
+  useBulkCreateArtifactRelationships,
+  useBulkDeleteArtifactRelationships,
+} from "../../../shared/api/relationshipApi";
 
 vi.mock("../../../shared/api/artifactApi", () => ({
   useArtifacts: vi.fn(),
 }));
 
-vi.mock("../../../shared/api/artifactLinkApi", () => ({
-  useArtifactLinks: vi.fn(),
-  useBulkCreateArtifactLinks: vi.fn(),
-  useBulkDeleteArtifactLinks: vi.fn(),
+vi.mock("../../../shared/api/relationshipApi", () => ({
+  useArtifactRelationships: vi.fn(),
+  useBulkCreateArtifactRelationships: vi.fn(),
+  useBulkDeleteArtifactRelationships: vi.fn(),
 }));
 
 vi.mock("../../../shared/stores/notificationStore", () => ({
@@ -27,9 +27,9 @@ vi.mock("../../../shared/stores/notificationStore", () => ({
 }));
 
 const mockUseArtifacts = vi.mocked(useArtifacts);
-const mockUseArtifactLinks = vi.mocked(useArtifactLinks);
-const mockUseBulkCreate = vi.mocked(useBulkCreateArtifactLinks);
-const mockUseBulkDelete = vi.mocked(useBulkDeleteArtifactLinks);
+const mockUseArtifactRelationships = vi.mocked(useArtifactRelationships);
+const mockUseBulkCreate = vi.mocked(useBulkCreateArtifactRelationships);
+const mockUseBulkDelete = vi.mocked(useBulkDeleteArtifactRelationships);
 
 const bulkCreateSpy = vi.fn();
 const bulkDeleteSpy = vi.fn();
@@ -64,19 +64,20 @@ describe("SuiteTestLinkModal", () => {
       } as never;
     });
 
-    mockUseArtifactLinks.mockReturnValue({
+    mockUseArtifactRelationships.mockReturnValue({
       data: [
         {
-          id: "link-1",
-          from_artifact_id: "suite-1",
-          to_artifact_id: "tc-1",
-          link_type: "suite_includes_test",
+          id: "rel-1",
+          source_artifact_id: "suite-1",
+          target_artifact_id: "tc-1",
+          relationship_type: "suite_includes_test",
+          direction: "outgoing",
         },
       ],
     } as never);
 
     bulkCreateSpy.mockResolvedValue({ succeeded: ["tc-2"], failed: [] });
-    bulkDeleteSpy.mockResolvedValue({ succeeded: ["link-1"], failed: [] });
+    bulkDeleteSpy.mockResolvedValue({ succeeded: ["rel-1"], failed: [] });
 
     mockUseBulkCreate.mockReturnValue({ isPending: false, mutateAsync: bulkCreateSpy } as never);
     mockUseBulkDelete.mockReturnValue({ isPending: false, mutateAsync: bulkDeleteSpy } as never);
@@ -122,8 +123,8 @@ describe("SuiteTestLinkModal", () => {
 
     expect(bulkCreateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        to_artifact_ids: ["tc-2"],
-        link_type: "suite_includes_test",
+        target_artifact_ids: ["tc-2"],
+        relationship_type: "suite_includes_test",
       }),
     );
   });
@@ -167,8 +168,8 @@ describe("SuiteTestLinkModal", () => {
 
     expect(bulkCreateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        to_artifact_ids: ["tc-2"],
-        link_type: "suite_includes_test",
+        target_artifact_ids: ["tc-2"],
+        relationship_type: "suite_includes_test",
       }),
     );
   });
@@ -193,8 +194,8 @@ describe("SuiteTestLinkModal", () => {
     expect(confirmSpy).toHaveBeenCalled();
     expect(bulkCreateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        to_artifact_ids: ["tc-2"],
-        link_type: "suite_includes_test",
+        target_artifact_ids: ["tc-2"],
+        relationship_type: "suite_includes_test",
       }),
     );
     confirmSpy.mockRestore();
@@ -220,7 +221,7 @@ describe("SuiteTestLinkModal", () => {
 
     expect(bulkDeleteSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        link_ids: ["link-1"],
+        relationship_ids: ["rel-1"],
       }),
     );
   });

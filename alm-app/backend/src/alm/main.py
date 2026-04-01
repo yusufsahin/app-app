@@ -41,12 +41,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     setup_tenant_rls(async_session_factory)
 
     if settings.seed_demo_data:
-        from alm.config.seed import seed_demo_data, seed_privileges, seed_process_templates
+        from alm.config.seed import run_startup_seeds
 
-        await seed_privileges(async_session_factory)
-        await seed_process_templates(async_session_factory)
-        if settings.is_dev:
-            await seed_demo_data(async_session_factory)
+        await run_startup_seeds(async_session_factory)
 
     subscriber_task = asyncio.create_task(run_subscriber())
 

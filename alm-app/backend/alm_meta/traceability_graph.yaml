@@ -1,22 +1,22 @@
 # Statik traceability: CI validate_metadata.py ile doğrulanır.
 # Kritik etkilenen artifact (change_manifest) için giriş/çıkış derecesi zorunludur.
 links:
-  - from_artifact_id: manifest_sample.cycle.minimal
-    to_artifact_id: schema.cycle.v1
-    link_type: sample_validates_against_schema
+  - source_artifact_id: manifest_sample.cycle.minimal
+    target_artifact_id: schema.cycle.v1
+    relationship_type: sample_validates_against_schema
 
-  - from_artifact_id: schema.cycle.v1
-    to_artifact_id: rule_pack.cycle.v1
-    link_type: schema_constrains_rules
+  - source_artifact_id: schema.cycle.v1
+    target_artifact_id: rule_pack.cycle.v1
+    relationship_type: schema_constrains_rules
 
-  - from_artifact_id: rule_pack.cycle.v1
-    to_artifact_id: migration_spec.cycle.v1_to_v2
-    link_type: rules_scope_migration
+  - source_artifact_id: rule_pack.cycle.v1
+    target_artifact_id: migration_spec.cycle.v1_to_v2
+    relationship_type: rules_scope_migration
 
-  - from_artifact_id: schema.manifest.v1
-    to_artifact_id: rule_pack.manifest.v1
-    link_type: schema_constrains_rules
+  - source_artifact_id: schema.manifest.v1
+    target_artifact_id: rule_pack.manifest.v1
+    relationship_type: schema_constrains_rules
 
-  - from_artifact_id: compatibility_baseline.alm.v1
-    to_artifact_id: schema.cycle.v1
-    link_type: baseline_covers_schema
+  - source_artifact_id: compatibility_baseline.alm.v1
+    target_artifact_id: schema.cycle.v1
+    relationship_type: baseline_covers_schema

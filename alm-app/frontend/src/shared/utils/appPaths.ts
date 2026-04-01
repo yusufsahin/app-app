@@ -3,36 +3,43 @@
  */
 
 /**
- * Path to artifacts list, optionally with query params.
+ * Path to backlog list, optionally with query params.
  */
-export function artifactsPath(
+export function backlogPath(
   orgSlug: string,
   projectSlug: string,
   params?: {
     artifact?: string;
     state?: string;
     type?: string;
-    cycleNodeFilter?: string;
+    releaseFilter?: string;
+    cycleFilter?: string;
     areaNodeFilter?: string;
   },
 ): string {
-  const base = `/${orgSlug}/${projectSlug}/artifacts`;
+  const base = `/${orgSlug}/${projectSlug}/backlog`;
   if (!params || Object.keys(params).length === 0) return base;
   const search = new URLSearchParams();
   if (params.artifact) search.set("artifact", params.artifact);
   if (params.state) search.set("state", params.state);
   if (params.type) search.set("type", params.type);
-  if (params.cycleNodeFilter) search.set("cycle_node_id", params.cycleNodeFilter);
+  if (params.releaseFilter) search.set("release_id", params.releaseFilter);
+  if (params.cycleFilter) search.set("cycle_id", params.cycleFilter);
   if (params.areaNodeFilter) search.set("area_node_id", params.areaNodeFilter);
   const q = search.toString();
   return q ? `${base}?${q}` : base;
 }
 
 /**
- * Path to a single artifact detail (opens in list context).
+ * Temporary alias while callers migrate to backlog naming.
+ */
+export const artifactsPath = backlogPath;
+
+/**
+ * Path to a single artifact detail (opens in backlog list context).
  */
 export function artifactDetailPath(orgSlug: string, projectSlug: string, artifactId: string): string {
-  return artifactsPath(orgSlug, projectSlug, { artifact: artifactId });
+  return `/${orgSlug}/${projectSlug}/backlog/${artifactId}`;
 }
 
 /**

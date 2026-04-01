@@ -13,6 +13,14 @@ import sys
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+REQUIRED_TABLES = (
+    "privileges",
+    "tenants",
+    "projects",
+    "artifacts",
+    "relationships",
+)
+
 
 async def _main() -> int:
     url = os.environ.get("ALM_DATABASE_URL", "").strip()
@@ -23,13 +31,19 @@ async def _main() -> int:
     engine = create_async_engine(url)
     try:
         async with engine.connect() as conn:
-            res = await conn.execute(text("SELECT to_regclass('public.privileges')"))
-            reg = res.scalar()
-        if reg is None:
+            missing_tables: list[str] = []
+            for table_name in REQUIRED_TABLES:
+                res = await conn.execute(text("SELECT to_regclass(:table_name)"), {"table_name": f"public.{table_name}"})
+                reg = res.scalar()
+                if reg is None:
+                    missing_tables.append(table_name)
+        if missing_tables:
+            missing_rendered = ", ".join(missing_tables)
             print(
                 "\nDatabase schema is missing core tables after `alembic upgrade head`.\n"
                 "Usually the Postgres volume is out of sync (e.g. alembic_version advanced "
-                "but tables were removed or never created on this data directory).\n\n"
+                "but tables were removed or never created on this data directory).\n"
+                f"Missing tables: {missing_rendered}\n\n"
                 "Fix (local dev):  docker compose down -v\n"
                 "                   docker compose up --build\n",
                 file=sys.stderr,

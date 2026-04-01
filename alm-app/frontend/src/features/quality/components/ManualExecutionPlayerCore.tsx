@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "../../../shared/components/ui/select";
 import { useArtifact, useUpdateArtifact, useArtifacts } from "../../../shared/api/artifactApi";
-import { sortOutgoingSuiteLinks, useArtifactLinks } from "../../../shared/api/artifactLinkApi";
+import { sortOutgoingRelationships, useArtifactRelationships } from "../../../shared/api/relationshipApi";
 import {
   resolveExecutionConfig,
   type ResolvedExecutionConfigResponse,
@@ -152,18 +152,22 @@ export function ManualExecutionPlayerCore({
   const queryClient = useQueryClient();
   // Data fetching
   const { data: run, isLoading: runLoading } = useArtifact(orgSlug, projectSlug, runId);
-  const { data: runLinks = [], isLoading: linksLoading } = useArtifactLinks(
+  const { data: runLinks = [], isLoading: linksLoading } = useArtifactRelationships(
     orgSlug,
     projectSlug,
     runId,
   );
 
   const suiteId = useMemo(
-    () => runLinks.find((l) => l.link_type === "run_for_suite")?.to_artifact_id,
+    () =>
+      runLinks.find(
+        (relationship) =>
+          relationship.relationship_type === "run_for_suite" && relationship.direction === "outgoing",
+      )?.target_artifact_id,
     [runLinks],
   );
 
-  const { data: suiteLinks = [], isLoading: suiteLinksLoading } = useArtifactLinks(
+  const { data: suiteLinks = [], isLoading: suiteLinksLoading } = useArtifactRelationships(
     orgSlug,
     projectSlug,
     suiteId,
@@ -171,10 +175,14 @@ export function ManualExecutionPlayerCore({
 
   const linkedTestIds = useMemo(() => {
     const fromSuite = suiteId
-      ? sortOutgoingSuiteLinks(suiteLinks, suiteId, "suite_includes_test").map((l) => l.to_artifact_id)
+      ? sortOutgoingRelationships(suiteLinks, suiteId, "suite_includes_test").map(
+          (relationship) => relationship.target_artifact_id,
+        )
       : [];
     if (fromSuite.length > 0) return fromSuite;
-    return runLinks.map((l) => l.to_artifact_id);
+    return runLinks
+      .filter((relationship) => relationship.direction === "outgoing")
+      .map((relationship) => relationship.target_artifact_id);
   }, [suiteId, suiteLinks, runLinks]);
 
   const { data: testsData, isLoading: testsLoading } = useArtifacts(

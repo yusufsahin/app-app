@@ -16,7 +16,7 @@ class CapacityRepository:
     async def list_by_project(
         self,
         project_id: uuid.UUID,
-        cycle_node_id: uuid.UUID | None = None,
+        cycle_id: uuid.UUID | None = None,
         team_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
     ) -> list[Capacity]: ...

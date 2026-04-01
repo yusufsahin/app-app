@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 class VelocityPointResponse(BaseModel):
-    cycle_node_id: uuid.UUID
+    cycle_id: uuid.UUID
     cycle_name: str
     total_effort: float
 
@@ -21,9 +21,9 @@ class VelocityPointResponse(BaseModel):
 )
 async def get_velocity(
     project_id: uuid.UUID,
-    cycle_node_id: list[uuid.UUID] | None = Query(None, alias="cycle_node_id"),
-    release_cycle_node_id: uuid.UUID | None = Query(None, description="Velocity for all iterations under this release"),
-    last_n: int | None = Query(None, description="Last N cycles by order (if cycle_node_id not set)"),
+    cycle_id: list[uuid.UUID] | None = Query(None),
+    release_id: uuid.UUID | None = Query(None, description="Velocity for all cycles under this release"),
+    last_n: int | None = Query(None, description="Last N cycles by order (if cycle_id not set)"),
     effort_field: str = Query("story_points", description="Custom field key for effort"),
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("project:read"),
@@ -33,15 +33,15 @@ async def get_velocity(
         GetVelocity(
             tenant_id=org.tenant_id,
             project_id=project_id,
-            cycle_node_ids=cycle_node_id,
-            release_cycle_node_id=release_cycle_node_id,
+            cycle_ids=cycle_id,
+            release_id=release_id,
             last_n=last_n,
             effort_field=effort_field,
         )
     )
     return [
         VelocityPointResponse(
-            cycle_node_id=d.cycle_node_id,
+            cycle_id=d.cycle_id,
             cycle_name=d.cycle_name,
             total_effort=d.total_effort,
         )
@@ -50,7 +50,7 @@ async def get_velocity(
 
 
 class BurndownPointResponse(BaseModel):
-    cycle_node_id: uuid.UUID
+    cycle_id: uuid.UUID
     cycle_name: str
     total_effort: float
     completed_effort: float
@@ -63,8 +63,8 @@ class BurndownPointResponse(BaseModel):
 )
 async def get_burndown(
     project_id: uuid.UUID,
-    cycle_node_id: list[uuid.UUID] | None = Query(None, alias="cycle_node_id"),
-    last_n: int | None = Query(None, description="Last N cycles by order (if cycle_node_id not set)"),
+    cycle_id: list[uuid.UUID] | None = Query(None),
+    last_n: int | None = Query(None, description="Last N cycles by order (if cycle_id not set)"),
     effort_field: str = Query("story_points", description="Custom field key for effort"),
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("project:read"),
@@ -74,14 +74,14 @@ async def get_burndown(
         GetBurndown(
             tenant_id=org.tenant_id,
             project_id=project_id,
-            cycle_node_ids=cycle_node_id,
+            cycle_ids=cycle_id,
             last_n=last_n,
             effort_field=effort_field,
         )
     )
     return [
         BurndownPointResponse(
-            cycle_node_id=d.cycle_node_id,
+            cycle_id=d.cycle_id,
             cycle_name=d.cycle_name,
             total_effort=d.total_effort,
             completed_effort=d.completed_effort,

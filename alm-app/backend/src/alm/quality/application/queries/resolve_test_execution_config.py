@@ -10,9 +10,10 @@ import structlog
 
 from alm.artifact.domain.entities import Artifact
 from alm.artifact.domain.ports import ArtifactRepository
-from alm.artifact_link.domain.ports import ArtifactLinkRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.quality.application.execution_linked_tests import linked_execution_test_ids_for_run
+from alm.relationship.domain.ports import RelationshipRepository
+from alm.relationship.domain.types import RUN_FOR_SUITE
 from alm.shared.application.query import Query, QueryHandler
 from alm.shared.domain.exceptions import ValidationError
 
@@ -205,11 +206,11 @@ class ResolveTestExecutionConfigHandler(QueryHandler[ResolvedExecutionConfigDTO]
         self,
         project_repo: ProjectRepository,
         artifact_repo: ArtifactRepository,
-        link_repo: ArtifactLinkRepository,
+        relationship_repo: RelationshipRepository,
     ) -> None:
         self._project_repo = project_repo
         self._artifact_repo = artifact_repo
-        self._link_repo = link_repo
+        self._relationship_repo = relationship_repo
 
     async def handle(self, query: Query) -> ResolvedExecutionConfigDTO:
         assert isinstance(query, ResolveTestExecutionConfig)
@@ -228,17 +229,17 @@ class ResolveTestExecutionConfigHandler(QueryHandler[ResolvedExecutionConfigDTO]
         if test is None or test.artifact_type != "test-case":
             raise ValidationError("test_id must be a test-case in this project")
 
-        run_links = await self._link_repo.list_outgoing_links_from_artifacts(query.project_id, [query.run_id])
-        suite_ids = [link.to_artifact_id for link in run_links if link.link_type == "run_for_suite"]
+        run_relationships = await self._relationship_repo.list_outgoing_relationships_from_artifacts(query.project_id, [query.run_id])
+        suite_ids = [link.target_artifact_id for link in run_relationships if link.relationship_type == RUN_FOR_SUITE]
         suite_links = (
-            await self._link_repo.list_suite_includes_tests_for_suites(query.project_id, suite_ids)
+            await self._relationship_repo.list_suite_includes_tests_for_suites(query.project_id, suite_ids)
             if suite_ids
             else []
         )
         suite_outgoing_by_suite_id: dict[uuid.UUID, list[Any]] = {}
         for link in suite_links:
-            suite_outgoing_by_suite_id.setdefault(link.from_artifact_id, []).append(link)
-        allowed_test_ids = linked_execution_test_ids_for_run(run_links, suite_outgoing_by_suite_id)
+            suite_outgoing_by_suite_id.setdefault(link.source_artifact_id, []).append(link)
+        allowed_test_ids = linked_execution_test_ids_for_run(run_relationships, suite_outgoing_by_suite_id)
         if allowed_test_ids and query.test_id not in allowed_test_ids:
             raise ValidationError("test_id is not linked to this run")
 

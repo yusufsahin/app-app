@@ -17,7 +17,7 @@ from alm.shared.domain.exceptions import ValidationError
 class CreateCapacity(Command):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
-    cycle_node_id: uuid.UUID | None = None
+    cycle_id: uuid.UUID | None = None
     team_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None
     capacity_value: float = 0.0
@@ -41,7 +41,7 @@ class CreateCapacityHandler(CommandHandler[CapacityDTO]):
 
         entity = Capacity(
             project_id=command.project_id,
-            cycle_node_id=command.cycle_node_id,
+            cycle_id=command.cycle_id,
             team_id=command.team_id,
             user_id=command.user_id,
             capacity_value=command.capacity_value,
@@ -51,7 +51,7 @@ class CreateCapacityHandler(CommandHandler[CapacityDTO]):
         return CapacityDTO(
             id=entity.id,
             project_id=entity.project_id,
-            cycle_node_id=entity.cycle_node_id,
+            cycle_id=entity.cycle_id,
             team_id=entity.team_id,
             user_id=entity.user_id,
             capacity_value=entity.capacity_value,
