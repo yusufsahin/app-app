@@ -30,8 +30,8 @@ class ArtifactRepository(ABC):
         state_filter: str | None = None,
         type_filter: str | None = None,
         search_query: str | None = None,
-        cycle_node_id: uuid.UUID | None = None,
-        cycle_node_ids: list[uuid.UUID] | None = None,
+        cycle_id: uuid.UUID | None = None,
+        cycle_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
         parent_id: uuid.UUID | None = None,
         sort_by: str | None = None,
@@ -54,8 +54,8 @@ class ArtifactRepository(ABC):
         state_filter: str | None = None,
         type_filter: str | None = None,
         search_query: str | None = None,
-        cycle_node_id: uuid.UUID | None = None,
-        cycle_node_ids: list[uuid.UUID] | None = None,
+        cycle_id: uuid.UUID | None = None,
+        cycle_ids: list[uuid.UUID] | None = None,
         area_node_id: uuid.UUID | None = None,
         parent_id: uuid.UUID | None = None,
         include_deleted: bool = False,
@@ -105,13 +105,13 @@ class ArtifactRepository(ABC):
     async def sum_effort_by_cycles(
         self,
         project_id: uuid.UUID,
-        cycle_node_ids: list[uuid.UUID],
+        cycle_ids: list[uuid.UUID],
         done_states: tuple[str, ...],
         effort_field: str,
     ) -> list[tuple[uuid.UUID, float]]:
         """Sum effort (custom_fields[effort_field]) per cycle for artifacts in done_states.
 
-        Returns [(cycle_node_id, total), ...].
+        Returns [(cycle_id, total), ...].
         """
         ...
 
@@ -119,12 +119,12 @@ class ArtifactRepository(ABC):
     async def sum_total_effort_by_cycles(
         self,
         project_id: uuid.UUID,
-        cycle_node_ids: list[uuid.UUID],
+        cycle_ids: list[uuid.UUID],
         effort_field: str,
     ) -> list[tuple[uuid.UUID, float]]:
         """Sum effort (custom_fields[effort_field]) per cycle for all artifacts in the cycle.
 
-        Returns [(cycle_node_id, total), ...].
+        Returns [(cycle_id, total), ...].
         """
         ...
 

@@ -10,9 +10,9 @@ Bu doküman **alm-manifest-app/alm-app/backend** ile **pamera/pameraapi** projel
 |------|------------------|---------------------|
 | **Dokümandaki context sayısı** | 6 (Process, Artifact, Tenant/Project, Task, Planning, Traceability) | 10 (Artifact, Process, Iteration, Team, Area, Board, Query, Workflow, Scripting, Shared) |
 | **Kodda modül/paket** | auth, tenant, project, artifact, task, comment, **cycle**, **area**, process_template, form_schema, shared | artifact, process, project, **projectstructure** (Area), **planning** (Iteration), team, auth, scripting, shared, i18n |
-| **Planning bölünmesi** | Tek “Planning” context; kodda **cycle** (iteration) + **area** ayrı paket | **Iteration** + **Area** ayrı bounded context |
+| **Planning bölünmesi** | Tek “Planning” context; kodda **cadence/cycle** + **area** ayrı paketler | **Iteration** + **Area** ayrı bounded context |
 
-ALM’de Planning tek context olarak anılıyor; uygulamada cycle (iteration) ve area ayrı modüller. Pamera’da da Iteration ve Area ayrı context’ler ve ayrı modüller (planning, projectstructure).
+ALM'de Planning tek context olarak anılıyor; uygulamada cadence/cycle ve area ayrı modüller. Pamera'da da Iteration ve Area ayrı context'ler ve ayrı modüller (planning, projectstructure).
 
 ---
 
@@ -35,15 +35,15 @@ ALM: Manifest merkezli, tek deklaratif kaynak. Pamera: Süreç şablonları + sc
 
 | Özellik | ALM Backend | Pamera API |
 |--------|-------------|------------|
-| **Aggregate** | Artifact (parent_id, cycle_node_id, area_node_id, area_path_snapshot, custom_fields, state, …) | Artifact (type, state, area, iteration, assignment, hierarchy, tags, links) |
+| **Aggregate** | Artifact (parent_id, cycle_id, area_node_id, area_path_snapshot, custom_fields, state, …) | Artifact (type, state, area, iteration, assignment, hierarchy, tags, links) |
 | **Tip/State** | Manifest’teki artifact_types + workflow | Process’ten artifact type + state definitions |
-| **Planning bağlantısı** | cycle_node_id, area_node_id + area_path_snapshot | iterationPath (path snapshot), areaId + areaPathSnapshot |
+| **Planning bağlantısı** | cycle_id, area_node_id + area_path_snapshot | iterationPath (path snapshot), areaId + areaPathSnapshot |
 | **Hiyerarşi** | parent_id (epic → feature → story) | parentId + ArtifactLink (parent/child, related, blocks, …) |
 | **Traceability** | Planlanan: link entity yok (REMAINING_PLAN’da) | ArtifactLink, LinkType (parent/child, related, duplicate, blocks) |
 | **Task** | Ayrı Task aggregate (artifact_id FK) | Task artifact tipi veya ayrı task entity (kodda task’lar artifact’a bağlı) |
 | **Comment** | Ayrı Comment aggregate (artifact_id) | Artifact detayda comment |
 
-Her iki tarafta da Artifact merkez; ALM’de planning cycle/area alanları ve snapshot path’ler Pamera’daki iteration/area kullanımına benzer. Pamera’da link ve traceability tasarımda/net; ALM’de traceability planlanan.
+Her iki tarafta da Artifact merkez; ALM'de planning tarafında cadence/cycle ve area alanları ile snapshot path'ler Pamera'daki iteration/area kullanımına benzer. Pamera'da link ve traceability tasarımda/net; ALM'de traceability planlanan.
 
 ---
 
@@ -66,7 +66,7 @@ ALM org/tenant/proje hiyerarşisi ve izinleri daha açık tanımlı; Pamera proj
 |--------|-------------|------------|
 | **Iteration** | **CycleNode** (parent_id, path, depth, sort_order, goal, start_date, end_date, state) | **IterationNode** (parent_id, path, depth, sort_order); tree/flat API |
 | **Area** | **AreaNode** (parent_id, path, depth, sort_order, is_active); rename, move, activate/deactivate | **AreaNode** (parent_id, path, depth, sort_order, is_active); rename, move, activate/deactivate |
-| **Artifact atama** | cycle_node_id; area_node_id + area_path_snapshot | iterationId/iterationPath; areaId + areaPathSnapshot |
+| **Artifact atama** | cycle_id; area_node_id + area_path_snapshot | iterationId/iterationPath; areaId + areaPathSnapshot |
 | **Path subtree** | find_by_project_and_path_prefix (rename/move) | findByProjectIdAndPathPrefix (rename/move) |
 
 Kavram ve API’ler hizalı: ALM’deki CycleNode ≈ Pamera IterationNode, ALM AreaNode ≈ Pamera AreaNode; artifact tarafında alanlar ve snapshot path kullanımı benzer.
@@ -128,7 +128,7 @@ ALM’de form/list schema manifest merkezli; Pamera’da process ve metadata kat
 | **Mimari** | Clean Architecture + DDD + Hexagonal; CQRS (Command/Query), Mediator, DTO | Spring Modulith (modüler monolit); DDD, aggregate, domain event |
 | **İletişim** | Mediator.send(command) / .query(query); session-scoped | ApplicationModuleListener (event), port/adapter (query) |
 | **Süreç → Artifact** | Manifest (workflow, artifact_types) projede; transition manifest’e göre | Process context → Artifact (Customer–Supplier); transition kuralları Process’ten |
-| **Area/Iteration → Artifact** | Artifact area_node_id, cycle_node_id + path snapshot | Conformist: Artifact path/ID kullanır; ağaç ilgili context’te |
+| **Area/Iteration → Artifact** | Artifact area_node_id, cycle_id + path snapshot | Conformist: Artifact path/ID kullanır; ağaç ilgili context’te |
 
 ALM: CQRS + Mediator + manifest tek kaynak. Pamera: Modulith + event + port/adapter, süreç ve alan/iterasyon context’leri ayrı.
 
@@ -142,7 +142,7 @@ ALM: CQRS + Mediator + manifest tek kaynak. Pamera: Modulith + event + port/adap
 | Artifact | Artifact | Her ikisinde de core; planning alanları benzer |
 | Tenant/Project | Project (+ Auth) | ALM’de tenant/org açık; Pamera proje merkezli |
 | Task | Task (artifact’a bağlı) | ALM ayrı aggregate; Pamera da artifact ile ilişkili |
-| Planning | Iteration + Area | ALM: cycle + area; Pamera: iteration + area (aynı kavram) |
+| Planning | Iteration + Area | ALM: release/cycle + area; Pamera: iteration + area (aynı kavram) |
 | Traceability | ArtifactLink / LinkType | Pamera’da var/tasarımda; ALM’de planlanan |
 | (yok) | Board, Query, Workflow, Scripting | Sadece Pamera’da |
 | Form/List schema | Metadata/FormSchema | ALM manifest; Pamera process/metadata |
@@ -151,7 +151,7 @@ ALM: CQRS + Mediator + manifest tek kaynak. Pamera: Modulith + event + port/adap
 
 ## 5. Sonuç ve Öneriler
 
-- **Ortak noktalar:** Artifact merkezli ALM; Planning’te iteration (cycle) ve area ağacı; artifact’ta iteration/area ataması ve path snapshot; Process/Manifest ile süreç ve tip/state tanımı.
+- **Ortak noktalar:** Artifact merkezli ALM; Planning'te release/cycle ve area ağacı; artifact'ta cycle/area ataması ve path snapshot; Process/Manifest ile süreç ve tip/state tanımı.
 - **Farklar:** ALM manifest’i tek kaynak ve meta-metadata (form/list) oradan türetiyor; Pamera süreç şablonları + script + metadata katalogları kullanıyor. Pamera’da Board, Query, Workflow, Scripting context’leri var; ALM’de yok. Traceability Pamera’da tasarımda/var, ALM’de planlanan.
 - **Referans:** Pamera’daki Iteration/Area, link tipleri ve event’ler ALM’deki cycle/area ve ileride traceability için rehber alınabilir; ALM tarafında manifest merkezlilik ve CQRS/Mediator yapısı korunabilir.
 

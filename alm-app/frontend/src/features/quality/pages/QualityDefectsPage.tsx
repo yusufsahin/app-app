@@ -1,11 +1,12 @@
 import type { ChangeEvent } from "react";
 import { useMemo, useState, useEffect, useRef, useCallback, FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ExternalLink, MessageSquarePlus, Plus, Search } from "lucide-react";
+import { ChevronDown, ExternalLink, MessageSquarePlus, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
+import { useBacklogWorkspaceProject } from "../../artifacts/pages/useBacklogWorkspaceProject";
 import { useArtifacts, useCreateArtifact } from "../../../shared/api/artifactApi";
 import { useFormSchema } from "../../../shared/api/formSchemaApi";
+import { useListSchema } from "../../../shared/api/listSchemaApi";
 import { useOrgMembers } from "../../../shared/api/orgApi";
 import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
@@ -23,6 +24,10 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
 } from "../../../shared/components/ui";
 import { useCreateArtifactCommentMutation } from "../../../shared/api/commentApi";
 import { LoadingState } from "../../../shared/components/LoadingState";
@@ -36,10 +41,14 @@ import { modalApi, useModalStore } from "../../../shared/modal";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { hasPermission } from "../../../shared/utils/permissions";
+import { MetadataDrivenGrid } from "../../../shared/components/lists/MetadataDrivenGrid";
+import type { TabularColumnModel } from "../../../shared/components/lists/types";
+import { schemaToGridColumns } from "../../../shared/components/lists/schemaToGridColumns";
+import { mapLookupItems } from "../../../shared/components/lists/lookupResolvers";
 import { buildArtifactCreatePayload } from "../../artifacts/lib/buildArtifactCreatePayload";
 import { pickDefectArtifactType } from "../lib/defectManifestHelpers";
 import type { ProblemDetail } from "../../../shared/api/types";
-import { getArtifactCellValue, isManifestFieldExcludedFromForms } from "../../artifacts/utils";
+import { getArtifactCellValue } from "../../artifacts/utils";
 import type { Artifact } from "../../../shared/stores/artifactStore";
 import { buildSimilarDefectSearchQuery } from "../lib/similarDefectSearch";
 
@@ -98,12 +107,19 @@ function parseExecutionContextSummary(customFields: Record<string, unknown> | un
   return parts.join(" · ");
 }
 
+function formatArtifactDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
 /**
  * Defect triage list: defect tree subtree via the same artifact list API; detail opens in Artifacts.
  */
 export default function QualityDefectsPage() {
   const { t } = useTranslation("quality");
-  const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
+  const { orgSlug, projectSlug, project, projectsLoading } = useBacklogWorkspaceProject();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const qFromUrl = searchParams.get("q")?.trim() ?? "";
@@ -116,6 +132,8 @@ export default function QualityDefectsPage() {
 
   const [searchDraft, setSearchDraft] = useState(qFromUrl);
   const [stateDraft, setStateDraft] = useState(stateFromUrl);
+  const [viewMode, setViewMode] = useState<"classic" | "tabular">("classic");
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
   useEffect(() => {
     setSearchDraft(qFromUrl);
@@ -159,12 +177,20 @@ export default function QualityDefectsPage() {
   const { data: manifest } = useProjectManifest(orgSlug, project?.id);
   const bundle = manifest?.manifest_bundle;
   const defectArtifactType = useMemo(() => pickDefectArtifactType(bundle), [bundle]);
+  const { data: defectListSchema } = useListSchema(orgSlug, project?.id, "artifact", "defects");
 
   const { data: formSchema, isError: formSchemaError, error: formSchemaErr } = useFormSchema(
     orgSlug,
     project?.id,
     "artifact",
     "create",
+    defectArtifactType,
+  );
+  const { data: defectEditSchema } = useFormSchema(
+    orgSlug,
+    project?.id,
+    "artifact",
+    "edit",
     defectArtifactType,
   );
   const formSchema403 = formSchemaError && (formSchemaErr as unknown as ProblemDetail)?.status === 403;
@@ -188,24 +214,6 @@ export default function QualityDefectsPage() {
     vals.artifact_type = defectArtifactType;
     return vals;
   }, [defectCreateFormSchema?.fields, defectArtifactType]);
-
-  const defectManifestFields = useMemo(() => {
-    const at = bundle?.artifact_types?.find((x) => x.id === defectArtifactType);
-    const raw = (at?.fields as { id?: string; name?: string }[] | undefined) ?? [];
-    return raw.filter(
-      (f): f is { id: string; name?: string } =>
-        Boolean(f.id) && !isManifestFieldExcludedFromForms(f),
-    );
-  }, [bundle?.artifact_types, defectArtifactType]);
-
-  /** First few manifest fields for triage list (severity already shown separately). */
-  const defectListExtraColumns = useMemo(() => {
-    const skip = new Set(["severity"]);
-    return defectManifestFields
-      .filter((f) => !skip.has(f.id))
-      .slice(0, 4)
-      .map((f) => ({ key: f.id, label: f.name || f.id }));
-  }, [defectManifestFields]);
 
   const createFormValuesRef = useRef<Record<string, unknown>>({});
   const [, setCreateFormErrors] = useState<Record<string, string>>({});
@@ -441,6 +449,84 @@ export default function QualityDefectsPage() {
     }
   }, [commentTarget, commentDraft, createCommentMutation, project?.id, showNotification, t]);
 
+  const toggleExpanded = useCallback((artifactId: string) => {
+    setExpandedIds((current) =>
+      current.includes(artifactId) ? current.filter((id) => id !== artifactId) : [...current, artifactId],
+    );
+  }, []);
+
+  const showRootMissing = projectReady && !rootPending && !rootDefectId;
+  const listBusy = listLoading || listFetching;
+  const showListLoading = listQueryEnabled && listBusy;
+  const pageBeyondTotal = total > 0 && pageFromUrl > totalPages;
+  const showPageOutOfRange =
+    listQueryEnabled && !listBusy && items.length === 0 && pageBeyondTotal;
+  const showEmpty =
+    listQueryEnabled && !listBusy && items.length === 0 && !pageBeyondTotal;
+
+  const defectGridColumns = useMemo<TabularColumnModel<Artifact>[]>(() => {
+    const schemaColumns = schemaToGridColumns<Artifact>({
+      listSchema: defectListSchema,
+      formSchema: defectEditSchema,
+      getCellValue: getArtifactCellValue,
+      getContextValue: (row, key) => {
+        if (key in row) return row[key as keyof Artifact];
+        return row.custom_fields?.[key];
+      },
+      pinnedColumnKeys: ["title"],
+      lookupSources: {
+        user: mapLookupItems(
+          members,
+          (member) => member.user_id,
+          (member) => member.display_name || member.email || member.user_id,
+        ),
+      },
+    });
+
+    return schemaColumns.map((column) => {
+      if (column.key === "title") {
+        return {
+          ...column,
+          width: 320,
+          renderDisplay: (row: Artifact) => {
+            const sevRaw = row.custom_fields?.severity;
+            const severity = typeof sevRaw === "string" || typeof sevRaw === "number" ? String(sevRaw) : "";
+            const assigneeName = row.assignee_id ? (memberLabels.get(row.assignee_id) ?? row.assignee_id) : "";
+            const executionSummary = parseExecutionContextSummary(row.custom_fields);
+            return (
+              <div className="min-w-0 py-1">
+                <p className="font-medium">{row.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {row.artifact_key ?? "—"} · {row.artifact_type}
+                  {row.state ? ` · ${row.state}` : ""}
+                  {assigneeName ? ` · ${t("defectsPage.assigneeLabel")}: ${assigneeName}` : ""}
+                  {severity ? ` · ${t("defectsPage.severityLabel")}: ${severity}` : ""}
+                </p>
+                {executionSummary ? (
+                  <p className="mt-1 text-xs text-muted-foreground">{executionSummary}</p>
+                ) : null}
+              </div>
+            );
+          },
+        };
+      }
+
+      return {
+        ...column,
+        isEditable: () => false,
+        editorKind: "readonly",
+        getDisplayValue: (row: Artifact, value: unknown) => {
+          if (column.key === "assignee_id" && row.assignee_id) {
+            return memberLabels.get(row.assignee_id) ?? row.assignee_id;
+          }
+          const formatted = formatDefectListCustomValue(row, column.fieldKey ?? column.key, memberLabels);
+          if (formatted) return formatted;
+          return column.getDisplayValue(row, value);
+        },
+      };
+    });
+  }, [defectEditSchema, defectListSchema, memberLabels, members, t]);
+
   if (projectSlug && orgSlug && !projectsLoading && !project) {
     return (
       <div className="mx-auto max-w-5xl py-6">
@@ -456,15 +542,6 @@ export default function QualityDefectsPage() {
       </div>
     );
   }
-
-  const showRootMissing = projectReady && !rootPending && !rootDefectId;
-  const listBusy = listLoading || listFetching;
-  const showListLoading = listQueryEnabled && listBusy;
-  const pageBeyondTotal = total > 0 && pageFromUrl > totalPages;
-  const showPageOutOfRange =
-    listQueryEnabled && !listBusy && items.length === 0 && pageBeyondTotal;
-  const showEmpty =
-    listQueryEnabled && !listBusy && items.length === 0 && !pageBeyondTotal;
 
   return (
     <div className="mx-auto flex max-w-5xl min-h-0 flex-col gap-4 px-4 pb-6 pt-6">
@@ -558,85 +635,236 @@ export default function QualityDefectsPage() {
                 {underFolderIdFromUrl ? (
                   <p className="text-xs text-muted-foreground">{t("defectsPage.listScopedToFolder")}</p>
                 ) : null}
-                <ul className="space-y-2">
-                  {items.map((a) => {
-                    const sevRaw = a.custom_fields?.severity;
-                    const severity =
-                      typeof sevRaw === "string" || typeof sevRaw === "number"
-                        ? String(sevRaw)
-                        : "";
-                    const assigneeName = a.assignee_id
-                      ? (memberLabels.get(a.assignee_id) ?? a.assignee_id)
-                      : "";
-                    const executionSummary = parseExecutionContextSummary(a.custom_fields);
-                    const extraParts = defectListExtraColumns
-                      .map((col) => {
-                        const v = formatDefectListCustomValue(a, col.key, memberLabels);
-                        return v ? `${col.label}: ${v}` : "";
-                      })
-                      .filter(Boolean);
-                    return (
-                    <li
-                      key={a.id}
-                      className="flex flex-wrap items-start justify-between gap-2 rounded-md border p-3 text-sm"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium">{a.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {a.artifact_key ?? "—"} · {a.artifact_type}
-                          {a.state ? ` · ${a.state}` : ""}
-                          {assigneeName ? ` · ${t("defectsPage.assigneeLabel")}: ${assigneeName}` : ""}
-                          {severity ? ` · ${t("defectsPage.severityLabel")}: ${severity}` : ""}
-                          {extraParts.length ? ` · ${extraParts.join(" · ")}` : ""}
-                        </p>
-                        {executionSummary ? (
-                          <p className="mt-1 text-xs text-muted-foreground">{executionSummary}</p>
-                        ) : null}
+                <Tabs
+                  value={viewMode}
+                  onValueChange={(value) => setViewMode(value as "classic" | "tabular")}
+                  className="w-full"
+                >
+                  <TabsList className="h-8 w-full flex-wrap justify-start gap-1 rounded-md sm:w-fit">
+                    <TabsTrigger value="classic">{t("defectsPage.classicView")}</TabsTrigger>
+                    <TabsTrigger value="tabular">{t("defectsPage.tabularView")}</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="classic" className="mt-3">
+                    <div className="overflow-hidden rounded-sm border border-border bg-background">
+                      <div className="grid grid-cols-[minmax(0,2.3fr)_120px_150px_110px] gap-3 border-b bg-muted/30 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        <span>{t("defectsPage.classicHeaderTitle")}</span>
+                        <span>{t("defectsPage.classicHeaderState")}</span>
+                        <span>{t("defectsPage.classicHeaderUpdated")}</span>
+                        <span>{t("defectsPage.classicHeaderPriority")}</span>
                       </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
-                        <div className="flex flex-wrap justify-end gap-1">
-                          <Button
+
+                      {items.map((row) => {
+                      const severityRaw = row.custom_fields?.severity;
+                      const severity =
+                        typeof severityRaw === "string" || typeof severityRaw === "number"
+                          ? String(severityRaw)
+                          : "";
+                      const assigneeName = row.assignee_id
+                        ? (memberLabels.get(row.assignee_id) ?? row.assignee_id)
+                        : "";
+                      const detectedBy = formatDefectListCustomValue(row, "detected_by", memberLabels);
+                      const environment = formatDefectListCustomValue(row, "environment", memberLabels);
+                      const executionSummary = parseExecutionContextSummary(row.custom_fields);
+                      const isExpanded = expandedIds.includes(row.id);
+
+                      return (
+                        <div key={row.id} className="border-b last:border-b-0">
+                          <button
                             type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2"
-                            onClick={() => runFindSimilar(a.title)}
+                            className="grid w-full grid-cols-[minmax(0,2.3fr)_120px_150px_110px] items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/20"
+                            onClick={() => toggleExpanded(row.id)}
                           >
-                            <Search className="mr-1 size-3.5 shrink-0" aria-hidden />
-                            <span className="hidden sm:inline">{t("defectsPage.findSimilar")}</span>
-                            <span className="sm:hidden">{t("defectsPage.findSimilarShort")}</span>
-                          </Button>
-                          {canCommentArtifact ? (
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex items-start gap-2">
+                                <ChevronDown
+                                  className={`mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                                  aria-hidden
+                                />
+                                <div className="min-w-0">
+                                  <p className="truncate text-[15px] font-semibold leading-5 text-foreground">
+                                    {row.title}
+                                  </p>
+                                  <p className="truncate text-[11px] leading-4 text-muted-foreground">
+                                    {row.artifact_key ?? "—"}
+                                    {assigneeName ? ` · ${t("defectsPage.assigneeLabel")}: ${assigneeName}` : ""}
+                                  </p>
+                                  {executionSummary ? (
+                                    <p className="truncate text-[11px] leading-4 text-muted-foreground">
+                                      {executionSummary}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pt-0.5 text-[13px] text-foreground">
+                              {row.state || t("defectsPage.detailEmptyValue")}
+                            </div>
+
+                            <div className="pt-0.5 text-[13px] text-foreground">
+                              {formatArtifactDate(row.updated_at)}
+                            </div>
+
+                            <div className="pt-0.5 text-[13px] text-foreground">
+                              {severity || t("defectsPage.detailEmptyValue")}
+                            </div>
+                          </button>
+
+                          {isExpanded ? (
+                            <div className="border-t bg-muted/10 px-3 py-3">
+                              <div className="grid gap-3 text-sm lg:grid-cols-[minmax(0,1.5fr)_300px]">
+                                <div className="space-y-3">
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                      {t("defectsPage.detailDescriptionLabel")}
+                                    </p>
+                                    <p className="mt-1 whitespace-pre-wrap break-words rounded-sm border bg-background px-2.5 py-2 text-[13px] leading-5">
+                                      {row.description?.trim() || t("defectsPage.detailEmptyValue")}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                      {t("defectsPage.detailExecutionLabel")}
+                                    </p>
+                                    <p className="mt-1 rounded-sm border bg-background px-2.5 py-2 text-[13px] leading-5">
+                                      {executionSummary || t("defectsPage.detailEmptyValue")}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="grid gap-2 rounded-sm border bg-background p-2.5 sm:grid-cols-2 lg:grid-cols-1">
+                                  <div className="space-y-1">
+                                    <p className="text-[11px] font-medium text-muted-foreground">{t("defectsPage.stateLabel")}</p>
+                                    <p className="text-[13px]">{row.state || t("defectsPage.detailEmptyValue")}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                      {t("defectsPage.assigneeLabel")}
+                                    </p>
+                                    <p className="text-[13px]">{assigneeName || t("defectsPage.detailEmptyValue")}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                      {t("defectsPage.severityLabel")}
+                                    </p>
+                                    <p className="text-[13px]">{severity || t("defectsPage.detailEmptyValue")}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                      {t("defectsPage.detailDetectedByLabel")}
+                                    </p>
+                                    <p className="text-[13px]">{detectedBy || t("defectsPage.detailEmptyValue")}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                      {t("defectsPage.detailEnvironmentLabel")}
+                                    </p>
+                                    <p className="text-[13px]">{environment || t("defectsPage.detailEmptyValue")}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                      {t("defectsPage.detailUpdatedLabel")}
+                                    </p>
+                                    <p className="text-[13px]">{formatArtifactDate(row.updated_at)}</p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-2.5">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => runFindSimilar(row.title)}
+                                >
+                                  <Search className="mr-1 size-3.5 shrink-0" aria-hidden />
+                                  {t("defectsPage.findSimilar")}
+                                </Button>
+                                {canCommentArtifact ? (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => {
+                                      setCommentTarget(row);
+                                      setCommentDraft("");
+                                    }}
+                                  >
+                                    <MessageSquarePlus className="mr-1 size-3.5 shrink-0" aria-hidden />
+                                    {t("defectsPage.addComment")}
+                                  </Button>
+                                ) : null}
+                                {orgSlug && projectSlug ? (
+                                  <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" asChild>
+                                    <Link to={artifactDetailPath(orgSlug, projectSlug, row.id)}>
+                                      {t("defectsPage.openDetail")}
+                                      <ExternalLink className="ml-1 size-3.5" />
+                                    </Link>
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="tabular" className="mt-3">
+                    <MetadataDrivenGrid<Artifact>
+                      columns={defectGridColumns}
+                      data={items}
+                      getRowKey={(row) => row.id}
+                      emptyMessage={t("defectsPage.empty")}
+                      renderRowActions={(row) => (
+                        <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+                          <div className="flex flex-wrap justify-end gap-1">
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
                               className="h-8 px-2"
-                              onClick={() => {
-                                setCommentTarget(a);
-                                setCommentDraft("");
-                              }}
+                              onClick={() => runFindSimilar(row.title)}
                             >
-                              <MessageSquarePlus className="mr-1 size-3.5 shrink-0" aria-hidden />
-                              <span className="hidden sm:inline">{t("defectsPage.addComment")}</span>
-                              <span className="sm:hidden">{t("defectsPage.addCommentShort")}</span>
+                              <Search className="mr-1 size-3.5 shrink-0" aria-hidden />
+                              <span className="hidden sm:inline">{t("defectsPage.findSimilar")}</span>
+                              <span className="sm:hidden">{t("defectsPage.findSimilarShort")}</span>
                             </Button>
+                            {canCommentArtifact ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2"
+                                onClick={() => {
+                                  setCommentTarget(row);
+                                  setCommentDraft("");
+                                }}
+                              >
+                                <MessageSquarePlus className="mr-1 size-3.5 shrink-0" aria-hidden />
+                                <span className="hidden sm:inline">{t("defectsPage.addComment")}</span>
+                                <span className="sm:hidden">{t("defectsPage.addCommentShort")}</span>
+                              </Button>
+                            ) : null}
+                          </div>
+                          {orgSlug && projectSlug ? (
+                            <Link
+                              to={artifactDetailPath(orgSlug, projectSlug, row.id)}
+                              className="inline-flex items-center gap-1 text-primary hover:underline"
+                            >
+                              {t("defectsPage.openDetail")}
+                              <ExternalLink className="size-3.5" />
+                            </Link>
                           ) : null}
                         </div>
-                        {orgSlug && projectSlug ? (
-                          <Link
-                            to={artifactDetailPath(orgSlug, projectSlug, a.id)}
-                            className="inline-flex items-center gap-1 text-primary hover:underline"
-                          >
-                            {t("defectsPage.openDetail")}
-                            <ExternalLink className="size-3.5" />
-                          </Link>
-                        ) : null}
-                      </div>
-                    </li>
-                    );
-                  })}
-                </ul>
+                      )}
+                    />
+                  </TabsContent>
+                </Tabs>
                 {totalPages > 1 ? (
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
                     <p className="text-xs text-muted-foreground">

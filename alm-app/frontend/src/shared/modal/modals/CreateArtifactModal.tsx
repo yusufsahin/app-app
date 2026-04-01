@@ -11,6 +11,7 @@ type Props = CreateArtifactModalProps & { onClose: () => void };
 const DETAILS_TAB = "details";
 
 export function CreateArtifactModal({
+  mode = "create",
   formSchema,
   formValues: initialFormValues,
   formErrors,
@@ -53,6 +54,8 @@ export function CreateArtifactModal({
     return { ...formSchema, fields: detailsFields };
   }, [formSchema]);
 
+  const isEditMode = mode === "edit";
+
   const assigneeLabel = useMemo(() => {
     const id = (formValues.assignee_id as string) ?? "";
     if (!id) return "No one selected";
@@ -87,14 +90,14 @@ export function CreateArtifactModal({
         </Button>
         <Button size="sm" onClick={() => onCreate(formValues)} disabled={isPending} data-testid="artifact-save-button">
           <Save className="mr-1.5 size-4" />
-          Save
+          {isEditMode ? "Save" : "Create"}
         </Button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-0">
         <div className="pt-4 pb-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            NEW {typeLabel.toUpperCase()} *
+            {isEditMode ? "EDIT" : "NEW"} {typeLabel.toUpperCase()} *
           </span>
           {formErrors.artifact_type && (
             <p className="mt-1 text-xs text-destructive">{formErrors.artifact_type}</p>
@@ -134,7 +137,7 @@ export function CreateArtifactModal({
                   onFormErrors({});
                 }}
                 onSubmit={() => onCreate(formValues)}
-                submitLabel="Create"
+                submitLabel={isEditMode ? "Save" : "Create"}
                 disabled={isPending}
                 submitExternally
                 errors={formErrors}

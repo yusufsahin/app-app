@@ -236,7 +236,7 @@ export function MetadataDrivenForm({
             );
           }
 
-          if ((field.type === "entity_ref" && field.entity_ref === "cycle") || field.key === "cycle_node_id") {
+          if ((field.type === "entity_ref" && field.entity_ref === "cycle") || field.key === "cycle_id") {
             const err = errors[field.key];
             const value = (val ?? "") as string;
             return (

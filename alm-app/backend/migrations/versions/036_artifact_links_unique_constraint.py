@@ -1,4 +1,4 @@
-"""Add unique constraint for artifact links.
+"""Add unique constraint for relationships.
 
 Revision ID: 036
 Revises: 035
@@ -15,11 +15,11 @@ depends_on = None
 
 def upgrade() -> None:
     op.create_unique_constraint(
-        "uq_artifact_links_project_from_to_type",
-        "artifact_links",
-        ["project_id", "from_artifact_id", "to_artifact_id", "link_type"],
+        "uq_relationships_project_from_to_type",
+        "relationships",
+        ["project_id", "source_artifact_id", "target_artifact_id", "relationship_type"],
     )
 
 
 def downgrade() -> None:
-    op.drop_constraint("uq_artifact_links_project_from_to_type", "artifact_links", type_="unique")
+    op.drop_constraint("uq_relationships_project_from_to_type", "relationships", type_="unique")

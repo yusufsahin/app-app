@@ -15,7 +15,7 @@ from alm.orgs.api.routes_capacity_p7 import (
     update_capacity,
 )
 from alm.orgs.api.routes_projects import list_artifacts
-from alm.orgs.api.routes_tasks_artifact_linked import (
+from alm.orgs.api.routes_tasks_by_artifact import (
     list_tasks_by_artifact,
     list_tasks_by_project_and_assignee,
 )
@@ -50,7 +50,7 @@ async def test_capacity_routes_build_expected_queries_and_commands() -> None:
     dto = AsyncMock()
     dto.id = capacity_id
     dto.project_id = project_id
-    dto.cycle_node_id = cycle_id
+    dto.cycle_id = cycle_id
     dto.team_id = team_id
     dto.user_id = user_id
     dto.capacity_value = 10.0
@@ -61,7 +61,7 @@ async def test_capacity_routes_build_expected_queries_and_commands() -> None:
     mediator.query = AsyncMock(return_value=[dto])
     rows = await list_capacity(
         project_id=project_id,
-        cycle_node_id=cycle_id,
+        cycle_id=cycle_id,
         team_id=team_id,
         user_id=user_id,
         org=_org(tenant_id),
@@ -71,12 +71,12 @@ async def test_capacity_routes_build_expected_queries_and_commands() -> None:
     assert len(rows) == 1
     q = mediator.query.await_args.args[0]
     assert q.project_id == project_id
-    assert q.cycle_node_id == cycle_id
+    assert q.cycle_id == cycle_id
     assert q.team_id == team_id
     assert q.user_id == user_id
 
     create_body = routes_capacity_p7.CapacityCreateRequest(
-        cycle_node_id=cycle_id,
+        cycle_id=cycle_id,
         team_id=team_id,
         user_id=None,
         capacity_value=16,

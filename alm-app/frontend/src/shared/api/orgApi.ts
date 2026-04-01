@@ -32,13 +32,13 @@ export interface DashboardActivityItem {
 }
 
 export interface VelocityPoint {
-  cycle_node_id: string;
+  cycleId: string;
   cycle_name: string;
   total_effort: number;
 }
 
 export interface BurndownPoint {
-  cycle_node_id: string;
+  cycleId: string;
   cycle_name: string;
   total_effort: number;
   completed_effort: number;
@@ -64,7 +64,7 @@ export interface Team {
 export interface Capacity {
   id: string;
   project_id: string;
-  cycle_node_id: string | null;
+  cycleId: string | null;
   team_id: string | null;
   user_id: string | null;
   capacity_value: number;
@@ -74,22 +74,22 @@ export interface Capacity {
 }
 
 interface MetricsOptionsBase {
-  cycleNodeIds?: string[];
+  cycleIds?: string[];
   lastN?: number;
   effortField?: string;
 }
 
 interface VelocityOptions extends MetricsOptionsBase {
-  releaseCycleNodeId?: string;
+  releaseId?: string;
 }
 
 export function buildVelocityParams(options?: VelocityOptions): URLSearchParams {
   const params = new URLSearchParams();
-  for (const id of options?.cycleNodeIds ?? []) {
-    params.append("cycle_node_id", id);
+  for (const id of options?.cycleIds ?? []) {
+    params.append("cycle_id", id);
   }
-  if (options?.releaseCycleNodeId) {
-    params.set("release_cycle_node_id", options.releaseCycleNodeId);
+  if (options?.releaseId) {
+    params.set("release_id", options.releaseId);
   }
   if (options?.lastN != null) {
     params.set("last_n", String(options.lastN));
@@ -100,8 +100,8 @@ export function buildVelocityParams(options?: VelocityOptions): URLSearchParams 
 
 export function buildBurndownParams(options?: MetricsOptionsBase): URLSearchParams {
   const params = new URLSearchParams();
-  for (const id of options?.cycleNodeIds ?? []) {
-    params.append("cycle_node_id", id);
+  for (const id of options?.cycleIds ?? []) {
+    params.append("cycle_id", id);
   }
   if (options?.lastN != null) {
     params.set("last_n", String(options.lastN));
@@ -214,8 +214,8 @@ export function useProjectVelocity(
       "projects",
       projectId,
       "velocity",
-      options?.cycleNodeIds,
-      options?.releaseCycleNodeId,
+      options?.cycleIds,
+      options?.releaseId,
       options?.lastN,
       options?.effortField,
     ],
@@ -243,7 +243,7 @@ export function useProjectBurndown(
       "projects",
       projectId,
       "burndown",
-      options?.cycleNodeIds,
+      options?.cycleIds,
       options?.lastN,
       options?.effortField,
     ],
@@ -278,7 +278,7 @@ export function useProjectTeams(
 export function useProjectCapacity(
   orgSlug: string | undefined,
   projectId: string | undefined,
-  options?: { cycleNodeId?: string; teamId?: string; userId?: string },
+  options?: { cycleId?: string; teamId?: string; userId?: string },
 ) {
   return useQuery({
     queryKey: [
@@ -287,7 +287,7 @@ export function useProjectCapacity(
       "projects",
       projectId,
       "capacity",
-      options?.cycleNodeId,
+      options?.cycleId,
       options?.teamId,
       options?.userId,
     ],
@@ -296,7 +296,7 @@ export function useProjectCapacity(
         `/orgs/${orgSlug}/projects/${projectId}/capacity`,
         {
           params: {
-            ...(options?.cycleNodeId ? { cycle_node_id: options.cycleNodeId } : {}),
+            ...(options?.cycleId ? { cycle_id: options.cycleId } : {}),
             ...(options?.teamId ? { team_id: options.teamId } : {}),
             ...(options?.userId ? { user_id: options.userId } : {}),
           },

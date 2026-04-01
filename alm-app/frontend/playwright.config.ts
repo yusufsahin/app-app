@@ -101,7 +101,7 @@ export default defineConfig({
       dependencies: ["setup"],
     },
     {
-      name: "planning-release-iteration",
+      name: "planning-release-cycle",
       testMatch: /planning-release-iteration\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],

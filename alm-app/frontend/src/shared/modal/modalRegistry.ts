@@ -16,6 +16,11 @@ export const MODALS = {
     options: { maxWidth: "lg", destroyOnClose: true },
     title: "New artifact",
   },
+  EditArtifactModal: {
+    component: lazy(() => import("./modals/CreateArtifactModal").then((m) => ({ default: m.CreateArtifactModal }))),
+    options: { maxWidth: "lg", destroyOnClose: true },
+    title: "Edit artifact",
+  },
   AddTaskModal: {
     component: lazy(() => import("./modals/AddTaskModal").then((m) => ({ default: m.AddTaskModal }))),
     options: { maxWidth: "sm", destroyOnClose: true },

@@ -24,13 +24,13 @@ class SqlAlchemyCapacityRepository(CapacityRepository):
     async def list_by_project(
         self,
         project_id: uuid.UUID,
-        cycle_node_id: uuid.UUID | None = None,
+        cycle_id: uuid.UUID | None = None,
         team_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
     ) -> list[Capacity]:
         q = select(CapacityModel).where(CapacityModel.project_id == project_id)
-        if cycle_node_id is not None:
-            q = q.where(CapacityModel.cycle_node_id == cycle_node_id)
+        if cycle_id is not None:
+            q = q.where(CapacityModel.cycle_id == cycle_id)
         if team_id is not None:
             q = q.where(CapacityModel.team_id == team_id)
         if user_id is not None:
@@ -43,7 +43,7 @@ class SqlAlchemyCapacityRepository(CapacityRepository):
         model = CapacityModel(
             id=capacity.id,
             project_id=capacity.project_id,
-            cycle_node_id=capacity.cycle_node_id,
+            cycle_id=capacity.cycle_id,
             team_id=capacity.team_id,
             user_id=capacity.user_id,
             capacity_value=capacity.capacity_value,
@@ -61,7 +61,7 @@ class SqlAlchemyCapacityRepository(CapacityRepository):
             update(CapacityModel)
             .where(CapacityModel.id == capacity.id)
             .values(
-                cycle_node_id=capacity.cycle_node_id,
+                cycle_id=capacity.cycle_id,
                 team_id=capacity.team_id,
                 user_id=capacity.user_id,
                 capacity_value=capacity.capacity_value,
@@ -85,7 +85,7 @@ class SqlAlchemyCapacityRepository(CapacityRepository):
         return Capacity(
             id=m.id,
             project_id=m.project_id,
-            cycle_node_id=m.cycle_node_id,
+            cycle_id=m.cycle_id,
             team_id=m.team_id,
             user_id=m.user_id,
             capacity_value=m.capacity_value,

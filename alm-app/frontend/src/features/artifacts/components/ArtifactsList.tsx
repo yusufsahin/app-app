@@ -1,6 +1,6 @@
 /**
- * List/board/tree view and bulk actions for Artifacts page.
- * Renders the main content area (bulk bar, table, board, or tree, pagination).
+ * List/tree view and bulk actions for the backlog workspace.
+ * Renders the main content area (bulk bar, table or tree, pagination).
  */
 export interface ArtifactsListProps {
   children: React.ReactNode;
@@ -9,3 +9,6 @@ export interface ArtifactsListProps {
 export function ArtifactsList({ children }: ArtifactsListProps) {
   return <div>{children}</div>;
 }
+
+export { ArtifactsList as BacklogWorkspaceLayout };
+export type { ArtifactsListProps as BacklogWorkspaceLayoutProps };

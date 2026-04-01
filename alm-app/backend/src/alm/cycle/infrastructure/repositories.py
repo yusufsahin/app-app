@@ -1,4 +1,4 @@
-"""Increment SQLAlchemy repository."""
+"""Cadence SQLAlchemy repository."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import uuid
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from alm.cycle.domain.entities import Increment
+from alm.cycle.domain.entities import Cadence
 from alm.cycle.domain.ports import CycleRepository
 from alm.cycle.infrastructure.models import CycleNodeModel
 
@@ -16,18 +16,18 @@ class SqlAlchemyCycleRepository(CycleRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def find_by_id(self, cycle_node_id: uuid.UUID) -> Increment | None:
-        result = await self._session.execute(select(CycleNodeModel).where(CycleNodeModel.id == cycle_node_id))
+    async def find_by_id(self, cadence_id: uuid.UUID) -> Cadence | None:
+        result = await self._session.execute(select(CycleNodeModel).where(CycleNodeModel.id == cadence_id))
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
-    async def list_by_project(self, project_id: uuid.UUID) -> list[Increment]:
+    async def list_by_project(self, project_id: uuid.UUID) -> list[Cadence]:
         result = await self._session.execute(
             select(CycleNodeModel).where(CycleNodeModel.project_id == project_id).order_by(CycleNodeModel.path.asc())
         )
         return [self._to_entity(m) for m in result.scalars().all()]
 
-    async def add(self, node: Increment) -> Increment:
+    async def add(self, node: Cadence) -> Cadence:
         model = CycleNodeModel(
             id=node.id,
             project_id=node.project_id,
@@ -40,13 +40,13 @@ class SqlAlchemyCycleRepository(CycleRepository):
             sort_order=node.sort_order,
             goal=node.goal or "",
             state=node.state or "planned",
-            type=getattr(node, "type", "iteration") or "iteration",
+            type=getattr(node, "type", "cycle") or "cycle",
         )
         self._session.add(model)
         await self._session.flush()
         return node
 
-    async def update(self, node: Increment) -> Increment:
+    async def update(self, node: Cadence) -> Cadence:
         await self._session.execute(
             update(CycleNodeModel)
             .where(CycleNodeModel.id == node.id)
@@ -58,20 +58,20 @@ class SqlAlchemyCycleRepository(CycleRepository):
                 end_date=node.end_date,
                 state=node.state or "planned",
                 sort_order=node.sort_order,
-                type=getattr(node, "type", "iteration") or "iteration",
+                type=getattr(node, "type", "cycle") or "cycle",
             )
         )
         await self._session.flush()
         return node
 
-    async def delete(self, cycle_node_id: uuid.UUID) -> bool:
-        result = await self._session.execute(delete(CycleNodeModel).where(CycleNodeModel.id == cycle_node_id))
+    async def delete(self, cadence_id: uuid.UUID) -> bool:
+        result = await self._session.execute(delete(CycleNodeModel).where(CycleNodeModel.id == cadence_id))
         await self._session.flush()
         return bool(getattr(result, "rowcount", 0))
 
     @staticmethod
-    def _to_entity(m: CycleNodeModel) -> Increment:
-        return Increment(
+    def _to_entity(m: CycleNodeModel) -> Cadence:
+        return Cadence(
             id=m.id,
             project_id=m.project_id,
             name=m.name,
@@ -83,7 +83,7 @@ class SqlAlchemyCycleRepository(CycleRepository):
             start_date=m.start_date,
             end_date=m.end_date,
             state=m.state or "planned",
-            type=getattr(m, "type", None) or "iteration",
+            type=getattr(m, "type", None) or "cycle",
             created_at=m.created_at,
             updated_at=m.updated_at,
         )

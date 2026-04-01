@@ -142,9 +142,9 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
         if "assignee_id" in updates:
             val = updates["assignee_id"]
             artifact.assignee_id = uuid.UUID(str(val)) if val is not None and str(val).strip() else None
-        if "cycle_node_id" in updates:
-            val = updates["cycle_node_id"]
-            artifact.cycle_node_id = uuid.UUID(str(val)) if val is not None and str(val).strip() else None
+        if "cycle_id" in updates:
+            val = updates["cycle_id"]
+            artifact.cycle_id = uuid.UUID(str(val)) if val is not None and str(val).strip() else None
         if "area_node_id" in updates:
             val = updates["area_node_id"]
             area_node_id = uuid.UUID(str(val)) if val is not None and str(val).strip() else None
@@ -189,7 +189,7 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
             state_reason=artifact.state_reason,
             resolution=artifact.resolution,
             rank_order=artifact.rank_order,
-            cycle_node_id=getattr(artifact, "cycle_node_id", None),
+            cycle_id=getattr(artifact, "cycle_id", None),
             area_node_id=getattr(artifact, "area_node_id", None),
             area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
             team_id=getattr(artifact, "team_id", None),

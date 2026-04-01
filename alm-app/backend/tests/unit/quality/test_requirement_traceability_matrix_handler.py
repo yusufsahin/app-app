@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from alm.artifact.domain.entities import Artifact
-from alm.artifact_link.domain.entities import ArtifactLink
+from alm.relationship.domain.entities import Relationship
 from alm.quality.application.queries import requirement_traceability_matrix as rtm_mod
 from alm.quality.application.queries.requirement_traceability_matrix import (
     RequirementTraceabilityMatrix,
@@ -82,17 +82,17 @@ async def test_single_requirement_and_test_builds_matrix() -> None:
         updated_at=datetime(2025, 3, 1, 10, 0, 0, tzinfo=timezone.utc),
     )
 
-    vlink = ArtifactLink.create(
+    vlink = Relationship.create(
         project_id=proj,
-        from_artifact_id=test_id,
-        to_artifact_id=req_id,
-        link_type="verifies",
+        source_artifact_id=test_id,
+        target_artifact_id=req_id,
+        relationship_type="verifies",
     )
-    run_link = ArtifactLink.create(
+    run_link = Relationship.create(
         project_id=proj,
-        from_artifact_id=run_id,
-        to_artifact_id=test_id,
-        link_type="direct_run_test",
+        source_artifact_id=run_id,
+        target_artifact_id=test_id,
+        relationship_type="direct_run_test",
     )
 
     project_repo = AsyncMock()
@@ -118,18 +118,18 @@ async def test_single_requirement_and_test_builds_matrix() -> None:
 
     artifact_repo.list_by_ids_in_project = AsyncMock(side_effect=_list_by_ids)
 
-    link_repo = AsyncMock()
-    link_repo.list_links_to_artifacts = AsyncMock(return_value=[vlink])
-    link_repo.list_outgoing_links_from_artifacts = AsyncMock(
+    relationship_repo = AsyncMock()
+    relationship_repo.list_relationships_to_artifacts = AsyncMock(return_value=[vlink])
+    relationship_repo.list_outgoing_relationships_from_artifacts = AsyncMock(
         side_effect=lambda _p, ids: [run_link] if run_id in ids else []
     )
-    link_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[(run_id, test_id)])
-    link_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
+    relationship_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[(run_id, test_id)])
+    relationship_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
 
     h = RequirementTraceabilityMatrixHandler(
         project_repo=project_repo,
         artifact_repo=artifact_repo,
-        link_repo=link_repo,
+        relationship_repo=relationship_repo,
         process_template_repo=AsyncMock(),
     )
     out = await h.handle(
@@ -152,7 +152,7 @@ async def test_single_requirement_and_test_builds_matrix() -> None:
     assert out.columns[0].artifact_key == "TC-1"
     assert out.columns[0].title == "Login test"
     assert len(out.relationships) == 1
-    assert out.relationships[0].link_type == "verifies"
+    assert out.relationships[0].relationship_type == "verifies"
 
 
 @pytest.mark.asyncio
@@ -227,31 +227,31 @@ async def test_search_filters_rows_and_columns() -> None:
         return_value=[login_test, checkout_test]
     )
 
-    link_repo = AsyncMock()
-    link_repo.list_links_to_artifacts = AsyncMock(
+    relationship_repo = AsyncMock()
+    relationship_repo.list_relationships_to_artifacts = AsyncMock(
         return_value=[
-            ArtifactLink.create(
+            Relationship.create(
                 project_id=proj,
-                from_artifact_id=test_login,
-                to_artifact_id=req_login,
-                link_type="verifies",
+                source_artifact_id=test_login,
+                target_artifact_id=req_login,
+                relationship_type="verifies",
             ),
-            ArtifactLink.create(
+            Relationship.create(
                 project_id=proj,
-                from_artifact_id=test_checkout,
-                to_artifact_id=req_checkout,
-                link_type="verifies",
+                source_artifact_id=test_checkout,
+                target_artifact_id=req_checkout,
+                relationship_type="verifies",
             ),
         ]
     )
-    link_repo.list_outgoing_links_from_artifacts = AsyncMock(return_value=[])
-    link_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[])
-    link_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
+    relationship_repo.list_outgoing_relationships_from_artifacts = AsyncMock(return_value=[])
+    relationship_repo.list_candidate_run_test_pairs = AsyncMock(return_value=[])
+    relationship_repo.list_suite_includes_tests_for_suites = AsyncMock(return_value=[])
 
     h = RequirementTraceabilityMatrixHandler(
         project_repo=project_repo,
         artifact_repo=artifact_repo,
-        link_repo=link_repo,
+        relationship_repo=relationship_repo,
         process_template_repo=AsyncMock(),
     )
     out = await h.handle(
@@ -273,7 +273,7 @@ async def test_rejects_multiple_execution_scopes() -> None:
     h = RequirementTraceabilityMatrixHandler(
         project_repo=AsyncMock(),
         artifact_repo=AsyncMock(),
-        link_repo=AsyncMock(),
+        relationship_repo=AsyncMock(),
         process_template_repo=AsyncMock(),
     )
     with pytest.raises(ValidationError, match="At most one"):
@@ -338,23 +338,23 @@ async def test_summary_reports_matrix_is_renderable_for_small_slice() -> None:
     artifact_repo.find_by_id = AsyncMock(return_value=req)
     artifact_repo.list_by_ids_in_project = AsyncMock(return_value=[test_art])
 
-    link_repo = AsyncMock()
-    link_repo.list_links_to_artifacts = AsyncMock(
+    relationship_repo = AsyncMock()
+    relationship_repo.list_relationships_to_artifacts = AsyncMock(
         return_value=[
-            ArtifactLink.create(
+            Relationship.create(
                 project_id=proj,
-                from_artifact_id=test_id,
-                to_artifact_id=req_id,
-                link_type="verifies",
+                source_artifact_id=test_id,
+                target_artifact_id=req_id,
+                relationship_type="verifies",
             )
         ]
     )
-    link_repo.list_outgoing_links_from_artifacts = AsyncMock(return_value=[])
+    relationship_repo.list_outgoing_relationships_from_artifacts = AsyncMock(return_value=[])
 
     h = RequirementTraceabilityMatrixSummaryHandler(
         project_repo=project_repo,
         artifact_repo=artifact_repo,
-        link_repo=link_repo,
+        relationship_repo=relationship_repo,
         process_template_repo=AsyncMock(),
     )
     out = await h.handle(
@@ -409,7 +409,7 @@ async def test_summary_flags_project_wide_scope_that_requires_under() -> None:
     h = RequirementTraceabilityMatrixSummaryHandler(
         project_repo=project_repo,
         artifact_repo=artifact_repo,
-        link_repo=AsyncMock(),
+        relationship_repo=AsyncMock(),
         process_template_repo=AsyncMock(),
     )
     out = await h.handle(

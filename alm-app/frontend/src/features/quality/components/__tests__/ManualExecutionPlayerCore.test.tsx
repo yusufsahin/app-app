@@ -11,9 +11,9 @@ vi.mock("../../../../shared/api/artifactApi", () => ({
   useArtifacts: vi.fn(() => ({ data: { items: [] } })),
 }));
 
-vi.mock("../../../../shared/api/artifactLinkApi", () => ({
-  useArtifactLinks: vi.fn(() => ({ data: [] })),
-  sortOutgoingSuiteLinks: vi.fn(() => []),
+vi.mock("../../../../shared/api/relationshipApi", () => ({
+  useArtifactRelationships: vi.fn(() => ({ data: [] })),
+  sortOutgoingRelationships: vi.fn(() => []),
 }));
 
 vi.mock("../../../../shared/api/manifestApi", () => ({

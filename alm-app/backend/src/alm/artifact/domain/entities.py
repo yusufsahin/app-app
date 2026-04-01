@@ -30,7 +30,7 @@ class Artifact(AggregateRoot):
         state_reason: str | None = None,
         resolution: str | None = None,
         rank_order: float | None = None,
-        cycle_node_id: uuid.UUID | None = None,
+        cycle_id: uuid.UUID | None = None,
         area_node_id: uuid.UUID | None = None,
         area_path_snapshot: str | None = None,
         team_id: uuid.UUID | None = None,
@@ -45,7 +45,7 @@ class Artifact(AggregateRoot):
         self.state = state
         self.assignee_id = assignee_id
         self.parent_id = parent_id
-        self.cycle_node_id = cycle_node_id
+        self.cycle_id = cycle_id
         self.area_node_id = area_node_id
         self.area_path_snapshot = area_path_snapshot
         self.team_id = team_id
@@ -72,7 +72,7 @@ class Artifact(AggregateRoot):
         custom_fields: dict[str, Any] | None = None,
         artifact_key: str | None = None,
         rank_order: float | None = None,
-        cycle_node_id: uuid.UUID | None = None,
+        cycle_id: uuid.UUID | None = None,
         area_node_id: uuid.UUID | None = None,
         area_path_snapshot: str | None = None,
         team_id: uuid.UUID | None = None,
@@ -90,7 +90,7 @@ class Artifact(AggregateRoot):
             custom_fields=custom_fields,
             artifact_key=artifact_key,
             rank_order=rank_order,
-            cycle_node_id=cycle_node_id,
+            cycle_id=cycle_id,
             area_node_id=area_node_id,
             area_path_snapshot=area_path_snapshot,
             team_id=team_id,

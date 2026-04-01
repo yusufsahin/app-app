@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import { useArtifact } from "../../../shared/api/artifactApi";
-import { incomingRunForSuiteLinks, useArtifactLinks } from "../../../shared/api/artifactLinkApi";
+import { incomingRunForSuiteRelationships, useArtifactRelationships } from "../../../shared/api/relationshipApi";
 import { Badge, Button } from "../../../shared/components/ui";
 import { navigateToRunDetails } from "../lib/qualityOpenManualRunner";
 import {
@@ -36,22 +36,26 @@ export function RunPreviousCompareSection({
   const { t } = useTranslation("quality");
   const navigate = useNavigate();
 
-  const runLinksQuery = useArtifactLinks(orgSlug, projectId, runArtifactId);
+  const runLinksQuery = useArtifactRelationships(orgSlug, projectId, runArtifactId);
   const suiteId = useMemo(
-    () => runLinksQuery.data?.find((l) => l.link_type === "run_for_suite")?.to_artifact_id,
+    () =>
+      runLinksQuery.data?.find(
+        (relationship) =>
+          relationship.relationship_type === "run_for_suite" && relationship.direction === "outgoing",
+      )?.target_artifact_id,
     [runLinksQuery.data],
   );
 
-  const suiteLinksQuery = useArtifactLinks(orgSlug, projectId, suiteId);
+  const suiteLinksQuery = useArtifactRelationships(orgSlug, projectId, suiteId);
 
   const previousRunId = useMemo(() => {
     if (!suiteId || !suiteLinksQuery.data?.length) return undefined;
-    const peers = [...incomingRunForSuiteLinks(suiteLinksQuery.data, suiteId)].sort((a, b) =>
+    const peers = [...incomingRunForSuiteRelationships(suiteLinksQuery.data, suiteId)].sort((a, b) =>
       (b.created_at ?? "").localeCompare(a.created_at ?? ""),
     );
-    const idx = peers.findIndex((p) => p.from_artifact_id === runArtifactId);
+    const idx = peers.findIndex((relationship) => relationship.source_artifact_id === runArtifactId);
     if (idx < 0 || idx >= peers.length - 1) return undefined;
-    return peers[idx + 1]?.from_artifact_id;
+    return peers[idx + 1]?.source_artifact_id;
   }, [suiteId, suiteLinksQuery.data, runArtifactId]);
 
   const prevArtifactQuery = useArtifact(orgSlug, projectId, previousRunId);

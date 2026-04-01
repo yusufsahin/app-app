@@ -9,6 +9,14 @@ export interface VisibleWhenCondition {
 
 /** For string/description fields: "text" (plain), "richtext" (WYSIWYG/HTML), or "markdown". */
 export type DescriptionInputMode = "text" | "richtext" | "markdown";
+export type SchemaLookupKind = "user" | "tag" | "cycle" | "area" | "team" | "artifact";
+
+export interface SchemaLookup {
+  kind: SchemaLookupKind;
+  multi?: boolean;
+  label_field?: string | null;
+  value_field?: string | null;
+}
 
 export interface FormFieldSchema {
   key: string;
@@ -20,8 +28,12 @@ export interface FormFieldSchema {
   order?: number;
   visible_when?: VisibleWhenCondition;
   required_when?: VisibleWhenCondition;
-  entity_ref?: "artifact" | "user" | "cycle" | "area";
+  entity_ref?: "artifact" | "user" | "cycle" | "area" | "team";
   allowed_parent_types?: string[];
+  editable?: boolean;
+  surfaces?: string[];
+  lookup?: SchemaLookup | null;
+  write_target?: "root" | "custom_field" | null;
   /** For description/string fields: render as plain text, rich text (WYSIWYG), or markdown editor. Default "text". */
   input_mode?: DescriptionInputMode;
 }

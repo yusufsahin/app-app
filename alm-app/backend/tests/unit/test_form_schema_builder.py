@@ -82,6 +82,19 @@ class TestFormSchemaBuilder:
         tag_field = next(f for f in schema.fields if f.key == "tag_ids")
         assert tag_field.type == "tag_list"
         assert tag_field.label_key == "Tags"
+        assert tag_field.editable is True
+        assert "tabular" in tag_field.surfaces
+        assert tag_field.lookup is not None
+        assert tag_field.lookup.kind == "tag"
+        assert tag_field.write_target == "root"
+
+    def test_artifact_edit_assignee_has_lookup_metadata(self):
+        schema = build_artifact_edit_form_schema(SAMPLE_MANIFEST, _FLATTENER, artifact_type="defect")
+        assignee = next(f for f in schema.fields if f.key == "assignee_id")
+        assert assignee.lookup is not None
+        assert assignee.lookup.kind == "user"
+        assert assignee.editable is True
+        assert "tabular" in assignee.surfaces
 
     def test_visible_when_normalized(self):
         schema = build_artifact_create_form_schema(SAMPLE_MANIFEST, _FLATTENER)

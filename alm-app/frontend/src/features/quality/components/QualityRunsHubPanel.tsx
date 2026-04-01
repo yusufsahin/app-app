@@ -4,10 +4,16 @@ import { useQueries } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { Download, PlayCircle, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useArtifacts, type Artifact } from "../../../shared/api/artifactApi";
-import type { ArtifactLink } from "../../../shared/api/artifactLinkApi";
+import { toast } from "sonner";
+import {
+  buildArtifactListParams,
+  exportArtifactsFile,
+  useArtifacts,
+  type Artifact,
+} from "../../../shared/api/artifactApi";
+import type { ArtifactRelationship } from "../../../shared/api/relationshipApi";
 import { apiClient } from "../../../shared/api/client";
-import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
+import { useBacklogWorkspaceProject } from "../../artifacts/pages/useBacklogWorkspaceProject";
 import {
   Button,
   Card,
@@ -15,6 +21,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Input,
   Select,
   SelectContent,
@@ -58,7 +68,7 @@ function RunsTableSkeleton({ rows = 6, label }: { rows?: number; label: string }
 export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
   const { t } = useTranslation("quality");
   const navigate = useNavigate();
-  const { orgSlug, projectSlug, project } = useArtifactsPageProject();
+  const { orgSlug, projectSlug, project } = useBacklogWorkspaceProject();
   const [newRunOpen, setNewRunOpen] = useState(false);
   const [selectedSuiteId, setSelectedSuiteId] = useState("");
   const [runFilter, setRunFilter] = useState("");
@@ -121,10 +131,10 @@ export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
 
   const linkQueries = useQueries({
     queries: filteredRuns.map((run) => ({
-      queryKey: ["orgs", orgSlug, "projects", project?.id, "artifacts", run.id, "links"] as const,
-      queryFn: async (): Promise<ArtifactLink[]> => {
-        const { data } = await apiClient.get<ArtifactLink[]>(
-          `/orgs/${orgSlug}/projects/${project!.id}/artifacts/${run.id}/links`,
+      queryKey: ["orgs", orgSlug, "projects", project?.id, "artifacts", run.id, "relationships"] as const,
+      queryFn: async (): Promise<ArtifactRelationship[]> => {
+        const { data } = await apiClient.get<ArtifactRelationship[]>(
+          `/orgs/${orgSlug}/projects/${project!.id}/artifacts/${run.id}/relationships`,
         );
         return data;
       },
@@ -137,12 +147,15 @@ export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
     filteredRuns.forEach((run, i) => {
       const q = linkQueries[i];
       if (!q?.data) return;
-      const link = q.data.find(
-        (l) => l.link_type === "run_for_suite" && l.from_artifact_id === run.id,
+      const relationship = q.data.find(
+        (item) =>
+          item.relationship_type === "run_for_suite" &&
+          item.direction === "outgoing" &&
+          item.source_artifact_id === run.id,
       );
-      if (!link) return;
-      const suite = suitesById.get(link.to_artifact_id);
-      m.set(run.id, suite?.title?.trim() || link.to_artifact_id);
+      if (!relationship) return;
+      const suite = suitesById.get(relationship.target_artifact_id);
+      m.set(run.id, suite?.title?.trim() || relationship.target_artifact_id);
     });
     return m;
   }, [filteredRuns, linkQueries, suitesById]);
@@ -200,12 +213,15 @@ export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
       let suiteTitle = "";
       if (q?.isPending) suiteTitle = t("runsHub.suiteLoading");
       else if (q?.data) {
-        const link = q.data.find(
-          (l) => l.link_type === "run_for_suite" && l.from_artifact_id === run.id,
+        const relationship = q.data.find(
+          (item) =>
+            item.relationship_type === "run_for_suite" &&
+            item.direction === "outgoing" &&
+            item.source_artifact_id === run.id,
         );
-        if (link) {
-          const suite = suitesById.get(link.to_artifact_id);
-          suiteTitle = suite?.title?.trim() || link.to_artifact_id;
+        if (relationship) {
+          const suite = suitesById.get(relationship.target_artifact_id);
+          suiteTitle = suite?.title?.trim() || relationship.target_artifact_id;
         }
       }
       if (!suiteTitle) suiteTitle = t("runsHub.suiteNone");
@@ -225,6 +241,27 @@ export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
     });
     const slug = projectSlug ?? "runs";
     downloadRunsCsv(rows, `test-runs_${slug}_${dayjs().format("YYYY-MM-DD")}`);
+  };
+
+  const onExportAll = async (format: "csv" | "xlsx") => {
+    if (!orgSlug || !project?.id) return;
+    try {
+      await exportArtifactsFile(orgSlug, project.id, {
+        ...buildArtifactListParams({
+          typeFilter: "test-run",
+          sortBy: "updated_at",
+          sortOrder: "desc",
+          searchQuery: runFilter,
+          tree: treeId,
+        }),
+        format,
+        scope: "runs",
+      });
+      toast.success(`Exported runs as ${format.toUpperCase()}.`);
+    } catch (error) {
+      const detail = (error as { detail?: string } | undefined)?.detail;
+      toast.error(detail || "Failed to export runs.");
+    }
   };
 
   const quickFilterButtons: { id: RunQuickFilterId; label: string }[] = [
@@ -327,18 +364,35 @@ export function QualityRunsHubPanel({ treeId = "testsuites" }: Props) {
                     ))}
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 self-start sm:self-center"
-                  disabled={filteredRuns.length === 0}
-                  onClick={onExportCsv}
-                  aria-label={t("runsHub.exportCsvAria")}
-                >
-                  <Download className="mr-1 size-4 shrink-0" aria-hidden />
-                  {t("runsHub.exportCsv")}
-                </Button>
+                <div className="flex shrink-0 gap-2 self-start sm:self-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={filteredRuns.length === 0}
+                    onClick={onExportCsv}
+                    aria-label={t("runsHub.exportCsvAria")}
+                  >
+                    <Download className="mr-1 size-4 shrink-0" aria-hidden />
+                    {t("runsHub.exportCsv")}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="outline" size="sm">
+                        <Download className="mr-1 size-4 shrink-0" aria-hidden />
+                        {t("runsHub.exportAll")}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => void onExportAll("csv")}>
+                        {t("runsHub.exportAllRunsCsv")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => void onExportAll("xlsx")}>
+                        {t("runsHub.exportAllRunsXlsx")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
               <div className="relative">
                 <Search

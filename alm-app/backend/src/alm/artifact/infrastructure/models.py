@@ -38,7 +38,7 @@ class ArtifactModel(Base, TimestampMixin, SoftDeleteMixin):
     state_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     resolution: Mapped[str | None] = mapped_column(String(100), nullable=True)
     rank_order: Mapped[float | None] = mapped_column(Float, nullable=True)
-    cycle_node_id: Mapped[uuid.UUID | None] = mapped_column(
+    cycle_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("cycle_nodes.id", ondelete="SET NULL"),
         nullable=True,

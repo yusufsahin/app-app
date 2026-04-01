@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
-import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
+import { useBacklogWorkspaceProject } from "../../artifacts/pages/useBacklogWorkspaceProject";
 import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { useArtifacts } from "../../../shared/api/artifactApi";
 import { getDeclaredTreeRootsFromManifestBundle } from "../../../shared/lib/manifestTreeRoots";
@@ -29,7 +29,7 @@ function isUuid(value: string | null): value is string {
  * Project-wide link listing is not available in the API; links are per artifact.
  */
 export default function QualityTraceabilityPage() {
-  const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
+  const { orgSlug, projectSlug, project, projectsLoading } = useBacklogWorkspaceProject();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: manifest } = useProjectManifest(orgSlug, project?.id);
   const treeRootOptions = useMemo(
@@ -115,7 +115,7 @@ export default function QualityTraceabilityPage() {
         <CardHeader>
           <CardTitle>Quality traceability</CardTitle>
           <CardDescription>
-            Artifacts in the Quality tree (paginated by last updated). Open an item to view and manage outgoing links
+            Backlog items in the Quality tree (paginated by last updated). Open an item to view and manage outgoing links
             in the side panel. Link types are defined in the project manifest (
             <code className="rounded bg-muted px-1 text-xs">link_types</code>).
           </CardDescription>

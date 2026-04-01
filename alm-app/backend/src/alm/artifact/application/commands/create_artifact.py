@@ -36,7 +36,7 @@ class CreateArtifact(Command):
     custom_fields: dict[str, Any] | None = None
     artifact_key: str | None = None
     rank_order: float | None = None
-    cycle_node_id: uuid.UUID | None = None
+    cycle_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
     team_id: uuid.UUID | None = None
     created_by: uuid.UUID | None = None
@@ -163,7 +163,7 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
             custom_fields=command.custom_fields or {},
             artifact_key=artifact_key,
             rank_order=command.rank_order,
-            cycle_node_id=command.cycle_node_id,
+            cycle_id=command.cycle_id,
             area_node_id=command.area_node_id,
             area_path_snapshot=area_path_snapshot,
             team_id=command.team_id,
@@ -195,7 +195,7 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
             state_reason=artifact.state_reason,
             resolution=artifact.resolution,
             rank_order=artifact.rank_order,
-            cycle_node_id=getattr(artifact, "cycle_node_id", None),
+            cycle_id=getattr(artifact, "cycle_id", None),
             area_node_id=getattr(artifact, "area_node_id", None),
             area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
             team_id=getattr(artifact, "team_id", None),

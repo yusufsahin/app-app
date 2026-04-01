@@ -21,10 +21,10 @@ import {
 } from "../../../shared/components/ui";
 import { useArtifacts, type Artifact } from "../../../shared/api/artifactApi";
 import {
-  useArtifactLinks,
-  useBulkCreateArtifactLinks,
-  useBulkDeleteArtifactLinks,
-} from "../../../shared/api/artifactLinkApi";
+  useArtifactRelationships,
+  useBulkCreateArtifactRelationships,
+  useBulkDeleteArtifactRelationships,
+} from "../../../shared/api/relationshipApi";
 import { buildArtifactTree, type ArtifactNode } from "../../artifacts/utils";
 import { getTreeRootsFromManifestBundle } from "../../../shared/lib/manifestTreeRoots";
 import type { ManifestResponse } from "../../../shared/api/manifestApi";
@@ -190,21 +190,24 @@ export function SuiteTestLinkModal({
     return buildArtifactTree(items, treeRoots);
   }, [allTreeArtifacts.data?.items, treeRoots]);
 
-  const linksQuery = useArtifactLinks(orgSlug, projectId, suiteArtifactId);
-  const bulkCreate = useBulkCreateArtifactLinks(orgSlug, projectId, suiteArtifactId);
-  const bulkDelete = useBulkDeleteArtifactLinks(orgSlug, projectId, suiteArtifactId);
+  const linksQuery = useArtifactRelationships(orgSlug, projectId, suiteArtifactId);
+  const bulkCreate = useBulkCreateArtifactRelationships(orgSlug, projectId, suiteArtifactId);
+  const bulkDelete = useBulkDeleteArtifactRelationships(orgSlug, projectId, suiteArtifactId);
 
   const filteredLinks = useMemo(
     () =>
       (linksQuery.data ?? []).filter(
-        (l) => l.link_type === linkType && l.from_artifact_id === suiteArtifactId,
+        (l) =>
+          l.relationship_type === linkType &&
+          l.direction === "outgoing" &&
+          l.source_artifact_id === suiteArtifactId,
       ),
     [linksQuery.data, linkType, suiteArtifactId],
   );
 
   const linkByTargetId = useMemo(() => {
     const map = new Map<string, string>();
-    for (const l of filteredLinks) map.set(l.to_artifact_id, l.id);
+    for (const l of filteredLinks) map.set(l.target_artifact_id, l.id);
     return map;
   }, [filteredLinks]);
 
@@ -311,8 +314,8 @@ export function SuiteTestLinkModal({
     if (targetIds.length === 0 && skippedCount === 0) return;
     if (targetIds.length > 0) {
       const result = await bulkCreate.mutateAsync({
-        to_artifact_ids: targetIds,
-        link_type: linkType,
+        target_artifact_ids: targetIds,
+        relationship_type: linkType,
         idempotency_key: crypto.randomUUID(),
       });
       setLiveMessage(`${result.succeeded.length} test case(s) added to suite.`);
@@ -346,8 +349,8 @@ export function SuiteTestLinkModal({
     for (let i = 0; i < addableAllInScopeIds.length; i += CHUNK) {
       const chunk = addableAllInScopeIds.slice(i, i + CHUNK);
       const result = await bulkCreate.mutateAsync({
-        to_artifact_ids: chunk,
-        link_type: linkType,
+        target_artifact_ids: chunk,
+        relationship_type: linkType,
         idempotency_key: crypto.randomUUID(),
       });
       totalSucceeded += result.succeeded.length;
@@ -379,7 +382,7 @@ export function SuiteTestLinkModal({
       return;
     }
     const result = await bulkDelete.mutateAsync({
-      link_ids: linkIds,
+      relationship_ids: linkIds,
       idempotency_key: crypto.randomUUID(),
     });
     setLiveMessage(`${result.succeeded.length} test case(s) removed from suite.`);
@@ -530,7 +533,7 @@ export function SuiteTestLinkModal({
           <button
             type="button"
             role="radio"
-            aria-checked={scopeMode === "all" ? "true" : "false"}
+            aria-checked={scopeMode === "all"}
             data-testid="suite-link-scope-all"
             className={`flex-1 rounded-sm px-2 py-1.5 text-center text-xs font-medium transition-colors sm:text-sm ${
               scopeMode === "all" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
@@ -542,7 +545,7 @@ export function SuiteTestLinkModal({
           <button
             type="button"
             role="radio"
-            aria-checked={scopeMode === "folder" ? "true" : "false"}
+            aria-checked={scopeMode === "folder"}
             data-testid="suite-link-scope-folder"
             className={`flex-1 rounded-sm px-2 py-1.5 text-center text-xs font-medium transition-colors sm:text-sm ${
               scopeMode === "folder" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"

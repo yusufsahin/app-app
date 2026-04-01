@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ClipboardCopy, FilterX, Loader2, Search } from "lucide-react";
+import { ClipboardCopy, Download, FilterX, Loader2, Search } from "lucide-react";
 import {
   Badge,
   Button,
@@ -22,7 +22,7 @@ import {
   cn,
 } from "../../../shared/components/ui";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
-import { useArtifactsPageProject } from "./useArtifactsPageProject";
+import { useBacklogWorkspaceProject } from "./useBacklogWorkspaceProject";
 import {
   useRequirementTraceabilityMatrix,
   useRequirementTraceabilityMatrixSummary,
@@ -37,6 +37,7 @@ import {
   qualityPath,
 } from "../../../shared/utils/appPaths";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
+import { buildWorkbookBlob, downloadBlobFile } from "../../../shared/lib/xlsxExport";
 
 const STATUS_CLASS: Record<string, string> = {
   passed: "bg-emerald-600",
@@ -64,9 +65,60 @@ function scopeFieldTone(active: boolean) {
   return active ? "border-primary bg-primary/5" : "border-border";
 }
 
+function matrixSheetRows(
+  rows: TraceabilityMatrixRow[],
+  columns: TraceabilityMatrixColumn[],
+  t: ReturnType<typeof useTranslation<"quality">>["t"],
+): Array<Array<string>> {
+  const header = [
+    t("traceabilityMatrix.requirementColumn"),
+    ...columns.map((column) => column.artifact_key ?? column.title),
+  ];
+  return [
+    header,
+    ...rows.map((row) => {
+      const byTest = cellByTestId(row);
+      return [
+        row.artifact_key ? `${row.artifact_key} - ${row.title}` : row.title,
+        ...columns.map((column) => {
+          const cell = byTest.get(column.test_id);
+          if (!cell) return "-";
+          return t(`requirementCoverage.statusLabels.${cell.status ?? "no_run"}` as never, {
+            defaultValue: cell.status ?? "no_run",
+          });
+        }),
+      ];
+    }),
+  ];
+}
+
+function relationshipSheetRows(
+  relationships: TraceabilityRelationship[],
+  t: ReturnType<typeof useTranslation<"quality">>["t"],
+): Array<Array<string>> {
+  return [
+    [
+      t("traceabilityMatrix.relationshipCols.requirement"),
+      t("traceabilityMatrix.relationshipCols.test"),
+      t("traceabilityMatrix.relationshipCols.linkType"),
+      t("traceabilityMatrix.relationshipCols.status"),
+      t("traceabilityMatrix.relationshipCols.run"),
+    ],
+    ...relationships.map((row) => [
+      row.requirement_artifact_key ? `${row.requirement_artifact_key} - ${row.requirement_title}` : row.requirement_title,
+      row.test_artifact_key ? `${row.test_artifact_key} - ${row.test_title}` : row.test_title,
+      row.link_type,
+      t(`requirementCoverage.statusLabels.${row.status ?? "no_run"}` as never, {
+        defaultValue: row.status ?? "no_run",
+      }),
+      row.run_title ?? "",
+    ]),
+  ];
+}
+
 export default function RequirementTraceabilityMatrixPage() {
   const { t } = useTranslation("quality");
-  const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
+  const { orgSlug, projectSlug, project, projectsLoading } = useBacklogWorkspaceProject();
   const [searchParams, setSearchParams] = useSearchParams();
   const showNotification = useNotificationStore((s) => s.showNotification);
 
@@ -209,6 +261,27 @@ export default function RequirementTraceabilityMatrixPage() {
       showNotification(t("traceabilityMatrix.relationshipsCopyFailed"), "error");
     }
   }, [matrixQuery.data?.relationships, showNotification, t]);
+
+  const exportWorkbook = useCallback(async () => {
+    const data = matrixQuery.data;
+    if (!data) return;
+    try {
+      const blob = await buildWorkbookBlob([
+        {
+          name: t("traceabilityMatrix.tabs.matrix"),
+          rows: matrixSheetRows(data.rows, data.columns, t),
+        },
+        {
+          name: t("traceabilityMatrix.tabs.relationships"),
+          rows: relationshipSheetRows(data.relationships, t),
+        },
+      ]);
+      downloadBlobFile(blob, `traceability-matrix-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      showNotification(t("traceabilityMatrix.exportSuccess"), "success");
+    } catch {
+      showNotification(t("traceabilityMatrix.exportFailed"), "error");
+    }
+  }, [matrixQuery.data, showNotification, t]);
 
   const clearFilters = useCallback(() => {
     setDraftUnder("");
@@ -388,6 +461,16 @@ export default function RequirementTraceabilityMatrixPage() {
                 </Button>
                 <Button type="button" size="sm" variant="secondary" onClick={forceRefresh}>
                   {t("traceabilityMatrix.refresh")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void exportWorkbook()}
+                  disabled={!matrixQuery.data}
+                >
+                  <Download className="mr-1 size-3.5" />
+                  {t("traceabilityMatrix.exportExcel")}
                 </Button>
                 <Button type="button" size="sm" variant="outline" onClick={() => void copyRelationships()}>
                   <ClipboardCopy className="mr-1 size-3.5" />

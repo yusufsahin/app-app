@@ -4,7 +4,7 @@
   "description": "ALM app – full lifecycle: build, test, deploy",
   "scripts": {
     "build": "npm run build:fe && npm run build:be",
-    "build:fe": "cd frontend && npm ci && npm run build",
+    "build:fe": "cd frontend && npm install && npm run build",
     "build:be": "cd backend && uv sync",
     "test": "npm run test:be && npm run test:fe",
     "test:be": "cd backend && uv run pytest tests -v --tb=short",

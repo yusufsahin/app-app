@@ -74,7 +74,7 @@ describe("projectSwitcherUtils", () => {
     });
 
     it("returns segment when third part is a project page", () => {
-      expect(getProjectSegment("/org/proj/artifacts")).toBe("artifacts");
+      expect(getProjectSegment("/org/proj/backlog")).toBe("backlog");
       expect(getProjectSegment("/org/proj/board")).toBe("board");
       expect(getProjectSegment("/org/proj/manifest")).toBe("manifest");
       expect(getProjectSegment("/org/proj/planning")).toBe("planning");
@@ -87,7 +87,7 @@ describe("projectSwitcherUtils", () => {
     });
 
     it("handles leading/trailing slashes", () => {
-      expect(getProjectSegment("org/proj/artifacts")).toBe("artifacts");
+      expect(getProjectSegment("org/proj/backlog")).toBe("backlog");
     });
   });
 
@@ -95,7 +95,7 @@ describe("projectSwitcherUtils", () => {
     it("includes expected segments", () => {
       expect(PROJECT_SEGMENTS).toContain("manifest");
       expect(PROJECT_SEGMENTS).toContain("planning");
-      expect(PROJECT_SEGMENTS).toContain("artifacts");
+      expect(PROJECT_SEGMENTS).toContain("backlog");
       expect(PROJECT_SEGMENTS).toContain("board");
       expect(PROJECT_SEGMENTS).toContain("automation");
       expect(PROJECT_SEGMENTS).toHaveLength(5);

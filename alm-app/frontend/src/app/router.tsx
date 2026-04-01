@@ -62,8 +62,11 @@ const DashboardPage = lazy(
 const ManifestPage = lazy(
   () => import("../features/manifest/pages/ManifestPage"),
 );
-const ArtifactsPage = lazy(
-  () => import("../features/artifacts/pages/ArtifactsPage"),
+const BacklogPage = lazy(
+  () => import("../features/artifacts/pages/BacklogPage"),
+);
+const BacklogDetailPage = lazy(
+  () => import("../features/artifacts/pages/BacklogDetailPage"),
 );
 const RequirementsCoveragePage = lazy(
   () => import("../features/artifacts/pages/RequirementsCoveragePage"),
@@ -208,8 +211,12 @@ export const router = createBrowserRouter([
             element: withPermission("project:read", PlanningPage),
           },
           {
-            path: ":projectSlug/artifacts",
-            element: withPermission("artifact:read", ArtifactsPage),
+            path: ":projectSlug/backlog",
+            element: withPermission("artifact:read", BacklogPage),
+          },
+          {
+            path: ":projectSlug/backlog/:artifactId",
+            element: withPermission("artifact:read", BacklogDetailPage),
           },
           {
             path: ":projectSlug/requirements/coverage",

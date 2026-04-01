@@ -35,6 +35,28 @@ export interface ArtifactsListResult {
   allowed_actions?: string[];
 }
 
+export type ArtifactIoScope = "generic" | "testcases" | "runs";
+export type ArtifactIoFormat = "csv" | "xlsx";
+export type ArtifactImportMode = "create" | "update" | "upsert";
+
+export interface ArtifactImportRowResult {
+  row_number: number;
+  sheet: string;
+  artifact_key?: string | null;
+  status: "created" | "updated" | "validated" | "skipped" | "failed";
+  message?: string | null;
+  artifact_id?: string | null;
+}
+
+export interface ArtifactImportResult {
+  created_count: number;
+  updated_count: number;
+  validated_count: number;
+  skipped_count: number;
+  failed_count: number;
+  rows: ArtifactImportRowResult[];
+}
+
 export interface ArtifactListParams {
   state?: string;
   type?: string;
@@ -44,8 +66,8 @@ export interface ArtifactListParams {
   limit?: number;
   offset?: number;
   include_deleted?: boolean;
-  cycle_node_id?: string;
-  release_cycle_node_id?: string;
+  cycle_id?: string;
+  release_id?: string;
   area_node_id?: string;
   tree?: string;
   /** When true, API returns system root rows (Requirements / Quality / Defects folder roots). */
@@ -70,8 +92,8 @@ export function buildArtifactListParams(options: {
   limit?: number;
   offset?: number;
   includeDeleted?: boolean;
-  cycleNodeId?: string | null;
-  releaseCycleNodeId?: string | null;
+  cycleId?: string | null;
+  releaseId?: string | null;
   areaNodeId?: string | null;
   tree?: string | null;
   includeSystemRoots?: boolean;
@@ -89,8 +111,8 @@ export function buildArtifactListParams(options: {
     limit,
     offset,
     includeDeleted,
-    cycleNodeId,
-    releaseCycleNodeId,
+    cycleId,
+    releaseId,
     areaNodeId,
     tree,
     includeSystemRoots,
@@ -107,8 +129,8 @@ export function buildArtifactListParams(options: {
   if (limit != null) params.limit = limit;
   if (offset != null) params.offset = offset;
   if (includeDeleted) params.include_deleted = true;
-  if (releaseCycleNodeId) params.release_cycle_node_id = releaseCycleNodeId;
-  else if (cycleNodeId) params.cycle_node_id = cycleNodeId;
+  if (releaseId) params.release_id = releaseId;
+  else if (cycleId) params.cycle_id = cycleId;
   if (areaNodeId) params.area_node_id = areaNodeId;
   const treeTrim = tree?.trim();
   if (treeTrim) params.tree = treeTrim;
@@ -133,8 +155,8 @@ export function useArtifacts(
   limit?: number,
   offset?: number,
   includeDeleted?: boolean,
-  cycleNodeId?: string | null,
-  releaseCycleNodeId?: string | null,
+  cycleId?: string | null,
+  releaseId?: string | null,
   areaNodeId?: string | null,
   tree?: string | null,
   includeSystemRoots?: boolean,
@@ -153,8 +175,8 @@ export function useArtifacts(
     limit,
     offset,
     includeDeleted,
-    cycleNodeId,
-    releaseCycleNodeId,
+    cycleId,
+    releaseId,
     areaNodeId,
     tree,
     includeSystemRoots,
@@ -178,8 +200,8 @@ export function useArtifacts(
       limit,
       offset,
       includeDeleted,
-      cycleNodeId || null,
-      releaseCycleNodeId || null,
+      cycleId || null,
+      releaseId || null,
       areaNodeId || null,
       tree || null,
       includeSystemRoots ?? false,
@@ -225,6 +247,79 @@ export async function fetchAllArtifactsPages(
     offset += pageSize;
   }
   return { items, total, allowed_actions };
+}
+
+function downloadBlob(blob: Blob, fallbackFileName: string, contentDisposition?: string | null): void {
+  const match = contentDisposition?.match(/filename="?([^"]+)"?/i);
+  const fileName = match?.[1] ?? fallbackFileName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportArtifactsFile(
+  orgSlug: string,
+  projectId: string,
+  options: ArtifactListParams & {
+    format: ArtifactIoFormat;
+    scope: ArtifactIoScope;
+  },
+): Promise<void> {
+  const response = await apiClient.get<Blob>(`/orgs/${orgSlug}/projects/${projectId}/artifacts/export`, {
+    params: options,
+    responseType: "blob",
+  });
+  downloadBlob(
+    response.data,
+    `artifacts-export.${options.format === "xlsx" ? "xlsx" : "csv"}`,
+    response.headers["content-disposition"],
+  );
+}
+
+export async function downloadArtifactImportTemplate(
+  orgSlug: string,
+  projectId: string,
+  options: {
+    format: ArtifactIoFormat;
+    scope: Exclude<ArtifactIoScope, "runs">;
+  },
+): Promise<void> {
+  const response = await apiClient.get<Blob>(`/orgs/${orgSlug}/projects/${projectId}/artifacts/import-template`, {
+    params: options,
+    responseType: "blob",
+  });
+  const fallback = options.scope === "testcases" && options.format === "csv" ? "artifact-import-template.zip" : `artifact-import-template.${options.format}`;
+  downloadBlob(response.data, fallback, response.headers["content-disposition"]);
+}
+
+export async function importArtifactsFile(
+  orgSlug: string,
+  projectId: string,
+  options: {
+    file: File;
+    scope: Exclude<ArtifactIoScope, "runs">;
+    mode: ArtifactImportMode;
+    validateOnly?: boolean;
+  },
+): Promise<ArtifactImportResult> {
+  const formData = new FormData();
+  formData.append("file", options.file);
+  const { data } = await apiClient.post<ArtifactImportResult>(
+    `/orgs/${orgSlug}/projects/${projectId}/artifacts/import`,
+    formData,
+    {
+      params: {
+        scope: options.scope,
+        mode: options.mode,
+        validate_only: options.validateOnly ?? false,
+      },
+      headers: { "Content-Type": "multipart/form-data" },
+    },
+  );
+  return data;
 }
 
 /** All test cases in the quality tree (paginated on the client until `total` is reached). */
@@ -303,7 +398,7 @@ export interface UpdateArtifactRequest {
   description?: string | null;
   assignee_id?: string | null;
   team_id?: string | null;
-  cycle_node_id?: string | null;
+  cycle_id?: string | null;
   area_node_id?: string | null;
   parent_id?: string | null;
   custom_fields?: Record<string, unknown>;
@@ -380,13 +475,49 @@ export function useUpdateArtifact(
       if (payload.description !== undefined) body.description = payload.description;
       if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id ?? null;
       if (payload.team_id !== undefined) body.team_id = payload.team_id ?? null;
-      if (payload.cycle_node_id !== undefined) body.cycle_node_id = payload.cycle_node_id ?? null;
+      if (payload.cycle_id !== undefined) body.cycle_id = payload.cycle_id ?? null;
       if (payload.area_node_id !== undefined) body.area_node_id = payload.area_node_id ?? null;
       if (payload.parent_id !== undefined) body.parent_id = payload.parent_id ?? null;
       if (payload.custom_fields !== undefined) body.custom_fields = payload.custom_fields;
       if (payload.tag_ids !== undefined) body.tag_ids = payload.tag_ids;
       const { data } = await apiClient.patch<Artifact>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}`,
+        body,
+      );
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", data.id],
+      });
+    },
+  });
+}
+
+export function useUpdateArtifactById(
+  orgSlug: string | undefined,
+  projectId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: { artifactId: string; patch: UpdateArtifactRequest }): Promise<Artifact> => {
+      const body: Record<string, unknown> = {};
+      const patch = payload.patch;
+      if (patch.title !== undefined) body.title = patch.title;
+      if (patch.description !== undefined) body.description = patch.description;
+      if (patch.assignee_id !== undefined) body.assignee_id = patch.assignee_id ?? null;
+      if (patch.team_id !== undefined) body.team_id = patch.team_id ?? null;
+      if (patch.cycle_id !== undefined) body.cycle_id = patch.cycle_id ?? null;
+      if (patch.area_node_id !== undefined) body.area_node_id = patch.area_node_id ?? null;
+      if (patch.parent_id !== undefined) body.parent_id = patch.parent_id ?? null;
+      if (patch.custom_fields !== undefined) body.custom_fields = patch.custom_fields;
+      if (patch.tag_ids !== undefined) body.tag_ids = patch.tag_ids;
+      const { data } = await apiClient.patch<Artifact>(
+        `/orgs/${orgSlug}/projects/${projectId}/artifacts/${payload.artifactId}`,
         body,
       );
       return data;

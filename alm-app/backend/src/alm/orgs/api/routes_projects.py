@@ -1,10 +1,128 @@
 """Org API routes: Projects."""
 
-from fastapi import APIRouter
+from typing import Literal
 
+from fastapi import APIRouter
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from alm.artifact.api.schemas import ArtifactImportResponse, ArtifactImportResponseRow
+from alm.artifact.application.import_export_service import export_artifacts, export_import_template, import_artifacts
 from alm.orgs.api._router_deps import *  # noqa: F403
 
 router = APIRouter()
+
+@router.get("/projects/{project_id}/artifacts/export")
+async def export_artifacts_file(
+    project_id: uuid.UUID,
+    format: Literal["csv", "xlsx"] = Query("csv"),
+    scope: Literal["generic", "testcases", "runs"] = Query("generic"),
+    state: str | None = None,
+    type: str | None = None,
+    q: str | None = None,
+    cycle_id: uuid.UUID | None = None,
+    release_id: uuid.UUID | None = Query(None, description="Filter by release (all cycles under this node)"),
+    area_node_id: uuid.UUID | None = None,
+    sort_by: str | None = None,
+    sort_order: str | None = None,
+    include_deleted: bool = False,
+    include_system_roots: bool = False,
+    tree: str | None = None,
+    parent_id: uuid.UUID | None = Query(None),
+    tag_id: uuid.UUID | None = Query(None),
+    team_id: uuid.UUID | None = Query(None),
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:read"),
+    _acl: None = require_manifest_acl("artifact", "read"),
+    session: AsyncSession = Depends(get_db),
+) -> Response:
+    result = await export_artifacts(
+        session,
+        project_id=project_id,
+        format=format,
+        scope=scope,
+        state=state,
+        type_filter=type,
+        q=q,
+        cycle_id=cycle_id,
+        release_id=release_id,
+        area_node_id=area_node_id,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        include_deleted=include_deleted,
+        include_system_roots=include_system_roots,
+        tree=tree,
+        parent_id=parent_id,
+        tag_id=tag_id,
+        team_id=team_id,
+    )
+    return Response(
+        content=result.content,
+        media_type=result.content_type,
+        headers={"Content-Disposition": f'attachment; filename="{result.filename}"'},
+    )
+
+
+@router.get("/projects/{project_id}/artifacts/import-template")
+async def export_artifacts_import_template(
+    project_id: uuid.UUID,
+    format: Literal["csv", "xlsx"] = Query("csv"),
+    scope: Literal["generic", "testcases"] = Query("generic"),
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:read"),
+    _acl: None = require_manifest_acl("artifact", "read"),
+) -> Response:
+    _ = (project_id, org, user)
+    result = await export_import_template(format=format, scope=scope)
+    return Response(
+        content=result.content,
+        media_type=result.content_type,
+        headers={"Content-Disposition": f'attachment; filename="{result.filename}"'},
+    )
+
+
+@router.post("/projects/{project_id}/artifacts/import", response_model=ArtifactImportResponse)
+async def import_artifacts_file(
+    project_id: uuid.UUID,
+    file: UploadFile = File(...),
+    mode: Literal["create", "update", "upsert"] = Query("upsert"),
+    scope: Literal["generic", "testcases"] = Query("generic"),
+    validate_only: bool = Query(False),
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("artifact:update"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    session: AsyncSession = Depends(get_db),
+) -> ArtifactImportResponse:
+    payload = await file.read()
+    result = await import_artifacts(
+        session,
+        tenant_id=org.tenant_id,
+        project_id=project_id,
+        actor_id=user.id,
+        filename=file.filename or "upload.csv",
+        payload=payload,
+        scope=scope,
+        mode=mode,
+        validate_only=validate_only,
+    )
+    return ArtifactImportResponse(
+        created_count=result.created_count,
+        updated_count=result.updated_count,
+        validated_count=result.validated_count,
+        skipped_count=result.skipped_count,
+        failed_count=result.failed_count,
+        rows=[
+            ArtifactImportResponseRow(
+                row_number=row.row_number,
+                sheet=row.sheet,
+                artifact_key=row.artifact_key,
+                status=row.status,
+                message=row.message,
+                artifact_id=row.artifact_id,
+            )
+            for row in result.rows
+        ],
+    )
+
 
 # ── Projects ──
 
@@ -204,9 +322,9 @@ async def list_artifacts(
     state: str | None = None,
     type: str | None = None,
     q: str | None = None,
-    cycle_node_id: uuid.UUID | None = None,
-    release_cycle_node_id: uuid.UUID | None = Query(
-        None, description="Filter by release (all iterations under this node)"
+    cycle_id: uuid.UUID | None = None,
+    release_id: uuid.UUID | None = Query(
+        None, description="Filter by release (all cycles under this node)"
     ),
     area_node_id: uuid.UUID | None = None,
     sort_by: str | None = None,
@@ -234,8 +352,8 @@ async def list_artifacts(
             state_filter=state,
             type_filter=type,
             search_query=q,
-            cycle_node_id=cycle_node_id,
-            release_cycle_node_id=release_cycle_node_id,
+            cycle_id=cycle_id,
+            release_id=release_id,
             area_node_id=area_node_id,
             sort_by=sort_by,
             sort_order=sort_order,
@@ -374,7 +492,7 @@ async def create_artifact(
             custom_fields=body.custom_fields,
             artifact_key=body.artifact_key,
             rank_order=body.rank_order,
-            cycle_node_id=body.cycle_node_id,
+            cycle_id=body.cycle_id,
             area_node_id=body.area_node_id,
             team_id=body.team_id,
             created_by=user.id,

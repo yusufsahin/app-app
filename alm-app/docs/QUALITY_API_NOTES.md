@@ -8,10 +8,10 @@
 
 No dedicated Quality aggregate endpoint; hub totals use `limit=1` and the response `total` field.
 
-## Links
+## Relationships
 
-- Create/delete uses existing artifact link endpoints; link type strings must exist in manifest (`suite_includes_test`, `run_for_suite`, `campaign_includes_suite` for the extended Quality domain).
-- Bulk “campaign wizard” APIs are not implemented; multiple links are created per artifact in the UI.
+- Create/delete uses relationship endpoints; relationship type strings must exist in manifest (`suite_includes_test`, `run_for_suite`, `campaign_includes_suite` for the extended Quality domain).
+- Bulk campaign flows use relationship bulk endpoints; multiple relationships can still be staged from the UI.
 
 ## Backfill
 

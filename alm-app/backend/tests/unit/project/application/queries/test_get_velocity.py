@@ -49,12 +49,12 @@ async def test_velocity_uses_manifest_done_states_when_default_query_done_states
         GetVelocity(
             tenant_id=tenant_id,
             project_id=project_id,
-            cycle_node_ids=[cycle_id],
+            cycle_ids=[cycle_id],
         )
     )
 
     assert len(result) == 1
-    assert result[0].cycle_node_id == cycle_id
+    assert result[0].cycle_id == cycle_id
     assert result[0].total_effort == 5.0
     artifact_repo.sum_effort_by_cycles.assert_awaited_once_with(project_id, [cycle_id], ("finished",), "story_points")
 
@@ -84,7 +84,7 @@ async def test_velocity_preserves_explicit_done_states_override() -> None:
         GetVelocity(
             tenant_id=tenant_id,
             project_id=project_id,
-            cycle_node_ids=[cycle_id],
+            cycle_ids=[cycle_id],
             done_states=("done_custom",),
         )
     )

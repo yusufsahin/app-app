@@ -1,3 +1,5 @@
+import type { SchemaLookup } from "./formSchema";
+
 /** Column descriptor for metadata-driven list views */
 export interface ListColumnSchema {
   key: string;
@@ -7,6 +9,11 @@ export interface ListColumnSchema {
   order?: number;
   sortable?: boolean;
   width?: number;
+  editable?: boolean;
+  surfaces?: string[];
+  lookup?: SchemaLookup | null;
+  write_target?: "root" | "custom_field" | null;
+  write_key?: string | null;
 }
 
 /** Filter descriptor for metadata-driven list views */

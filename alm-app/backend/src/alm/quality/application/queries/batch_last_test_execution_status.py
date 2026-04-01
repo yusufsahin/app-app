@@ -8,10 +8,11 @@ from typing import Any
 
 from alm.artifact.domain.entities import Artifact
 from alm.artifact.domain.ports import ArtifactRepository
-from alm.artifact_link.domain.entities import ArtifactLink
-from alm.artifact_link.domain.ports import ArtifactLinkRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.quality.application.execution_linked_tests import linked_execution_test_ids_for_run
+from alm.relationship.domain.entities import Relationship
+from alm.relationship.domain.ports import RelationshipRepository
+from alm.relationship.domain.types import RUN_FOR_SUITE
 from alm.quality.application.run_metrics_v1 import (
     configuration_id_from_metrics_row,
     configuration_name_from_metrics_row,
@@ -73,17 +74,17 @@ def _dedupe_preserve_order(ids: list[uuid.UUID]) -> list[uuid.UUID]:
     return out
 
 
-def _group_outgoing_by_from(links: list[ArtifactLink]) -> dict[uuid.UUID, list[ArtifactLink]]:
-    m: dict[uuid.UUID, list[ArtifactLink]] = {}
+def _group_outgoing_by_from(links: list[Relationship]) -> dict[uuid.UUID, list[Relationship]]:
+    m: dict[uuid.UUID, list[Relationship]] = {}
     for link in links:
-        m.setdefault(link.from_artifact_id, []).append(link)
+        m.setdefault(link.source_artifact_id, []).append(link)
     return m
 
 
-def _group_suite_includes_by_suite(links: list[ArtifactLink]) -> dict[uuid.UUID, list[ArtifactLink]]:
-    m: dict[uuid.UUID, list[ArtifactLink]] = {}
+def _group_suite_includes_by_suite(links: list[Relationship]) -> dict[uuid.UUID, list[Relationship]]:
+    m: dict[uuid.UUID, list[Relationship]] = {}
     for link in links:
-        m.setdefault(link.from_artifact_id, []).append(link)
+        m.setdefault(link.source_artifact_id, []).append(link)
     return m
 
 
@@ -92,11 +93,11 @@ class BatchLastTestExecutionStatusHandler(QueryHandler[list[LastTestExecutionSta
         self,
         project_repo: ProjectRepository,
         artifact_repo: ArtifactRepository,
-        link_repo: ArtifactLinkRepository,
+        relationship_repo: RelationshipRepository,
     ) -> None:
         self._project_repo = project_repo
         self._artifact_repo = artifact_repo
-        self._link_repo = link_repo
+        self._relationship_repo = relationship_repo
 
     async def handle(self, query: Query) -> list[LastTestExecutionStatusDTO]:
         assert isinstance(query, BatchLastTestExecutionStatus)
@@ -119,28 +120,28 @@ class BatchLastTestExecutionStatusHandler(QueryHandler[list[LastTestExecutionSta
                 raise ValidationError("scope_run_id must be a test-run in this project")
             run_ids = [query.scope_run_id]
         else:
-            candidates = await self._link_repo.list_candidate_run_test_pairs(query.project_id, ordered_unique)
+            candidates = await self._relationship_repo.list_candidate_run_test_pairs(query.project_id, ordered_unique)
             if query.scope_suite_id is not None:
                 allowed = set(
-                    await self._link_repo.list_run_ids_for_suite_targets(
+                    await self._relationship_repo.list_run_ids_for_suite_targets(
                         query.project_id, [query.scope_suite_id]
                     )
                 )
                 candidates = [(r, t) for r, t in candidates if r in allowed]
             elif query.scope_campaign_id is not None:
-                outgoing = await self._link_repo.list_outgoing_links_from_artifacts(
+                outgoing = await self._relationship_repo.list_outgoing_relationships_from_artifacts(
                     query.project_id, [query.scope_campaign_id]
                 )
                 suite_ids = [
-                    link.to_artifact_id
+                    link.target_artifact_id
                     for link in outgoing
-                    if link.link_type == "campaign_includes_suite"
+                    if link.relationship_type == "campaign_includes_suite"
                 ]
                 if not suite_ids:
                     candidates = []
                 else:
                     allowed = set(
-                        await self._link_repo.list_run_ids_for_suite_targets(query.project_id, suite_ids)
+                        await self._relationship_repo.list_run_ids_for_suite_targets(query.project_id, suite_ids)
                     )
                     candidates = [(r, t) for r, t in candidates if r in allowed]
             run_ids = list({r for r, _ in candidates})
@@ -168,17 +169,17 @@ class BatchLastTestExecutionStatusHandler(QueryHandler[list[LastTestExecutionSta
             reverse=True,
         )
 
-        outgoing_all = await self._link_repo.list_outgoing_links_from_artifacts(query.project_id, run_ids)
+        outgoing_all = await self._relationship_repo.list_outgoing_relationships_from_artifacts(query.project_id, run_ids)
         outgoing_by_run = _group_outgoing_by_from(outgoing_all)
 
         suite_ids: set[uuid.UUID] = set()
         for rid in run_ids:
             for link in outgoing_by_run.get(rid, []):
-                if link.link_type == "run_for_suite":
-                    suite_ids.add(link.to_artifact_id)
+                if link.relationship_type == RUN_FOR_SUITE:
+                    suite_ids.add(link.target_artifact_id)
                     break
 
-        suite_links = await self._link_repo.list_suite_includes_tests_for_suites(
+        suite_links = await self._relationship_repo.list_suite_includes_tests_for_suites(
             query.project_id, list(suite_ids)
         )
         suite_out_by_suite = _group_suite_includes_by_suite(suite_links)

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
+import { useBacklogWorkspaceProject } from "../../artifacts/pages/useBacklogWorkspaceProject";
 import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { useArtifacts } from "../../../shared/api/artifactApi";
 import { getDeclaredTreeRootsFromManifestBundle } from "../../../shared/lib/manifestTreeRoots";
@@ -18,7 +18,7 @@ import {
  * Quality landing page for test management.
  */
 export default function QualityPage() {
-  const { orgSlug, projectSlug, project } = useArtifactsPageProject();
+  const { orgSlug, projectSlug, project } = useBacklogWorkspaceProject();
   const { data: manifest } = useProjectManifest(orgSlug, project?.id);
   const treeRootOptions = useMemo(
     () => getDeclaredTreeRootsFromManifestBundle(manifest?.manifest_bundle),

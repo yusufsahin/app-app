@@ -8,7 +8,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "../../../shared/components/ui/dialog";
-import { useArtifactsPageProject } from "../../artifacts/pages/useArtifactsPageProject";
+import { useBacklogWorkspaceProject } from "../../artifacts/pages/useBacklogWorkspaceProject";
 import { useArtifact } from "../../../shared/api/artifactApi";
 import { formatRunEnvironmentLabel } from "../lib/runMetrics";
 import {
@@ -37,7 +37,7 @@ export function ManualExecutionModalHost() {
   const { t } = useTranslation("quality");
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { project } = useArtifactsPageProject();
+  const { project } = useBacklogWorkspaceProject();
 
   const runExecute = searchParams.get("runExecute")?.trim() ?? "";
   const runViewRaw = searchParams.get("runView");

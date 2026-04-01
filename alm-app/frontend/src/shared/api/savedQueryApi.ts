@@ -140,7 +140,8 @@ export function listStateToFilterParams(state: {
   typeFilter?: string;
   treeFilter?: string;
   searchQuery?: string;
-  cycleNodeFilter?: string;
+  releaseFilter?: string;
+  cycleFilter?: string;
   areaNodeFilter?: string;
   tagFilter?: string;
   sortBy?: string;
@@ -152,7 +153,8 @@ export function listStateToFilterParams(state: {
   const treeTrim = state.treeFilter?.trim();
   if (treeTrim) fp.tree = treeTrim;
   if (state.searchQuery?.trim()) fp.q = state.searchQuery.trim();
-  if (state.cycleNodeFilter) fp.cycle_node_id = state.cycleNodeFilter;
+  if (state.releaseFilter) fp.release_id = state.releaseFilter;
+  if (state.cycleFilter) fp.cycle_id = state.cycleFilter;
   if (state.areaNodeFilter) fp.area_node_id = state.areaNodeFilter;
   if (state.tagFilter) fp.tag_id = state.tagFilter;
   if (state.sortBy) fp.sort_by = state.sortBy;
@@ -171,7 +173,8 @@ export function filterParamsToListStatePatch(
   treeFilter: string;
   searchQuery: string;
   searchInput: string;
-  cycleNodeFilter: string;
+  releaseFilter: string;
+  cycleFilter: string;
   areaNodeFilter: string;
   tagFilter: string;
   sortBy: "artifact_key" | "title" | "state" | "artifact_type" | "created_at" | "updated_at";
@@ -186,7 +189,8 @@ export function filterParamsToListStatePatch(
   const tree = String(filterParams.tree ?? "").trim();
   const treeFilter = tree;
   const q = String(filterParams.q ?? "").trim();
-  const cycle = String(filterParams.cycle_node_id ?? "").trim();
+  const releaseCycle = String(filterParams.release_id ?? "").trim();
+  const cycle = String(filterParams.cycle_id ?? "").trim();
   const area = String(filterParams.area_node_id ?? "").trim();
   const tag = String(filterParams.tag_id ?? "").trim();
   const sortBy = String(filterParams.sort_by ?? "created_at").trim() as "artifact_key" | "title" | "state" | "artifact_type" | "created_at" | "updated_at";
@@ -199,7 +203,8 @@ export function filterParamsToListStatePatch(
     treeFilter,
     searchQuery: q,
     searchInput: q,
-    cycleNodeFilter: cycle,
+    releaseFilter: releaseCycle,
+    cycleFilter: cycle,
     areaNodeFilter: area,
     tagFilter: tag,
     sortBy: sortBy || "created_at",

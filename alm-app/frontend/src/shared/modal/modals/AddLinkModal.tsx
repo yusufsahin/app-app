@@ -7,12 +7,10 @@ type Props = AddLinkModalProps & { onClose: () => void };
 
 type FormValues = { linkType: string; artifactId: string };
 
-const BUILTIN_LINK_TYPES: Array<{ value: string; label: string }> = [
-  { value: "related", label: "Related" },
-  { value: "parent", label: "Parent" },
-  { value: "child", label: "Child" },
-  { value: "blocks", label: "Blocks" },
-  { value: "duplicate", label: "Duplicate" },
+const BUILTIN_LINK_TYPES: Array<{ value: string; label: string; category?: string; allowedTargetTypes?: string[] }> = [
+  { value: "related", label: "Related", category: "related" },
+  { value: "impacts", label: "Impacts", category: "planning" },
+  { value: "blocks", label: "Blocks", category: "planning" },
 ];
 
 export function AddLinkModal({ artifactOptions, linkTypeOptions, onCreateLink, onClose }: Props) {
@@ -21,7 +19,14 @@ export function AddLinkModal({ artifactOptions, linkTypeOptions, onCreateLink, o
   const form = useForm<FormValues>({
     defaultValues: { linkType: typeOptions[0]?.value ?? "related", artifactId: "" },
   });
+  const selectedLinkType = useWatch({ control: form.control, name: "linkType" }) ?? typeOptions[0]?.value ?? "related";
   const artifactId = useWatch({ control: form.control, name: "artifactId" }) ?? "";
+  const selectedType = typeOptions.find((option) => option.value === selectedLinkType);
+  const filteredArtifactOptions = artifactOptions.filter((option) => {
+    const allowed = selectedType?.allowedTargetTypes;
+    if (!allowed || allowed.length === 0) return true;
+    return !!option.artifactType && allowed.includes(option.artifactType);
+  });
 
   const onSubmit = (data: FormValues) => {
     if (!data.artifactId) return;
@@ -35,16 +40,16 @@ export function AddLinkModal({ artifactOptions, linkTypeOptions, onCreateLink, o
         <RhfSelect<FormValues>
           name="linkType"
           control={form.control}
-          label="Link type"
+          label="Relationship type"
           options={typeOptions}
           selectProps={{ size: "sm" }}
         />
         <RhfSelect<FormValues>
           name="artifactId"
           control={form.control}
-          label="Artifact to link to"
+          label="Artifact to relate"
           placeholder="Select an artifact"
-          options={artifactOptions}
+          options={filteredArtifactOptions}
           selectProps={{ size: "sm" }}
         />
         <div className="mt-4 flex justify-end gap-2">

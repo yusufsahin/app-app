@@ -121,21 +121,21 @@ class TestMpcResolver:
         assert len(req["fields"]) == 1
         assert req["fields"][0]["id"] == "priority"
 
-        assert "link_types" in flat
-        assert flat["link_types"] == []
+        assert "relationship_types" in flat
+        assert flat["relationship_types"] == []
 
-    def test_manifest_defs_to_flat_link_types(self):
+    def test_manifest_defs_to_flat_relationship_types(self):
         flat = manifest_defs_to_flat(MANIFEST_DEFS_LINK_TYPES_SIMPLE)
-        assert flat["link_types"] == [
+        assert flat["relationship_types"] == [
             {"id": "blocks", "name": "Blocks"},
             {"id": "relates-to", "name": "Relates To"},
         ]
         assert flat["workflows"] == []
         assert flat["artifact_types"] == []
 
-    def test_manifest_defs_to_flat_link_type_optional_metadata(self):
+    def test_manifest_defs_to_flat_relationship_type_optional_metadata(self):
         flat = manifest_defs_to_flat(MANIFEST_DEFS_LINK_TYPE_BLOCKS_RICH)
-        assert flat["link_types"] == [
+        assert flat["relationship_types"] == [
             {
                 "id": "blocks",
                 "name": "Blocks",
@@ -158,12 +158,12 @@ class TestMpcResolver:
         }
 
     def test_manifest_defs_to_flat_empty_and_flat_format(self):
-        assert manifest_defs_to_flat(None) == {"workflows": [], "artifact_types": [], "link_types": []}
-        assert manifest_defs_to_flat({}) == {"workflows": [], "artifact_types": [], "link_types": []}
+        assert manifest_defs_to_flat(None) == {"workflows": [], "artifact_types": [], "relationship_types": []}
+        assert manifest_defs_to_flat({}) == {"workflows": [], "artifact_types": [], "relationship_types": []}
         flat = manifest_defs_to_flat(
-            {"workflows": [], "artifact_types": [], "link_types": [{"id": "related", "name": "Related"}]}
+            {"workflows": [], "artifact_types": [], "relationship_types": [{"id": "related", "name": "Related"}]}
         )
-        assert flat["link_types"] == [{"id": "related", "name": "Related"}]
+        assert flat["relationship_types"] == [{"id": "related", "name": "Related"}]
 
     def test_evaluate_transition_policy_allow(self):
         """D1: PolicyEngine returns allow when no Policy defs match or deny."""

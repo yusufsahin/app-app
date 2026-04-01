@@ -4,9 +4,9 @@ import { useQueries } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { PhoneForwarded } from "lucide-react";
 import { useAllQualityTestCases, type Artifact } from "../../../shared/api/artifactApi";
-import type { ArtifactLink } from "../../../shared/api/artifactLinkApi";
 import { apiClient } from "../../../shared/api/client";
 import { useOrgMembers } from "../../../shared/api/orgApi";
+import { useArtifactRelationships } from "../../../shared/api/relationshipApi";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/components/ui/tabs";
 import { Button } from "../../../shared/components/ui";
 import { ArtifactCommentsPanel } from "../../../shared/components/comments";
@@ -34,8 +34,6 @@ interface QualityTestCaseDetailPanelsProps {
   projectId: string | undefined;
   projectSlug: string | undefined;
   enableStepsEditor: boolean;
-  links: ArtifactLink[] | undefined;
-  linksLoading: boolean;
 }
 
 export function QualityTestCaseDetailPanels({
@@ -44,11 +42,14 @@ export function QualityTestCaseDetailPanels({
   projectId,
   projectSlug,
   enableStepsEditor,
-  links,
-  linksLoading,
 }: QualityTestCaseDetailPanelsProps) {
   const { t } = useTranslation("quality");
   const { data: members } = useOrgMembers(orgSlug);
+  const { data: relationships = [], isLoading: relationshipsLoading } = useArtifactRelationships(
+    orgSlug,
+    projectId,
+    artifact.id,
+  );
   const permissions = useAuthStore((s) => s.permissions);
   const canCommentArtifact = hasPermission(permissions, "artifact:comment");
 
@@ -76,9 +77,9 @@ export function QualityTestCaseDetailPanels({
   const showStepsSection = enableStepsEditor || planEntries.length > 0;
 
   const targetIds = useMemo(() => {
-    const unique = [...new Set((links ?? []).map((l) => l.to_artifact_id))];
+    const unique = [...new Set(relationships.map((item) => item.other_artifact_id))];
     return unique.slice(0, MAX_LINK_TARGET_QUERIES);
-  }, [links]);
+  }, [relationships]);
 
   const calleeFetchIds = useMemo(() => {
     const merged = [...new Set([...targetIds, ...calleeIds])];
@@ -227,24 +228,27 @@ export function QualityTestCaseDetailPanels({
           </TabsTrigger>
         </TabsList>
         <TabsContent value="traceability" className="mt-3 text-sm">
-          {linksLoading ? (
+          {relationshipsLoading ? (
             <p className="text-muted-foreground">{t("detail.traceabilityLoading")}</p>
-          ) : !links?.length ? (
+          ) : relationships.length === 0 ? (
             <p className="text-muted-foreground">{t("detail.traceabilityEmpty")}</p>
           ) : (
             <ul className="space-y-2">
-              {links.map((link) => {
-                const title = targetTitleById.get(link.to_artifact_id);
+              {relationships.map((relationship) => {
+                const title = targetTitleById.get(relationship.other_artifact_id);
                 const label =
                   title ??
-                  `${t("detail.linkTargetUnknown")} (${link.to_artifact_id.slice(0, 8)}…)`;
+                  `${t("detail.linkTargetUnknown")} (${relationship.other_artifact_id.slice(0, 8)}…)`;
                 return (
                   <li
-                    key={link.id}
+                    key={relationship.id}
                     className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-border px-3 py-2"
                   >
-                    <span className="min-w-0 font-medium">{label}</span>
-                    <code className="shrink-0 text-xs text-muted-foreground">{link.link_type}</code>
+                    <div className="min-w-0">
+                      <span className="font-medium">{label}</span>
+                      <p className="text-xs text-muted-foreground">{relationship.display_label}</p>
+                    </div>
+                    <code className="shrink-0 text-xs text-muted-foreground">{relationship.relationship_type}</code>
                   </li>
                 );
               })}

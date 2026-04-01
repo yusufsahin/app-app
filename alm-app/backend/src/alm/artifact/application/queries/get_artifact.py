@@ -63,7 +63,7 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
             state_reason=artifact.state_reason,
             resolution=artifact.resolution,
             rank_order=artifact.rank_order,
-            cycle_node_id=getattr(artifact, "cycle_node_id", None),
+            cycle_id=getattr(artifact, "cycle_id", None),
             area_node_id=getattr(artifact, "area_node_id", None),
             area_path_snapshot=getattr(artifact, "area_path_snapshot", None),
             team_id=getattr(artifact, "team_id", None),

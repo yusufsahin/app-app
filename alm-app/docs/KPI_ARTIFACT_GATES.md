@@ -17,7 +17,7 @@ CI veya yerel koşum sonrası:
 | `compatibility_success_rate` | `compatibility_suite_status` geçiş oranı (release/nightly toplu) |
 | `artifact_coverage_ratio` | İleride: testlenen artifact / katalog (script genişletmesi) |
 | `flaky_rate_by_suite` | Flaky quarantine + tekrarlayan kırmızı build takibi |
-| `traceability_completeness` | `traceability_graph.yaml` + üretim `artifact_link` export senkronu |
+| `traceability_completeness` | `traceability_graph.yaml` + üretim relationship export senkronu |
 | `orphan_artifact_rate` | Graf derecesi 0 olan linklenebilir artifact oranı |
 
 ## Haftalık review takvimi (repo rutini)

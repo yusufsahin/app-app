@@ -7,6 +7,13 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class LookupSchemaResponse(BaseModel):
+    kind: str
+    multi: bool = False
+    label_field: str | None = None
+    value_field: str | None = None
+
+
 class FormFieldSchemaResponse(BaseModel):
     key: str
     type: str
@@ -19,6 +26,10 @@ class FormFieldSchemaResponse(BaseModel):
     required_when: dict[str, Any] | None = None
     entity_ref: str | None = None
     allowed_parent_types: list[str] | None = None
+    editable: bool = False
+    surfaces: list[str] = Field(default_factory=list)
+    lookup: LookupSchemaResponse | None = None
+    write_target: str | None = None
 
 
 class FormSchemaResponse(BaseModel):
@@ -36,6 +47,11 @@ class ListColumnSchemaResponse(BaseModel):
     order: int = 0
     sortable: bool = True
     width: int | None = None
+    editable: bool = False
+    surfaces: list[str] = Field(default_factory=list)
+    lookup: LookupSchemaResponse | None = None
+    write_target: str | None = None
+    write_key: str | None = None
 
 
 class ListFilterSchemaResponse(BaseModel):

@@ -1,2 +1,10 @@
 @import "./tailwind.css";
 @import "./theme.css";
+
+.metadata-driven-grid .rg-tabular-cell-pending {
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+}
+
+.metadata-driven-grid .rg-tabular-cell-error {
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+}

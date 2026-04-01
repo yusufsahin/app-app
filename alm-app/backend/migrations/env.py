@@ -15,6 +15,7 @@ import alm.project.infrastructure.project_member_models  # noqa: F401
 import alm.team.infrastructure.models  # noqa: F401
 import alm.capacity.infrastructure.models  # noqa: F401
 import alm.process_template.infrastructure.models  # noqa: F401
+import alm.relationship.infrastructure.models  # noqa: F401
 import alm.shared.audit.models  # noqa: F401
 import alm.project_tag.infrastructure.models  # noqa: F401
 

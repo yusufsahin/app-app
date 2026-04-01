@@ -11,7 +11,7 @@ Artifact,artifact_key,string (optional)
 Artifact,state_reason,string (optional)
 Artifact,resolution,string (optional)
 Artifact,rank_order,float (optional)
-Artifact,cycle_node_id,UUID (optional)
+Artifact,cycle_id,UUID (optional)
 Artifact,area_node_id,UUID (optional)
 Artifact,area_path_snapshot,string (optional)
 Artifact,created_at,datetime

@@ -269,6 +269,10 @@ async def get_form_schema(
                 required_when=f.required_when,
                 entity_ref=f.entity_ref,
                 allowed_parent_types=f.allowed_parent_types,
+                editable=f.editable,
+                surfaces=list(f.surfaces),
+                lookup=LookupSchemaResponse(**f.lookup.__dict__) if f.lookup else None,
+                write_target=f.write_target,
             )
             for f in schema.fields
         ],
@@ -283,6 +287,7 @@ async def get_form_schema(
 async def get_list_schema(
     project_id: uuid.UUID,
     entity_type: str = "artifact",
+    surface: str | None = None,
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_list_schema_read_permission(),
     _acl: None = require_manifest_acl("artifact", "read"),
@@ -298,6 +303,7 @@ async def get_list_schema(
             tenant_id=org.tenant_id,
             project_id=project_id,
             entity_type=entity_type,
+            surface=surface,
         )
     )
     if schema is None:
@@ -314,6 +320,11 @@ async def get_list_schema(
                 order=c.order,
                 sortable=c.sortable,
                 width=c.width,
+                editable=c.editable,
+                surfaces=list(c.surfaces),
+                lookup=LookupSchemaResponse(**c.lookup.__dict__) if c.lookup else None,
+                write_target=c.write_target,
+                write_key=c.write_key,
             )
             for c in schema.columns
         ],
@@ -348,7 +359,7 @@ async def get_project_manifest(
     flat = manifest_defs_to_flat(bundle)
     bundle["workflows"] = flat["workflows"]
     bundle["artifact_types"] = flat["artifact_types"]
-    bundle["link_types"] = flat["link_types"]
+    bundle["relationship_types"] = flat["relationship_types"]
 
     return {
         "manifest_bundle": bundle,
@@ -382,7 +393,7 @@ async def update_project_manifest(
     flat = manifest_defs_to_flat(bundle)
     bundle["workflows"] = flat["workflows"]
     bundle["artifact_types"] = flat["artifact_types"]
-    bundle["link_types"] = flat["link_types"]
+    bundle["relationship_types"] = flat["relationship_types"]
     return {
         "manifest_bundle": bundle,
         "template_name": manifest.template_name,

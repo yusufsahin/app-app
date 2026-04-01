@@ -3,8 +3,8 @@ import { test, expect } from "@playwright/test";
 const DEMO_ORG = "demo";
 const DEMO_PROJECT = "sample-project";
 
-test.describe("Planning release and iteration", () => {
-  test("add release then iteration under it", async ({ page }) => {
+test.describe("Planning release and cycle", () => {
+  test("add release then cycle under it", async ({ page }) => {
     test.setTimeout(45000);
     await page.goto("/");
     await expect(page).not.toHaveURL(/\/login/);
@@ -24,8 +24,8 @@ test.describe("Planning release and iteration", () => {
     await expect(page.getByText("E2E Release 1")).toBeVisible({ timeout: 8000 });
     await expect(page.getByText("Release", { exact: false }).first()).toBeVisible({ timeout: 3000 });
 
-    await page.getByRole("button", { name: /Add iteration/i }).first().click();
-    await expect(page.getByRole("heading", { name: "Add iteration" })).toBeVisible({ timeout: 5000 });
+    await page.getByRole("button", { name: /Add cycle/i }).first().click();
+    await expect(page.getByRole("heading", { name: "Add cycle" })).toBeVisible({ timeout: 5000 });
     await page.getByLabel(/name/i).fill("Sprint 1");
     await page.getByRole("button", { name: "Add" }).click();
 

@@ -32,7 +32,12 @@ if (process.platform === "win32") {
 }
 
 const forwardedArgs = process.argv.slice(2);
-const cliArgs = forwardedArgs.length > 0 ? forwardedArgs : ["--run"];
+const cliArgs = forwardedArgs.length > 0 ? [...forwardedArgs] : ["--run"];
+
+if (process.platform === "win32" && !cliArgs.includes("--pool")) {
+  cliArgs.push("--pool", "threads");
+}
+
 process.argv = ["node", "vitest", ...cliArgs];
 
 await import("../node_modules/vitest/vitest.mjs");

@@ -29,8 +29,8 @@ class ListArtifacts(Query):
     state_filter: str | None = None
     type_filter: str | None = None
     search_query: str | None = None
-    cycle_node_id: uuid.UUID | None = None
-    release_cycle_node_id: uuid.UUID | None = None  # when set, filter by all iteration ids under this release
+    cycle_id: uuid.UUID | None = None
+    release_id: uuid.UUID | None = None  # when set, filter by all cycle ids under this release
     area_node_id: uuid.UUID | None = None
     sort_by: str | None = None
     sort_order: str | None = None
@@ -83,22 +83,22 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
         exclude_roots = not query.include_system_roots
         fts_cfg = resolve_fulltext_regconfig(manifest_bundle, settings.fulltext_search_config)
 
-        cycle_node_ids: list[uuid.UUID] | None = None
-        cycle_node_id_single: uuid.UUID | None = query.cycle_node_id
-        if query.release_cycle_node_id:
-            release_node = await self._cycle_repo.find_by_id(query.release_cycle_node_id)
+        cycle_ids: list[uuid.UUID] | None = None
+        cycle_id_single: uuid.UUID | None = query.cycle_id
+        if query.release_id:
+            release_node = await self._cycle_repo.find_by_id(query.release_id)
             if release_node and release_node.project_id == query.project_id:
                 all_cycles = await self._cycle_repo.list_by_project(query.project_id)
                 release_path = getattr(release_node, "path", "") or ""
-                # Descendants: path starts with release.path + "/" (iterations under release)
-                cycle_node_ids = [
+                # Descendants: path starts with release.path + "/" (cycles under release)
+                cycle_ids = [
                     c.id for c in all_cycles if c.path != release_path and c.path.startswith(release_path + "/")
                 ]
-                if not cycle_node_ids:
+                if not cycle_ids:
                     return ListArtifactsResult(items=[], total=0)
-                cycle_node_id_single = None
-        elif query.cycle_node_id:
-            cycle_node_id_single = query.cycle_node_id
+                cycle_id_single = None
+        elif query.cycle_id:
+            cycle_id_single = query.cycle_id
 
         root_artifact_id: uuid.UUID | None = None
         if query.tree and query.tree.strip():
@@ -119,8 +119,8 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             query.state_filter,
             type_filter=query.type_filter,
             search_query=query.search_query,
-            cycle_node_id=cycle_node_id_single,
-            cycle_node_ids=cycle_node_ids,
+            cycle_id=cycle_id_single,
+            cycle_ids=cycle_ids,
             area_node_id=query.area_node_id,
             parent_id=query.parent_id,
             include_deleted=query.include_deleted,
@@ -136,8 +136,8 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             query.state_filter,
             type_filter=query.type_filter,
             search_query=query.search_query,
-            cycle_node_id=cycle_node_id_single,
-            cycle_node_ids=cycle_node_ids,
+            cycle_id=cycle_id_single,
+            cycle_ids=cycle_ids,
             area_node_id=query.area_node_id,
             parent_id=query.parent_id,
             sort_by=query.sort_by,
@@ -168,7 +168,7 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
                 state_reason=a.state_reason,
                 resolution=a.resolution,
                 rank_order=a.rank_order,
-                cycle_node_id=getattr(a, "cycle_node_id", None),
+                cycle_id=getattr(a, "cycle_id", None),
                 area_node_id=getattr(a, "area_node_id", None),
                 area_path_snapshot=getattr(a, "area_path_snapshot", None),
                 team_id=getattr(a, "team_id", None),

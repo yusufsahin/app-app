@@ -29,7 +29,7 @@ from sqlalchemy.pool import NullPool
 import alm.admin.infrastructure.models  # noqa: F401
 import alm.area.infrastructure.models  # noqa: F401
 import alm.artifact.infrastructure.models  # noqa: F401
-import alm.artifact_link.infrastructure.models  # noqa: F401
+import alm.relationship.infrastructure.models  # noqa: F401
 import alm.attachment.infrastructure.models  # noqa: F401
 import alm.auth.infrastructure.models  # noqa: F401
 import alm.comment.infrastructure.models  # noqa: F401

@@ -19,7 +19,7 @@ npm run test:e2e
 
 # Focused suites (each depends on setup → auth runs first)
 npm run test:e2e:quality    # Quality hub + traceability
-npm run test:e2e:planning   # Planning release/iteration (demo/sample-project)
+npm run test:e2e:planning   # Planning release/cycle (demo/sample-project)
 
 # With UI (debug)
 npm run test:e2e:ui
@@ -35,7 +35,7 @@ npm run test:e2e:headed
 - **artifact-flow.spec.ts** – New Epic/Issue → create artifact → transition → delete.
 - **manifest-and-demo.spec.ts** – Demo manifest page (`/demo/sample-project/manifest`), project not-found after load, unknown project shows "Back to projects".
 - **quality-campaign.spec.ts** – Quality → Campaign workspace, collections, Traceability (Playwright project `quality-campaign`).
-- **planning-release-iteration.spec.ts** – `demo/sample-project` planning: add release and iteration.
+- **planning-release-iteration.spec.ts** – `demo/sample-project` planning: add release and cycle.
 
 ## Config
 

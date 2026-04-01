@@ -15,7 +15,7 @@ from alm.shared.application.query import Query, QueryHandler
 class ListCapacityByProject(Query):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
-    cycle_node_id: uuid.UUID | None = None
+    cycle_id: uuid.UUID | None = None
     team_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None
 
@@ -32,7 +32,7 @@ class ListCapacityByProjectHandler(QueryHandler[list[CapacityDTO]]):
             return []
         rows = await self._capacity_repo.list_by_project(
             query.project_id,
-            cycle_node_id=query.cycle_node_id,
+            cycle_id=query.cycle_id,
             team_id=query.team_id,
             user_id=query.user_id,
         )
@@ -40,7 +40,7 @@ class ListCapacityByProjectHandler(QueryHandler[list[CapacityDTO]]):
             CapacityDTO(
                 id=r.id,
                 project_id=r.project_id,
-                cycle_node_id=r.cycle_node_id,
+                cycle_id=r.cycle_id,
                 team_id=r.team_id,
                 user_id=r.user_id,
                 capacity_value=r.capacity_value,

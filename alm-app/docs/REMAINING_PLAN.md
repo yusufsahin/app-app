@@ -79,7 +79,7 @@ Bu doküman, mevcut durum özetinden sonra kalan işleri öncelik sırasıyla li
 | D1 | MPC PolicyEngine / ACLEngine entegrasyonu | Tasarım + GuardPort/AuthPort + **field masking** (artifact:read_sensitive, custom_fields internal_notes/confidential); transition’da policy hook. PolicyEngine harici çağrı MPC hazır olunca. Field masking taşıma/port refactor **out of scope**. | Kısmen ✓ |
 | D2 | Tenant rate limiting | Redis sliding window; 429 + Retry-After | ✓ |
 | D3 | Dashboard sayfası | KPI kartları, basit grafikler, activity feed; backend’te read model / materialized view | ✓ (temel) |
-| D4 | Cycle (CycleNode) iyileştirmeleri (opsiyonel) | Cycle CRUD, artifact cycle_node_id atama, cycle bazlı filtre; Planning’te Cycle backlog sekmesi | ✓ |
+| D4 | Cycle (CycleNode) iyileştirmeleri (opsiyonel) | Cycle CRUD, artifact `cycle_id` atama, cycle bazlı filtre; Planning’te Cycle backlog sekmesi | ✓ |
 
 **Çıktı:** İzin ve limit kontrollü API; dashboard; cycle/planning UI istenirse genişletilir.
 

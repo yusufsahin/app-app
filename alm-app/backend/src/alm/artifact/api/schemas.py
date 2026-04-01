@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -41,12 +41,12 @@ class ArtifactCreateRequest(BaseModel):
     custom_fields: dict[str, Any] = Field(default_factory=dict)
     artifact_key: str | None = None
     rank_order: float | None = None
-    cycle_node_id: uuid.UUID | None = None
+    cycle_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
     team_id: uuid.UUID | None = None
     tag_ids: list[uuid.UUID] | None = None
 
-    @field_validator("parent_id", "assignee_id", "cycle_node_id", "area_node_id", "team_id", mode="before")
+    @field_validator("parent_id", "assignee_id", "cycle_id", "area_node_id", "team_id", mode="before")
     @classmethod
     def empty_str_to_none_uuid(cls, v: str | uuid.UUID | None) -> uuid.UUID | None:
         if v is None:
@@ -78,7 +78,7 @@ class ArtifactResponse(BaseModel):
     state_reason: str | None = None
     resolution: str | None = None
     rank_order: float | None = None
-    cycle_node_id: uuid.UUID | None = None
+    cycle_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
     area_path_snapshot: str | None = None
     team_id: uuid.UUID | None = None
@@ -100,14 +100,14 @@ class ArtifactUpdateRequest(BaseModel):
     title: str | None = None
     description: str | None = None
     assignee_id: uuid.UUID | None = None
-    cycle_node_id: uuid.UUID | None = None
+    cycle_id: uuid.UUID | None = None
     area_node_id: uuid.UUID | None = None
     team_id: uuid.UUID | None = None
     parent_id: uuid.UUID | None = None
     custom_fields: dict[str, Any] | None = None
     tag_ids: list[uuid.UUID] | None = None
 
-    @field_validator("assignee_id", "cycle_node_id", "area_node_id", "team_id", "parent_id", mode="before")
+    @field_validator("assignee_id", "cycle_id", "area_node_id", "team_id", "parent_id", mode="before")
     @classmethod
     def empty_str_to_none_uuid(cls, v: str | uuid.UUID | None) -> uuid.UUID | None:
         if v is None:
@@ -185,6 +185,29 @@ class BatchResultResponse(BaseModel):
     )
 
 
+class ArtifactExportResponse(BaseModel):
+    filename: str
+    content_type: str
+
+
+class ArtifactImportResponseRow(BaseModel):
+    row_number: int
+    sheet: str
+    artifact_key: str | None = None
+    status: Literal["created", "updated", "validated", "skipped", "failed"]
+    message: str | None = None
+    artifact_id: uuid.UUID | None = None
+
+
+class ArtifactImportResponse(BaseModel):
+    created_count: int = 0
+    updated_count: int = 0
+    validated_count: int = 0
+    skipped_count: int = 0
+    failed_count: int = 0
+    rows: list[ArtifactImportResponseRow] = Field(default_factory=list)
+
+
 def artifact_response_from_dto(d: ArtifactDTO) -> ArtifactResponse:
     """Map application DTO to API response (tags + core fields; allowed_actions filled by masking)."""
     if not isinstance(d, ArtifactDTO):
@@ -203,7 +226,7 @@ def artifact_response_from_dto(d: ArtifactDTO) -> ArtifactResponse:
         state_reason=d.state_reason,
         resolution=d.resolution,
         rank_order=d.rank_order,
-        cycle_node_id=d.cycle_node_id,
+        cycle_id=d.cycle_id,
         area_node_id=d.area_node_id,
         area_path_snapshot=d.area_path_snapshot,
         team_id=d.team_id,

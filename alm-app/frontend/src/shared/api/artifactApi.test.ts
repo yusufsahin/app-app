@@ -4,7 +4,10 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import {
   buildArtifactListParams,
+  downloadArtifactImportTemplate,
+  exportArtifactsFile,
   fetchAllArtifactsPages,
+  importArtifactsFile,
   type BatchResultResponse,
 } from "./artifactApi";
 import { apiClient } from "./client";
@@ -24,6 +27,7 @@ function mkArtifact(id: string) {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("buildArtifactListParams", () => {
@@ -62,22 +66,22 @@ describe("buildArtifactListParams", () => {
     expect(buildArtifactListParams({ includeDeleted: false })).toEqual({});
   });
 
-  it("maps cycle_node_id and area_node_id", () => {
+  it("maps cycle filter and area filter params", () => {
     expect(
-      buildArtifactListParams({ cycleNodeId: "c1", areaNodeId: "a1" }),
-    ).toEqual({ cycle_node_id: "c1", area_node_id: "a1" });
+      buildArtifactListParams({ cycleId: "c1", areaNodeId: "a1" }),
+    ).toEqual({ cycle_id: "c1", area_node_id: "a1" });
   });
 
-  it("omits null cycle_node_id and area_node_id", () => {
+  it("omits empty cycle and area filters", () => {
     expect(
-      buildArtifactListParams({ cycleNodeId: null, areaNodeId: undefined }),
+      buildArtifactListParams({ cycleId: null, areaNodeId: undefined }),
     ).toEqual({});
   });
 
-  it("prefers release_cycle_node_id when releaseCycleNodeId is set", () => {
+  it("prefers release filter over cycle filter when both are set", () => {
     expect(
-      buildArtifactListParams({ releaseCycleNodeId: "r1", cycleNodeId: "c1", areaNodeId: "a1" }),
-    ).toEqual({ release_cycle_node_id: "r1", area_node_id: "a1" });
+      buildArtifactListParams({ releaseId: "r1", cycleId: "c1", areaNodeId: "a1" }),
+    ).toEqual({ release_id: "r1", area_node_id: "a1" });
   });
 
   it("includes tree for any non-empty slug (manifest-driven tree_roots)", () => {
@@ -133,7 +137,7 @@ describe("buildArtifactListParams", () => {
         searchQuery: "bug",
         limit: 10,
         offset: 0,
-        cycleNodeId: "cycle-1",
+        cycleId: "cycle-1",
       }),
     ).toEqual({
       state: "new",
@@ -143,7 +147,7 @@ describe("buildArtifactListParams", () => {
       q: "bug",
       limit: 10,
       offset: 0,
-      cycle_node_id: "cycle-1",
+      cycle_id: "cycle-1",
     });
   });
 });
@@ -256,5 +260,70 @@ describe("fetchAllArtifactsPages", () => {
     expect(out.items).toHaveLength(2);
     expect(out.total).toBe(10);
     expect(getSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("artifact import/export helpers", () => {
+  it("downloads exported files using the response filename", async () => {
+    const click = vi.fn();
+    const createElementSpy = vi.fn(() => ({ click }));
+    vi.stubGlobal("document", { createElement: createElementSpy });
+    const objectUrlSpy = vi.fn(() => "blob:download");
+    const revokeSpy = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL: objectUrlSpy, revokeObjectURL: revokeSpy });
+    vi.spyOn(apiClient, "get").mockResolvedValue({
+      data: new Blob(["ok"], { type: "text/csv" }),
+      headers: { "content-disposition": 'attachment; filename="artifact-export.csv"' },
+    } as never);
+
+    await exportArtifactsFile("org-1", "proj-1", { format: "csv", scope: "generic" });
+
+    expect(createElementSpy).toHaveBeenCalledWith("a");
+    expect(click).toHaveBeenCalled();
+    expect(objectUrlSpy).toHaveBeenCalled();
+    expect(revokeSpy).toHaveBeenCalledWith("blob:download");
+  });
+
+  it("downloads import templates", async () => {
+    const click = vi.fn();
+    vi.stubGlobal("document", { createElement: vi.fn(() => ({ click })) });
+    vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:template"), revokeObjectURL: vi.fn() });
+    vi.spyOn(apiClient, "get").mockResolvedValue({
+      data: new Blob(["ok"], { type: "application/zip" }),
+      headers: { "content-disposition": 'attachment; filename="artifact-template.zip"' },
+    } as never);
+
+    await downloadArtifactImportTemplate("org-1", "proj-1", { format: "csv", scope: "testcases" });
+
+    expect(click).toHaveBeenCalled();
+  });
+
+  it("uploads import files with multipart form data", async () => {
+    const postSpy = vi.spyOn(apiClient, "post").mockResolvedValue({
+      data: {
+        created_count: 1,
+        updated_count: 0,
+        validated_count: 0,
+        skipped_count: 0,
+        failed_count: 0,
+        rows: [{ row_number: 2, sheet: "artifacts", artifact_key: "PROJ-1", status: "created" }],
+      },
+    } as never);
+
+    const file = new File(["artifact_key,title\nPROJ-1,Imported"], "artifacts.csv", { type: "text/csv" });
+    const out = await importArtifactsFile("org-1", "proj-1", {
+      file,
+      scope: "generic",
+      mode: "upsert",
+      validateOnly: true,
+    });
+
+    expect(out.created_count).toBe(1);
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    const config = postSpy.mock.calls[0]?.[2];
+    expect(config).toMatchObject({
+      params: { scope: "generic", mode: "upsert", validate_only: true },
+      headers: { "Content-Type": "multipart/form-data" },
+    });
   });
 });

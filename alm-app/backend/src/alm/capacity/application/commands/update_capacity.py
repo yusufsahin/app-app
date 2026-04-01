@@ -17,7 +17,7 @@ class UpdateCapacity(Command):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     capacity_id: uuid.UUID
-    cycle_node_id: uuid.UUID | None = None
+    cycle_id: uuid.UUID | None = None
     team_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None
     capacity_value: float | None = None
@@ -38,8 +38,8 @@ class UpdateCapacityHandler(CommandHandler[CapacityDTO]):
         if entity is None or entity.project_id != command.project_id:
             raise ValidationError("Capacity not found")
 
-        if command.cycle_node_id is not None:
-            entity.cycle_node_id = command.cycle_node_id
+        if command.cycle_id is not None:
+            entity.cycle_id = command.cycle_id
         if command.team_id is not None:
             entity.team_id = command.team_id
         if command.user_id is not None:
@@ -57,7 +57,7 @@ class UpdateCapacityHandler(CommandHandler[CapacityDTO]):
         return CapacityDTO(
             id=entity.id,
             project_id=entity.project_id,
-            cycle_node_id=entity.cycle_node_id,
+            cycle_id=entity.cycle_id,
             team_id=entity.team_id,
             user_id=entity.user_id,
             capacity_value=entity.capacity_value,

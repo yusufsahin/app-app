@@ -17,7 +17,7 @@ Veri kaynağı: Mevcut **artifact** entity + **workflow** (manifest’ten); tran
 
 | İhtiyaç | Mevcut |
 |--------|--------|
-| Artifact listesi (proje + isteğe bağlı filtre) | `GET /orgs/.../projects/.../artifacts` (state, type, cycle_node_id, area_node_id, q) |
+| Artifact listesi (proje + isteğe bağlı filtre) | `GET /orgs/.../projects/.../artifacts` (state, type, cycle_id, area_node_id, q) |
 | State’e göre geçiş | `POST .../artifacts/{id}/transition` (to_state) |
 | Workflow state listesi | Manifest’ten (artifact_type → workflow_id → states) |
 | Kolon = state | Manifest’teki workflow states ile eşleşir |

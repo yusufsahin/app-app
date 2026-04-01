@@ -6,13 +6,13 @@ import { useQueries } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, ChevronUp, GripVertical } from "lucide-react";
 import type { Artifact } from "../../../shared/api/artifactApi";
-import type { ArtifactLink } from "../../../shared/api/artifactLinkApi";
 import { apiClient } from "../../../shared/api/client";
 import {
-  sortOutgoingSuiteLinks,
-  useDeleteArtifactLink,
-  useReorderArtifactLinks,
-} from "../../../shared/api/artifactLinkApi";
+  type ArtifactRelationship,
+  sortOutgoingRelationships,
+  useDeleteArtifactRelationship,
+  useReorderArtifactRelationships,
+} from "../../../shared/api/relationshipApi";
 import { Button } from "../../../shared/components/ui";
 import type { LastExecutionStatusItem, LastExecutionStepStatusItem } from "../../../shared/api/qualityLastExecutionApi";
 import { parseTestSteps } from "../lib/testSteps";
@@ -37,7 +37,7 @@ function DraggableSuiteRow({
   rowCount,
   onReorderByArrow,
 }: {
-  link: ArtifactLink;
+  link: ArtifactRelationship;
   index: number;
   testCase: Artifact | undefined;
   lastExecItem: LastExecutionStatusItem | undefined;
@@ -142,7 +142,7 @@ function DraggableSuiteRow({
         >
           {stepsOpen ? <ChevronDown className="size-4" aria-hidden /> : <ChevronRight className="size-4" aria-hidden />}
         </Button>
-        <span className="min-w-0 flex-1 font-medium">{tc?.title ?? link.to_artifact_id}</span>
+        <span className="min-w-0 flex-1 font-medium">{tc?.title ?? link.other_artifact_id}</span>
         <TestLastStatusBadge item={lastExecItem} className="shrink-0" />
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           <Button
@@ -202,7 +202,7 @@ export type SuiteIncludedTestsReorderListProps = {
   projectId: string;
   suiteId: string;
   linkType: string;
-  links: ArtifactLink[];
+  links: ArtifactRelationship[];
   targetsById: Map<string, Artifact>;
   canUpdate: boolean;
 };
@@ -222,13 +222,13 @@ export function SuiteIncludedTestsReorderList({
 }: SuiteIncludedTestsReorderListProps) {
   const { t } = useTranslation("quality");
   const orderHintId = useId();
-  const orderedLinks = sortOutgoingSuiteLinks(links, suiteId, linkType);
+  const orderedLinks = sortOutgoingRelationships(links, suiteId, linkType);
 
   const missingTargetIds = useMemo(() => {
     const out: string[] = [];
     const seen = new Set<string>();
     for (const l of orderedLinks) {
-      const id = l.to_artifact_id;
+      const id = l.target_artifact_id;
       if (seen.has(id)) continue;
       seen.add(id);
       if (!targetsById.has(id)) out.push(id);
@@ -281,11 +281,11 @@ export function SuiteIncludedTestsReorderList({
     [dndBackend],
   );
 
-  const reorderMutation = useReorderArtifactLinks(orgSlug, projectId, suiteId);
-  const deleteLink = useDeleteArtifactLink(orgSlug, projectId, suiteId);
+  const reorderMutation = useReorderArtifactRelationships(orgSlug, projectId, suiteId);
+  const deleteLink = useDeleteArtifactRelationship(orgSlug, projectId, suiteId);
 
   const suiteTestIdsForLastExec = useMemo(
-    () => [...new Set(orderedLinks.map((l) => l.to_artifact_id))].slice(0, 200),
+    () => [...new Set(orderedLinks.map((l) => l.target_artifact_id))].slice(0, 200),
     [orderedLinks],
   );
   const { data: lastExecItems } = useLastExecutionStatusBatch(orgSlug, projectId, suiteTestIdsForLastExec);
@@ -299,7 +299,7 @@ export function SuiteIncludedTestsReorderList({
   const displayIds = localIds ?? serverIds;
   const displayLinks = displayIds
     .map((id) => orderedLinks.find((l) => l.id === id))
-    .filter((l): l is ArtifactLink => !!l);
+    .filter((l): l is ArtifactRelationship => !!l);
 
   function resetToServerOrder() {
     orderRef.current = { baseKey: serverOrderKey, ids: [...serverIds] };
@@ -321,7 +321,7 @@ export function SuiteIncludedTestsReorderList({
     const ids = orderRef.current.ids;
     if (ids.length === 0) return;
     try {
-      await reorderMutation.mutateAsync({ link_type: linkType, ordered_link_ids: ids });
+      await reorderMutation.mutateAsync({ relationship_type: linkType, ordered_relationship_ids: ids });
       setLocalOrder(null);
     } catch {
       resetToServerOrder();
@@ -352,7 +352,7 @@ export function SuiteIncludedTestsReorderList({
     orderRef.current = { baseKey: serverOrderKey, ids: next };
     setLocalOrder({ baseKey: serverOrderKey, ids: next });
     try {
-      await reorderMutation.mutateAsync({ link_type: linkType, ordered_link_ids: next });
+      await reorderMutation.mutateAsync({ relationship_type: linkType, ordered_relationship_ids: next });
       setLocalOrder(null);
     } catch {
       resetToServerOrder();
@@ -372,8 +372,8 @@ export function SuiteIncludedTestsReorderList({
             key={link.id}
             link={link}
             index={index}
-            testCase={resolvedTargetsById.get(link.to_artifact_id)}
-            lastExecItem={lastExecById.get(link.to_artifact_id)}
+            testCase={resolvedTargetsById.get(link.target_artifact_id)}
+            lastExecItem={lastExecById.get(link.target_artifact_id)}
             moveRow={moveRow}
             disabled={!canUpdate || reorderMutation.isPending}
             onRemove={() => {

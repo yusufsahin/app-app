@@ -17,8 +17,6 @@ from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.quality_manifest_extension import with_quality_manifest_bundle
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
 from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepository
-from alm.artifact_link.domain.entities import ArtifactLink
-from alm.artifact_link.infrastructure.repositories import SqlAlchemyArtifactLinkRepository
 from alm.auth.domain.entities import User
 from alm.auth.infrastructure.repositories import SqlAlchemyUserRepository
 from alm.config.settings import settings
@@ -26,8 +24,12 @@ from alm.process_template.infrastructure.repositories import (
     SqlAlchemyProcessTemplateRepository,
 )
 from alm.project.domain.entities import Project
+from alm.project.infrastructure.models import ProjectModel
 from alm.project.infrastructure.repositories import SqlAlchemyProjectRepository
 from alm.project_tag.infrastructure.repositories import SqlAlchemyProjectTagRepository
+from alm.relationship.domain.entities import Relationship
+from alm.relationship.infrastructure.models import RelationshipModel
+from alm.relationship.infrastructure.repositories import SqlAlchemyRelationshipRepository
 from alm.shared.domain.value_objects import ProjectCode, Slug
 from alm.shared.infrastructure.security.password import hash_password
 from alm.task.domain.entities import Task as TaskEntity
@@ -44,6 +46,10 @@ from alm.tenant.infrastructure.repositories import (
 
 logger = structlog.get_logger()
 
+
+class DemoSeedStateError(RuntimeError):
+    """Raised when demo seed data exists in a partial, non-recoverable state."""
+
 # Optional manifest roots (metadata-driven UI / API); task workflow for linked tasks.
 _MANIFEST_TASK_AND_TREES: dict[str, Any] = {
     "task_workflow_id": "task_basic",
@@ -53,6 +59,36 @@ _MANIFEST_TASK_AND_TREES: dict[str, Any] = {
         {"tree_id": "testsuites", "root_artifact_type": "root-testsuites"},
         {"tree_id": "defect", "root_artifact_type": "root-defect"},
     ],
+    "artifact_list": {
+        "surfaces": {
+            "backlog": {
+                "fixed_columns": [
+                    "artifact_key",
+                    "artifact_type",
+                    "title",
+                    "state",
+                    "priority",
+                    "story_points",
+                    "assignee_id",
+                    "tags",
+                    "updated_at",
+                ]
+            },
+            "defects": {
+                "fixed_columns": ["title", "state", "severity", "updated_at"],
+                "exclude_columns": [
+                    "artifact_key",
+                    "artifact_type",
+                    "description",
+                    "tags",
+                    "state_reason",
+                    "resolution",
+                    "created_at",
+                ],
+                "extra_column_limit": 4,
+            },
+        }
+    },
 }
 
 def _open_text_defect_parity_fields(*, visible_in: list[str]) -> list[dict[str, Any]]:
@@ -526,10 +562,48 @@ async def seed_process_templates(
                                 "when": {"state": "active"},
                                 "require": "assignee",
                             },
-                            {"kind": "LinkType", "id": "related", "name": "Related"},
-                            {"kind": "LinkType", "id": "verifies", "name": "Verifies"},
+                            {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
+                            {
+                                "kind": "LinkType",
+                                "id": "verifies",
+                                "name": "Verifies",
+                                "inverse_name": "Verified By",
+                                "from_types": ["test-case"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
                             {"kind": "LinkType", "id": "tests", "name": "Tests"},
-                            {"kind": "LinkType", "id": "blocks", "name": "Blocks"},
+                            {
+                                "kind": "LinkType",
+                                "id": "blocks",
+                                "name": "Blocks",
+                                "inverse_name": "Blocked By",
+                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "impacts",
+                                "name": "Impacts",
+                                "inverse_name": "Impacted By",
+                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "affects",
+                                "name": "Affects",
+                                "inverse_name": "Affected By Defect",
+                                "from_types": ["defect"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "discovered_in",
+                                "name": "Discovered In",
+                                "inverse_name": "Found Defects",
+                                "from_types": ["defect"],
+                                "to_types": ["test-run"],
+                            },
                         ],
                     }
                 ),
@@ -679,10 +753,48 @@ async def seed_process_templates(
                                 "when": {"state": "in_progress"},
                                 "require": "assignee",
                             },
-                            {"kind": "LinkType", "id": "related", "name": "Related"},
-                            {"kind": "LinkType", "id": "verifies", "name": "Verifies"},
+                            {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
+                            {
+                                "kind": "LinkType",
+                                "id": "verifies",
+                                "name": "Verifies",
+                                "inverse_name": "Verified By",
+                                "from_types": ["test-case"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
                             {"kind": "LinkType", "id": "tests", "name": "Tests"},
-                            {"kind": "LinkType", "id": "blocks", "name": "Blocks"},
+                            {
+                                "kind": "LinkType",
+                                "id": "blocks",
+                                "name": "Blocks",
+                                "inverse_name": "Blocked By",
+                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "impacts",
+                                "name": "Impacts",
+                                "inverse_name": "Impacted By",
+                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "affects",
+                                "name": "Affects",
+                                "inverse_name": "Affected By Defect",
+                                "from_types": ["defect"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "discovered_in",
+                                "name": "Discovered In",
+                                "inverse_name": "Found Defects",
+                                "from_types": ["defect"],
+                                "to_types": ["test-run"],
+                            },
                         ],
                     }
                 ),
@@ -817,10 +929,48 @@ async def seed_process_templates(
                                 "when": {"state": "in_progress"},
                                 "require": "assignee",
                             },
-                            {"kind": "LinkType", "id": "related", "name": "Related"},
-                            {"kind": "LinkType", "id": "verifies", "name": "Verifies"},
+                            {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
+                            {
+                                "kind": "LinkType",
+                                "id": "verifies",
+                                "name": "Verifies",
+                                "inverse_name": "Verified By",
+                                "from_types": ["test-case"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
                             {"kind": "LinkType", "id": "tests", "name": "Tests"},
-                            {"kind": "LinkType", "id": "blocks", "name": "Blocks"},
+                            {
+                                "kind": "LinkType",
+                                "id": "blocks",
+                                "name": "Blocks",
+                                "inverse_name": "Blocked By",
+                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "impacts",
+                                "name": "Impacts",
+                                "inverse_name": "Impacted By",
+                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "affects",
+                                "name": "Affects",
+                                "inverse_name": "Affected By Defect",
+                                "from_types": ["defect"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "discovered_in",
+                                "name": "Discovered In",
+                                "inverse_name": "Found Defects",
+                                "from_types": ["defect"],
+                                "to_types": ["test-run"],
+                            },
                         ],
                     }
                 ),
@@ -1009,10 +1159,48 @@ async def seed_process_templates(
                                 ],
                             },
                             {"kind": "LinkType", "id": "hierarchy", "name": "Hierarchy"},
-                            {"kind": "LinkType", "id": "related", "name": "Related"},
-                            {"kind": "LinkType", "id": "blocks", "name": "Blocks"},
-                            {"kind": "LinkType", "id": "verifies", "name": "Verifies"},
+                            {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
+                            {
+                                "kind": "LinkType",
+                                "id": "blocks",
+                                "name": "Blocks",
+                                "inverse_name": "Blocked By",
+                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "impacts",
+                                "name": "Impacts",
+                                "inverse_name": "Impacted By",
+                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "verifies",
+                                "name": "Verifies",
+                                "inverse_name": "Verified By",
+                                "from_types": ["test-case"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
                             {"kind": "LinkType", "id": "tests", "name": "Tests"},
+                            {
+                                "kind": "LinkType",
+                                "id": "affects",
+                                "name": "Affects",
+                                "inverse_name": "Affected By Defect",
+                                "from_types": ["defect"],
+                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
+                            },
+                            {
+                                "kind": "LinkType",
+                                "id": "discovered_in",
+                                "name": "Discovered In",
+                                "inverse_name": "Found Defects",
+                                "from_types": ["defect"],
+                                "to_types": ["test-run"],
+                            },
                             {
                                 "kind": "TransitionPolicy",
                                 "id": "assignee_required_on_active",
@@ -1067,6 +1255,64 @@ async def _create_project_roots_in_seed(
         await artifact_repo.add(root)
 
 
+async def _count_demo_relationships(session: AsyncSession, project_ids: list[uuid.UUID]) -> int:
+    if not project_ids:
+        return 0
+    relationship_count = await session.scalar(
+        select(RelationshipModel.id).where(RelationshipModel.project_id.in_(project_ids)).limit(1)
+    )
+    return 1 if relationship_count is not None else 0
+
+
+async def _detect_demo_seed_state(session: AsyncSession) -> tuple[str, dict[str, Any]]:
+    any_tenant = await session.scalar(select(TenantModel.id).limit(1))
+    demo_tenant = await session.scalar(select(TenantModel).where(TenantModel.slug == "demo").limit(1))
+
+    user_repo = SqlAlchemyUserRepository(session)
+    demo_user = await user_repo.find_by_email(DEMO_EMAIL)
+
+    project_rows = []
+    if demo_tenant is not None:
+        project_rows = list(
+            (
+                await session.execute(
+                    select(ProjectModel.id, ProjectModel.slug).where(ProjectModel.tenant_id == demo_tenant.id)
+                )
+            ).all()
+        )
+
+    project_ids = [row.id for row in project_rows]
+    relationship_count = await _count_demo_relationships(session, project_ids)
+
+    details = {
+        "has_any_tenant": any_tenant is not None,
+        "demo_tenant_id": str(demo_tenant.id) if demo_tenant is not None else None,
+        "demo_user_id": str(demo_user.id) if demo_user is not None else None,
+        "project_slugs": [row.slug for row in project_rows],
+        "relationship_rows_present": relationship_count > 0,
+    }
+
+    if any_tenant is None and demo_user is None and demo_tenant is None:
+        return "empty", details
+    if demo_tenant is None and demo_user is None:
+        return "non_demo_data_present", details
+    if demo_tenant is not None and demo_user is not None and len(project_rows) >= len(DEMO_PROJECTS) and relationship_count > 0:
+        return "complete", details
+    return "partial", details
+
+
+async def run_startup_seeds(session_factory: async_sessionmaker[AsyncSession]) -> None:
+    logger.info("seed_phase_started", phase="privileges")
+    await seed_privileges(session_factory)
+
+    logger.info("seed_phase_started", phase="process_templates")
+    await seed_process_templates(session_factory)
+
+    if settings.seed_demo_data and settings.is_dev:
+        logger.info("seed_phase_started", phase="demo_data")
+        await seed_demo_data(session_factory)
+
+
 async def seed_demo_data(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -1075,10 +1321,18 @@ async def seed_demo_data(
         return
 
     async with session_factory() as session:
-        result = await session.execute(select(TenantModel).limit(1))
-        if result.scalar_one_or_none() is not None:
+        state, details = await _detect_demo_seed_state(session)
+        if state == "non_demo_data_present":
             logger.info("demo_data_skipped", reason="tenants_already_exist")
             return
+        if state == "complete":
+            logger.info("demo_data_skipped", reason="demo_seed_already_present", **details)
+            return
+        if state == "partial":
+            raise DemoSeedStateError(
+                "Partial demo seed detected. Reset the local DB or complete the missing demo seed phases "
+                f"before startup continues. Details: {details}"
+            )
 
     async with session_factory() as session:
         privilege_repo = SqlAlchemyPrivilegeRepository(session)
@@ -1101,11 +1355,7 @@ async def seed_demo_data(
             membership_repo = SqlAlchemyMembershipRepository(session)
             project_repo = SqlAlchemyProjectRepository(session)
             process_template_repo = SqlAlchemyProcessTemplateRepository(session)
-
-            existing_user = await user_repo.find_by_email(DEMO_EMAIL)
-            if existing_user is not None:
-                logger.info("demo_data_skipped", reason="admin_user_already_exists")
-                return
+            logger.info("seed_phase_started", phase="demo_tenant_bootstrap")
 
             password_hash = hash_password(DEMO_PASSWORD)
             user = User.create(
@@ -1127,6 +1377,7 @@ async def seed_demo_data(
             version_id = default_version.id if default_version else None
             artifact_repo = SqlAlchemyArtifactRepository(session)
             first_project_id: uuid.UUID | None = None
+            logger.info("seed_phase_started", phase="demo_projects_and_roots")
 
             for proj in DEMO_PROJECTS:
                 try:
@@ -1160,6 +1411,7 @@ async def seed_demo_data(
                 req_mfa: ArtifactEntity | None = None
                 req_audit: ArtifactEntity | None = None
                 demo_feature_o11y: ArtifactEntity | None = None
+                logger.info("seed_phase_started", phase="demo_artifacts")
 
                 mb = default_version.manifest_bundle or {}
                 ast_seed = get_manifest_ast(default_version.id, mb)
@@ -2040,7 +2292,8 @@ async def seed_demo_data(
                         release_campaign.created_by = user.id
                         await artifact_repo.add(release_campaign)
 
-                link_repo = SqlAlchemyArtifactLinkRepository(session)
+                logger.info("seed_phase_started", phase="demo_relationships")
+                relationship_repo = SqlAlchemyRelationshipRepository(session)
                 tag_repo = SqlAlchemyProjectTagRepository(session)
                 task_repo = SqlAlchemyTaskRepository(session)
 
@@ -2169,29 +2422,29 @@ async def seed_demo_data(
                             tc_uni.created_by = user.id
                             await artifact_repo.add(tc_uni)
 
-                        await link_repo.add(
-                            ArtifactLink.create(
+                        await relationship_repo.add(
+                            Relationship.create(
                                 project_id=p2.id,
-                                from_artifact_id=def_p2.id,
-                                to_artifact_id=req_p2.id,
-                                link_type="blocks",
+                                source_artifact_id=def_p2.id,
+                                target_artifact_id=req_p2.id,
+                                relationship_type="blocks",
                             )
                         )
                         if tc_uni is not None:
-                            await link_repo.add(
-                                ArtifactLink.create(
+                            await relationship_repo.add(
+                                Relationship.create(
                                     project_id=p2.id,
-                                    from_artifact_id=tc_uni.id,
-                                    to_artifact_id=req_p2.id,
-                                    link_type="verifies",
+                                    source_artifact_id=tc_uni.id,
+                                    target_artifact_id=req_p2.id,
+                                    relationship_type="verifies",
                                 )
                             )
-                            await link_repo.add(
-                                ArtifactLink.create(
+                            await relationship_repo.add(
+                                Relationship.create(
                                     project_id=p2.id,
-                                    from_artifact_id=tc_uni.id,
-                                    to_artifact_id=req_p2_b.id,
-                                    link_type="verifies",
+                                    source_artifact_id=tc_uni.id,
+                                    target_artifact_id=req_p2_b.id,
+                                    relationship_type="verifies",
                                 )
                             )
 
@@ -2234,255 +2487,255 @@ async def seed_demo_data(
                         )
                     )
 
-                await link_repo.add(
-                    ArtifactLink.create(
+                await relationship_repo.add(
+                    Relationship.create(
                         project_id=first_project[0].id,
-                        from_artifact_id=gov_manifest.id,
-                        to_artifact_id=sample.id,
-                        link_type="sample_validates_against_schema",
+                        source_artifact_id=gov_manifest.id,
+                        target_artifact_id=sample.id,
+                        relationship_type="sample_validates_against_schema",
                     )
                 )
-                await link_repo.add(
-                    ArtifactLink.create(
+                await relationship_repo.add(
+                    Relationship.create(
                         project_id=first_project[0].id,
-                        from_artifact_id=sample.id,
-                        to_artifact_id=gov_rule.id,
-                        link_type="schema_constrains_rules",
+                        source_artifact_id=sample.id,
+                        target_artifact_id=gov_rule.id,
+                        relationship_type="schema_constrains_rules",
                     )
                 )
                 if demo_defect_high is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=demo_defect_high.id,
-                            to_artifact_id=sample.id,
-                            link_type="blocks",
+                            source_artifact_id=demo_defect_high.id,
+                            target_artifact_id=sample.id,
+                            relationship_type="blocks",
                         )
                     )
                 if demo_defect_medium is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=demo_defect_medium.id,
-                            to_artifact_id=sample.id,
-                            link_type="related",
+                            source_artifact_id=demo_defect_medium.id,
+                            target_artifact_id=sample.id,
+                            relationship_type="related",
                         )
                     )
                 if tc_login is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=tc_login.id,
-                            to_artifact_id=sample.id,
-                            link_type="verifies",
+                            source_artifact_id=tc_login.id,
+                            target_artifact_id=sample.id,
+                            relationship_type="verifies",
                         )
                     )
                 if tc_api is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=tc_api.id,
-                            to_artifact_id=sample.id,
-                            link_type="verifies",
+                            source_artifact_id=tc_api.id,
+                            target_artifact_id=sample.id,
+                            relationship_type="verifies",
                         )
                     )
                 if tc_security is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=tc_security.id,
-                            to_artifact_id=sample.id,
-                            link_type="verifies",
+                            source_artifact_id=tc_security.id,
+                            target_artifact_id=sample.id,
+                            relationship_type="verifies",
                         )
                     )
                 if tc_security is not None and req_mfa is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=tc_security.id,
-                            to_artifact_id=req_mfa.id,
-                            link_type="verifies",
+                            source_artifact_id=tc_security.id,
+                            target_artifact_id=req_mfa.id,
+                            relationship_type="verifies",
                         )
                     )
                 if tc_login is not None and req_audit is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=tc_login.id,
-                            to_artifact_id=req_audit.id,
-                            link_type="verifies",
+                            source_artifact_id=tc_login.id,
+                            target_artifact_id=req_audit.id,
+                            relationship_type="verifies",
                         )
                     )
                 if tc_composite is not None and req_mfa is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=tc_composite.id,
-                            to_artifact_id=req_mfa.id,
-                            link_type="verifies",
+                            source_artifact_id=tc_composite.id,
+                            target_artifact_id=req_mfa.id,
+                            relationship_type="verifies",
                         )
                     )
                 if tc_composite is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=tc_composite.id,
-                            to_artifact_id=sample.id,
-                            link_type="verifies",
+                            source_artifact_id=tc_composite.id,
+                            target_artifact_id=sample.id,
+                            relationship_type="verifies",
                         )
                     )
                 if req_audit is not None and tc_api is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=tc_api.id,
-                            to_artifact_id=req_audit.id,
-                            link_type="verifies",
+                            source_artifact_id=tc_api.id,
+                            target_artifact_id=req_audit.id,
+                            relationship_type="verifies",
                         )
                     )
                 if demo_defect_resolved is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=demo_defect_resolved.id,
-                            to_artifact_id=sample.id,
-                            link_type="related",
+                            source_artifact_id=demo_defect_resolved.id,
+                            target_artifact_id=sample.id,
+                            relationship_type="related",
                         )
                     )
                 if demo_suite is not None and tc_login is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=demo_suite.id,
-                            to_artifact_id=tc_login.id,
-                            link_type="suite_includes_test",
+                            source_artifact_id=demo_suite.id,
+                            target_artifact_id=tc_login.id,
+                            relationship_type="suite_includes_test",
                         )
                     )
                 if demo_suite is not None and tc_api is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=demo_suite.id,
-                            to_artifact_id=tc_api.id,
-                            link_type="suite_includes_test",
+                            source_artifact_id=demo_suite.id,
+                            target_artifact_id=tc_api.id,
+                            relationship_type="suite_includes_test",
                         )
                     )
                 if demo_suite is not None and tc_composite is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=demo_suite.id,
-                            to_artifact_id=tc_composite.id,
-                            link_type="suite_includes_test",
+                            source_artifact_id=demo_suite.id,
+                            target_artifact_id=tc_composite.id,
+                            relationship_type="suite_includes_test",
                         )
                     )
                 if api_suite is not None and tc_api is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=api_suite.id,
-                            to_artifact_id=tc_api.id,
-                            link_type="suite_includes_test",
+                            source_artifact_id=api_suite.id,
+                            target_artifact_id=tc_api.id,
+                            relationship_type="suite_includes_test",
                         )
                     )
                 if api_suite is not None and tc_security is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=api_suite.id,
-                            to_artifact_id=tc_security.id,
-                            link_type="suite_includes_test",
+                            source_artifact_id=api_suite.id,
+                            target_artifact_id=tc_security.id,
+                            relationship_type="suite_includes_test",
                         )
                     )
                 if scale_suite is not None and tc_login is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=scale_suite.id,
-                            to_artifact_id=tc_login.id,
-                            link_type="suite_includes_test",
+                            source_artifact_id=scale_suite.id,
+                            target_artifact_id=tc_login.id,
+                            relationship_type="suite_includes_test",
                         )
                     )
                 if scale_suite is not None:
                     for extra_case in extra_test_cases:
-                        await link_repo.add(
-                            ArtifactLink.create(
+                        await relationship_repo.add(
+                            Relationship.create(
                                 project_id=first_project[0].id,
-                                from_artifact_id=scale_suite.id,
-                                to_artifact_id=extra_case.id,
-                                link_type="suite_includes_test",
+                                source_artifact_id=scale_suite.id,
+                                target_artifact_id=extra_case.id,
+                                relationship_type="suite_includes_test",
                             )
                         )
                 if demo_run is not None and demo_suite is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=demo_run.id,
-                            to_artifact_id=demo_suite.id,
-                            link_type="run_for_suite",
+                            source_artifact_id=demo_run.id,
+                            target_artifact_id=demo_suite.id,
+                            relationship_type="run_for_suite",
                         )
                     )
                 if previous_demo_run is not None and demo_suite is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=previous_demo_run.id,
-                            to_artifact_id=demo_suite.id,
-                            link_type="run_for_suite",
+                            source_artifact_id=previous_demo_run.id,
+                            target_artifact_id=demo_suite.id,
+                            relationship_type="run_for_suite",
                         )
                     )
                 if failed_run is not None and api_suite is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=failed_run.id,
-                            to_artifact_id=api_suite.id,
-                            link_type="run_for_suite",
+                            source_artifact_id=failed_run.id,
+                            target_artifact_id=api_suite.id,
+                            relationship_type="run_for_suite",
                         )
                     )
                 if scale_run is not None and scale_suite is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=scale_run.id,
-                            to_artifact_id=scale_suite.id,
-                            link_type="run_for_suite",
+                            source_artifact_id=scale_run.id,
+                            target_artifact_id=scale_suite.id,
+                            relationship_type="run_for_suite",
                         )
                     )
                 if demo_campaign is not None and demo_suite is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=demo_campaign.id,
-                            to_artifact_id=demo_suite.id,
-                            link_type="campaign_includes_suite",
+                            source_artifact_id=demo_campaign.id,
+                            target_artifact_id=demo_suite.id,
+                            relationship_type="campaign_includes_suite",
                         )
                     )
                 if release_campaign is not None and demo_suite is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=release_campaign.id,
-                            to_artifact_id=demo_suite.id,
-                            link_type="campaign_includes_suite",
+                            source_artifact_id=release_campaign.id,
+                            target_artifact_id=demo_suite.id,
+                            relationship_type="campaign_includes_suite",
                         )
                     )
                 if release_campaign is not None and api_suite is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=release_campaign.id,
-                            to_artifact_id=api_suite.id,
-                            link_type="campaign_includes_suite",
+                            source_artifact_id=release_campaign.id,
+                            target_artifact_id=api_suite.id,
+                            relationship_type="campaign_includes_suite",
                         )
                     )
                 if release_campaign is not None and scale_suite is not None:
-                    await link_repo.add(
-                        ArtifactLink.create(
+                    await relationship_repo.add(
+                        Relationship.create(
                             project_id=first_project[0].id,
-                            from_artifact_id=release_campaign.id,
-                            to_artifact_id=scale_suite.id,
-                            link_type="campaign_includes_suite",
+                            source_artifact_id=release_campaign.id,
+                            target_artifact_id=scale_suite.id,
+                            relationship_type="campaign_includes_suite",
                         )
                     )
 

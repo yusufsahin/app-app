@@ -1,4 +1,4 @@
-"""Create increment (root or child)."""
+"""Create cadence (root or child)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 
-from alm.cycle.application.dtos import IncrementDTO
-from alm.cycle.domain.entities import Increment
+from alm.cycle.application.dtos import CadenceDTO
+from alm.cycle.domain.entities import Cadence
 from alm.cycle.domain.ports import CycleRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.command import Command, CommandHandler
@@ -15,7 +15,7 @@ from alm.shared.domain.exceptions import ValidationError
 
 
 @dataclass(frozen=True)
-class CreateIncrement(Command):
+class CreateCadence(Command):
     tenant_id: uuid.UUID
     project_id: uuid.UUID
     name: str
@@ -25,10 +25,10 @@ class CreateIncrement(Command):
     start_date: date | None = None
     end_date: date | None = None
     state: str = "planned"
-    type: str = "iteration"
+    type: str = "cycle"
 
 
-class CreateIncrementHandler(CommandHandler[IncrementDTO]):
+class CreateCadenceHandler(CommandHandler[CadenceDTO]):
     def __init__(
         self,
         cycle_repo: CycleRepository,
@@ -37,19 +37,19 @@ class CreateIncrementHandler(CommandHandler[IncrementDTO]):
         self._cycle_repo = cycle_repo
         self._project_repo = project_repo
 
-    async def handle(self, command: Command) -> IncrementDTO:
-        assert isinstance(command, CreateIncrement)
+    async def handle(self, command: Command) -> CadenceDTO:
+        assert isinstance(command, CreateCadence)
 
         project = await self._project_repo.find_by_id(command.project_id)
         if project is None or project.tenant_id != command.tenant_id:
             raise ValidationError("Project not found")
 
-        node_type = (command.type or "iteration").strip().lower()
-        if node_type not in ("release", "iteration"):
-            node_type = "iteration"
+        node_type = (command.type or "cycle").strip().lower()
+        if node_type not in ("release", "cycle"):
+            node_type = "cycle"
         if command.parent_id is None:
-            root_type = node_type if node_type in ("release", "iteration") else "release"
-            node = Increment.create_root(
+            root_type = node_type if node_type in ("release", "cycle") else "release"
+            node = Cadence.create_root(
                 project_id=command.project_id,
                 name=command.name,
                 sort_order=command.sort_order,
@@ -62,8 +62,8 @@ class CreateIncrementHandler(CommandHandler[IncrementDTO]):
         else:
             parent = await self._cycle_repo.find_by_id(command.parent_id)
             if parent is None or parent.project_id != command.project_id:
-                raise ValidationError("Parent cycle not found")
-            node = Increment.create_child(
+                raise ValidationError("Parent cadence not found")
+            node = Cadence.create_child(
                 project_id=command.project_id,
                 name=command.name,
                 parent=parent,
@@ -72,12 +72,12 @@ class CreateIncrementHandler(CommandHandler[IncrementDTO]):
                 start_date=command.start_date,
                 end_date=command.end_date,
                 state=command.state,
-                type="iteration",
+                type="cycle",
             )
 
         await self._cycle_repo.add(node)
 
-        return IncrementDTO(
+        return CadenceDTO(
             id=node.id,
             project_id=node.project_id,
             name=node.name,

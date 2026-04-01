@@ -19,7 +19,7 @@ import {
   Checkbox,
 } from "../../../shared/components/ui";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
-import { useArtifactsPageProject } from "./useArtifactsPageProject";
+import { useBacklogWorkspaceProject } from "./useBacklogWorkspaceProject";
 import {
   useRequirementCoverageAnalysis,
   type RequirementCoverageLeaf,
@@ -105,7 +105,7 @@ function depthById(nodes: RequirementCoverageNode[]): Map<string, number> {
 
 export default function RequirementsCoveragePage() {
   const { t } = useTranslation("quality");
-  const { orgSlug, projectSlug, project, projectsLoading } = useArtifactsPageProject();
+  const { orgSlug, projectSlug, project, projectsLoading } = useBacklogWorkspaceProject();
   const [searchParams, setSearchParams] = useSearchParams();
   const showNotification = useNotificationStore((s) => s.showNotification);
 

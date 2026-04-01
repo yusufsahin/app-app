@@ -1,4 +1,4 @@
-"""Increment domain entity — planning iteration tree (pamera IterationNode-like)."""
+"""Cadence domain entity for release/cycle planning."""
 
 from __future__ import annotations
 
@@ -8,14 +8,13 @@ from typing import Any, Literal
 
 from alm.shared.domain.aggregate import AggregateRoot
 
-CYCLE_NODE_TYPE_RELEASE = "release"
-CYCLE_NODE_TYPE_ITERATION = "iteration"
-CycleNodeType = Literal["release", "iteration"]
+CADENCE_TYPE_RELEASE = "release"
+CADENCE_TYPE_CYCLE = "cycle"
+CadenceType = Literal["release", "cycle"]
 
 
-class Increment(AggregateRoot):
-    """Node in the cycle/iteration tree. Root has parent_id=None, path=name; child has path=parent.path + '/' + name.
-    type: 'release' for top-level (e.g. 2024-R1), 'iteration' for sprints/iterations under a release."""
+class Cadence(AggregateRoot):
+    """Node in the release/cycle tree."""
 
     def __init__(
         self,
@@ -31,7 +30,7 @@ class Increment(AggregateRoot):
         start_date: date | None = None,
         end_date: date | None = None,
         state: str = "planned",
-        type: CycleNodeType = "iteration",
+        type: CadenceType = "cycle",
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
     ) -> None:
@@ -62,11 +61,11 @@ class Increment(AggregateRoot):
         start_date: date | None = None,
         end_date: date | None = None,
         state: str = "planned",
-        type: CycleNodeType = "release",
-    ) -> Increment:
+        type: CadenceType = "release",
+    ) -> Cadence:
         name_trim = (name or "").strip()
         if not name_trim:
-            raise ValueError("Cycle node name cannot be empty")
+            raise ValueError("Cadence name cannot be empty")
         return cls(
             project_id=project_id,
             name=name_trim,
@@ -87,7 +86,7 @@ class Increment(AggregateRoot):
         cls,
         project_id: uuid.UUID,
         name: str,
-        parent: Increment,
+        parent: Cadence,
         *,
         id: uuid.UUID | None = None,
         sort_order: int = 0,
@@ -95,13 +94,13 @@ class Increment(AggregateRoot):
         start_date: date | None = None,
         end_date: date | None = None,
         state: str = "planned",
-        type: CycleNodeType = "iteration",
-    ) -> Increment:
+        type: CadenceType = "cycle",
+    ) -> Cadence:
         if parent.project_id != project_id:
             raise ValueError("Parent must belong to the same project")
         name_trim = (name or "").strip()
         if not name_trim:
-            raise ValueError("Cycle node name cannot be empty")
+            raise ValueError("Cadence name cannot be empty")
         path = f"{parent.path}/{name_trim}"
         return cls(
             project_id=project_id,

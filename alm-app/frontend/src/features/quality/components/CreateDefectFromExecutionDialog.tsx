@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Camera, Clipboard, Loader2, Paperclip, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   Badge,
   Button,
@@ -16,8 +16,8 @@ import { Input } from "../../../shared/components/ui/input";
 import { Label } from "../../../shared/components/ui/label";
 import { useCreateArtifact } from "../../../shared/api/artifactApi";
 import { apiClient } from "../../../shared/api/client";
+import { AttachmentComposer } from "../../../shared/components/attachments";
 import { toast } from "sonner";
-import { isDefectAttachmentFileAllowed } from "../lib/defectAttachmentRules";
 import { artifactDetailPath } from "../../../shared/utils/appPaths";
 import type { Attachment } from "../../../shared/api/attachmentApi";
 
@@ -129,101 +129,20 @@ export function CreateDefectFromExecutionDialog({
     [runId, testCaseId, stepContext],
   );
 
-  useEffect(() => {
-    if (open) {
-      setTitle(defaultTitle);
-      setDescription(defaultDescription);
-      setFiles([]);
-      setSubmitPhase("idle");
-      setUploadIndex(0);
-    }
-  }, [open, defaultTitle, defaultDescription]);
+  const resetForm = useCallback(() => {
+    setTitle(defaultTitle);
+    setDescription(defaultDescription);
+    setFiles([]);
+    setSubmitPhase("idle");
+    setUploadIndex(0);
+  }, [defaultDescription, defaultTitle]);
 
-  const addFiles = useCallback((incoming: FileList | File[]) => {
-    const next: File[] = [];
-    for (const f of Array.from(incoming)) {
-      if (!isDefectAttachmentFileAllowed(f)) {
-        toast.error(t("execution.defect.fileRejected", { name: f.name }));
-        continue;
-      }
-      next.push(f);
+  const handleOpenChange = useCallback((nextOpen: boolean) => {
+    if (nextOpen) {
+      resetForm();
     }
-    if (next.length) setFiles((prev) => [...prev, ...next]);
-  }, [t]);
-
-  const onPaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const items = e.clipboardData?.items;
-      if (!items?.length) return;
-      const imageFiles: File[] = [];
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i];
-        if (it?.kind === "file" && it.type.startsWith("image/")) {
-          const f = it.getAsFile();
-          if (f) imageFiles.push(f);
-        }
-      }
-      if (imageFiles.length) {
-        e.preventDefault();
-        addFiles(imageFiles);
-      }
-    },
-    [addFiles],
-  );
-
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const captureScreenshot = useCallback(async () => {
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
-      toast.error(t("execution.defect.captureUnsupported"));
-      return;
-    }
-    let stream: MediaStream | null = null;
-    try {
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: false,
-      });
-      const track = stream.getVideoTracks()[0];
-      if (!track) {
-        toast.error(t("execution.defect.captureFailed"));
-        return;
-      }
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      video.muted = true;
-      await video.play();
-      await new Promise((resolve) => {
-        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) resolve(undefined);
-        else video.onloadeddata = () => resolve(undefined);
-      });
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        toast.error(t("execution.defect.captureFailed"));
-        return;
-      }
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-      if (!blob) {
-        toast.error(t("execution.defect.captureFailed"));
-        return;
-      }
-      const safeStep = stepContext?.stepNumber != null ? `step-${stepContext.stepNumber}` : "step";
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const file = new File([blob], `manual-runner-${safeStep}-${timestamp}.png`, { type: "image/png" });
-      addFiles([file]);
-      toast.success(t("execution.defect.captureAdded"));
-    } catch {
-      toast.error(t("execution.defect.captureFailed"));
-    } finally {
-      stream?.getTracks().forEach((item) => item.stop());
-    }
-  }, [addFiles, stepContext?.stepNumber, t]);
+    onOpenChange(nextOpen);
+  }, [onOpenChange, resetForm]);
 
   const handleSubmit = async () => {
     if (!defectParentId) {
@@ -323,7 +242,7 @@ export function CreateDefectFromExecutionDialog({
       defectAttachmentIds,
       executionContext,
     });
-    onOpenChange(false);
+    handleOpenChange(false);
     setSubmitPhase("idle");
   };
 
@@ -331,8 +250,8 @@ export function CreateDefectFromExecutionDialog({
     submitPhase === "creating" || submitPhase === "linking" || submitPhase === "uploading";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto" onPaste={onPaste}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t("execution.defect.dialogTitle")}</DialogTitle>
           <DialogDescription className="sr-only">
@@ -353,8 +272,6 @@ export function CreateDefectFromExecutionDialog({
               </p>
             </div>
           ) : null}
-          <p className="text-xs text-muted-foreground">{t("execution.defect.pasteHint")}</p>
-
           <div className="space-y-2">
             <Label htmlFor="defect-title">{t("execution.defect.titleLabel")}</Label>
             <Input
@@ -381,57 +298,42 @@ export function CreateDefectFromExecutionDialog({
             <span className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
               {t("execution.defect.attachmentsLabel")}
             </span>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" size="sm" disabled={busy} asChild>
-                <label htmlFor="defect-attachments-input" className="cursor-pointer">
-                  <Paperclip className="mr-1 inline size-4" />
-                  {t("execution.defect.addFiles")}
-                  <input
-                    id="defect-attachments-input"
-                    type="file"
-                    className="sr-only"
-                    multiple
-                    accept="image/*,application/pdf"
-                    aria-label={t("execution.defect.addFiles")}
-                    onChange={(e) => {
-                      if (e.target.files?.length) addFiles(e.target.files);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-              </Button>
-              <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void captureScreenshot()}>
-                <Camera className="mr-1 size-4" />
-                {t("execution.defect.captureScreen")}
-              </Button>
-              <div className="inline-flex items-center gap-1 rounded-md border border-dashed px-2 py-1 text-[11px] text-muted-foreground">
-                <Clipboard className="size-3.5" />
-                {t("execution.defect.clipboardShortcut")}
-              </div>
-            </div>
-            {files.length > 0 ? (
-              <ul className="space-y-1 text-xs">
-                {files.map((f, idx) => (
-                  <li
-                    key={`${f.name}-${idx}`}
-                    className="flex items-center justify-between gap-2 rounded border bg-muted/40 px-2 py-1"
-                  >
-                    <span className="truncate">{f.name}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="size-8 shrink-0 p-0"
-                      onClick={() => removeFile(idx)}
-                      disabled={busy}
-                      aria-label={t("execution.defect.removeFile")}
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+            <AttachmentComposer
+              className="space-y-2"
+              files={files}
+              onFilesChange={setFiles}
+              disabled={busy}
+              fileInputId="defect-attachments-input"
+              captureFileNamePrefix={stepContext?.stepNumber != null ? `manual-runner-step-${stepContext.stepNumber}` : "manual-runner-step"}
+              labels={{
+                addFiles: t("execution.defect.addFiles"),
+                captureScreen: t("execution.defect.captureScreen"),
+                clipboardShortcut: t("execution.defect.clipboardShortcut"),
+                removeFile: t("execution.defect.removeFile"),
+                pasteHint: t("execution.defect.pasteHint"),
+                dropFilesHint: t("execution.defect.dropFilesHint"),
+                dropFilesActiveHint: t("execution.defect.dropFilesActiveHint"),
+              }}
+              onFilesRejected={(rejectedFiles) => {
+                for (const file of rejectedFiles) {
+                  toast.error(t("execution.defect.fileRejected", { name: file.name }));
+                }
+              }}
+              onDuplicateFiles={(duplicateFiles) => {
+                for (const file of duplicateFiles) {
+                  toast.error(t("execution.defect.fileDuplicate", { name: file.name }));
+                }
+              }}
+              onCaptureResult={(result) => {
+                if (result === "added") {
+                  toast.success(t("execution.defect.captureAdded"));
+                } else if (result === "unsupported") {
+                  toast.error(t("execution.defect.captureUnsupported"));
+                } else {
+                  toast.error(t("execution.defect.captureFailed"));
+                }
+              }}
+            />
           </div>
 
           {submitPhase === "uploading" ? (
@@ -446,7 +348,7 @@ export function CreateDefectFromExecutionDialog({
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+          <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={busy}>
             {t("common.cancel")}
           </Button>
           <Button
