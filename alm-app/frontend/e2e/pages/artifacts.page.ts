@@ -15,8 +15,8 @@ export class ArtifactsPage {
   }
 
   async createArtifact(title: string) {
-    await this.page.getByRole("button", { name: /New (artifact|work item|epic|issue)/i }).click();
-    const menuItem = this.page.getByRole("menuitem", { name: /epic|issue/i }).first();
+    await this.page.getByRole("button", { name: /New (artifact|work item|epic|issue|workitem)/i }).click();
+    const menuItem = this.page.getByRole("menuitem", { name: /epic|issue|workitem|work item/i }).first();
     if (await menuItem.isVisible().catch(() => false)) await menuItem.click();
     const createDialog = this.page.getByRole("dialog").first();
     await createDialog.waitFor({ state: "visible", timeout: 10000 });

@@ -141,9 +141,9 @@ MANIFEST_DEFS_LINK_TYPE_BLOCKS_RICH: dict[str, Any] = {
             "name": "Blocks",
             "direction": "directed",
             "cardinality": "many-to-many",
-            "from_types": ["task"],
+            "from_types": ["feature"],
             "to_types": ["requirement"],
-            "description": "Task blocks requirement",
+            "description": "Feature blocks requirement",
         },
     ],
 }

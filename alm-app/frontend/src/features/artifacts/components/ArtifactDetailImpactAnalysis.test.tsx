@@ -21,14 +21,14 @@ describe("ArtifactDetailImpactAnalysis", () => {
             focus_artifact: {
               id: "focus-1",
               project_id: "project-1",
-              artifact_type: "backlog-item",
+              artifact_type: "user_story",
               title: "Focus item",
               description: "",
               state: "active",
               assignee_id: null,
               parent_id: null,
               custom_fields: {},
-              artifact_key: "BI-1",
+              artifact_key: "US-1",
               tags: [],
               allowed_actions: [],
             },
@@ -64,14 +64,14 @@ describe("ArtifactDetailImpactAnalysis", () => {
                 direction: "outgoing",
                 depth: 1,
                 has_more: true,
-                hierarchy_path: [{ id: "focus-1", artifact_key: "BI-1", title: "Focus item", artifact_type: "backlog-item" }],
+                hierarchy_path: [{ id: "focus-1", artifact_key: "US-1", title: "Focus item", artifact_type: "user_story" }],
                 children: [
                   {
-                    artifact_id: "task-1",
-                    artifact_key: "TASK-1",
-                    artifact_type: "task",
-                    title: "Follow-up task",
-                    state: "todo",
+                    artifact_id: "us-deep-1",
+                    artifact_key: "US-2",
+                    artifact_type: "user_story",
+                    title: "Follow-up story",
+                    state: "new",
                     parent_id: "downstream-1",
                     relationship_id: "rel-3",
                     relationship_type: "impacts",
@@ -107,7 +107,7 @@ describe("ArtifactDetailImpactAnalysis", () => {
     expect(screen.getByText("Trace To")).toBeInTheDocument();
     expect(screen.getByText("Upstream feature")).toBeInTheDocument();
     expect(screen.getByText("Downstream requirement")).toBeInTheDocument();
-    expect(screen.getByText("Follow-up task")).toBeInTheDocument();
+    expect(screen.getByText("Follow-up story")).toBeInTheDocument();
     expect(screen.getByText("More related artifacts exist beyond the selected depth.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));

@@ -106,7 +106,6 @@ import {
   getValidTransitions,
   isRootArtifact,
   getSystemRootArtifactTypes,
-  isManifestFieldExcludedFromForms,
 } from "../utils";
 import { BacklogToolbar, BacklogWorkspaceLayout, BacklogListFooter, BacklogTabularView, BacklogTreeView, ArtifactDetailSurface } from "../components";
 import { BacklogArtifactDetailContent } from "../components/BacklogArtifactDetailContent";
@@ -1044,22 +1043,6 @@ export default function BacklogWorkspacePage({
     bulkTransitionOptions?.resolutionOptions?.length,
   ]);
 
-  const customFieldColumns = useMemo(() => {
-    const seen = new Set<string>();
-    const cols: { key: string; label: string }[] = [];
-    for (const at of bundle?.artifact_types ?? []) {
-      for (const f of at.fields ?? []) {
-        if (isManifestFieldExcludedFromForms(f)) continue;
-        const id = f.id as string;
-        if (id && !seen.has(id)) {
-          seen.add(id);
-          cols.push({ key: id, label: (f.name as string) || id });
-        }
-      }
-    }
-    return cols;
-  }, [bundle?.artifact_types]);
-
   const defaultArtifactTypeId = useMemo(
     () =>
       bundle?.artifact_types?.[0]?.id ??
@@ -1690,7 +1673,7 @@ export default function BacklogWorkspacePage({
   );
 
   return (
-    <div className="mx-auto max-w-5xl py-6">
+    <div className="mx-auto w-full max-w-[min(1600px,100%)] px-4 py-6">
       <ProjectBreadcrumbs
         currentPageLabel={variant === "quality" ? "Quality" : "Backlog"}
         projectName={project?.name}
@@ -2052,13 +2035,12 @@ export default function BacklogWorkspacePage({
               showNotification={showNotification}
             />
           ) : isTreeSplitView ? (
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_460px]">
+            <div className="grid grid-cols-1 gap-4 xl:[grid-template-columns:minmax(0,1fr)_var(--artifact-detail-track)]">
               <div className="min-w-0">
                 <BacklogTreeView
                   artifacts={artifacts ?? []}
                   treeRootOptions={treeRootOptions}
                   iconBundle={bundle}
-                  customFieldColumns={customFieldColumns}
                   expandedIds={expandedIds}
                   selectedArtifactId={detailArtifactId}
                   onToggleExpand={toggleExpand}
@@ -2100,7 +2082,6 @@ export default function BacklogWorkspacePage({
               artifacts={artifacts ?? []}
               treeRootOptions={treeRootOptions}
               iconBundle={bundle}
-              customFieldColumns={customFieldColumns}
               expandedIds={expandedIds}
               selectedArtifactId={detailArtifactId}
               onToggleExpand={toggleExpand}

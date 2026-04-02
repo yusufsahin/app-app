@@ -91,7 +91,7 @@ class ArtifactRepository(ABC):
 
     @abstractmethod
     async def count_tasks_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
-        """Count artifacts of type task or requirement (non-deleted)."""
+        """Count Task entity rows (tasks table), non-deleted."""
         ...
 
     @abstractmethod

@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetTitle,
 } from "../../../shared/components/ui";
+import { ARTIFACT_DETAIL_SHEET_MAX_WIDTH_CSS } from "../constants/layout";
 import { ArtifactDetailDrawer } from "./ArtifactDetailDrawer";
 
 export interface ArtifactDetailSurfaceProps {
@@ -32,15 +33,28 @@ export function ArtifactDetailSurface({
     );
   }
 
+  const sheetMaxStyle = {
+    maxWidth: ARTIFACT_DETAIL_SHEET_MAX_WIDTH_CSS,
+  } satisfies CSSProperties;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full p-4 sm:max-w-[420px]" aria-label="Artifact details">
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        className="flex h-full w-full max-w-full flex-col gap-0 overflow-hidden border-l p-0 sm:!max-w-none"
+        style={sheetMaxStyle}
+        aria-label="Artifact details"
+      >
         <SheetTitle className="sr-only">Artifact details</SheetTitle>
         <SheetDescription className="sr-only">
           View artifact details, tasks, links, attachments, and comments.
         </SheetDescription>
         <ArtifactDetailDrawer>
-          <div className="w-full p-4 sm:w-[420px]" aria-label="Artifact details">
+          <div
+            className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4 pt-4"
+            aria-label="Artifact details"
+          >
             {children}
           </div>
         </ArtifactDetailDrawer>

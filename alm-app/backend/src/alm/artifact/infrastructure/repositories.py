@@ -20,6 +20,7 @@ import contextlib
 
 from alm.artifact.infrastructure.models import ArtifactModel
 from alm.project_tag.infrastructure.models import ArtifactTagModel
+from alm.task.infrastructure.models import TaskModel
 from alm.shared.application.mediator import buffer_events
 from alm.shared.audit.core import ChangeType
 from alm.shared.audit.interceptor import buffer_audit
@@ -241,13 +242,13 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         return result.scalar_one() or 0
 
     async def count_tasks_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
+        """Count Task entity rows (not artifact_type=task; tasks link to artifacts via artifact_id)."""
         if not project_ids:
             return 0
         result = await self._session.execute(
-            select(func.count(ArtifactModel.id)).where(
-                ArtifactModel.project_id.in_(project_ids),
-                ArtifactModel.deleted_at.is_(None),
-                ArtifactModel.artifact_type.in_(["task", "requirement"]),
+            select(func.count(TaskModel.id)).where(
+                TaskModel.project_id.in_(project_ids),
+                TaskModel.deleted_at.is_(None),
             )
         )
         return result.scalar_one() or 0

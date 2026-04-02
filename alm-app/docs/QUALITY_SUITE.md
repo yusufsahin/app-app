@@ -45,7 +45,7 @@ Kalite testleri / suite / run / campaign / klasör kavramları tek **artifact mo
 
 `tree_roots` içinde `tree_id: tests` + `root-tests` ve `tree_id: testsuites` + `root-testsuites` tanımlı olmalı. Varsayılanlar: [manifestTreeRoots.ts](../frontend/src/shared/lib/manifestTreeRoots.ts).
 
-Yerleşik süreç şablonlarında (Basic, Scrum, Kanban, Azure DevOps Basic) ayrıştırılmış türler seed ile enjekte edilir: `test-folder` + `test-case` (tests ağacı) ve **`testsuite-folder` (koleksiyon)** + `test-suite` / `test-run` / `test-campaign` — manifest’te `tree_id: testsuites`, UI’da **Campaign**. Demo kurulum örnek test case’ler, suite/run/campaign ve `suite_includes_test` / `run_for_suite` / `campaign_includes_suite` linklerini içerir.
+Yerleşik süreç şablonlarında (Basic, Scrum, Kanban, ADO, Agile, CMMI) ayrıştırılmış türler seed ile enjekte edilir. Azure Boards’taki Task iş öğesi türü burada artifact değildir; kırılım ve sprint işleri **ayrı Task entity** (`artifact_id`) ve manifest `task_workflow_id` ile takip edilir. Kalite türleri: `test-folder` + `test-case` (tests ağacı) ve **`testsuite-folder` (koleksiyon)** + `test-suite` / `test-run` / `test-campaign` — manifest’te `tree_id: testsuites`, UI’da **Campaign**. Demo kurulum örnek test case’ler, suite/run/campaign ve `suite_includes_test` / `run_for_suite` / `campaign_includes_suite` linklerini içerir.
 
 **Örnek** (`defs` içinde LinkType satırları flat yanıtta `link_types` olur; ayrıntı [manifest-schema.md](./manifest-schema.md) — Link types):
 

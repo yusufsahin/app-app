@@ -76,7 +76,7 @@ describe("apiClient interceptors", () => {
 
     await expect(rejected(error)).rejects.toBe(error);
     expect(logout).toHaveBeenCalledTimes(1);
-    expect(hrefState.href).toBe("https://app.example/login");
+    expect(hrefState.href).toBe("https://app.example/login?reason=session-expired");
   });
 
   it("rejects non-401 axios response with problem detail payload", async () => {

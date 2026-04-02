@@ -6,6 +6,7 @@ import {
   Bug,
   CheckCircle2,
   CircleDot,
+  ClipboardList,
   FileText,
   Folder,
   FolderKanban,
@@ -221,9 +222,24 @@ const LUCIDE_BY_ICON_ID: Record<string, LucideIcon> = {
   target: Target,
 };
 
+type ArtifactTypeBundle = { artifact_types?: Array<{ id?: string; icon?: string; name?: string }> } | null | undefined;
+
+/**
+ * User-visible type label: manifest `artifact_types[].name` when set.
+ * Legacy manifest/API type id `requirement` (leaf under epic→feature) maps to "User story" when no name is set.
+ */
+export function getArtifactTypeDisplayLabel(type: string, bundle?: ArtifactTypeBundle): string {
+  const raw = bundle?.artifact_types?.find((a) => a.id === type)?.name?.trim();
+  if (raw) return raw;
+  if (!type) return "Work item";
+  if (type === "requirement") return "User story";
+  if (type === "workitem" || type === "issue") return "Work item";
+  return type.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function getArtifactIcon(
   type: string,
-  bundle?: { artifact_types?: Array<{ id?: string; icon?: string }> } | null,
+  bundle?: ArtifactTypeBundle,
 ): ReactElement {
   const at = bundle?.artifact_types?.find((a) => a.id === type);
   const iconId = at?.icon?.trim().toLowerCase();
@@ -232,12 +248,22 @@ export function getArtifactIcon(
     return <Icon className="size-4" />;
   }
   switch (type) {
+    case "epic":
+      return <Layers className="size-4 text-violet-600" />;
+    case "feature":
+      return <CircleDot className="size-4 text-blue-600" />;
+    case "workitem":
+    case "issue":
+      return <ClipboardList className="size-4 text-sky-600" />;
     case "defect":
       return <Bug className="size-4" />;
     case "root-defect":
       return <Bug className="size-4" />;
+    /* Leaf backlog item: API/manifest id is often `requirement`; same icon as user-story. */
     case "requirement":
-      return <FileText className="size-4" />;
+    case "user-story":
+    case "user_story":
+      return <FileText className="size-4 text-slate-600" />;
     case "quality-folder":
       return <Folder className="size-4 text-blue-500" />;
     case "test-suite":

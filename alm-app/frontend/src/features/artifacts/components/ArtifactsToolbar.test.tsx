@@ -19,6 +19,9 @@ vi.mock("../../../shared/components/ui", async () => {
         {children}
       </button>
     ),
+    DropdownMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DropdownMenuSubTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DropdownMenuSubContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     Select: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     SelectTrigger: ({ children, ...props }: React.ComponentProps<"button">) => <button type="button" {...props}>{children}</button>,
     SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder ?? ""}</span>,
@@ -159,10 +162,11 @@ describe("ArtifactsToolbar", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Artifacts CSV")).toBeInTheDocument();
-    expect(screen.getByText("Artifacts XLSX")).toBeInTheDocument();
-    expect(screen.getByText("Artifact CSV template")).toBeInTheDocument();
-    expect(screen.getByText("Artifact XLSX template")).toBeInTheDocument();
+    // Submenu mocks render duplicate nodes in the flat test DOM; assert presence, not uniqueness.
+    expect(screen.getAllByText("Artifacts CSV").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Artifacts XLSX").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Artifact CSV template").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Artifact XLSX template").length).toBeGreaterThanOrEqual(1);
 
     expect(screen.queryByText("Test cases CSV bundle")).not.toBeInTheDocument();
     expect(screen.queryByText("Test cases XLSX")).not.toBeInTheDocument();

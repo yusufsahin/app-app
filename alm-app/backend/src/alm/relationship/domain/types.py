@@ -18,7 +18,10 @@ CAMPAIGN_INCLUDES_SUITE = "campaign_includes_suite"
 DIRECTED = "directed"
 SYMMETRIC = "symmetric"
 
-PLANNING_TYPES = ("epic", "feature", "requirement", "task", "backlog-item")
+# Union of planning artifact ids for artifact↔artifact relationships (blocks, impacts, verifies, affects).
+# Sprint/work items use the Task entity (tasks.artifact_id → parent artifact), not LinkType endpoints.
+# `issue` kept for legacy rows; new manifests use `workitem`.
+PLANNING_TYPES = ("epic", "feature", "requirement", "user_story", "workitem", "issue")
 
 
 @dataclass(frozen=True)

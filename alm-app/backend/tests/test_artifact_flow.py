@@ -30,6 +30,22 @@ async def _register_and_get_token(client: AsyncClient, email: str, org: str) -> 
     return reg.json()["access_token"]
 
 
+async def _auth_user_id(client: AsyncClient, token: str) -> str:
+    me = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    me.raise_for_status()
+    return str(me.json()["id"])
+
+
+async def _root_requirement_id(client: AsyncClient, token: str, org_slug: str, project_id: str) -> str:
+    list_r = await client.get(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"include_system_roots": "true"},
+    )
+    list_r.raise_for_status()
+    return next(a["id"] for a in list_r.json()["items"] if a["artifact_type"] == "root-requirement")
+
+
 async def _ensure_project(
     client: AsyncClient, token: str, tenant_id: str, code: str = "ART", name: str = "Art Project"
 ) -> str:
@@ -465,19 +481,21 @@ class TestArtifactFlow:
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
         project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
 
+        root_id = await _root_requirement_id(client, token, org_slug, project_id)
         create_resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
             json={
-                "artifact_type": "requirement",
-                "title": "Test requirement",
+                "artifact_type": "workitem",
+                "title": "Test work item",
                 "description": "Created by test",
+                "parent_id": root_id,
             },
         )
         assert create_resp.status_code == 201
         created = create_resp.json()
-        assert created["title"] == "Test requirement"
-        assert created["artifact_type"] == "requirement"
+        assert created["title"] == "Test work item"
+        assert created["artifact_type"] == "workitem"
         assert created["state"] == "new"
         artifact_id = created["id"]
 
@@ -535,13 +553,15 @@ class TestArtifactFlow:
         assert isinstance(tenants, list) and len(tenants) >= 1
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
         project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+        root_id = await _root_requirement_id(client, token, org_slug, project_id)
         create_resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
             json={
-                "artifact_type": "requirement",
+                "artifact_type": "workitem",
                 "title": "For permitted-transitions",
                 "description": "",
+                "parent_id": root_id,
             },
         )
         assert create_resp.status_code == 201
@@ -564,12 +584,19 @@ class TestArtifactFlow:
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
         project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+        root_id = await _root_requirement_id(client, token, org_slug, project_id)
         for i in range(3):
-            await client.post(
+            r = await client.post(
                 f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
                 headers={"Authorization": f"Bearer {token}"},
-                json={"artifact_type": "requirement", "title": f"Item {i}", "description": ""},
+                json={
+                    "artifact_type": "workitem",
+                    "title": f"Item {i}",
+                    "description": "",
+                    "parent_id": root_id,
+                },
             )
+            r.raise_for_status()
         resp = await client.get(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
@@ -612,10 +639,16 @@ class TestArtifactFlow:
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
         project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+        root_id = await _root_requirement_id(client, token, org_slug, project_id)
         create_resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
-            json={"artifact_type": "requirement", "title": "Original", "description": ""},
+            json={
+                "artifact_type": "workitem",
+                "title": "Original",
+                "description": "",
+                "parent_id": root_id,
+            },
         )
         assert create_resp.status_code == 201
         artifact_id = create_resp.json()["id"]
@@ -634,10 +667,16 @@ class TestArtifactFlow:
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
         project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+        root_id = await _root_requirement_id(client, token, org_slug, project_id)
         create_resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
-            json={"artifact_type": "requirement", "title": "To delete", "description": ""},
+            json={
+                "artifact_type": "workitem",
+                "title": "To delete",
+                "description": "",
+                "parent_id": root_id,
+            },
         )
         assert create_resp.status_code == 201
         artifact_id = create_resp.json()["id"]
@@ -659,14 +698,29 @@ class TestArtifactFlow:
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
         project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+        user_id = await _auth_user_id(client, token)
+        root_id = await _root_requirement_id(client, token, org_slug, project_id)
         ids = []
-        for _ in range(2):
+        for i in range(2):
             cr = await client.post(
                 f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
                 headers={"Authorization": f"Bearer {token}"},
-                json={"artifact_type": "requirement", "title": "Req", "description": ""},
+                json={
+                    "artifact_type": "workitem",
+                    "title": f"Req {i}",
+                    "description": "",
+                    "parent_id": root_id,
+                },
             )
-            ids.append(cr.json()["id"])
+            cr.raise_for_status()
+            aid = cr.json()["id"]
+            asg = await client.patch(
+                f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{aid}",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"assignee_id": user_id},
+            )
+            asg.raise_for_status()
+            ids.append(aid)
         resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/batch-transition",
             headers={"Authorization": f"Bearer {token}"},
@@ -685,13 +739,20 @@ class TestArtifactFlow:
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
         project_id = await _ensure_project(client, token, tenant_id, f"P{uuid.uuid4().hex[:6].upper()}", "Art Project")
+        root_id = await _root_requirement_id(client, token, org_slug, project_id)
         ids = []
-        for _ in range(2):
+        for i in range(2):
             cr = await client.post(
                 f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts",
                 headers={"Authorization": f"Bearer {token}"},
-                json={"artifact_type": "requirement", "title": "To batch delete", "description": ""},
+                json={
+                    "artifact_type": "workitem",
+                    "title": f"To batch delete {i}",
+                    "description": "",
+                    "parent_id": root_id,
+                },
             )
+            cr.raise_for_status()
             ids.append(cr.json()["id"])
         resp = await client.post(
             f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/batch-delete",

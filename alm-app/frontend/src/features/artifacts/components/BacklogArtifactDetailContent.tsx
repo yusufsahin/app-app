@@ -246,15 +246,31 @@ export function BacklogArtifactDetailContent({
                   </div>
                 )}
               <Tabs value={detailTab} onValueChange={(v) => setDetailTab(v as BacklogDetailTab)} className="mb-2 min-h-[40px]">
-                <TabsList className="w-full">
-                  <TabsTrigger value="details">Details</TabsTrigger>
-                  <TabsTrigger value="tasks">Tasks ({tasks.length})</TabsTrigger>
-                  <TabsTrigger value="links">Links ({artifactLinks.length})</TabsTrigger>
-                  <TabsTrigger value="impact">Impact</TabsTrigger>
-                  <TabsTrigger value="attachments">Attachments ({attachments.length})</TabsTrigger>
-                  <TabsTrigger value="comments">Comments ({commentsCount})</TabsTrigger>
-                  <TabsTrigger value="audit">Audit</TabsTrigger>
-                </TabsList>
+                <div className="-mx-1 max-w-full overflow-x-auto px-1 [scrollbar-width:thin]">
+                  <TabsList className="inline-flex h-auto min-w-min w-max max-w-none flex-nowrap justify-start gap-0.5 bg-muted/80 p-1">
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="details">
+                      Details
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="tasks">
+                      Tasks ({tasks.length})
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="links">
+                      Links ({artifactLinks.length})
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="impact">
+                      Impact
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="attachments">
+                      Attachments ({attachments.length})
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="comments">
+                      Comments ({commentsCount})
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="audit">
+                      Audit
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
                 <ArtifactDetailDetails artifact={detailArtifact} cadencesFlat={cadencesFlat} areaNodesFlat={areaNodesFlat} />
                 {detailTab === "tasks" && (
                   <ArtifactDetailTasks

@@ -15,6 +15,7 @@ import {
   Network,
   FilterX,
   Loader2,
+  MoreHorizontal,
 } from "lucide-react";
 import { FormProvider } from "react-hook-form";
 import type { UseFormReturn } from "react-hook-form";
@@ -24,6 +25,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -332,57 +336,116 @@ export function ArtifactsToolbar({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={() => refetchArtifacts()}
-            disabled={isLoading}
-            aria-label="Refresh list"
-            title="Refresh list"
-          >
-            {isRefetching ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCw className="size-4" />
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            size="default"
-            onClick={() => downloadArtifactsCsv(artifacts, members ?? [], listColumns)}
-            disabled={artifacts.length === 0}
-            aria-label="Export CSV"
-            title="Export current page to CSV"
-          >
-            <Download className="mr-2 size-4" />
-            Export CSV
-          </Button>
+          <div className="hidden items-center gap-2 lg:flex">
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={() => refetchArtifacts()}
+              disabled={isLoading}
+              aria-label="Refresh list"
+              title="Refresh list"
+            >
+              {isRefetching ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="default"
+              onClick={() => downloadArtifactsCsv(artifacts, members ?? [], listColumns)}
+              disabled={artifacts.length === 0}
+              aria-label="Export CSV"
+              title="Export current page to CSV"
+            >
+              <Download className="mr-2 size-4" />
+              Export CSV
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={ioBusy}>
+                  <Download className="mr-2 size-4" />
+                  Export All
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportAll("csv", "generic")}>Artifacts CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportAll("xlsx", "generic")}>Artifacts XLSX</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={ioBusy}>
+                  Templates
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleTemplateDownload("csv", "generic")}>
+                  Artifact CSV template
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleTemplateDownload("xlsx", "generic")}>
+                  Artifact XLSX template
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="outline" onClick={() => setImportOpen(true)} disabled={ioBusy}>
+              Import
+            </Button>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={ioBusy}>
+              <Button
+                variant="outline"
+                size="icon"
+                className="lg:hidden"
+                aria-label="More actions"
+                title="More actions"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 lg:hidden">
+              <DropdownMenuItem
+                onClick={() => refetchArtifacts()}
+                disabled={isLoading}
+              >
+                <RefreshCw className="mr-2 size-4" />
+                Refresh list
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => downloadArtifactsCsv(artifacts, members ?? [], listColumns)}
+                disabled={artifacts.length === 0}
+              >
                 <Download className="mr-2 size-4" />
-                Export All
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleExportAll("csv", "generic")}>Artifacts CSV</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportAll("xlsx", "generic")}>Artifacts XLSX</DropdownMenuItem>
+                Export CSV
+              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={ioBusy}>
+                  <Download className="mr-2 size-4" />
+                  Export all
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => handleExportAll("csv", "generic")}>Artifacts CSV</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportAll("xlsx", "generic")}>Artifacts XLSX</DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={ioBusy}>Templates</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => handleTemplateDownload("csv", "generic")}>
+                    Artifact CSV template
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleTemplateDownload("xlsx", "generic")}>
+                    Artifact XLSX template
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuItem onClick={() => setImportOpen(true)} disabled={ioBusy}>
+                Import
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={ioBusy}>
-                Templates
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleTemplateDownload("csv", "generic")}>Artifact CSV template</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleTemplateDownload("xlsx", "generic")}>Artifact XLSX template</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={ioBusy}>
-            Import
-          </Button>
           {canCreate && artifactTypes.length > 0 &&
             (artifactTypes.length === 1 ? (
               <Button onClick={() => onCreateArtifact(artifactTypes[0]!.id)}>

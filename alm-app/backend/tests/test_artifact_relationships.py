@@ -97,7 +97,7 @@ async def test_relationship_options_and_detail_projection(client: AsyncClient) -
     )
 
     planning_item = await _create_artifact(
-        client, token, org_slug, project_id, artifact_type="epic", title="Epic A", parent_id=root_requirement_id
+        client, token, org_slug, project_id, artifact_type="workitem", title="Work item A", parent_id=root_requirement_id
     )
     quality_folder = await _create_artifact(
         client, token, org_slug, project_id, artifact_type="quality-folder", title="Quality Folder", parent_id=root_quality_id

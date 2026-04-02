@@ -16,7 +16,7 @@ Proje süreçlerini tanımlayan manifest_bundle yapısı. Detaylı DSL grammar v
 
 Opsiyonel kök alanlar:
 
-- **task_workflow_id**: `defs` içindeki `Workflow` kimliği; artifact’a bağlı **Task** varlığının form/list state seçenekleri bu workflow’dan üretilir. Yoksa `task_basic` aranır; o da yoksa sunucu varsayılanı (`todo` / `in_progress` / `done`) kullanılır.
+- **task_workflow_id**: `defs` içindeki `Workflow` kimliği; artifact’a bağlı **Task** varlığının (ayrı aggregate, `artifact_id` FK) form/list state seçenekleri bu workflow’dan üretilir. Yoksa `task_basic` aranır; o da yoksa sunucu varsayılanı (`todo` / `in_progress` / `done`) kullanılır. Azure DevOps’taki Task **work item type** ile karıştırılmamalı: yerleşik şablonlarda (Basic, Scrum, Kanban, ADO, Agile, CMMI) sprint/kırılım işi manifest `ArtifactType` olarak tanımlanmaz; hep bu Task entity + `task_workflow_id` ile gider.
 - **tree_roots**: Artifact listesi **tree** filtresi için `tree` query değeri → kök artifact tipi eşlemesi. Manifest yoksa veya boşsa varsayılan: `requirement` → `root-requirement`, `quality` → `root-quality`, `defect` → `root-defect`.
 
 ```json
