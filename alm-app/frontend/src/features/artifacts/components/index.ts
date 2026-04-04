@@ -23,4 +23,5 @@ export { ArtifactsTreeView, ArtifactTreeMenuDeleteItem, ArtifactTreeMenuDuplicat
 export { ArtifactsListFooter } from "./ArtifactsListFooter";
 export { BacklogTabularView as BacklogSpreadsheetView } from "./ArtifactsTableView";
 export { BacklogTreeView } from "./ArtifactsTreeView";
+export { BacklogTreeTaskPreviewStrip } from "./BacklogTreeTaskPreviewStrip";
 export { BacklogListFooter } from "./ArtifactsListFooter";

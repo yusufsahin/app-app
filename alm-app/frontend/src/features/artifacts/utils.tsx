@@ -56,7 +56,13 @@ export function isManifestFieldExcludedFromForms(field: unknown): boolean {
   return Boolean(o.exclude_from_form_schema ?? o.excludeFromFormSchema);
 }
 
-const DEFAULT_SYSTEM_ROOT_TYPES = new Set(["root-requirement", "root-quality", "root-defect"]);
+/** Keep in sync with backend `DEFAULT_SYSTEM_ROOT_TYPES` when manifest omits `system_roots`. */
+const DEFAULT_SYSTEM_ROOT_TYPES = new Set([
+  "root-requirement",
+  "root-quality",
+  "root-testsuites",
+  "root-defect",
+]);
 
 type ManifestBundleLike = {
   system_roots?: unknown[];
@@ -92,6 +98,140 @@ export function isRootArtifact(
   const roots =
     bundleOrRoots instanceof Set ? bundleOrRoots : getSystemRootArtifactTypes(bundleOrRoots ?? undefined);
   return roots.has(artifact.artifact_type);
+}
+
+/** Manifest bundle slice used to resolve `child_types` for an artifact type. */
+export type ManifestBundleForChildTypes = {
+  artifact_types?: Array<{
+    id?: string;
+    child_types?: unknown;
+    childTypes?: unknown;
+    allow_create_children?: unknown;
+    allows_children?: unknown;
+    flags?: { allow_create_children?: unknown; allows_children?: unknown };
+  }>;
+  defs?: unknown[];
+};
+
+/** When false, manifest forbids creating new child artifacts under this parent type (UI + should match BE). */
+function manifestParentDeniesChildCreation(
+  bundle: ManifestBundleForChildTypes | null | undefined,
+  parentTypeId: string,
+): boolean {
+  if (!bundle || !parentTypeId) return false;
+  const fromFlat = bundle.artifact_types?.find((t) => t.id === parentTypeId);
+  if (fromFlat) {
+    const flags = fromFlat.flags;
+    if (fromFlat.allow_create_children === false || fromFlat.allows_children === false) return true;
+    if (flags?.allow_create_children === false || flags?.allows_children === false) return true;
+  }
+  for (const d of bundle.defs ?? []) {
+    if (!d || typeof d !== "object") continue;
+    const o = d as Record<string, unknown>;
+    if (o.kind !== "ArtifactType") continue;
+    if (String(o.id) !== parentTypeId) continue;
+    const flags = o.flags as Record<string, unknown> | undefined;
+    if (o.allow_create_children === false || o.allows_children === false) return true;
+    if (flags?.allow_create_children === false || flags?.allows_children === false) return true;
+    break;
+  }
+  return false;
+}
+
+function normalizeManifestChildTypeList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((x) => String(x).trim()).filter(Boolean);
+}
+
+/**
+ * Ordered list of child artifact type ids allowed under `parentTypeId` per manifest (`child_types`).
+ * Reads flattened `artifact_types` first, then `defs` ArtifactType entries.
+ */
+export function getManifestChildTypeIdsForParent(
+  bundle: ManifestBundleForChildTypes | null | undefined,
+  parentTypeId: string,
+): string[] {
+  if (!bundle || !parentTypeId) return [];
+  if (manifestParentDeniesChildCreation(bundle, parentTypeId)) return [];
+  const fromFlat = bundle.artifact_types?.find((t) => t.id === parentTypeId);
+  if (fromFlat) {
+    const ids = normalizeManifestChildTypeList(fromFlat.child_types ?? fromFlat.childTypes);
+    if (ids.length > 0) return ids;
+  }
+  for (const d of bundle.defs ?? []) {
+    if (!d || typeof d !== "object") continue;
+    const o = d as Record<string, unknown>;
+    if (o.kind !== "ArtifactType") continue;
+    if (String(o.id) !== parentTypeId) continue;
+    return normalizeManifestChildTypeList(o.child_types ?? o.childTypes);
+  }
+  return [];
+}
+
+/** True when manifest allows creating at least one child type under this parent artifact type. */
+export function manifestArtifactTypeAllowsChildren(
+  bundle: ManifestBundleForChildTypes | null | undefined,
+  parentTypeId: string,
+): boolean {
+  return getManifestChildTypeIdsForParent(bundle, parentTypeId).length > 0;
+}
+
+/** BFS over manifest `child_types` starting at `moduleRootType` (inclusive). */
+export function collectManifestReachableTypeIds(
+  bundle: ManifestBundleForChildTypes | null | undefined,
+  moduleRootType: string,
+): Set<string> {
+  const reachable = new Set<string>();
+  if (!bundle || !moduleRootType) return reachable;
+  const queue = [moduleRootType];
+  reachable.add(moduleRootType);
+  while (queue.length > 0) {
+    const p = queue.shift()!;
+    for (const c of getManifestChildTypeIdsForParent(bundle, p)) {
+      if (!reachable.has(c)) {
+        reachable.add(c);
+        queue.push(c);
+      }
+    }
+  }
+  return reachable;
+}
+
+/**
+ * Non-system artifact types that may appear as children somewhere under a tree module, in manifest order.
+ * Used to narrow backlog toolbar "New work item" to the active tree.
+ */
+export function getToolbarCreatableArtifactTypeIds(
+  bundle: ManifestBundleForChildTypes | null | undefined,
+  moduleRootArtifactType: string,
+  systemRoots: Set<string>,
+): string[] {
+  if (!bundle || !moduleRootArtifactType) return [];
+  const reachable = collectManifestReachableTypeIds(bundle, moduleRootArtifactType);
+  const creatable = new Set<string>();
+  for (const p of reachable) {
+    for (const t of getManifestChildTypeIdsForParent(bundle, p)) {
+      if (systemRoots.has(t)) continue;
+      if (t.startsWith("root-")) continue;
+      creatable.add(t);
+    }
+  }
+  const order = (bundle.artifact_types ?? []).map((x) => x.id).filter(Boolean) as string[];
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+  for (const id of order) {
+    if (creatable.has(id) && !seen.has(id)) {
+      seen.add(id);
+      ordered.push(id);
+    }
+  }
+  for (const id of creatable) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      ordered.push(id);
+    }
+  }
+  return ordered;
 }
 
 function escapeCsvCell(value: string | number | null | undefined): string {

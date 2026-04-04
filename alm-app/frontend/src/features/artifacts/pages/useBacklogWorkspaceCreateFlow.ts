@@ -24,6 +24,10 @@ interface CreateMutationLike {
   isPending: boolean;
 }
 
+export interface OpenCreateArtifactOptions {
+  hideFieldKeys?: string[];
+}
+
 interface UseBacklogWorkspaceCreateFlowArgs {
   formSchema: FormSchemaDto | undefined;
   formSchemaError: boolean;
@@ -38,6 +42,9 @@ interface UseBacklogWorkspaceCreateFlowArgs {
   createMutation: CreateMutationLike;
   setCreateOpen: (isOpen: boolean) => void;
   showNotification: (message: string, type?: "success" | "error" | "warning" | "info") => void;
+  /** Call before opening create modal so narrowed form-schema query matches this type (use flushSync in parent). */
+  syncCreateFormArtifactType: (artifactTypeId: string | null) => void;
+  onCreateModalClosed: () => void;
 }
 
 export function useBacklogWorkspaceCreateFlow({
@@ -54,11 +61,15 @@ export function useBacklogWorkspaceCreateFlow({
   createMutation,
   setCreateOpen,
   showNotification,
+  syncCreateFormArtifactType,
+  onCreateModalClosed,
 }: UseBacklogWorkspaceCreateFlowArgs) {
   const [createFormValues, setCreateFormValues] = useState<Record<string, unknown>>({});
   const [createFormErrors, setCreateFormErrors] = useState<Record<string, string>>({});
   const createFormValuesRef = useRef<Record<string, unknown>>({});
   const createArtifactTypeIdRef = useRef<string>("");
+  const formSchemaRef = useRef(formSchema);
+  formSchemaRef.current = formSchema;
 
   const initialFormValues = useMemo(() => {
     const vals: Record<string, unknown> = {};
@@ -67,6 +78,12 @@ export function useBacklogWorkspaceCreateFlow({
     }
     return vals;
   }, [formSchema?.fields]);
+
+  const resolveTypeForOpen = (initialValues?: Record<string, unknown>) => {
+    const fromValues = (initialValues?.artifact_type as string | undefined)?.trim();
+    const tid = fromValues || defaultArtifactTypeId || null;
+    syncCreateFormArtifactType(tid && tid.length ? tid : null);
+  };
 
   const handleCreate = async (currentValues?: Record<string, unknown>) => {
     const currentCreateValues = currentValues ?? createFormValuesRef.current;
@@ -98,13 +115,17 @@ export function useBacklogWorkspaceCreateFlow({
     }
   };
 
-  const openCreateArtifactModal = (initialValues?: Record<string, unknown>) => {
+  const openCreateArtifactModal = (
+    initialValues?: Record<string, unknown>,
+    options?: OpenCreateArtifactOptions,
+  ) => {
+    resolveTypeForOpen(initialValues);
     setCreateFormErrors({});
     const values = initialValues ?? createFormValues;
     createFormValuesRef.current = values;
     setCreateFormValues(values);
     modalApi.openCreateArtifact({
-      formSchema: formSchema ?? null,
+      formSchema: formSchemaRef.current ?? null,
       formValues: values,
       formErrors: createFormErrors,
       onFormChange: (v) => {
@@ -131,12 +152,16 @@ export function useBacklogWorkspaceCreateFlow({
       ) as Record<string, string[]>,
       formSchemaError: !!formSchemaError,
       formSchema403: !!formSchema403,
+      formSchemaRefreshing: false,
+      hideFieldKeys: options?.hideFieldKeys,
+      onCloseComplete: onCreateModalClosed,
     });
   };
 
   const handleCreateOpen = (artifactTypeId: string) => {
     const typeId = artifactTypeId || defaultArtifactTypeId;
     createArtifactTypeIdRef.current = typeId || "";
+    syncCreateFormArtifactType(typeId && typeId.length ? typeId : null);
     if (!typeId) {
       openCreateArtifactModal(initialFormValues);
       return;
@@ -176,11 +201,17 @@ export function useBacklogWorkspaceCreateFlow({
       }
     }
 
-    openCreateArtifactModal({
-      ...initialFormValues,
-      artifact_type: typeId,
-      parent_id: defaultParentId ?? (initialFormValues.parent_id as string | null) ?? null,
-    });
+    const parentPreset = defaultParentId ?? (initialFormValues.parent_id as string | null) ?? null;
+    openCreateArtifactModal(
+      {
+        ...initialFormValues,
+        artifact_type: typeId,
+        parent_id: parentPreset,
+      },
+      parentPreset != null && String(parentPreset).trim() !== ""
+        ? { hideFieldKeys: ["parent_id"] }
+        : undefined,
+    );
   };
 
   return {

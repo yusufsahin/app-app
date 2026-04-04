@@ -15,6 +15,7 @@ def _team_dto_to_response(dto) -> TeamResponse:
         project_id=dto.project_id,
         name=dto.name,
         description=dto.description,
+        is_default=dto.is_default,
         created_at=dto.created_at,
         updated_at=dto.updated_at,
         members=[TeamMemberResponse(team_id=m.team_id, user_id=m.user_id, role=m.role) for m in (dto.members or [])],
@@ -95,6 +96,7 @@ async def update_team(
             team_id=team_id,
             name=updates.get("name"),
             description=updates.get("description"),
+            is_default=updates.get("is_default"),
         )
     )
     return _team_dto_to_response(dto)

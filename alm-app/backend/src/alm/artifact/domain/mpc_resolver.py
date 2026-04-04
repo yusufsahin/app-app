@@ -65,8 +65,14 @@ def is_valid_parent_child(
     parent_def = _get_def(ast, type_kind, parent_type)
     if child_def is None or parent_def is None:
         return False
+    parent_props = parent_def.properties
+    if parent_props.get("allow_create_children") is False or parent_props.get("allows_children") is False:
+        return False
+    flags = parent_props.get("flags") if isinstance(parent_props.get("flags"), dict) else {}
+    if flags.get("allow_create_children") is False or flags.get("allows_children") is False:
+        return False
     allowed_parents = child_def.properties.get("parent_types")
-    allowed_children = parent_def.properties.get("child_types")
+    allowed_children = parent_props.get("child_types")
     if allowed_children is not None and child_type not in allowed_children:
         return False
     if allowed_parents is not None and parent_type not in allowed_parents:

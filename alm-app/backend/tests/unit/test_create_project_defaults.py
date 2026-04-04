@@ -92,7 +92,26 @@ async def test_create_project_creates_manifest_roots_for_tests_and_suites() -> N
     project_repo.add = AsyncMock(side_effect=lambda p: p)
     member_repo = AsyncMock()
     artifact_repo = AsyncMock()
-    artifact_repo.list_by_project = AsyncMock(return_value=[])
+    created_store: list = []
+
+    async def _add_side_effect(a):
+        created_store.append(a)
+        return a
+
+    async def _list_side_effect(_project_id, *args, **kwargs):
+        type_filter = kwargs.get("type_filter")
+        limit = kwargs.get("limit") or 10_000
+        parent_id = kwargs.get("parent_id")
+        if parent_id is not None:
+            rows = [x for x in created_store if x.parent_id == parent_id and x.artifact_type == type_filter]
+            return rows[:limit]
+        if type_filter:
+            rows = [x for x in created_store if x.artifact_type == type_filter and x.parent_id is None]
+            return rows[:limit]
+        return []
+
+    artifact_repo.add = AsyncMock(side_effect=_add_side_effect)
+    artifact_repo.list_by_project = AsyncMock(side_effect=_list_side_effect)
 
     handler = CreateProjectHandler(
         project_repo=project_repo,
@@ -109,3 +128,5 @@ async def test_create_project_creates_manifest_roots_for_tests_and_suites() -> N
     assert "root-quality" in created_root_types
     assert "root-testsuites" in created_root_types
     assert "root-defect" in created_root_types
+    assert "quality-folder" in created_root_types
+    assert "testsuite-folder" in created_root_types

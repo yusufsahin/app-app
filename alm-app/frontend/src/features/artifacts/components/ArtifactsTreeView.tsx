@@ -1,11 +1,23 @@
 import type { ReactNode } from "react";
-import { ChevronDown, ChevronRight, Copy, List, MoreHorizontal, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  List,
+  MoreHorizontal,
+  Trash2,
+} from "lucide-react";
 import type { Artifact } from "../../../shared/api/artifactApi";
+import type { Task } from "../../../shared/api/taskApi";
 import type { ManifestTreeRoot } from "../../../shared/lib/manifestTreeRoots";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../shared/components/ui";
 import { cn } from "../../../shared/components/ui";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { buildArtifactTree, getArtifactIcon, getArtifactTypeDisplayLabel, type ArtifactNode } from "../utils";
+import { TreeArtifactTaskRows } from "./TreeArtifactTaskRows";
+
+const EMPTY_TASKS_MAP = new Map<string, Task[]>();
+const EMPTY_LOADING_IDS = new Set<string>();
 
 interface TreeIconBundle {
   artifact_types?: Array<{ id?: string; icon?: string; name?: string }>;
@@ -26,6 +38,18 @@ interface ArtifactsTreeViewProps {
   emptyListDescription: string;
   isRefetching: boolean;
   renderMenuContent: (artifact: Artifact) => ReactNode;
+  /** Tasks listed under an artifact when its node is expanded (keys: artifact id). */
+  tasksByArtifactId?: ReadonlyMap<string, Task[]>;
+  /** Artifact ids whose task list query is still loading (no cached data yet). */
+  tasksLoadingArtifactIds?: ReadonlySet<string>;
+  onOpenTask?: (artifact: Artifact, task: Task) => void;
+  onEditTask?: (artifact: Artifact, task: Task) => void;
+  onDeleteTask?: (artifact: Artifact, task: Task) => void;
+  /** Highlights the task row when it matches (e.g. read-only preview selection). */
+  selectedTreeTask?: { artifactId: string; taskId: string } | null;
+  /** Persist task order after tree drag-reorder. */
+  onReorderArtifactTasks?: (artifact: Artifact, orderedTaskIds: string[]) => void;
+  artifactTaskReorderPending?: boolean;
 }
 
 export function ArtifactsTreeView({
@@ -43,6 +67,14 @@ export function ArtifactsTreeView({
   emptyListDescription,
   isRefetching,
   renderMenuContent,
+  tasksByArtifactId = EMPTY_TASKS_MAP,
+  tasksLoadingArtifactIds = EMPTY_LOADING_IDS,
+  onOpenTask,
+  onEditTask,
+  onDeleteTask,
+  selectedTreeTask = null,
+  onReorderArtifactTasks,
+  artifactTaskReorderPending = false,
 }: ArtifactsTreeViewProps) {
   if (artifacts.length === 0) {
     return (
@@ -75,6 +107,14 @@ export function ArtifactsTreeView({
             expandedIds={expandedIds}
             selectedArtifactId={selectedArtifactId}
             onToggleExpand={onToggleExpand}
+            tasksByArtifactId={tasksByArtifactId}
+            tasksLoadingArtifactIds={tasksLoadingArtifactIds}
+            onOpenTask={onOpenTask}
+            onEditTask={onEditTask}
+            onDeleteTask={onDeleteTask}
+            selectedTreeTask={selectedTreeTask}
+            onReorderArtifactTasks={onReorderArtifactTasks}
+            artifactTaskReorderPending={artifactTaskReorderPending}
             depth={0}
           />
         ))}
@@ -93,6 +133,14 @@ function ArtifactTreeNode({
   expandedIds,
   selectedArtifactId,
   onToggleExpand,
+  tasksByArtifactId,
+  tasksLoadingArtifactIds,
+  onOpenTask,
+  onEditTask,
+  onDeleteTask,
+  selectedTreeTask,
+  onReorderArtifactTasks,
+  artifactTaskReorderPending,
   depth,
 }: {
   node: ArtifactNode;
@@ -102,19 +150,32 @@ function ArtifactTreeNode({
   expandedIds: Set<string>;
   selectedArtifactId?: string | null;
   onToggleExpand: (id: string) => void;
+  tasksByArtifactId: ReadonlyMap<string, Task[]>;
+  tasksLoadingArtifactIds: ReadonlySet<string>;
+  onOpenTask?: (artifact: Artifact, task: Task) => void;
+  onEditTask?: (artifact: Artifact, task: Task) => void;
+  onDeleteTask?: (artifact: Artifact, task: Task) => void;
+  selectedTreeTask: { artifactId: string; taskId: string } | null;
+  onReorderArtifactTasks?: (artifact: Artifact, orderedTaskIds: string[]) => void;
+  artifactTaskReorderPending?: boolean;
   depth: number;
 }) {
-  const hasChildren = node.children.length > 0;
+  const taskList = tasksByArtifactId.get(node.id) ?? [];
+  const tasksLoading = tasksLoadingArtifactIds.has(node.id);
+  const hasArtifactChildren = node.children.length > 0;
+  /** Tasks load only after expand; leaves would never get a chevron if we waited for taskList/tasksLoading first. */
+  const tasksFeature = Boolean(onOpenTask);
+  const hasExpandableContent =
+    hasArtifactChildren || taskList.length > 0 || tasksLoading || tasksFeature;
   const expanded = expandedIds.has(node.id);
   const selected = selectedArtifactId === node.id;
-
   return (
     <>
       <div
         className={cn("grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b py-2", selected && "bg-muted/60")}
         style={{ paddingLeft: 8 + depth * 12 }}
       >
-        {hasChildren ? (
+        {hasExpandableContent ? (
           <button
             type="button"
             className="inline-flex size-8 shrink-0 items-center justify-center rounded hover:bg-muted"
@@ -179,7 +240,7 @@ function ArtifactTreeNode({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {hasChildren && expanded && (
+      {expanded && (hasArtifactChildren || taskList.length > 0 || tasksLoading || tasksFeature) && (
         <div>
           {node.children.map((child) => (
             <ArtifactTreeNode
@@ -191,9 +252,50 @@ function ArtifactTreeNode({
               expandedIds={expandedIds}
               selectedArtifactId={selectedArtifactId}
               onToggleExpand={onToggleExpand}
+              tasksByArtifactId={tasksByArtifactId}
+              tasksLoadingArtifactIds={tasksLoadingArtifactIds}
+              onOpenTask={onOpenTask}
+              onEditTask={onEditTask}
+              onDeleteTask={onDeleteTask}
+              selectedTreeTask={selectedTreeTask}
+              onReorderArtifactTasks={onReorderArtifactTasks}
+              artifactTaskReorderPending={artifactTaskReorderPending}
               depth={depth + 1}
             />
           ))}
+          {tasksLoading && taskList.length === 0 ? (
+            <div
+              className="border-b py-2 text-sm text-muted-foreground"
+              style={{ paddingLeft: 8 + (depth + 1) * 12 }}
+            >
+              Loading tasks…
+            </div>
+          ) : null}
+          {tasksFeature && !hasArtifactChildren && !tasksLoading && taskList.length === 0 ? (
+            <div
+              className="border-b py-2 text-sm text-muted-foreground"
+              style={{ paddingLeft: 8 + (depth + 1) * 12 }}
+            >
+              No tasks for this item.
+            </div>
+          ) : null}
+          {onOpenTask ? (
+            <TreeArtifactTaskRows
+              artifact={node}
+              tasks={taskList}
+              depth={depth}
+              selectedTreeTask={selectedTreeTask}
+              onOpenTask={onOpenTask}
+              onEditTask={onEditTask}
+              onDeleteTask={onDeleteTask}
+              onReorderCommitted={
+                onReorderArtifactTasks
+                  ? (_artifactId, orderedTaskIds) => onReorderArtifactTasks(node, orderedTaskIds)
+                  : undefined
+              }
+              reorderPending={artifactTaskReorderPending}
+            />
+          ) : null}
         </div>
       )}
     </>

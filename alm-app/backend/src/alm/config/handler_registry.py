@@ -323,6 +323,7 @@ from alm.shared.infrastructure.security.password import BcryptPasswordHasher
 
 # ── Task commands ──
 from alm.task.application.commands.create_task import CreateTask, CreateTaskHandler
+from alm.task.application.commands.reorder_artifact_tasks import ReorderArtifactTasks, ReorderArtifactTasksHandler
 from alm.task.application.commands.delete_task import DeleteTask, DeleteTaskHandler
 from alm.task.application.commands.update_task import UpdateTask, UpdateTaskHandler
 from alm.task.application.queries.get_task import GetTask, GetTaskHandler
@@ -1000,6 +1001,7 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
             tag_repo=SqlAlchemyProjectTagRepository(s),
+            team_repo=SqlAlchemyTeamRepository(s),
         ),
     )
     register_command_handler(
@@ -1015,6 +1017,14 @@ def register_all_handlers() -> None:
         DeleteTask,
         lambda s: DeleteTaskHandler(
             task_repo=SqlAlchemyTaskRepository(s),
+        ),
+    )
+    register_command_handler(
+        ReorderArtifactTasks,
+        lambda s: ReorderArtifactTasksHandler(
+            task_repo=SqlAlchemyTaskRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     # ── Task queries ──

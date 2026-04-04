@@ -56,6 +56,8 @@ export interface Team {
   project_id: string;
   name: string;
   description: string;
+  /** Project default team when multiple teams exist (new tasks get this if team not chosen). */
+  is_default: boolean;
   created_at: string | null;
   updated_at: string | null;
   members: TeamMember[];

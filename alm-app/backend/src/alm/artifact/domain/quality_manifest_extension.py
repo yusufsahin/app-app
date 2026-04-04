@@ -47,6 +47,12 @@ _QUALITY_EXTRA_LINK_TYPES: list[dict[str, Any]] = [
 # Stable manifest slug ``testsuites``; UI labels it "Campaign" (see frontend ``manifestTreeRoots``).
 _TESTSUITES_TREE_ROOT: dict[str, str] = {"tree_id": "testsuites", "root_artifact_type": "root-testsuites"}
 
+# Form evaluation uses ``artifact_type`` in values (see form schema builder normalization).
+_TC_FIELD_VW: dict[str, Any] = {"field": "artifact_type", "eq": "test-case"}
+_SUITE_FIELD_VW: dict[str, Any] = {"field": "artifact_type", "eq": "test-suite"}
+_RUN_FIELD_VW: dict[str, Any] = {"field": "artifact_type", "eq": "test-run"}
+_CAMPAIGN_FIELD_VW: dict[str, Any] = {"field": "artifact_type", "eq": "test-campaign"}
+
 
 def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dict[str, Any]]:
     return [
@@ -83,7 +89,14 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
             "workflow_id": test_case_workflow_id,
             "parent_types": ["root-testsuites", "testsuite-folder"],
             "child_types": [],
-            "fields": [{"id": "suite_note", "name": "Notes", "type": "string"}],
+            "fields": [
+                {
+                    "id": "suite_note",
+                    "name": "Notes",
+                    "type": "string",
+                    "visibleWhen": dict(_SUITE_FIELD_VW),
+                }
+            ],
         },
         {
             "kind": "ArtifactType",
@@ -93,8 +106,18 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
             "parent_types": ["root-testsuites", "testsuite-folder"],
             "child_types": [],
             "fields": [
-                {"id": "environment", "name": "Environment", "type": "string"},
-                {"id": "run_metrics_json", "name": "Run metrics (JSON)", "type": "string"},
+                {
+                    "id": "environment",
+                    "name": "Environment",
+                    "type": "string",
+                    "visibleWhen": dict(_RUN_FIELD_VW),
+                },
+                {
+                    "id": "run_metrics_json",
+                    "name": "Run metrics (JSON)",
+                    "type": "string",
+                    "visibleWhen": dict(_RUN_FIELD_VW),
+                },
             ],
         },
         {
@@ -105,8 +128,18 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
             "parent_types": ["root-testsuites", "testsuite-folder"],
             "child_types": [],
             "fields": [
-                {"id": "target_environment", "name": "Target environment", "type": "string"},
-                {"id": "campaign_config_json", "name": "Suite order config (JSON)", "type": "string"},
+                {
+                    "id": "target_environment",
+                    "name": "Target environment",
+                    "type": "string",
+                    "visibleWhen": dict(_CAMPAIGN_FIELD_VW),
+                },
+                {
+                    "id": "campaign_config_json",
+                    "name": "Suite order config (JSON)",
+                    "type": "string",
+                    "visibleWhen": dict(_CAMPAIGN_FIELD_VW),
+                },
             ],
         },
     ]
@@ -164,6 +197,7 @@ def _inject_quality_domain_defs(defs: list[dict[str, Any]]) -> list[dict[str, An
                         "id": "test_params_json",
                         "name": "Test configurations (JSON)",
                         "type": "string",
+                        "visibleWhen": dict(_TC_FIELD_VW),
                     }
                 )
             if not any(isinstance(f, dict) and f.get("id") == "test_steps_json" for f in fields):
@@ -172,6 +206,7 @@ def _inject_quality_domain_defs(defs: list[dict[str, Any]]) -> list[dict[str, An
                         "id": "test_steps_json",
                         "name": "Test steps (JSON)",
                         "type": "string",
+                        "visibleWhen": dict(_TC_FIELD_VW),
                     }
                 )
             out.append(

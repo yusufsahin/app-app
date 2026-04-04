@@ -61,6 +61,11 @@ interface BacklogArtifactDetailContentProps {
   onEditTask: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
   onAddTask: () => void;
+  /** When set (e.g. tree task click), Tasks list scrolls/highlights this task id for the open artifact. */
+  highlightedDetailTaskId?: string | null;
+  /** Persist task order after drag-reorder in the Tasks tab. */
+  onReorderTasksCommitted?: (orderedTaskIds: string[]) => void;
+  taskReorderPending?: boolean;
   artifactLinks: ArtifactRelationship[];
   linksLoading: boolean;
   impactAnalysis: ArtifactImpactAnalysisResponse | undefined;
@@ -120,6 +125,9 @@ export function BacklogArtifactDetailContent({
   onEditTask,
   onDeleteTask,
   onAddTask,
+  highlightedDetailTaskId = null,
+  onReorderTasksCommitted,
+  taskReorderPending = false,
   artifactLinks,
   linksLoading,
   impactAnalysis,
@@ -276,11 +284,13 @@ export function BacklogArtifactDetailContent({
                   <ArtifactDetailTasks
                     tasks={tasks}
                     tasksLoading={tasksLoading}
-                    artifactTags={detailArtifact.tags ?? []}
                     members={members}
+                    highlightedTaskId={highlightedDetailTaskId}
                     onEditTask={onEditTask}
                     onDeleteTask={onDeleteTask}
                     onAddTask={onAddTask}
+                    onReorderTasksCommitted={onReorderTasksCommitted}
+                    taskReorderPending={taskReorderPending}
                   />
                 )}
                 {detailTab === "links" && orgSlug && projectSlug && (

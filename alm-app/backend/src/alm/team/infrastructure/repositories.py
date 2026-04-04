@@ -33,6 +33,7 @@ class SqlAlchemyTeamRepository(TeamRepository):
             project_id=team.project_id,
             name=team.name,
             description=team.description or "",
+            is_default=team.is_default,
         )
         self._session.add(model)
         await self._session.flush()
@@ -40,10 +41,23 @@ class SqlAlchemyTeamRepository(TeamRepository):
 
     async def update(self, team: Team) -> Team:
         await self._session.execute(
-            update(TeamModel).where(TeamModel.id == team.id).values(name=team.name, description=team.description or "")
+            update(TeamModel)
+            .where(TeamModel.id == team.id)
+            .values(name=team.name, description=team.description or "", is_default=team.is_default)
         )
         await self._session.flush()
         return team
+
+    async def set_default_team(self, project_id: uuid.UUID, team_id: uuid.UUID) -> None:
+        await self._session.execute(
+            update(TeamModel).where(TeamModel.project_id == project_id).values(is_default=False)
+        )
+        await self._session.execute(
+            update(TeamModel)
+            .where(TeamModel.id == team_id, TeamModel.project_id == project_id)
+            .values(is_default=True)
+        )
+        await self._session.flush()
 
     async def delete(self, team_id: uuid.UUID) -> bool:
         result = await self._session.execute(delete(TeamModel).where(TeamModel.id == team_id))
@@ -80,6 +94,7 @@ class SqlAlchemyTeamRepository(TeamRepository):
             project_id=m.project_id,
             name=m.name,
             description=m.description or "",
+            is_default=m.is_default,
             created_at=m.created_at,
             updated_at=m.updated_at,
         )

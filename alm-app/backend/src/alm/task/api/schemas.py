@@ -34,6 +34,10 @@ class TaskUpdateRequest(BaseModel):
     tag_ids: list[uuid.UUID] | None = None
 
 
+class TaskReorderRequest(BaseModel):
+    ordered_task_ids: list[uuid.UUID]
+
+
 class TaskResponse(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID

@@ -21,6 +21,7 @@ class TeamCreateRequest(BaseModel):
 class TeamUpdateRequest(BaseModel):
     name: str | None = Field(None, max_length=255)
     description: str | None = None
+    is_default: bool | None = None
 
 
 class TeamResponse(BaseModel):
@@ -28,6 +29,7 @@ class TeamResponse(BaseModel):
     project_id: uuid.UUID
     name: str
     description: str
+    is_default: bool
     created_at: str | None
     updated_at: str | None
     members: list[TeamMemberResponse] = []

@@ -145,3 +145,36 @@ async def test_create_defect_without_parent_resolves_root_defect():
     created = artifact_repo.add.call_args[0][0]
     assert created.parent_id == root_defect_id
     artifact_repo.list_by_project.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_system_root_via_api_rejected():
+    tenant_id = uuid.uuid4()
+    project_id = uuid.uuid4()
+    project = MagicMock(tenant_id=tenant_id, code="PRJ", process_template_version_id=uuid.uuid4())
+    project_repo = AsyncMock()
+    project_repo.find_by_id.return_value = project
+    artifact_repo = AsyncMock()
+    process_template_repo = AsyncMock()
+    process_template_repo.find_version_by_id.return_value = MagicMock(manifest_bundle={})
+    tag_repo = empty_project_tag_repo()
+    handler = CreateArtifactHandler(artifact_repo, project_repo, process_template_repo, AsyncMock(), tag_repo)
+    command = CreateArtifact(
+        tenant_id=tenant_id,
+        project_id=project_id,
+        artifact_type="root-quality",
+        title="Extra root",
+        parent_id=None,
+    )
+    with patch("alm.artifact.application.commands.create_artifact.get_manifest_ast", return_value=simple_manifest_ast()):
+        with patch(
+            "alm.artifact.application.commands.create_artifact.workflow_get_initial_state",
+            return_value="Active",
+        ):
+            with patch(
+                "alm.artifact.application.commands.create_artifact.get_artifact_type_def",
+                return_value={"child_types": []},
+            ):
+                with pytest.raises(ValidationError, match="System tree roots"):
+                    await handler.handle(command)
+    artifact_repo.add.assert_not_awaited()

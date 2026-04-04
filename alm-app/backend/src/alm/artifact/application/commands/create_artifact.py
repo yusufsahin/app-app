@@ -146,10 +146,15 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
                     f"Artifact type '{command.artifact_type}' must be created under a '{expected_parent_type}'"
                 )
 
-        if effective_parent_id is None and not is_system_root_artifact_type(command.artifact_type, manifest):
+        if effective_parent_id is None and is_system_root_artifact_type(command.artifact_type, manifest):
             raise ValidationError(
-                "A parent artifact is required (parent_id). Only system project roots are top-level; "
-                "create work items under the correct root or folder for this process template."
+                "System tree roots are created when the project is set up and cannot be added via the artifact API."
+            )
+
+        if effective_parent_id is None:
+            raise ValidationError(
+                "A parent artifact is required (parent_id). "
+                "Create work items under the correct root or folder for this process template."
             )
 
         artifact_key = command.artifact_key

@@ -70,6 +70,12 @@ def manifest_defs_to_flat(manifest_bundle: dict[str, Any]) -> dict[str, Any]:
             if d.get("icon"):
                 at["icon"] = d["icon"]
             flags = d.get("flags") if isinstance(d.get("flags"), dict) else {}
+            if flags:
+                at["flags"] = dict(flags)
+            # Preserve explicit booleans (False must round-trip for FE manifest helpers / toolbar).
+            for field in ("allow_create_children", "allows_children"):
+                if field in d:
+                    at[field] = d[field]
             if d.get("is_system_root") or flags.get("is_system_root"):
                 at["is_system_root"] = True
             artifact_types.append(at)

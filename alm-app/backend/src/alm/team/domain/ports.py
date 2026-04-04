@@ -25,6 +25,10 @@ class TeamRepository:
     async def delete(self, team_id: uuid.UUID) -> bool: ...
 
     @abstractmethod
+    async def set_default_team(self, project_id: uuid.UUID, team_id: uuid.UUID) -> None:
+        """Mark ``team_id`` as default for the project; clears default on other teams."""
+
+    @abstractmethod
     async def list_members(self, team_id: uuid.UUID) -> list[TeamMember]: ...
 
     @abstractmethod

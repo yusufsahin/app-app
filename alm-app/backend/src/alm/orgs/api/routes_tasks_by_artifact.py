@@ -88,6 +88,29 @@ async def create_task(
     return task_response_from_dto(dto)
 
 
+@router.post(
+    "/projects/{project_id}/artifacts/{artifact_id}/tasks/reorder",
+    status_code=204,
+)
+async def reorder_tasks_for_artifact(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    body: TaskReorderRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("task:update"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> None:
+    await mediator.send(
+        ReorderArtifactTasks(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            artifact_id=artifact_id,
+            ordered_task_ids=tuple(body.ordered_task_ids),
+        )
+    )
+
+
 @router.get(
     "/projects/{project_id}/artifacts/{artifact_id}/tasks/{task_id}",
     response_model=TaskResponse,

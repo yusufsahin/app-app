@@ -58,8 +58,12 @@ async def create_team(
         project_id=dto.project_id,
         name=dto.name,
         description=dto.description,
+        is_default=dto.is_default,
         created_at=dto.created_at,
         updated_at=dto.updated_at,
+        members=[
+            TeamMemberResponse(team_id=m.team_id, user_id=m.user_id, role=m.role) for m in (dto.members or [])
+        ],
     )
 
 
@@ -78,6 +82,7 @@ async def list_teams(
             project_id=d.project_id,
             name=d.name,
             description=d.description,
+            is_default=d.is_default,
             created_at=d.created_at,
             updated_at=d.updated_at,
             members=[
@@ -105,6 +110,7 @@ async def get_team(
         project_id=dto.project_id,
         name=dto.name,
         description=dto.description,
+        is_default=dto.is_default,
         created_at=dto.created_at,
         updated_at=dto.updated_at,
         members=[TeamMemberResponse(team_id=m.team_id, user_id=m.user_id, role=m.role) for m in (dto.members or [])],
@@ -121,13 +127,15 @@ async def update_team(
     mediator: Mediator = Depends(get_mediator),
 ) -> TeamResponse:
     _ensure_tenant_access(user, tenant_id)
+    updates = body.model_dump(exclude_unset=True)
     dto = await mediator.send(
         UpdateTeam(
             tenant_id=tenant_id,
             project_id=project_id,
             team_id=team_id,
-            name=body.name,
-            description=body.description,
+            name=updates.get("name"),
+            description=updates.get("description"),
+            is_default=updates.get("is_default"),
         )
     )
     return TeamResponse(
@@ -135,8 +143,12 @@ async def update_team(
         project_id=dto.project_id,
         name=dto.name,
         description=dto.description,
+        is_default=dto.is_default,
         created_at=dto.created_at,
         updated_at=dto.updated_at,
+        members=[
+            TeamMemberResponse(team_id=m.team_id, user_id=m.user_id, role=m.role) for m in (dto.members or [])
+        ],
     )
 
 

@@ -19,6 +19,7 @@ class UpdateTeam(Command):
     team_id: uuid.UUID
     name: str | None = None
     description: str | None = None
+    is_default: bool | None = None
 
 
 class UpdateTeamHandler(CommandHandler[TeamDTO]):
@@ -50,6 +51,10 @@ class UpdateTeamHandler(CommandHandler[TeamDTO]):
             team.update(description=command.description)
 
         await self._team_repo.update(team)
+        if command.is_default is True:
+            await self._team_repo.set_default_team(command.project_id, team.id)
+
+        team = await self._team_repo.find_by_id(team.id) or team
         members = await self._team_repo.list_members(team.id)
 
         return TeamDTO(
@@ -57,6 +62,7 @@ class UpdateTeamHandler(CommandHandler[TeamDTO]):
             project_id=team.project_id,
             name=team.name,
             description=team.description,
+            is_default=team.is_default,
             created_at=team.created_at.isoformat() if team.created_at else None,
             updated_at=team.updated_at.isoformat() if team.updated_at else None,
             members=[TeamMemberDTO(team_id=m.team_id, user_id=m.user_id, role=m.role) for m in members],

@@ -54,4 +54,7 @@ export interface MetadataDrivenGridProps<T> {
   renderRowActions?: (row: T) => ReactNode;
   onRowOpen?: (row: T) => void;
   onCellCommit?: (args: TabularCellCommitArgs<T>) => Promise<void> | void;
+  /** When set with `renderExpandedRow`, inserts a non-editable detail row after each expanded data row (`rowId` suffix `__taskDetail`). */
+  expandedDetailRowKeys?: ReadonlySet<string>;
+  renderExpandedRow?: (row: T) => ReactNode;
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from alm.artifact.domain.quality_manifest_extension import merge_quality_domain_into_defs
 from alm.artifact.infrastructure.manifest_flattener import ManifestDefsFlattenerAdapter
 from alm.form_schema.application.builders.manifest_form_schema_builder import (
     build_artifact_create_form_schema,
@@ -112,6 +113,65 @@ class TestFormSchemaBuilder:
         assert story_points_field.required_when["field"] == "artifact_type"
         assert story_points_field.required_when["eq"] == "feature"
 
+    def test_edit_visible_when_normalizes_type_name(self):
+        schema = build_artifact_edit_form_schema(SAMPLE_MANIFEST, _FLATTENER, artifact_type="defect")
+        severity_field = next(f for f in schema.fields if f.key == "severity")
+        assert severity_field.visible_when is not None
+        assert severity_field.visible_when["field"] == "artifact_type"
+        assert severity_field.visible_when["in"] == ["defect"]
+
+    def test_quality_merged_create_tags_test_only_fields_with_visible_when(self):
+        defs = [
+            {"kind": "Workflow", "id": "task_basic", "states": ["a"], "transitions": []},
+            {"kind": "Workflow", "id": "basic", "states": ["new"], "transitions": []},
+            {
+                "kind": "ArtifactType",
+                "id": "root-quality",
+                "workflow_id": "basic",
+                "child_types": ["test-case"],
+                "fields": [],
+            },
+            {
+                "kind": "ArtifactType",
+                "id": "test-case",
+                "workflow_id": "basic",
+                "parent_types": [],
+                "fields": [],
+            },
+            {
+                "kind": "ArtifactType",
+                "id": "epic",
+                "workflow_id": "basic",
+                "child_types": [],
+                "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
+            },
+            {
+                "kind": "ArtifactType",
+                "id": "workitem",
+                "workflow_id": "basic",
+                "child_types": [],
+                "fields": [{"id": "estimate", "name": "Estimate", "type": "number"}],
+            },
+            {"kind": "LinkType", "id": "related", "name": "Related"},
+        ]
+        merged_defs = merge_quality_domain_into_defs(defs)
+        bundle = {"defs": merged_defs}
+        merged = build_artifact_create_form_schema(bundle, _FLATTENER)
+        keys = [f.key for f in merged.fields]
+        assert "test_steps_json" in keys
+        steps = next(f for f in merged.fields if f.key == "test_steps_json")
+        assert steps.visible_when is not None
+        assert steps.visible_when.get("field") == "artifact_type"
+        assert steps.visible_when.get("eq") == "test-case"
+        narrowed = build_artifact_create_form_schema(bundle, _FLATTENER, artifact_type="epic")
+        narrow_keys = [f.key for f in narrowed.fields]
+        assert "test_steps_json" not in narrow_keys
+        assert "test_params_json" not in narrow_keys
+        narrow_workitem = build_artifact_create_form_schema(bundle, _FLATTENER, artifact_type="workitem")
+        workitem_keys = [f.key for f in narrow_workitem.fields]
+        assert "test_steps_json" not in workitem_keys
+        assert "test_params_json" not in workitem_keys
+
     def test_build_form_schema_artifact_create(self):
         schema = build_form_schema(SAMPLE_MANIFEST, "artifact", "create", _FLATTENER)
         assert schema is not None
@@ -138,7 +198,6 @@ class TestFormSchemaBuilder:
             "assignee_id",
             "team_id",
             "tag_ids",
-            "rank_order",
         ]
         state_field = next(f for f in schema.fields if f.key == "state")
         assert state_field.type == "choice"

@@ -13,6 +13,8 @@ export interface ArtifactDetailSurfaceProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
+  /** Pinned below the scrollable detail body (e.g. task read-only preview). */
+  footer?: ReactNode;
 }
 
 export function ArtifactDetailSurface({
@@ -20,13 +22,15 @@ export function ArtifactDetailSurface({
   open,
   onOpenChange,
   children,
+  footer,
 }: ArtifactDetailSurfaceProps) {
   if (isPage) {
     return (
-      <div className="mt-6 rounded-lg border bg-background p-4 shadow-sm" aria-label="Artifact details page">
+      <div className="mt-6 rounded-lg border bg-background shadow-sm" aria-label="Artifact details page">
         <ArtifactDetailDrawer>
-          <div className="w-full" aria-label="Artifact details">
-            {children}
+          <div className="flex min-h-0 w-full flex-col" aria-label="Artifact details">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
+            {footer ? <div className="shrink-0">{footer}</div> : null}
           </div>
         </ArtifactDetailDrawer>
       </div>
@@ -51,11 +55,9 @@ export function ArtifactDetailSurface({
           View artifact details, tasks, links, attachments, and comments.
         </SheetDescription>
         <ArtifactDetailDrawer>
-          <div
-            className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4 pt-4"
-            aria-label="Artifact details"
-          >
-            {children}
+          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden" aria-label="Artifact details">
+            <div className={`min-h-0 flex-1 overflow-y-auto px-4 pt-4 ${footer ? "pb-2" : "pb-4"}`}>{children}</div>
+            {footer}
           </div>
         </ArtifactDetailDrawer>
       </SheetContent>

@@ -21,12 +21,16 @@ import {
   Plus,
   Trash2,
   ArrowLeftRight,
+  ListChecks,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
+import { flushSync } from "react-dom";
 import { useForm } from "react-hook-form";
 import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../../shared/api/client";
-import { useOrgMembers } from "../../../shared/api/orgApi";
+import { useOrgMembers, useProjectTeams } from "../../../shared/api/orgApi";
 import {
   useProjectMembers,
   useAddProjectMember,
@@ -65,6 +69,8 @@ import {
   useCreateTask,
   useUpdateTask,
   useDeleteTask,
+  useReorderArtifactTasks,
+  fetchTasksForArtifact,
   type Task,
   type CreateTaskRequest,
 } from "../../../shared/api/taskApi";
@@ -103,12 +109,15 @@ import {
   formatDateTime,
   filterListSchemaForBacklog,
   getArtifactIcon,
+  getManifestChildTypeIdsForParent,
   getValidTransitions,
   isRootArtifact,
   getSystemRootArtifactTypes,
+  manifestArtifactTypeAllowsChildren,
 } from "../utils";
 import { BacklogToolbar, BacklogWorkspaceLayout, BacklogListFooter, BacklogTabularView, BacklogTreeView, ArtifactDetailSurface } from "../components";
 import { BacklogArtifactDetailContent } from "../components/BacklogArtifactDetailContent";
+import { BacklogTreeTaskPreviewStrip } from "../components/BacklogTreeTaskPreviewStrip";
 import { useBacklogWorkspaceProject } from "./useBacklogWorkspaceProject";
 import { useBacklogWorkspaceDetailState } from "./useBacklogWorkspaceDetailState";
 import { useBacklogWorkspaceListFilters } from "./useBacklogWorkspaceListFilters";
@@ -232,12 +241,30 @@ export default function BacklogWorkspacePage({
 
   const surface = variant === "quality" ? "quality" : "backlog";
   const { data: listSchema, isLoading: listSchemaLoading, isError: listSchemaError, refetch: refetchListSchema } = useListSchema(orgSlug, project?.id, "artifact", surface);
-  const { data: formSchema, isError: formSchemaError, error: formSchemaErr } = useFormSchema(orgSlug, project?.id);
+  const [createFormArtifactTypeId, setCreateFormArtifactTypeId] = useState<string | null>(null);
+  const [editModalArtifactType, setEditModalArtifactType] = useState<string | null>(null);
+  const defaultArtifactTypeId = useMemo(
+    () =>
+      (manifest?.manifest_bundle as { artifact_types?: Array<{ id: string }> } | undefined)?.artifact_types?.[0]?.id ??
+      "",
+    [manifest?.manifest_bundle],
+  );
+  const effectiveCreateArtifactType = useMemo(() => {
+    const t = (createFormArtifactTypeId ?? defaultArtifactTypeId).trim();
+    return t || undefined;
+  }, [createFormArtifactTypeId, defaultArtifactTypeId]);
+  const {
+    data: formSchema,
+    isError: formSchemaError,
+    error: formSchemaErr,
+    isFetching: createFormSchemaFetching,
+  } = useFormSchema(orgSlug, project?.id, "artifact", "create", effectiveCreateArtifactType, true);
   const { data: artifactEditSchema } = useFormSchema(orgSlug, project?.id, "artifact", "edit");
   const formSchema403 = formSchemaError && (formSchemaErr as unknown as ProblemDetail)?.status === 403;
   const { data: taskCreateFormSchema } = useFormSchema(orgSlug, project?.id, "task", "create");
   const { data: taskEditFormSchema } = useFormSchema(orgSlug, project?.id, "task", "edit");
   const { data: members } = useOrgMembers(orgSlug);
+  const { data: projectTeams = [] } = useProjectTeams(orgSlug, project?.id);
   const permissions = useAuthStore((s) => s.permissions);
   const canCommentArtifact = hasPermission(permissions, "artifact:comment");
   useProjectMembers(orgSlug, project?.id);
@@ -552,8 +579,10 @@ export default function BacklogWorkspacePage({
     project?.id,
     "artifact",
     "edit",
-    detailArtifact?.artifact_type,
+    editModalArtifactType ?? undefined,
   );
+  const editFormSchemaRef = useRef(editFormSchema);
+  editFormSchemaRef.current = editFormSchema;
   const createMutation = useCreateArtifact(orgSlug, project?.id);
   const deleteMutation = useDeleteArtifact(orgSlug, project?.id);
   const [addTaskOpen, _setAddTaskOpen] = useState(false);
@@ -565,14 +594,10 @@ export default function BacklogWorkspacePage({
     project?.id,
     detailArtifact?.id,
   );
-  const createTaskMutation = useCreateTask(orgSlug, project?.id, detailArtifact?.id);
-  const updateTaskMutation = useUpdateTask(
-    orgSlug,
-    project?.id,
-    detailArtifact?.id,
-    editingTask?.id,
-  );
-  const deleteTaskMutation = useDeleteTask(orgSlug, project?.id, detailArtifact?.id);
+  const createTaskMutation = useCreateTask(orgSlug, project?.id);
+  const updateTaskMutation = useUpdateTask(orgSlug, project?.id);
+  const deleteTaskMutation = useDeleteTask(orgSlug, project?.id);
+  const reorderTasksMutation = useReorderArtifactTasks(orgSlug, project?.id);
 
   const { data: myTasks = [], isLoading: myTasksLoading } = useMyTasksInProject(
     orgSlug,
@@ -634,6 +659,60 @@ export default function BacklogWorkspacePage({
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
   const [myTasksMenuAnchor, setMyTasksMenuAnchor] = useState<null | HTMLElement>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [tableExpandedArtifactIds, setTableExpandedArtifactIds] = useState<Set<string>>(new Set());
+  const expandedArtifactIdsForTasks = useMemo(() => {
+    const src = viewMode === "table" ? tableExpandedArtifactIds : expandedIds;
+    return Array.from(src).sort();
+  }, [viewMode, tableExpandedArtifactIds, expandedIds]);
+  const taskTreeQueries = useQueries({
+    queries: expandedArtifactIdsForTasks.map((artifactId) => ({
+      queryKey: ["orgs", orgSlug, "projects", project?.id, "artifacts", artifactId, "tasks", null] as const,
+      queryFn: () => fetchTasksForArtifact(orgSlug!, project!.id!, artifactId, null),
+      enabled: Boolean(orgSlug && project?.id && expandedArtifactIdsForTasks.length > 0),
+    })),
+  });
+  const expandedTasksByArtifactId = useMemo(() => {
+    const m = new Map<string, Task[]>();
+    expandedArtifactIdsForTasks.forEach((id, i) => {
+      m.set(id, taskTreeQueries[i]?.data ?? []);
+    });
+    return m;
+  }, [expandedArtifactIdsForTasks, taskTreeQueries]);
+  const expandedTasksLoadingArtifactIds = useMemo(() => {
+    const s = new Set<string>();
+    expandedArtifactIdsForTasks.forEach((id, i) => {
+      const q = taskTreeQueries[i];
+      if (q?.isPending && !q?.data) s.add(id);
+    });
+    return s;
+  }, [expandedArtifactIdsForTasks, taskTreeQueries]);
+  const [treeTaskPreview, setTreeTaskPreview] = useState<{ artifactId: string; task: Task } | null>(null);
+
+  useEffect(() => {
+    setTreeTaskPreview((prev) => {
+      if (!prev) return prev;
+      if (detailArtifactId !== prev.artifactId) return null;
+      return prev;
+    });
+  }, [detailArtifactId]);
+
+  const resolvedTreePreviewTask = useMemo(() => {
+    if (!treeTaskPreview) return null;
+    const tid = treeTaskPreview.task.id;
+    const aid = treeTaskPreview.artifactId;
+    if (detailArtifactId === aid) {
+      const fromDetail = tasks.find((t) => t.id === tid);
+      if (fromDetail) return fromDetail;
+    }
+    const fromExpanded = expandedTasksByArtifactId.get(aid)?.find((t) => t.id === tid);
+    return fromExpanded ?? treeTaskPreview.task;
+  }, [treeTaskPreview, detailArtifactId, tasks, expandedTasksByArtifactId]);
+
+  const treePreviewArtifact = useMemo(
+    () => (treeTaskPreview ? artifacts?.find((a) => a.id === treeTaskPreview.artifactId) ?? null : null),
+    [artifacts, treeTaskPreview],
+  );
+
   const [, setEditFormValues] = useState<Record<string, unknown>>({});
   const [, setEditFormErrors] = useState<Record<string, string>>({});
   const editFormValuesRef = useRef<Record<string, unknown>>({});
@@ -663,6 +742,34 @@ export default function BacklogWorkspacePage({
   const batchDeleteMutation = useBatchDeleteArtifacts(orgSlug, project?.id);
   const restoreMutation = useRestoreArtifact(orgSlug, project?.id);
   const showNotification = useNotificationStore((s) => s.showNotification);
+  const taskFormHideKeys = useMemo(() => {
+    const keys: string[] = [];
+    if (projectTeams.length <= 1) keys.push("team_id");
+    return keys;
+  }, [projectTeams.length]);
+  const defaultProjectTeamId = useMemo(() => {
+    const d = projectTeams.find((t) => t.is_default);
+    return d?.id ?? "";
+  }, [projectTeams]);
+  const soleProjectTeamId = useMemo(
+    () => (projectTeams.length === 1 ? (projectTeams[0]?.id ?? null) : null),
+    [projectTeams],
+  );
+  const handleReorderArtifactTasks = useCallback(
+    (artifactId: string, orderedTaskIds: string[]) => {
+      reorderTasksMutation.mutate(
+        { artifactId, orderedTaskIds },
+        {
+          onSuccess: () => showNotification("Task order updated", "success"),
+          onError: (err: Error) => {
+            const body = (err as unknown as { body?: ProblemDetail })?.body;
+            showNotification(body?.detail ?? "Failed to reorder tasks", "error");
+          },
+        },
+      );
+    },
+    [reorderTasksMutation, showNotification],
+  );
   const recentlyUpdatedArtifactIds = useRealtimeStore((s) => s.recentlyUpdatedArtifactIds);
   const presenceByArtifactId = useRealtimeStore((s) => s.presenceByArtifactId);
 
@@ -694,10 +801,29 @@ export default function BacklogWorkspacePage({
   }, [isTreeSplitView, navigate, orgSlug, projectSlug, searchParams, setListState]);
 
   const closeArtifactDetail = useCallback(() => {
+    setTreeTaskPreview(null);
     setListState({ detailArtifactId: null, detailDrawerEditing: false });
     if (isTreeSplitView) return;
     if (backlogListPath) navigate(backlogListPath);
   }, [backlogListPath, isTreeSplitView, navigate, setListState]);
+
+  const openTaskReadOnlyPreview = useCallback(
+    (artifact: Artifact, task: Task) => {
+      openArtifactDetail(artifact.id);
+      setDetailDrawerTab("tasks");
+      setTreeTaskPreview({ artifactId: artifact.id, task });
+    },
+    [openArtifactDetail, setDetailDrawerTab],
+  );
+
+  const toggleTableArtifactExpand = useCallback((artifactId: string) => {
+    setTableExpandedArtifactIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(artifactId)) next.delete(artifactId);
+      else next.add(artifactId);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (routeArtifactId && artifactFromApi) {
@@ -743,8 +869,10 @@ export default function BacklogWorkspacePage({
       name: string;
       workflow_id?: string;
       parent_types?: string[];
+      child_types?: string[];
       fields?: Array<{ id: string; name: string }>;
     }>;
+    defs?: unknown[];
     workflows?: Array<{
       id: string;
       states?: string[];
@@ -1087,13 +1215,18 @@ export default function BacklogWorkspacePage({
     bulkTransitionOptions?.resolutionOptions?.length,
   ]);
 
-  const defaultArtifactTypeId = useMemo(
-    () =>
-      bundle?.artifact_types?.[0]?.id ??
-      (formSchema?.artifact_type_options?.[0]?.id as string | undefined) ??
-      "",
-    [bundle?.artifact_types, formSchema?.artifact_type_options],
-  );
+  const syncCreateFormArtifactType = useCallback((artifactTypeId: string | null) => {
+    flushSync(() => setCreateFormArtifactTypeId(artifactTypeId));
+  }, []);
+
+  const onCreateModalClosed = useCallback(() => {
+    setCreateFormArtifactTypeId(null);
+  }, []);
+
+  const onEditModalClosed = useCallback(() => {
+    setEditModalArtifactType(null);
+  }, []);
+
   const {
     initialFormValues,
     openCreateArtifactModal,
@@ -1112,7 +1245,26 @@ export default function BacklogWorkspacePage({
     createMutation,
     setCreateOpen: (isOpen) => setListState({ createOpen: isOpen }),
     showNotification,
+    syncCreateFormArtifactType,
+    onCreateModalClosed,
   });
+
+  const modalTypeOpen = useModalStore((s) => (s.isOpened ? s.modalType : null));
+
+  useEffect(() => {
+    if (modalTypeOpen !== "CreateArtifactModal") return;
+    useModalStore.getState().updateModalProps({
+      ...(formSchema ? { formSchema } : {}),
+      formSchemaRefreshing: !!createFormSchemaFetching && !!formSchema,
+    });
+  }, [modalTypeOpen, formSchema, createFormSchemaFetching]);
+
+  useEffect(() => {
+    if (modalTypeOpen !== "EditArtifactModal") return;
+    if (editFormSchema) {
+      useModalStore.getState().updateModalProps({ formSchema: editFormSchema });
+    }
+  }, [modalTypeOpen, editFormSchema]);
 
   function handleDuplicate(artifact: Artifact) {
     const base = { ...initialFormValues };
@@ -1132,6 +1284,8 @@ export default function BacklogWorkspacePage({
 
   const openEditArtifactModal = useCallback(
     (artifact: Artifact) => {
+      flushSync(() => setEditModalArtifactType(artifact.artifact_type));
+      const schemaForPayload = () => editFormSchemaRef.current ?? null;
       const initialValues: Record<string, unknown> = {
         title: artifact.title,
         description: artifact.description ?? "",
@@ -1139,6 +1293,7 @@ export default function BacklogWorkspacePage({
         cycle_id: artifact.cycle_id ?? "",
         area_node_id: artifact.area_node_id ?? "",
         tag_ids: artifact.tags?.map((tag) => tag.id) ?? [],
+        artifact_type: artifact.artifact_type,
         ...(artifact.custom_fields ?? {}),
       };
       editFormValuesRef.current = initialValues;
@@ -1147,7 +1302,7 @@ export default function BacklogWorkspacePage({
       modalApi.openEditArtifact(
         {
           mode: "edit",
-          formSchema: editFormSchema ?? artifactEditSchema ?? null,
+          formSchema: schemaForPayload(),
           formValues: initialValues,
           formErrors: {},
           onFormChange: (values) => {
@@ -1158,7 +1313,7 @@ export default function BacklogWorkspacePage({
           onFormErrors: setEditFormErrors,
           onCreate: async (currentValues) => {
             const values = currentValues ?? editFormValuesRef.current;
-            const result = buildUpdateArtifactPayload(editFormSchema ?? artifactEditSchema, values, TITLE_MAX_LENGTH);
+            const result = buildUpdateArtifactPayload(schemaForPayload(), values, TITLE_MAX_LENGTH);
             if (result.errors) {
               setEditFormErrors(result.errors);
               if (useModalStore.getState().modalType === "EditArtifactModal") {
@@ -1200,17 +1355,18 @@ export default function BacklogWorkspacePage({
           ) as Record<string, string[]>,
           formSchemaError: !!formSchemaError,
           formSchema403: !!formSchema403,
+          hideFieldKeys: ["parent_id"],
+          onCloseComplete: onEditModalClosed,
         },
         { title: `Edit: ${artifact.title}` },
       );
     },
     [
-      artifactEditSchema,
       artifactTypeParentMap,
-      editFormSchema,
       formSchema403,
       formSchemaError,
       members,
+      onEditModalClosed,
       orgSlug,
       parentPickerArtifacts,
       project?.id,
@@ -1224,10 +1380,11 @@ export default function BacklogWorkspacePage({
     for (const f of taskCreateFormSchema?.fields ?? []) {
       if (f.key === "assignee_id") vals[f.key] = "";
       else if (f.type === "tag_list") vals[f.key] = [];
+      else if (f.key === "team_id" && projectTeams.length > 1) vals[f.key] = defaultProjectTeamId;
       else vals[f.key] = f.default_value ?? "";
     }
     return vals;
-  }, [taskCreateFormSchema?.fields]);
+  }, [taskCreateFormSchema?.fields, projectTeams.length, defaultProjectTeamId]);
 
   useEffect(() => {
     if (addTaskOpen && taskCreateFormSchema) {
@@ -1242,11 +1399,193 @@ export default function BacklogWorkspacePage({
         description: editingTask.description ?? "",
         state: editingTask.state,
         assignee_id: editingTask.assignee_id ?? "",
-        rank_order: editingTask.rank_order ?? "",
+        team_id: editingTask.team_id ?? "",
         tag_ids: editingTask.tags?.map((x) => x.id) ?? [],
       });
     }
   }, [editingTask, taskEditFormSchema]);
+
+  const payloadFromTaskFormValues = useCallback(
+    (v: Record<string, unknown>): CreateTaskRequest => {
+      const teamId = soleProjectTeamId ?? ((v.team_id as string) || null);
+      return {
+        title: (v.title as string)?.trim() ?? "",
+        description: (v.description as string) || undefined,
+        state: (v.state as string) || "todo",
+        assignee_id: (v.assignee_id as string) || null,
+        team_id: teamId || null,
+        tag_ids: Array.isArray(v.tag_ids) ? (v.tag_ids as string[]) : undefined,
+      };
+    },
+    [soleProjectTeamId],
+  );
+
+  const openAddTaskForArtifact = useCallback(
+    (artifactId: string) => {
+      modalApi.openAddTask({
+        taskFormSchema: taskCreateFormSchema ?? null,
+        initialValues: taskCreateInitialValues,
+        onChange: setTaskCreateFormValues,
+        onSubmit: (values) => {
+          const title = (values.title as string)?.trim();
+          if (!title) return;
+          createTaskMutation.mutate(
+            { artifactId, ...payloadFromTaskFormValues(values) },
+            {
+              onSuccess: () => {
+                modalApi.closeModal();
+                setTaskCreateFormValues({});
+                showNotification("Task added", "success");
+              },
+              onError: (err: Error) => {
+                const body = (err as unknown as { body?: ProblemDetail })?.body;
+                showNotification(body?.detail ?? "Failed to add task", "error");
+              },
+            },
+          );
+        },
+        isPending: createTaskMutation.isPending,
+        userOptions:
+          members?.map((m) => ({
+            id: m.user_id,
+            label: m.display_name || m.email || m.user_id,
+          })) ?? [],
+        projectTagOptions: projectTags.map((t) => ({ id: t.id, name: t.name })),
+        hideFieldKeys: taskFormHideKeys,
+      });
+    },
+    [
+      createTaskMutation,
+      members,
+      payloadFromTaskFormValues,
+      projectTags,
+      showNotification,
+      taskCreateFormSchema,
+      taskCreateInitialValues,
+      taskFormHideKeys,
+    ],
+  );
+
+  const openEditTaskFlow = useCallback(
+    (artifact: Artifact, task: Task) => {
+      openArtifactDetail(artifact.id);
+      setEditingTask(task);
+      const editValues = {
+        title: task.title,
+        description: task.description ?? "",
+        state: task.state,
+        assignee_id: task.assignee_id ?? "",
+        team_id: task.team_id ?? "",
+        tag_ids: task.tags?.map((x) => x.id) ?? [],
+      };
+      modalApi.openEditTask({
+        taskFormSchema: taskEditFormSchema ?? null,
+        task,
+        values: editValues,
+        onChange: setTaskEditFormValues,
+        onSubmit: (values) => {
+          const title = (values.title as string)?.trim();
+          if (!title) return;
+          const tagIds = Array.isArray(values.tag_ids) ? (values.tag_ids as string[]) : [];
+          updateTaskMutation.mutate(
+            {
+              artifactId: task.artifact_id,
+              taskId: task.id,
+              title,
+              description: (values.description as string) ?? null,
+              state: (values.state as string) ?? undefined,
+              assignee_id: (values.assignee_id as string) || null,
+              team_id: soleProjectTeamId ?? ((values.team_id as string) || null),
+              tag_ids: tagIds,
+            },
+            {
+              onSuccess: () => {
+                modalApi.closeModal();
+                setEditingTask(null);
+                showNotification("Task updated", "success");
+              },
+              onError: (err: Error) => {
+                const body = (err as unknown as { body?: ProblemDetail })?.body;
+                showNotification(body?.detail ?? "Failed to update task", "error");
+              },
+            },
+          );
+        },
+        isPending: updateTaskMutation.isPending,
+        userOptions:
+          members?.map((m) => ({
+            id: m.user_id,
+            label: m.display_name || m.email || m.user_id,
+          })) ?? [],
+        projectTagOptions: projectTags.map((t) => ({ id: t.id, name: t.name })),
+        hideFieldKeys: taskFormHideKeys,
+      });
+    },
+    [
+      members,
+      openArtifactDetail,
+      projectTags,
+      showNotification,
+      soleProjectTeamId,
+      taskEditFormSchema,
+      taskFormHideKeys,
+      updateTaskMutation,
+    ],
+  );
+
+  const taskTreePreviewFooter =
+    treeTaskPreview &&
+    detailArtifactId === treeTaskPreview.artifactId &&
+    resolvedTreePreviewTask ? (
+      <BacklogTreeTaskPreviewStrip
+        task={resolvedTreePreviewTask}
+        parentLabel={
+          treePreviewArtifact
+            ? `[${treePreviewArtifact.artifact_key ?? treePreviewArtifact.id.slice(0, 8)}] ${treePreviewArtifact.title}`
+            : "Work item"
+        }
+        members={members}
+        onEdit={() => {
+          const art = treePreviewArtifact ?? detailArtifact;
+          if (art && resolvedTreePreviewTask) {
+            openEditTaskFlow(art, resolvedTreePreviewTask);
+          }
+        }}
+        onDismiss={() => setTreeTaskPreview(null)}
+      />
+    ) : null;
+
+  const detailTaskPreviewFooter =
+    detailDrawerTab === "tasks" || detailDrawerTab === "details" ? null : taskTreePreviewFooter;
+
+  const confirmDeleteTask = useCallback(
+    (task: Task) => {
+      modalApi.openConfirm(
+        {
+          message: "Delete this task?",
+          confirmLabel: "Delete",
+          variant: "destructive",
+          onConfirm: () => {
+            deleteTaskMutation.mutate(
+              { artifactId: task.artifact_id, taskId: task.id },
+              {
+                onSuccess: () => {
+                  setTreeTaskPreview((p) => (p?.task.id === task.id ? null : p));
+                  showNotification("Task deleted", "success");
+                },
+                onError: (err: Error) => {
+                  const body = (err as unknown as { body?: ProblemDetail })?.body;
+                  showNotification(body?.detail ?? "Failed to delete task", "error");
+                },
+              },
+            );
+          },
+        },
+        { title: "Delete task" },
+      );
+    },
+    [deleteTaskMutation, showNotification],
+  );
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -1296,18 +1635,30 @@ export default function BacklogWorkspacePage({
 
   const renderArtifactActionMenu = (artifact: Artifact) => (
       <>
-        {artifact.allowed_actions?.includes("create") && (
+        {artifact.allowed_actions?.includes("create") &&
+          manifestArtifactTypeAllowsChildren(manifest?.manifest_bundle, artifact.artifact_type) && (
           <DropdownMenuItem
-            onClick={() =>
-              openCreateArtifactModal({
-                ...initialFormValues,
-                artifact_type: defaultArtifactTypeId,
-                parent_id: artifact.id,
-              })
-            }
+            onClick={() => {
+              const childIds = getManifestChildTypeIdsForParent(manifest?.manifest_bundle, artifact.artifact_type);
+              const childArtifactTypeId = childIds[0] ?? defaultArtifactTypeId;
+              openCreateArtifactModal(
+                {
+                  ...initialFormValues,
+                  artifact_type: childArtifactTypeId,
+                  parent_id: artifact.id,
+                },
+                { hideFieldKeys: ["parent_id"] },
+              );
+            }}
           >
             <Plus className="mr-2 size-4" />
             New child
+          </DropdownMenuItem>
+        )}
+        {artifact.allowed_actions?.includes("update") && (
+          <DropdownMenuItem onClick={() => openAddTaskForArtifact(artifact.id)}>
+            <ListChecks className="mr-2 size-4" />
+            Add task
           </DropdownMenuItem>
         )}
         {artifact.allowed_actions?.includes("update") && (
@@ -1487,108 +1838,23 @@ export default function BacklogWorkspacePage({
       tasks={tasks}
       tasksLoading={tasksLoading}
       onEditTask={(task) => {
-        setEditingTask(task);
-        const editValues = {
-          title: task.title,
-          description: task.description ?? "",
-          state: task.state,
-          assignee_id: task.assignee_id ?? "",
-          rank_order: task.rank_order ?? "",
-          tag_ids: task.tags?.map((x) => x.id) ?? [],
-        };
-        modalApi.openEditTask({
-          taskFormSchema: taskEditFormSchema ?? null,
-          task,
-          values: editValues,
-          onChange: setTaskEditFormValues,
-          onSubmit: (values) => {
-            const title = (values.title as string)?.trim();
-            if (!title) return;
-            const tagIds = Array.isArray(values.tag_ids) ? (values.tag_ids as string[]) : [];
-            updateTaskMutation.mutate(
-              {
-                title,
-                description: (values.description as string) ?? null,
-                state: (values.state as string) ?? undefined,
-                assignee_id: (values.assignee_id as string) || null,
-                rank_order: typeof values.rank_order === "number" ? values.rank_order : undefined,
-                tag_ids: tagIds,
-              },
-              {
-                onSuccess: () => {
-                  modalApi.closeModal();
-                  setEditingTask(null);
-                  showNotification("Task updated", "success");
-                },
-                onError: (err: Error) => {
-                  const body = (err as unknown as { body?: ProblemDetail })?.body;
-                  showNotification(body?.detail ?? "Failed to update task", "error");
-                },
-              },
-            );
-          },
-          isPending: updateTaskMutation.isPending,
-          userOptions: members?.map((m) => ({
-            id: m.user_id,
-            label: m.display_name || m.email || m.user_id,
-          })) ?? [],
-          projectTagOptions: projectTags.map((t) => ({ id: t.id, name: t.name })),
-        });
+        if (!detailArtifact) return;
+        openEditTaskFlow(detailArtifact, task);
       }}
-      onDeleteTask={(task) => {
-        modalApi.openConfirm(
-          {
-            message: "Delete this task?",
-            confirmLabel: "Delete",
-            variant: "destructive",
-            onConfirm: () => {
-              deleteTaskMutation.mutate(task.id, {
-                onError: (err: Error) => {
-                  const body = (err as unknown as { body?: ProblemDetail })?.body;
-                  showNotification(body?.detail ?? "Failed to delete task", "error");
-                },
-              });
-            },
-          },
-          { title: "Delete task" },
-        );
-      }}
+      onDeleteTask={confirmDeleteTask}
       onAddTask={() => {
-        const payloadFromValues = (v: Record<string, unknown>): CreateTaskRequest => ({
-          title: (v.title as string)?.trim() ?? "",
-          description: (v.description as string) || undefined,
-          state: (v.state as string) || "todo",
-          assignee_id: (v.assignee_id as string) || null,
-          rank_order: typeof v.rank_order === "number" ? v.rank_order : undefined,
-          tag_ids: Array.isArray(v.tag_ids) ? (v.tag_ids as string[]) : undefined,
-        });
-        modalApi.openAddTask({
-          taskFormSchema: taskCreateFormSchema ?? null,
-          initialValues: taskCreateInitialValues,
-          onChange: setTaskCreateFormValues,
-          onSubmit: (values) => {
-            const title = (values.title as string)?.trim();
-            if (!title) return;
-            createTaskMutation.mutate(payloadFromValues(values), {
-              onSuccess: () => {
-                modalApi.closeModal();
-                setTaskCreateFormValues({});
-                showNotification("Task added", "success");
-              },
-              onError: (err: Error) => {
-                const body = (err as unknown as { body?: ProblemDetail })?.body;
-                showNotification(body?.detail ?? "Failed to add task", "error");
-              },
-            });
-          },
-          isPending: createTaskMutation.isPending,
-          userOptions: members?.map((m) => ({
-            id: m.user_id,
-            label: m.display_name || m.email || m.user_id,
-          })) ?? [],
-          projectTagOptions: projectTags.map((t) => ({ id: t.id, name: t.name })),
-        });
+        if (!detailArtifact) return;
+        openAddTaskForArtifact(detailArtifact.id);
       }}
+      highlightedDetailTaskId={
+        treeTaskPreview && detailArtifact?.id === treeTaskPreview.artifactId ? treeTaskPreview.task.id : null
+      }
+      onReorderTasksCommitted={
+        detailArtifact?.allowed_actions?.includes("update")
+          ? (orderedTaskIds) => handleReorderArtifactTasks(detailArtifact.id, orderedTaskIds)
+          : undefined
+      }
+      taskReorderPending={reorderTasksMutation.isPending}
       artifactLinks={artifactLinks}
       linksLoading={linksLoading}
       impactAnalysis={impactAnalysis}
@@ -1762,6 +2028,7 @@ export default function BacklogWorkspacePage({
             showNotification={showNotification}
             projectTagOptions={projectTags.map((t) => ({ id: t.id, name: t.name }))}
             onOpenTagsManager={() => setTagsDialogOpen(true)}
+            workItemTreeId={treeForList ?? null}
           />
 
           {artifactsListError ? (
@@ -1845,6 +2112,7 @@ export default function BacklogWorkspacePage({
             </DialogContent>
           </Dialog>
 
+          <DndProvider backend={HTML5Backend}>
           <BacklogWorkspaceLayout>
           <BacklogListFooter
             bulkActions={
@@ -2093,6 +2361,18 @@ export default function BacklogWorkspacePage({
               listSchemaError={listSchemaError}
               refetchListSchema={refetchListSchema}
               showNotification={showNotification}
+              expandedTableRowKeys={tableExpandedArtifactIds}
+              onToggleTableExpandRow={toggleTableArtifactExpand}
+              tasksByArtifactId={expandedTasksByArtifactId}
+              tasksLoadingArtifactIds={expandedTasksLoadingArtifactIds}
+              onOpenTableTask={openTaskReadOnlyPreview}
+              onEditTableTask={openEditTaskFlow}
+              onDeleteTableTask={(_artifact, task) => confirmDeleteTask(task)}
+              selectedTableTask={
+                treeTaskPreview
+                  ? { artifactId: treeTaskPreview.artifactId, taskId: treeTaskPreview.task.id }
+                  : null
+              }
             />
           ) : isTreeSplitView ? (
             <div className="grid grid-cols-1 gap-4 xl:[grid-template-columns:minmax(0,1fr)_var(--artifact-detail-track)]">
@@ -2112,29 +2392,44 @@ export default function BacklogWorkspacePage({
                   emptyListDescription={emptyListDescription}
                   isRefetching={isRefetching}
                   renderMenuContent={renderArtifactActionMenu}
+                  tasksByArtifactId={expandedTasksByArtifactId}
+                  tasksLoadingArtifactIds={expandedTasksLoadingArtifactIds}
+                  selectedTreeTask={
+                    treeTaskPreview
+                      ? { artifactId: treeTaskPreview.artifactId, taskId: treeTaskPreview.task.id }
+                      : null
+                  }
+                  onOpenTask={openTaskReadOnlyPreview}
+                  onEditTask={openEditTaskFlow}
+                  onDeleteTask={(_artifact, task) => confirmDeleteTask(task)}
+                  onReorderArtifactTasks={(art, ids) => handleReorderArtifactTasks(art.id, ids)}
+                  artifactTaskReorderPending={reorderTasksMutation.isPending}
                 />
               </div>
-              <div className="min-w-0 rounded-lg border bg-background p-4 shadow-sm">
-                {detailArtifact || detailDrawerLoadingFromUrl ? (
-                  detailPanelContent
-                ) : (
-                  <div className="flex h-full min-h-[320px] flex-col justify-center">
-                    <h3 className="text-lg font-semibold">Backlog details</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Select an item from the tree to inspect details, tasks, links, attachments, comments, and audit history.
-                    </p>
-                    {hasActiveArtifactFilters && (
+              <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-background shadow-sm">
+                <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                  {detailArtifact || detailDrawerLoadingFromUrl ? (
+                    detailPanelContent
+                  ) : (
+                    <div className="flex h-full min-h-[320px] flex-col justify-center">
+                      <h3 className="text-lg font-semibold">Backlog details</h3>
                       <p className="mt-2 text-sm text-muted-foreground">
-                        Active filters can narrow which items appear in the tree.
+                        Select an item from the tree to inspect details, tasks, links, attachments, comments, and audit history.
                       </p>
-                    )}
-                    <div className="mt-4">
-                      <Button variant="outline" onClick={() => handleCreateOpen(defaultArtifactTypeId)}>
-                        New work item
-                      </Button>
+                      {hasActiveArtifactFilters && (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Active filters can narrow which items appear in the tree.
+                        </p>
+                      )}
+                      <div className="mt-4">
+                        <Button variant="outline" onClick={() => handleCreateOpen(defaultArtifactTypeId)}>
+                          New work item
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+                {detailTaskPreviewFooter}
               </div>
             </div>
           ) : (
@@ -2153,10 +2448,23 @@ export default function BacklogWorkspacePage({
               emptyListDescription={emptyListDescription}
               isRefetching={isRefetching}
               renderMenuContent={renderArtifactActionMenu}
+              tasksByArtifactId={expandedTasksByArtifactId}
+              tasksLoadingArtifactIds={expandedTasksLoadingArtifactIds}
+              selectedTreeTask={
+                treeTaskPreview
+                  ? { artifactId: treeTaskPreview.artifactId, taskId: treeTaskPreview.task.id }
+                  : null
+              }
+              onOpenTask={openTaskReadOnlyPreview}
+              onEditTask={openEditTaskFlow}
+              onDeleteTask={(_artifact, task) => confirmDeleteTask(task)}
+              onReorderArtifactTasks={(art, ids) => handleReorderArtifactTasks(art.id, ids)}
+              artifactTaskReorderPending={reorderTasksMutation.isPending}
             />
           )}
 
           </BacklogWorkspaceLayout>
+          </DndProvider>
         </div>
       )}
 
@@ -2169,6 +2477,7 @@ export default function BacklogWorkspacePage({
               closeArtifactDetail();
             }
           }}
+          footer={detailTaskPreviewFooter}
         >
           {detailPanelContent}
         </ArtifactDetailSurface>

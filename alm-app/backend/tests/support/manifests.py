@@ -588,8 +588,32 @@ CREATE_PROJECT_ROOTS_MANIFEST_BUNDLE: dict[str, Any] = {
     "defs": [
         {"kind": "Workflow", "id": "root", "initial": "Active", "states": ["Active"], "transitions": []},
         {"kind": "ArtifactType", "id": "root-requirement", "workflow_id": "root", "child_types": []},
-        {"kind": "ArtifactType", "id": "root-quality", "workflow_id": "root", "child_types": []},
-        {"kind": "ArtifactType", "id": "root-testsuites", "workflow_id": "root", "child_types": []},
+        {
+            "kind": "ArtifactType",
+            "id": "root-quality",
+            "workflow_id": "root",
+            "child_types": ["quality-folder"],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "quality-folder",
+            "workflow_id": "root",
+            "parent_types": ["root-quality"],
+            "child_types": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-testsuites",
+            "workflow_id": "root",
+            "child_types": ["testsuite-folder"],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "testsuite-folder",
+            "workflow_id": "root",
+            "parent_types": ["root-testsuites"],
+            "child_types": [],
+        },
         {"kind": "ArtifactType", "id": "root-defect", "workflow_id": "root", "child_types": []},
     ],
 }

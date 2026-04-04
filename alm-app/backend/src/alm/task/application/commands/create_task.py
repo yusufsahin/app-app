@@ -19,6 +19,7 @@ from alm.shared.domain.exceptions import ValidationError
 from alm.task.application.dtos import TaskDTO
 from alm.task.domain.entities import Task
 from alm.task.domain.ports import TaskRepository
+from alm.team.domain.ports import TeamRepository
 
 
 @dataclass(frozen=True)
@@ -43,12 +44,29 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
         project_repo: ProjectRepository,
         process_template_repo: ProcessTemplateRepository,
         tag_repo: ProjectTagRepository,
+        team_repo: TeamRepository,
     ) -> None:
         self._task_repo = task_repo
         self._artifact_repo = artifact_repo
         self._project_repo = project_repo
         self._process_template_repo = process_template_repo
         self._tag_repo = tag_repo
+        self._team_repo = team_repo
+
+    async def _resolve_team_id(
+        self,
+        project_id: uuid.UUID,
+        requested: uuid.UUID | None,
+    ) -> uuid.UUID | None:
+        teams = await self._team_repo.list_by_project(project_id)
+        if requested is not None:
+            if not any(t.id == requested for t in teams):
+                raise ValidationError("Team is not part of this project")
+            return requested
+        if len(teams) == 1:
+            return teams[0].id
+        default = next((t for t in teams if t.is_default), None)
+        return default.id if default else None
 
     async def handle(self, command: Command) -> TaskDTO:
         assert isinstance(command, CreateTask)
@@ -73,6 +91,7 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
         if chosen not in allowed:
             raise ValidationError(f"Invalid task state '{chosen}' for this project's manifest")
 
+        resolved_team_id = await self._resolve_team_id(command.project_id, command.team_id)
         task = Task.create(
             project_id=command.project_id,
             artifact_id=command.artifact_id,
@@ -81,7 +100,7 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
             description=command.description or "",
             assignee_id=command.assignee_id,
             rank_order=command.rank_order,
-            team_id=command.team_id,
+            team_id=resolved_team_id,
         )
         await self._task_repo.add(task)
 

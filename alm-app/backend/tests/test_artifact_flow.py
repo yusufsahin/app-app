@@ -7,6 +7,8 @@ import uuid
 import pytest
 from httpx import AsyncClient
 
+from alm.artifact.domain.manifest_workflow_metadata import DEFAULT_SYSTEM_ROOT_TYPES
+
 
 def _unique_email() -> str:
     return f"art-{uuid.uuid4().hex[:12]}@example.com"
@@ -172,11 +174,14 @@ class TestArtifactFlow:
         assert "items" in data and "total" in data
         assert isinstance(data["items"], list)
         # Default list hides system root placeholders (they still exist for tree/parent links).
-        assert data["total"] == 0
-        assert data["items"] == []
+        # Process template seeding also adds default quality/testsuite folder rows under those roots.
+        assert data["total"] == len(data["items"])
+        assert {item["artifact_type"] for item in data["items"]} == {"quality-folder", "testsuite-folder"}
+        for item in data["items"]:
+            assert item["artifact_type"] not in DEFAULT_SYSTEM_ROOT_TYPES
 
     async def test_list_artifacts_tree_quality_param_ok(self, client: AsyncClient):
-        """tree=quality resolves to root-quality subtree; empty project yields total 0."""
+        """tree=quality resolves to root-quality subtree; includes seeded quality-folder only."""
         token = await _register_and_get_token(client, _unique_email(), _unique_org())
         tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
         tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
@@ -190,8 +195,9 @@ class TestArtifactFlow:
         assert resp.status_code == 200
         data = resp.json()
         assert "items" in data and "total" in data
-        assert data["total"] == 0
-        assert data["items"] == []
+        assert data["total"] == 1
+        assert len(data["items"]) == 1
+        assert data["items"][0]["artifact_type"] == "quality-folder"
 
     async def test_list_artifacts_tree_testsuites_and_type_test_suite_ok(self, client: AsyncClient):
         """tree=testsuites with type=test-suite is accepted (empty project → zero rows)."""

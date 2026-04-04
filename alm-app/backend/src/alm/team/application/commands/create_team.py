@@ -41,10 +41,12 @@ class CreateTeamHandler(CommandHandler[TeamDTO]):
         if not name_trim:
             raise ValidationError("Team name cannot be empty")
 
+        existing = await self._team_repo.list_by_project(command.project_id)
         team = Team(
             project_id=command.project_id,
             name=name_trim,
             description=command.description or "",
+            is_default=len(existing) == 0,
         )
         await self._team_repo.add(team)
         team = await self._team_repo.find_by_id(team.id) or team
@@ -55,6 +57,7 @@ class CreateTeamHandler(CommandHandler[TeamDTO]):
             project_id=team.project_id,
             name=team.name,
             description=team.description,
+            is_default=team.is_default,
             created_at=team.created_at.isoformat() if team.created_at else None,
             updated_at=team.updated_at.isoformat() if team.updated_at else None,
             members=[TeamMemberDTO(team_id=m.team_id, user_id=m.user_id, role=m.role) for m in members],

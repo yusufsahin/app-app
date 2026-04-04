@@ -50,6 +50,8 @@ export interface MetadataDrivenFormProps {
   disableNativeRequired?: boolean;
   /** When set, test step rows can reference other test cases (Call to Test). */
   qualityTestCasePickerContext?: TestCasePickerContext;
+  /** Schema field keys to skip rendering (e.g. hide `parent_id` when preset). */
+  hideFieldKeys?: string[];
 }
 
 function evaluateVisibleWhen(
@@ -67,9 +69,13 @@ function evaluateVisibleWhen(
 function getVisibleFields(
   schema: FormSchemaDto,
   values: Record<string, unknown>,
+  hideFieldKeys?: string[],
 ): FormFieldSchema[] {
-  return schema.fields.filter((f) =>
-    evaluateVisibleWhen(f.visible_when as { field: string; eq?: unknown; in?: unknown[] } | undefined, values),
+  const hidden = new Set(hideFieldKeys ?? []);
+  return schema.fields.filter(
+    (f) =>
+      !hidden.has(f.key) &&
+      evaluateVisibleWhen(f.visible_when as { field: string; eq?: unknown; in?: unknown[] } | undefined, values),
   );
 }
 
@@ -123,10 +129,12 @@ export function MetadataDrivenForm({
   errors = {},
   disableNativeRequired = false,
   qualityTestCasePickerContext,
+  hideFieldKeys,
 }: MetadataDrivenFormProps) {
   const visibleFields = useMemo(
-    () => getVisibleFields(schema, values).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-    [schema, values],
+    () =>
+      getVisibleFields(schema, values, hideFieldKeys).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [schema, values, hideFieldKeys],
   );
 
   const updateField = (key: string, value: unknown) => {

@@ -165,12 +165,14 @@ from alm.shared.infrastructure.security.field_masking import (
 from alm.shared.infrastructure.security.manifest_acl import require_manifest_acl
 from alm.task.api.schemas import (
     TaskCreateRequest,
+    TaskReorderRequest,
     TaskResponse,
     TaskUpdateRequest,
     task_response_from_dto,
 )
 from alm.task.application.commands.create_task import CreateTask
 from alm.task.application.commands.delete_task import DeleteTask
+from alm.task.application.commands.reorder_artifact_tasks import ReorderArtifactTasks
 from alm.task.application.commands.update_task import UpdateTask
 from alm.task.application.queries.get_task import GetTask
 from alm.task.application.queries.list_tasks_by_artifact import ListTasksByArtifact
