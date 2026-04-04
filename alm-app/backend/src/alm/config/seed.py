@@ -7,15 +7,17 @@ from typing import Any
 
 import structlog
 import yaml  # type: ignore[import-untyped]
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from alm.artifact.domain.entities import Artifact as ArtifactEntity
-from alm.artifact.domain.manifest_workflow_metadata import get_tree_root_type_map
+from alm.artifact.domain.manifest_merge_defaults import merge_manifest_metadata_defaults
+from alm.artifact.domain.manifest_workflow_metadata import DEFAULT_SYSTEM_ROOT_TYPES
 from alm.artifact.domain.mpc_resolver import get_manifest_ast
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.quality_manifest_extension import with_quality_manifest_bundle
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
+from alm.artifact.infrastructure.models import ArtifactModel
 from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepository
 from alm.auth.domain.entities import User
 from alm.auth.infrastructure.repositories import SqlAlchemyUserRepository
@@ -23,6 +25,7 @@ from alm.config.settings import settings
 from alm.process_template.infrastructure.repositories import (
     SqlAlchemyProcessTemplateRepository,
 )
+from alm.project.application.services.ensure_project_tree_roots import ensure_project_tree_roots
 from alm.project.domain.entities import Project
 from alm.project.infrastructure.models import ProjectModel
 from alm.project.infrastructure.repositories import SqlAlchemyProjectRepository
@@ -45,10 +48,6 @@ from alm.tenant.infrastructure.repositories import (
 )
 
 logger = structlog.get_logger()
-
-
-class DemoSeedStateError(RuntimeError):
-    """Raised when demo seed data exists in a partial, non-recoverable state."""
 
 # Optional manifest roots (metadata-driven UI / API).
 # task_workflow_id drives the separate Task aggregate (artifact_id FK)—not an artifact/work item type.
@@ -123,6 +122,39 @@ def _epic_child_type_ids(manifest_bundle: dict[str, Any]) -> list[str]:
                 return [str(x) for x in c if x]
             return []
     return []
+
+
+def _artifact_type_child_types(manifest_bundle: dict[str, Any], type_id: str) -> list[str]:
+    """Return child_types for a given ArtifactType id (e.g. feature -> ['user_story'])."""
+    raw = manifest_bundle.get("defs")
+    if not isinstance(raw, list):
+        return []
+    for d in raw:
+        if not isinstance(d, dict):
+            continue
+        if d.get("kind") == "ArtifactType" and d.get("id") == type_id:
+            c = d.get("child_types")
+            if isinstance(c, list):
+                return [str(x) for x in c if x]
+            return []
+    return []
+
+
+def _demo_planning_leaf_type(manifest_bundle: dict[str, Any]) -> str:
+    """Backlog leaf artifact type for demo rows (must exist on the active template)."""
+    root_ch = _root_requirement_child_type_ids(manifest_bundle)
+    if root_ch == ["workitem"]:
+        return "workitem"
+    epic_ch = _epic_child_type_ids(manifest_bundle)
+    if epic_ch == ["workitem"]:
+        return "workitem"
+    if not epic_ch:
+        return "requirement"
+    under_epic = str(epic_ch[0])
+    deeper = _artifact_type_child_types(manifest_bundle, under_epic)
+    if deeper:
+        return str(deeper[0])
+    return under_epic
 
 
 def _open_text_defect_parity_fields(*, visible_in: list[str]) -> list[dict[str, Any]]:
@@ -261,7 +293,7 @@ DEMO_PROJECTS = [
     {
         "name": "Unima",
         "code": "UNIMA",
-        "description": "Secondary demo project with a small seeded epic, requirement, and defect",
+        "description": "Secondary demo project with seeded backlog items, defect, and test traceability",
     },
 ]
 
@@ -1836,7 +1868,7 @@ def iter_builtin_merged_manifest_bundles_for_tests() -> list[tuple[str, dict[str
 async def seed_process_templates(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Seed built-in process templates (Basic) if empty."""
+    """Seed built-in process templates (idempotent per slug)."""
     from sqlalchemy import select
 
     from alm.process_template.infrastructure.models import (
@@ -1844,176 +1876,168 @@ async def seed_process_templates(
         ProcessTemplateVersionModel,
     )
 
+    _BUILTIN_TEMPLATES = [
+        (
+            "basic",
+            "Basic",
+            "basic",
+            "Flat backlog: Work items under the requirements root (Azure DevOps Basic–style), plus defects and quality trees. "
+            "Tasks are ALM Task entities (artifact-linked), not manifest artifact types.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_BASIC),
+        ),
+        (
+            "scrum",
+            "Scrum",
+            "scrum",
+            "Agile framework with sprints and user stories. "
+            "Sprint tasks are ALM Task entities (artifact-linked), not manifest artifact types.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_SCRUM),
+        ),
+        (
+            "kanban",
+            "Kanban",
+            "kanban",
+            "Flow-based work on the board. "
+            "Breakdown items are ALM Task entities linked via artifact_id, not Task work item types in the manifest.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_KANBAN),
+        ),
+        (
+            "ado",
+            "ADO",
+            "basic",
+            "Minimal Azure Boards–style Epic and Work item. "
+            "Tasks are ALM Task entities (artifact-linked), not manifest artifact types.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_ADO),
+        ),
+        (
+            "agile",
+            "Agile",
+            "agile",
+            "Azure DevOps Agile: Epic, Feature, User story, Work item. "
+            "Sprint tasks are ALM Task entities (artifact-linked), not manifest artifact types.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_AGILE),
+        ),
+        (
+            "cmmi",
+            "CMMI",
+            "cmmi",
+            "CMMI-style: Epic, Feature, Requirement; change request, risk, review, work item. "
+            "Iteration tasks and effort are ALM Task entities, not work item types here.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_CMMI),
+        ),
+    ]
+
     try:
         async with session_factory() as session:
-            result = await session.execute(select(ProcessTemplateModel).limit(1))
-            if result.scalar_one_or_none() is not None:
+            created: list[str] = []
+            for slug, name, ttype, description, manifest_bundle in _BUILTIN_TEMPLATES:
+                existing = await session.scalar(
+                    select(ProcessTemplateModel).where(ProcessTemplateModel.slug == slug).limit(1)
+                )
+                if existing is not None:
+                    continue
+
+                template = ProcessTemplateModel(
+                    slug=slug,
+                    name=name,
+                    is_builtin=True,
+                    description=description,
+                    type=ttype,
+                )
+                session.add(template)
+                await session.flush()
+
+                version = ProcessTemplateVersionModel(
+                    template_id=template.id,
+                    version="1.0.0",
+                    manifest_bundle=manifest_bundle,
+                )
+                session.add(version)
+                created.append(slug)
+
+            if created:
+                await session.commit()
+                logger.info("process_templates_seeded", templates=created)
+            else:
                 logger.info("process_templates_already_seeded")
-                return
-
-            basic = ProcessTemplateModel(
-                slug="basic",
-                name="Basic",
-                is_builtin=True,
-                description=(
-                    "Flat backlog: Work items under the requirements root (Azure DevOps Basic–style), plus defects and quality trees. "
-                    "Tasks are ALM Task entities (artifact-linked), not manifest artifact types."
-                ),
-                type="basic",
-            )
-            session.add(basic)
-            await session.flush()
-
-            version = ProcessTemplateVersionModel(
-                template_id=basic.id,
-                version="1.0.0",
-                manifest_bundle=with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_BASIC),
-            )
-            session.add(version)
-
-            # Scrum template
-            scrum = ProcessTemplateModel(
-                slug="scrum",
-                name="Scrum",
-                is_builtin=True,
-                description=(
-                    "Agile framework with sprints and user stories. "
-                    "Sprint tasks are ALM Task entities (artifact-linked), not manifest artifact types."
-                ),
-                type="scrum",
-            )
-            session.add(scrum)
-            await session.flush()
-
-            scrum_version = ProcessTemplateVersionModel(
-                template_id=scrum.id,
-                version="1.0.0",
-                manifest_bundle=with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_SCRUM),
-            )
-            session.add(scrum_version)
-
-            # Kanban template
-            kanban = ProcessTemplateModel(
-                slug="kanban",
-                name="Kanban",
-                is_builtin=True,
-                description=(
-                    "Flow-based work on the board. "
-                    "Breakdown items are ALM Task entities linked via artifact_id, not Task work item types in the manifest."
-                ),
-                type="kanban",
-            )
-            session.add(kanban)
-            await session.flush()
-
-            kanban_version = ProcessTemplateVersionModel(
-                template_id=kanban.id,
-                version="1.0.0",
-                manifest_bundle=with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_KANBAN),
-            )
-            session.add(kanban_version)
-
-            # ADO: minimal Azure Boards–style Epic → Work item; tasks use ALM task model
-            ado_template = ProcessTemplateModel(
-                slug="ado",
-                name="ADO",
-                is_builtin=True,
-                description=(
-                    "Minimal Azure Boards–style Epic and Work item. "
-                    "Tasks are ALM Task entities (artifact-linked), not manifest artifact types."
-                ),
-                type="basic",
-            )
-            session.add(ado_template)
-            await session.flush()
-
-            ado_version = ProcessTemplateVersionModel(
-                template_id=ado_template.id,
-                version="1.0.0",
-                manifest_bundle=with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_ADO),
-            )
-            session.add(ado_version)
-
-            agile_template = ProcessTemplateModel(
-                slug="agile",
-                name="Agile",
-                is_builtin=True,
-                description=(
-                    "Azure DevOps Agile: Epic, Feature, User story, Work item. "
-                    "Sprint tasks are ALM Task entities (artifact-linked), not manifest artifact types."
-                ),
-                type="agile",
-            )
-            session.add(agile_template)
-            await session.flush()
-
-            agile_version = ProcessTemplateVersionModel(
-                template_id=agile_template.id,
-                version="1.0.0",
-                manifest_bundle=with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_AGILE),
-            )
-            session.add(agile_version)
-
-            cmmi_template = ProcessTemplateModel(
-                slug="cmmi",
-                name="CMMI",
-                is_builtin=True,
-                description=(
-                    "CMMI-style: Epic, Feature, Requirement; change request, risk, review, work item. "
-                    "Iteration tasks and effort are ALM Task entities, not work item types here."
-                ),
-                type="cmmi",
-            )
-            session.add(cmmi_template)
-            await session.flush()
-
-            cmmi_version = ProcessTemplateVersionModel(
-                template_id=cmmi_template.id,
-                version="1.0.0",
-                manifest_bundle=with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_CMMI),
-            )
-            session.add(cmmi_version)
-
-            await session.commit()
-            logger.info(
-                "process_templates_seeded",
-                templates=["basic", "scrum", "kanban", "ado", "agile", "cmmi"],
-            )
     except Exception as e:
         logger.exception("seed_process_templates_failed", error=str(e))
         raise
 
 
-async def _create_project_roots_in_seed(
-    artifact_repo: ArtifactRepository,
-    project: Project,
-    manifest_bundle: dict[str, Any],
-    version_id: uuid.UUID,
+async def backfill_projects_missing_process_template(
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Create project roots from manifest tree_roots (used in seed only)."""
-    ast = get_manifest_ast(version_id, manifest_bundle)
-    root_type_map = get_tree_root_type_map(manifest_bundle)
-    root_types = list(dict.fromkeys(root_type_map.values()))
-    key_suffix_map = {
-        "root-requirement": "R0",
-        "root-testsuites": "TS0",
-        "root-defect": "D0",
-        "root-quality": "Q0",
-    }
-    for root_type in root_types:
-        state = workflow_get_initial_state(manifest_bundle, root_type, ast=ast)
-        if state is None:
-            continue
-        suffix = key_suffix_map.get(root_type, f"{root_type.upper()}0")
-        root = ArtifactEntity.create(
-            project_id=project.id,
-            artifact_type=root_type,
-            title=project.name,
-            state=state,
-            parent_id=None,
-            artifact_key=f"{project.code}-{suffix}",
+    """Bind projects with NULL or orphaned process_template_version_id to default basic; add roots if missing."""
+    async with session_factory() as session:
+        pt_repo = SqlAlchemyProcessTemplateRepository(session)
+        default_ver = await pt_repo.find_default_version()
+        if default_ver is None or not (default_ver.manifest_bundle or {}):
+            return
+
+        manifest_bundle = default_ver.manifest_bundle or {}
+        project_repo = SqlAlchemyProjectRepository(session)
+        artifact_repo = SqlAlchemyArtifactRepository(session)
+
+        result = await session.execute(select(ProjectModel).where(ProjectModel.deleted_at.is_(None)))
+        candidates = list(result.scalars().all())
+        orphans: list[ProjectModel] = []
+        for m in candidates:
+            if m.process_template_version_id is None:
+                orphans.append(m)
+                continue
+            v = await pt_repo.find_version_by_id(m.process_template_version_id)
+            if v is None:
+                orphans.append(m)
+
+        if not orphans:
+            return
+
+        for model in orphans:
+            proj = SqlAlchemyProjectRepository._to_entity(model)
+            proj.process_template_version_id = default_ver.id
+            await project_repo.update(proj)
+
+            await ensure_project_tree_roots(
+                project=proj,
+                artifact_repo=artifact_repo,
+                process_template_repo=pt_repo,
+                only_if_missing=True,
+            )
+
+        await session.commit()
+        logger.info(
+            "project_process_template_backfill",
+            projects_updated=len(orphans),
+            template_version_id=str(default_ver.id),
         )
-        await artifact_repo.add(root)
+
+
+async def backfill_projects_missing_tree_roots(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Create missing system tree root rows for any project (fixes empty backlog when roots were never seeded)."""
+    async with session_factory() as session:
+        pt_repo = SqlAlchemyProcessTemplateRepository(session)
+        artifact_repo = SqlAlchemyArtifactRepository(session)
+        result = await session.execute(select(ProjectModel).where(ProjectModel.deleted_at.is_(None)))
+        models = list(result.scalars().all())
+        total_created = 0
+        for model in models:
+            proj = SqlAlchemyProjectRepository._to_entity(model)
+            total_created += await ensure_project_tree_roots(
+                project=proj,
+                artifact_repo=artifact_repo,
+                process_template_repo=pt_repo,
+                only_if_missing=True,
+            )
+        if total_created > 0:
+            await session.commit()
+            logger.info(
+                "project_tree_roots_backfill",
+                roots_created=total_created,
+                projects_scanned=len(models),
+            )
 
 
 async def _count_demo_relationships(session: AsyncSession, project_ids: list[uuid.UUID]) -> int:
@@ -2050,6 +2074,7 @@ async def _detect_demo_seed_state(session: AsyncSession) -> tuple[str, dict[str,
         "demo_tenant_id": str(demo_tenant.id) if demo_tenant is not None else None,
         "demo_user_id": str(demo_user.id) if demo_user is not None else None,
         "project_slugs": [row.slug for row in project_rows],
+        "project_ids": [str(row.id) for row in project_rows],
         "relationship_rows_present": relationship_count > 0,
     }
 
@@ -2062,6 +2087,247 @@ async def _detect_demo_seed_state(session: AsyncSession) -> tuple[str, dict[str,
     return "partial", details
 
 
+async def hydrate_stranded_demo_workspace(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Fill demo tenant with minimal backlog/quality/defect rows when projects exist but no leaf artifacts.
+
+    Covers partial demo DB state and old volumes with NULL templates.
+    Idempotent when any non-system-root artifact already exists under the demo tenant.
+    """
+    if not settings.seed_demo_data or settings.is_production:
+        return
+
+    try:
+        async with session_factory() as session:
+            demo_tenant = await session.scalar(select(TenantModel).where(TenantModel.slug == "demo").limit(1))
+            if demo_tenant is None:
+                return
+
+            user_repo = SqlAlchemyUserRepository(session)
+            user = await user_repo.find_by_email(DEMO_EMAIL)
+            if user is None:
+                return
+
+            project_repo = SqlAlchemyProjectRepository(session)
+            process_template_repo = SqlAlchemyProcessTemplateRepository(session)
+            artifact_repo = SqlAlchemyArtifactRepository(session)
+
+            projects = await project_repo.list_by_tenant(demo_tenant.id)
+            if len(projects) < len(DEMO_PROJECTS):
+                return
+
+            default_version = await process_template_repo.find_default_version()
+            if default_version is None:
+                logger.warning("hydrate_stranded_demo_skipped", reason="no_basic_template")
+                return
+
+            vid = default_version.id
+            for p in projects:
+                if p.process_template_version_id != vid:
+                    p.process_template_version_id = vid
+                    await project_repo.update(p)
+            await session.flush()
+
+            for p in projects:
+                await ensure_project_tree_roots(
+                    project=p,
+                    artifact_repo=artifact_repo,
+                    process_template_repo=process_template_repo,
+                    only_if_missing=True,
+                )
+            await session.flush()
+
+            projects = await project_repo.list_by_tenant(demo_tenant.id)
+            mb = merge_manifest_metadata_defaults(default_version.manifest_bundle or {})
+            ast_seed = get_manifest_ast(default_version.id, mb)
+            root_children = _root_requirement_child_type_ids(mb)
+            workitem_under_epic = _epic_child_type_ids(mb) == ["workitem"]
+            backlog_leaf_type = _demo_planning_leaf_type(mb)
+            st_leaf = workflow_get_initial_state(mb, backlog_leaf_type, ast=ast_seed) or "new"
+
+            hydrated_project_ids: list[uuid.UUID] = []
+            pending_relationships: list[tuple[uuid.UUID, uuid.UUID, uuid.UUID]] = []
+
+            for proj in projects:
+                leaf_n = await session.scalar(
+                    select(func.count())
+                    .select_from(ArtifactModel)
+                    .where(
+                        ArtifactModel.project_id == proj.id,
+                        ArtifactModel.deleted_at.is_(None),
+                        ArtifactModel.artifact_type.notin_(tuple(DEFAULT_SYSTEM_ROOT_TYPES)),
+                    )
+                )
+                if (leaf_n or 0) > 0:
+                    continue
+
+                root_req_list = await artifact_repo.list_by_project(proj.id, type_filter="root-requirement")
+                root_req_id = root_req_list[0].id if root_req_list else None
+                if root_req_id is None:
+                    logger.warning(
+                        "hydrate_stranded_demo_failed",
+                        reason="missing_root_requirement",
+                        project_id=str(proj.id),
+                    )
+                    continue
+
+                demo_epic: ArtifactEntity | None = None
+                demo_feature: ArtifactEntity | None = None
+                req_parent_id = root_req_id
+
+                if root_req_id and "epic" in root_children:
+                    st_epic = workflow_get_initial_state(mb, "epic", ast=ast_seed) or "new"
+                    seq_e = await project_repo.increment_artifact_seq(proj.id)
+                    demo_epic = ArtifactEntity(
+                        project_id=proj.id,
+                        artifact_type="epic",
+                        title="Demo — Platform delivery",
+                        description="Hydrated epic for stranded demo workspace.",
+                        state=st_epic,
+                        parent_id=root_req_id,
+                        artifact_key=f"{proj.code}-{seq_e}",
+                        custom_fields={"priority": "2"},
+                    )
+                    demo_epic.created_by = user.id
+                    await artifact_repo.add(demo_epic)
+                    if not workitem_under_epic:
+                        st_feat = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
+                        seq_f = await project_repo.increment_artifact_seq(proj.id)
+                        demo_feature = ArtifactEntity(
+                            project_id=proj.id,
+                            artifact_type="feature",
+                            title="Authentication & session management",
+                            description="Hydrated feature for stranded demo workspace.",
+                            state=st_feat,
+                            parent_id=demo_epic.id,
+                            artifact_key=f"{proj.code}-{seq_f}",
+                            custom_fields={"story_points": 8},
+                        )
+                        demo_feature.created_by = user.id
+                        await artifact_repo.add(demo_feature)
+
+                if backlog_leaf_type == "workitem":
+                    req_parent_id = (
+                        demo_epic.id if (workitem_under_epic and demo_epic is not None) else root_req_id
+                    )
+                elif backlog_leaf_type == "feature":
+                    req_parent_id = demo_epic.id if demo_epic is not None else root_req_id
+                else:
+                    req_parent_id = demo_feature.id if demo_feature is not None else root_req_id
+
+                seq = await project_repo.increment_artifact_seq(proj.id)
+                _titles = {
+                    "workitem": "Sample work item",
+                    "user_story": "Sample user story",
+                    "feature": "Sample feature",
+                    "requirement": "Sample requirement",
+                }
+                sample_title = _titles.get(backlog_leaf_type, f"Sample {backlog_leaf_type.replace('_', ' ')}")
+                cf: dict[str, Any] = {"priority": "2"}
+                if backlog_leaf_type == "workitem":
+                    cf["governance_artifact_id"] = "schema.cycle.v1"
+                elif backlog_leaf_type == "feature":
+                    cf["story_points"] = 3
+
+                sample = ArtifactEntity(
+                    project_id=proj.id,
+                    artifact_type=backlog_leaf_type,
+                    title=sample_title,
+                    description="Auto-hydrated for stranded demo workspace (no leaf artifacts).",
+                    state=st_leaf,
+                    parent_id=req_parent_id,
+                    artifact_key=f"{proj.code}-{seq}",
+                    custom_fields=cf,
+                )
+                sample.created_by = user.id
+                await artifact_repo.add(sample)
+
+                defect_entity: ArtifactEntity | None = None
+                root_defect_list = await artifact_repo.list_by_project(proj.id, type_filter="root-defect")
+                root_defect_id = root_defect_list[0].id if root_defect_list else None
+                if root_defect_id:
+                    st_def = workflow_get_initial_state(mb, "defect", ast=ast_seed) or "new"
+                    seq_d = await project_repo.increment_artifact_seq(proj.id)
+                    defect_entity = ArtifactEntity(
+                        project_id=proj.id,
+                        artifact_type="defect",
+                        title="Session cookie persists after logout",
+                        description="Hydrated defect for stranded demo workspace.",
+                        state=st_def,
+                        parent_id=root_defect_id,
+                        assignee_id=user.id,
+                        artifact_key=f"{proj.code}-{seq_d}",
+                        custom_fields={
+                            "severity": "high",
+                            "defect_priority": "2",
+                            "reproducible": "yes",
+                        },
+                    )
+                    defect_entity.created_by = user.id
+                    await artifact_repo.add(defect_entity)
+
+                root_quality_list = await artifact_repo.list_by_project(proj.id, type_filter="root-quality")
+                parent_tests_id = root_quality_list[0].id if root_quality_list else None
+                root_suites_list = await artifact_repo.list_by_project(proj.id, type_filter="root-testsuites")
+                parent_suites_id = root_suites_list[0].id if root_suites_list else None
+                if parent_tests_id and parent_suites_id:
+                    seq_qf = await project_repo.increment_artifact_seq(proj.id)
+                    q_folder = ArtifactEntity(
+                        project_id=proj.id,
+                        artifact_type="quality-folder",
+                        title="Sprint 24 - Tests",
+                        description="Hydrated quality folder for catalog demo.",
+                        state="Active",
+                        parent_id=parent_tests_id,
+                        artifact_key=f"{proj.code}-{seq_qf}",
+                        custom_fields={},
+                    )
+                    q_folder.created_by = user.id
+                    await artifact_repo.add(q_folder)
+                    seq_sf = await project_repo.increment_artifact_seq(proj.id)
+                    s_folder = ArtifactEntity(
+                        project_id=proj.id,
+                        artifact_type="testsuite-folder",
+                        title="Sprint 24 — Collections",
+                        description="Hydrated suite folder for catalog demo.",
+                        state="Active",
+                        parent_id=parent_suites_id,
+                        artifact_key=f"{proj.code}-{seq_sf}",
+                        custom_fields={},
+                    )
+                    s_folder.created_by = user.id
+                    await artifact_repo.add(s_folder)
+
+                await session.flush()
+                hydrated_project_ids.append(proj.id)
+                if defect_entity is not None:
+                    pending_relationships.append((proj.id, sample.id, defect_entity.id))
+
+            if not hydrated_project_ids:
+                return
+
+            rel_repo = SqlAlchemyRelationshipRepository(session)
+            for pid, sid, did in pending_relationships:
+                await rel_repo.add(
+                    Relationship.create(
+                        project_id=pid,
+                        source_artifact_id=sid,
+                        target_artifact_id=did,
+                        relationship_type="related",
+                    )
+                )
+
+            await session.commit()
+            logger.info(
+                "stranded_demo_workspace_hydrated",
+                tenant_id=str(demo_tenant.id),
+                project_ids=[str(x) for x in hydrated_project_ids],
+            )
+    except Exception as exc:
+        logger.exception("hydrate_stranded_demo_failed", error=str(exc))
+
+
 async def run_startup_seeds(session_factory: async_sessionmaker[AsyncSession]) -> None:
     logger.info("seed_phase_started", phase="privileges")
     await seed_privileges(session_factory)
@@ -2069,9 +2335,29 @@ async def run_startup_seeds(session_factory: async_sessionmaker[AsyncSession]) -
     logger.info("seed_phase_started", phase="process_templates")
     await seed_process_templates(session_factory)
 
-    if settings.seed_demo_data and settings.is_dev:
+    logger.info("seed_phase_started", phase="project_template_backfill")
+    await backfill_projects_missing_process_template(session_factory)
+
+    logger.info("seed_phase_started", phase="project_tree_roots_backfill")
+    await backfill_projects_missing_tree_roots(session_factory)
+
+    # Demo + repair run in any non-production environment (docker/staging/local), not only when
+    # environment string is exactly "development" — ALM_ENVIRONMENT=staging used to skip all of this.
+    if settings.seed_demo_data and not settings.is_production:
         logger.info("seed_phase_started", phase="demo_data")
         await seed_demo_data(session_factory)
+        # Demo seed creates projects in the same boot pass; run backfill again so NULL
+        # process_template_version_id / missing tree roots cannot strand the backlog UI.
+        logger.info("seed_phase_started", phase="post_demo_template_and_roots_backfill")
+        await backfill_projects_missing_process_template(session_factory)
+        await backfill_projects_missing_tree_roots(session_factory)
+        logger.info("seed_phase_started", phase="stranded_demo_hydrate")
+        await hydrate_stranded_demo_workspace(session_factory)
+
+    logger.info(
+        "run_startup_seeds_finished",
+        demo_phase_ran=bool(settings.seed_demo_data and not settings.is_production),
+    )
 
 
 async def seed_demo_data(
@@ -2090,10 +2376,14 @@ async def seed_demo_data(
             logger.info("demo_data_skipped", reason="demo_seed_already_present", **details)
             return
         if state == "partial":
-            raise DemoSeedStateError(
-                "Partial demo seed detected. Reset the local DB or complete the missing demo seed phases "
-                f"before startup continues. Details: {details}"
+            # Stale volumes: demo rows exist but state is not "empty" or "complete". Do not re-run full
+            # bootstrap here (duplicate user/tenant risk). run_startup_seeds always runs hydrate after this.
+            logger.warning(
+                "demo_seed_partial",
+                hint="Mixed demo DB; hydrate runs next in startup. For a clean slate: docker compose down -v.",
+                **details,
             )
+            return
 
     async with session_factory() as session:
         privilege_repo = SqlAlchemyPrivilegeRepository(session)
@@ -2159,13 +2449,19 @@ async def seed_demo_data(
                 await project_repo.add(project)
                 if first_project_id is None:
                     first_project_id = project.id
-                if version_id and default_version and default_version.manifest_bundle:
-                    await _create_project_roots_in_seed(
-                        artifact_repo, project, default_version.manifest_bundle, default_version.id
+                if version_id:
+                    await ensure_project_tree_roots(
+                        project=project,
+                        artifact_repo=artifact_repo,
+                        process_template_repo=process_template_repo,
+                        only_if_missing=True,
                     )
 
+            await session.flush()
             first_project = await project_repo.list_by_tenant(provisioned.tenant_id)
-            if first_project and version_id and default_version:
+            seeded_demo_artifacts = False
+            if first_project and default_version:
+                seeded_demo_artifacts = True
                 demo_defect_high: ArtifactEntity | None = None
                 demo_defect_medium: ArtifactEntity | None = None
                 demo_defect_resolved: ArtifactEntity | None = None
@@ -2173,6 +2469,22 @@ async def seed_demo_data(
                 req_audit: ArtifactEntity | None = None
                 demo_feature_o11y: ArtifactEntity | None = None
                 logger.info("seed_phase_started", phase="demo_artifacts")
+
+                vid = default_version.id
+                for p in first_project:
+                    if p.process_template_version_id != vid:
+                        p.process_template_version_id = vid
+                        await project_repo.update(p)
+                await session.flush()
+                for p in first_project:
+                    await ensure_project_tree_roots(
+                        project=p,
+                        artifact_repo=artifact_repo,
+                        process_template_repo=process_template_repo,
+                        only_if_missing=True,
+                    )
+                await session.flush()
+                first_project = await project_repo.list_by_tenant(provisioned.tenant_id)
 
                 mb = default_version.manifest_bundle or {}
                 ast_seed = get_manifest_ast(default_version.id, mb)
@@ -2188,9 +2500,7 @@ async def seed_demo_data(
                 root_children = _root_requirement_child_type_ids(mb)
                 issues_under_root = root_children == ["workitem"]
                 workitem_under_epic = _epic_child_type_ids(mb) == ["workitem"]
-                backlog_leaf_type = (
-                    "workitem" if (issues_under_root or workitem_under_epic) else "requirement"
-                )
+                backlog_leaf_type = _demo_planning_leaf_type(mb)
                 st_leaf = workflow_get_initial_state(mb, backlog_leaf_type, ast=ast_seed) or "new"
 
                 if root_req_id and "epic" in root_children:
@@ -2209,9 +2519,7 @@ async def seed_demo_data(
                     demo_epic.created_by = user.id
                     await artifact_repo.add(demo_epic)
 
-                    if workitem_under_epic:
-                        req_parent_id = demo_epic.id
-                    else:
+                    if not workitem_under_epic:
                         st_feat = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
                         seq_f = await project_repo.increment_artifact_seq(first_project[0].id)
                         demo_feature = ArtifactEntity(
@@ -2226,7 +2534,6 @@ async def seed_demo_data(
                         )
                         demo_feature.created_by = user.id
                         await artifact_repo.add(demo_feature)
-                        req_parent_id = demo_feature.id
 
                         st_o11y = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
                         seq_o = await project_repo.increment_artifact_seq(first_project[0].id)
@@ -2243,9 +2550,26 @@ async def seed_demo_data(
                         demo_feature_o11y.created_by = user.id
                         await artifact_repo.add(demo_feature_o11y)
 
+                if backlog_leaf_type == "workitem":
+                    if workitem_under_epic and demo_epic is not None:
+                        req_parent_id = demo_epic.id
+                    else:
+                        req_parent_id = root_req_id
+                elif backlog_leaf_type == "feature":
+                    req_parent_id = demo_epic.id if demo_epic is not None else root_req_id
+                else:
+                    req_parent_id = demo_feature.id if demo_feature is not None else root_req_id
+
                 seq = await project_repo.increment_artifact_seq(first_project[0].id)
-                sample_title = (
-                    "Sample work item" if backlog_leaf_type == "workitem" else "Sample requirement"
+                _sample_titles = {
+                    "workitem": "Sample work item",
+                    "user_story": "Sample user story",
+                    "feature": "Sample feature",
+                    "requirement": "Sample requirement",
+                }
+                sample_title = _sample_titles.get(
+                    backlog_leaf_type,
+                    f"Sample {backlog_leaf_type.replace('_', ' ')}",
                 )
                 sample = ArtifactEntity(
                     project_id=first_project[0].id,
@@ -2320,18 +2644,51 @@ async def seed_demo_data(
                     )
                     req_audit.created_by = user.id
                     await artifact_repo.add(req_audit)
+                elif backlog_leaf_type == "feature" and demo_epic is not None:
+                    st_feat_demo = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
+                    seq_mfa = await project_repo.increment_artifact_seq(first_project[0].id)
+                    req_mfa = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="feature",
+                        title="MFA enrollment is mandatory for privileged roles",
+                        description=(
+                            "Administrators and support roles must enroll TOTP before production access."
+                        ),
+                        state=st_feat_demo,
+                        parent_id=demo_epic.id,
+                        artifact_key=f"{first_project[0].code}-{seq_mfa}",
+                        custom_fields={"story_points": 5, "governance_artifact_id": "schema.cycle.v1"},
+                    )
+                    req_mfa.created_by = user.id
+                    await artifact_repo.add(req_mfa)
+
+                    seq_audit = await project_repo.increment_artifact_seq(first_project[0].id)
+                    req_audit = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="feature",
+                        title="Structured audit stream for security-sensitive API calls",
+                        description=(
+                            "AuthN, authZ, and data-export endpoints emit immutable audit events."
+                        ),
+                        state=st_feat_demo,
+                        parent_id=demo_epic.id,
+                        artifact_key=f"{first_project[0].code}-{seq_audit}",
+                        custom_fields={"story_points": 3},
+                    )
+                    req_audit.created_by = user.id
+                    await artifact_repo.add(req_audit)
                 else:
                     if demo_feature is not None:
-                        st_req = workflow_get_initial_state(mb, "requirement", ast=ast_seed) or "new"
+                        st_story = workflow_get_initial_state(mb, backlog_leaf_type, ast=ast_seed) or "new"
                         seq_mfa = await project_repo.increment_artifact_seq(first_project[0].id)
                         req_mfa = ArtifactEntity(
                             project_id=first_project[0].id,
-                            artifact_type="requirement",
+                            artifact_type=backlog_leaf_type,
                             title="MFA enrollment is mandatory for privileged roles",
                             description=(
                                 "Administrators and support roles must enroll TOTP before production access."
                             ),
-                            state=st_req,
+                            state=st_story,
                             parent_id=demo_feature.id,
                             artifact_key=f"{first_project[0].code}-{seq_mfa}",
                             custom_fields={"priority": "high", "governance_artifact_id": "schema.cycle.v1"},
@@ -2340,16 +2697,16 @@ async def seed_demo_data(
                         await artifact_repo.add(req_mfa)
 
                     if demo_feature_o11y is not None:
-                        st_req = workflow_get_initial_state(mb, "requirement", ast=ast_seed) or "new"
+                        st_story2 = workflow_get_initial_state(mb, backlog_leaf_type, ast=ast_seed) or "new"
                         seq_audit = await project_repo.increment_artifact_seq(first_project[0].id)
                         req_audit = ArtifactEntity(
                             project_id=first_project[0].id,
-                            artifact_type="requirement",
+                            artifact_type=backlog_leaf_type,
                             title="Structured audit stream for security-sensitive API calls",
                             description=(
                                 "AuthN, authZ, and data-export endpoints emit immutable audit events."
                             ),
-                            state=st_req,
+                            state=st_story2,
                             parent_id=demo_feature_o11y.id,
                             artifact_key=f"{first_project[0].code}-{seq_audit}",
                             custom_fields={"priority": "medium"},
@@ -3615,16 +3972,33 @@ async def seed_demo_data(
                     )
 
             await session.commit()
-            logger.info(
-                "demo_data_seeded",
-                email=DEMO_EMAIL,
-                org=DEMO_ORG_NAME,
-                projects=len(DEMO_PROJECTS),
-                includes=(
-                    "epic_multi_feature_requirements defects quality_campaign "
-                    "tags_tasks_param_test call_plan run_metrics_ids unima_backlog"
-                ),
-            )
+            if seeded_demo_artifacts:
+                logger.info(
+                    "demo_data_seeded",
+                    email=DEMO_EMAIL,
+                    org=DEMO_ORG_NAME,
+                    projects=len(DEMO_PROJECTS),
+                    includes=(
+                        "epic_multi_feature_requirements defects quality_campaign "
+                        "tags_tasks_param_test call_plan run_metrics_ids unima_backlog"
+                    ),
+                )
+            elif not first_project:
+                logger.warning(
+                    "demo_data_incomplete",
+                    reason="no_projects_created",
+                    email=DEMO_EMAIL,
+                    org=DEMO_ORG_NAME,
+                )
+            else:
+                logger.warning(
+                    "demo_data_incomplete",
+                    reason="no_basic_process_template_version",
+                    hint="Backlog will stay empty until projects have a template; check process template seed.",
+                    email=DEMO_EMAIL,
+                    org=DEMO_ORG_NAME,
+                    projects=len(first_project),
+                )
     except Exception as e:
         logger.exception("seed_demo_data_failed", error=str(e))
         raise

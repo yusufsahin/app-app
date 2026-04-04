@@ -45,23 +45,34 @@ class GetFormSchemaHandler(QueryHandler[FormSchema | None]):
 
         if query.entity_type == "task":
             task_bundle: dict = {}
-            if project.process_template_version_id:
+            tv = None
+            if project.process_template_version_id is not None:
                 tv = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
-                if tv and tv.manifest_bundle:
-                    task_bundle = merge_manifest_metadata_defaults(tv.manifest_bundle)
+            if tv is None:
+                tv = await self._process_template_repo.find_default_version()
+            if tv and tv.manifest_bundle:
+                task_bundle = merge_manifest_metadata_defaults(tv.manifest_bundle)
             return build_form_schema(
                 task_bundle,
                 entity_type="task",
                 context=query.context,
                 flattener=self._manifest_flattener,
             )
-        if project.process_template_version_id is None:
-            if query.entity_type == "artifact" and query.context == "edit":
-                return build_form_schema({}, entity_type="artifact", context="edit", flattener=self._manifest_flattener)
-            return None
-
-        version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+        version = None
+        if project.process_template_version_id is not None:
+            version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
         if version is None:
+            version = await self._process_template_repo.find_default_version()
+        if version is None:
+            empty = merge_manifest_metadata_defaults({})
+            if query.entity_type == "artifact":
+                return build_form_schema(
+                    empty,
+                    entity_type="artifact",
+                    context=query.context,
+                    flattener=self._manifest_flattener,
+                    artifact_type=query.artifact_type,
+                )
             return None
 
         manifest_bundle = merge_manifest_metadata_defaults(version.manifest_bundle or {})

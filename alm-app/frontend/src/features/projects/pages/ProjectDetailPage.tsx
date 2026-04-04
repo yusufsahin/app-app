@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useForm, FormProvider } from "react-hook-form";
 import { Settings, History, ClipboardList, CheckCircle, Bug, Users } from "lucide-react";
 import { Loader2 } from "lucide-react";
@@ -18,12 +18,12 @@ import {
 import { ProjectNotFoundView, StandardPageLayout } from "../../../shared/components/Layout";
 import { RhfDescriptionField, RhfTextField } from "../../../shared/components/forms";
 import {
-  useOrgProjects,
   useUpdateOrgProject,
   useOrgDashboardStats,
   useOrgDashboardActivity,
   type DashboardActivityItem,
 } from "../../../shared/api/orgApi";
+import { useOrgProjectFromRoute } from "../../../shared/hooks/useOrgProjectFromRoute";
 import { useProjectStore } from "../../../shared/stores/projectStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { modalApi } from "../../../shared/modal";
@@ -56,17 +56,11 @@ const statCardColors = {
 } as const;
 
 export default function ProjectDetailPage() {
-  const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
-  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
+  const { orgSlug, projectSlug, project, projectsLoading } = useOrgProjectFromRoute();
   const { data: stats, isLoading: statsLoading } = useOrgDashboardStats(orgSlug);
   const { data: activity, isLoading: activityLoading } = useOrgDashboardActivity(orgSlug, 8);
-  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
   const setCurrentProject = useProjectStore((s) => s.setCurrentProject);
   const clearCurrentProject = useProjectStore((s) => s.clearCurrentProject);
-
-  const project =
-    projects?.find((p) => p.slug === projectSlug) ??
-    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
   const updateProject = useUpdateOrgProject(orgSlug, project?.id);
   const showNotification = useNotificationStore((s) => s.showNotification);
 

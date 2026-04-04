@@ -92,6 +92,15 @@ export default defineConfig({
       dependencies: ["setup"],
     },
     {
+      name: "demo-seeded-backlog",
+      testMatch: /demo-seeded-backlog\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/user.json",
+      },
+      dependencies: ["setup"],
+    },
+    {
       name: "quality-campaign",
       testMatch: /quality-(campaign|steps-editor)\.spec\.ts/,
       use: {

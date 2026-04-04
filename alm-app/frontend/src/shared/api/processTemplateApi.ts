@@ -9,9 +9,10 @@ export interface ProcessTemplate {
   slug: string;
   name: string;
   is_builtin: boolean;
+  description?: string | null;
 }
 
-export function useProcessTemplates() {
+export function useProcessTemplates(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["process-templates"],
     queryFn: async (): Promise<ProcessTemplate[]> => {
@@ -21,5 +22,6 @@ export function useProcessTemplates() {
       return data;
     },
     staleTime: 5 * 60_000,
+    enabled: options?.enabled !== false,
   });
 }

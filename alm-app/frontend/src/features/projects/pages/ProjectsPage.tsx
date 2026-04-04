@@ -169,7 +169,7 @@ export default function ProjectsPage() {
           description={
             filter
               ? "No projects match your filter. Try a different search."
-              : "Create a project to get started."
+              : "An organization admin or project manager can create the first project here and choose the process template (Basic, Scrum, Kanban, …) for work items and workflows."
           }
           actionLabel={!filter && canCreateProject ? "Create project" : undefined}
           onAction={!filter && canCreateProject ? () => setCreateModalOpen(true) : undefined}

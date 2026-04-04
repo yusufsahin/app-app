@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { LayoutGrid } from "lucide-react";
 import { useMemo, useCallback } from "react";
 import { DndProvider } from "react-dnd";
@@ -18,8 +18,7 @@ import {
   TooltipProvider,
 } from "../../../shared/components/ui";
 import { RhfSelect } from "../../../shared/components/forms";
-import { useOrgProjects } from "../../../shared/api/orgApi";
-import { useProjectStore } from "../../../shared/stores/projectStore";
+import { useOrgProjectFromRoute } from "../../../shared/hooks/useOrgProjectFromRoute";
 import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { useCadences, useAreaNodes, cadenceDisplayLabel, areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import { useArtifacts, useTransitionArtifactById } from "../../../shared/api/artifactApi";
@@ -51,12 +50,7 @@ function getTypeVariant(type: string): "default" | "secondary" | "destructive" |
 }
 
 export default function BoardPage() {
-  const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
-  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
-  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
-  const project =
-    projects?.find((p) => p.slug === projectSlug) ??
-    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
+  const { orgSlug, projectSlug, project, projectsLoading } = useOrgProjectFromRoute();
   const { data: manifest, isLoading: manifestLoading } = useProjectManifest(orgSlug, project?.id);
   const { data: cycleCadences = [] } = useCadences(orgSlug, project?.id, true, "cycle");
   const { data: areaNodesFlat = [] } = useAreaNodes(orgSlug, project?.id, true);

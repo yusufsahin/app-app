@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -41,9 +42,18 @@ interface CreateProjectModalProps {
   orgSlug?: string;
 }
 
+function templateOptionLabel(t: { name: string; description?: string | null }): string {
+  const d = (t.description ?? "").trim();
+  if (!d) return t.name;
+  const short = d.length > 72 ? `${d.slice(0, 69)}…` : d;
+  return `${t.name} — ${short}`;
+}
+
 export default function CreateProjectModal({ open, onClose, orgSlug }: CreateProjectModalProps) {
   const createMutation = useCreateOrgProject(orgSlug);
-  const { data: templates } = useProcessTemplates();
+  const { data: templates, isLoading: templatesLoading } = useProcessTemplates({
+    enabled: open && !!orgSlug,
+  });
   const showNotification = useNotificationStore((s) => s.showNotification);
 
   const form = useForm<CreateProjectFormData>({
@@ -51,8 +61,13 @@ export default function CreateProjectModal({ open, onClose, orgSlug }: CreatePro
     defaultValues: { code: "", name: "", description: "", process_template_slug: "basic" },
   });
   const { control, handleSubmit, reset } = form;
-  const templateOptions = (templates ?? [{ id: "basic", slug: "basic", name: "Basic", is_builtin: true }]).map(
-    (t) => ({ value: t.slug, label: t.name }),
+  const templateOptions = useMemo(
+    () =>
+      (templates ?? [{ id: "basic", slug: "basic", name: "Basic", is_builtin: true }]).map((t) => ({
+        value: t.slug,
+        label: templateOptionLabel(t),
+      })),
+    [templates],
   );
 
   const handleClose = () => {
@@ -86,9 +101,11 @@ export default function CreateProjectModal({ open, onClose, orgSlug }: CreatePro
         <FormProvider {...form}>
           <form onSubmit={handleSubmit(onSubmit)} noValidate>
             <DialogHeader>
-              <DialogTitle>New Project</DialogTitle>
-              <DialogDescription className="sr-only">
-                Create a new project in this organization. Enter code, name, process template, and optional description.
+              <DialogTitle>New project</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                Create a project for this organization, then pick a <strong className="font-medium text-foreground">process template</strong>.
+                The template defines work item types, workflows, and backlog trees (Requirements, Quality, Campaign, Defects). It is set at
+                creation time.
               </DialogDescription>
             </DialogHeader>
             <div className="mt-2 space-y-4">
@@ -110,6 +127,11 @@ export default function CreateProjectModal({ open, onClose, orgSlug }: CreatePro
                 control={control}
                 label="Process template"
                 options={templateOptions}
+                helperText={
+                  templatesLoading
+                    ? "Loading templates…"
+                    : "Required. Choose Basic, Scrum, Kanban, or another built-in methodology."
+                }
               />
               <RhfDescriptionField<CreateProjectFormData>
                 name="description"

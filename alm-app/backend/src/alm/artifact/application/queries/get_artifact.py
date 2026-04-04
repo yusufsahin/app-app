@@ -9,6 +9,9 @@ from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.mpc_resolver import get_manifest_ast, redact_data
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.application.services.effective_process_template_version import (
+    effective_process_template_version,
+)
 from alm.project.domain.ports import ProjectRepository
 from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.query import Query, QueryHandler
@@ -72,18 +75,19 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
             tags=tags,
         )
 
-        if project.process_template_version_id:
-            version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
-            if version and version.manifest_bundle:
-                ast = get_manifest_ast(version.id, version.manifest_bundle)
-                redacted_snapshot = redact_data(
-                    ast,
-                    dto.__dict__,  # Redactor can handle dicts
-                    query.actor_roles or [],
-                )
-                dto_fields = dto.__dataclass_fields__
-                updates = {k: v for k, v in redacted_snapshot.items() if k in dto_fields}
-                if updates:
-                    dto = replace(dto, **updates)
+        version = await effective_process_template_version(
+            self._process_template_repo, project.process_template_version_id
+        )
+        if version and version.manifest_bundle:
+            ast = get_manifest_ast(version.id, version.manifest_bundle)
+            redacted_snapshot = redact_data(
+                ast,
+                dto.__dict__,  # Redactor can handle dicts
+                query.actor_roles or [],
+            )
+            dto_fields = dto.__dataclass_fields__
+            updates = {k: v for k, v in redacted_snapshot.items() if k in dto_fields}
+            if updates:
+                dto = replace(dto, **updates)
 
         return dto

@@ -41,6 +41,7 @@ class TestGetOrgDashboardStatsHandler:
 
         process_template_repo = AsyncMock()
         process_template_repo.find_version_by_id = AsyncMock(return_value=None)
+        process_template_repo.find_default_version = AsyncMock(return_value=None)
 
         artifact_repo = AsyncMock()
         artifact_repo.count_by_project = AsyncMock(return_value=5)
@@ -62,7 +63,7 @@ class TestGetOrgDashboardStatsHandler:
         assert result.tasks == 10
         assert result.open_defects == 1
         project_repo.list_by_tenant.assert_awaited_once_with(tenant_id)
-        process_template_repo.find_version_by_id.assert_not_called()
+        process_template_repo.find_default_version.assert_awaited_once()
         artifact_repo.count_by_project.assert_awaited_once()
         args, kwargs = artifact_repo.count_by_project.call_args
         assert args[0] == proj_id

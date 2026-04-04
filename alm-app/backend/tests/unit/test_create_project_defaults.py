@@ -92,6 +92,7 @@ async def test_create_project_creates_manifest_roots_for_tests_and_suites() -> N
     project_repo.add = AsyncMock(side_effect=lambda p: p)
     member_repo = AsyncMock()
     artifact_repo = AsyncMock()
+    artifact_repo.list_by_project = AsyncMock(return_value=[])
 
     handler = CreateProjectHandler(
         project_repo=project_repo,

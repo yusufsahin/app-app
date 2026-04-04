@@ -21,8 +21,9 @@ async def test_create_project_success():
     
     process_template_repo = AsyncMock()
     process_template_repo.find_version_by_template_slug.return_value = MagicMock(id=uuid.uuid4())
-    process_template_repo.find_version_by_id.return_value = None # Skip _create_project_roots for this simple test
-    
+    process_template_repo.find_version_by_id = AsyncMock(return_value=None)
+    process_template_repo.find_default_version = AsyncMock(return_value=None)
+
     project_member_repo = AsyncMock()
     artifact_repo = AsyncMock()
     tenant_repo = AsyncMock()
@@ -58,6 +59,63 @@ async def test_create_project_invalid_code():
     # Act & Assert
     with pytest.raises(ValidationError, match="Project code must be 2-10 uppercase alphanumeric"):
         await handler.handle(command)
+
+
+@pytest.mark.asyncio
+async def test_create_project_falls_back_to_default_template_when_slug_missing():
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    vid = uuid.uuid4()
+
+    project_repo = AsyncMock()
+    project_repo.find_by_tenant_and_code.return_value = None
+    project_repo.find_by_tenant_and_slug.return_value = None
+    project_repo.add.side_effect = lambda p: p
+
+    default_version = MagicMock(id=vid, manifest_bundle=None)
+    process_template_repo = AsyncMock()
+    process_template_repo.find_version_by_template_slug.return_value = None
+    process_template_repo.find_default_version.return_value = default_version
+    # find_version_by_id must return the version so effective_process_template_version
+    # does not call find_default_version a second time (which would break assert_awaited_once).
+    process_template_repo.find_version_by_id = AsyncMock(return_value=default_version)
+
+    handler = CreateProjectHandler(
+        project_repo,
+        process_template_repo,
+        AsyncMock(),
+        AsyncMock(),
+        AsyncMock(),
+    )
+    result = await handler.handle(
+        CreateProject(tenant_id=tenant_id, code="FB", name="Fallback Template", created_by=user_id)
+    )
+    assert result.code == "FB"
+    process_template_repo.find_default_version.assert_awaited_once()
+    added = project_repo.add.call_args[0][0]
+    assert added.process_template_version_id == vid
+
+
+@pytest.mark.asyncio
+async def test_create_project_raises_when_no_template_versions_exist():
+    tenant_id = uuid.uuid4()
+    project_repo = AsyncMock()
+    project_repo.find_by_tenant_and_code.return_value = None
+    project_repo.find_by_tenant_and_slug.return_value = None
+
+    process_template_repo = AsyncMock()
+    process_template_repo.find_version_by_template_slug.return_value = None
+    process_template_repo.find_default_version.return_value = None
+
+    handler = CreateProjectHandler(
+        project_repo,
+        process_template_repo,
+        AsyncMock(),
+        AsyncMock(),
+        AsyncMock(),
+    )
+    with pytest.raises(ValidationError, match="No process template version"):
+        await handler.handle(CreateProject(tenant_id=tenant_id, code="NT", name="No Template"))
 
 
 @pytest.mark.asyncio

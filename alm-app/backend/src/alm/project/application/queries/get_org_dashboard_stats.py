@@ -9,6 +9,9 @@ from alm.artifact.domain.manifest_merge_defaults import merge_manifest_metadata_
 from alm.artifact.domain.manifest_workflow_metadata import resolve_system_root_artifact_types
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.application.services.effective_process_template_version import (
+    effective_process_template_version,
+)
 from alm.project.domain.ports import ProjectRepository
 from alm.shared.application.query import Query, QueryHandler
 from alm.task.domain.ports import TaskRepository
@@ -31,9 +34,9 @@ async def _system_root_types_for_project(
     process_template_repo: ProcessTemplateRepository,
     process_template_version_id: uuid.UUID | None,
 ) -> frozenset[str]:
-    if process_template_version_id is None:
-        return resolve_system_root_artifact_types(merge_manifest_metadata_defaults({}))
-    version = await process_template_repo.find_version_by_id(process_template_version_id)
+    version = await effective_process_template_version(
+        process_template_repo, process_template_version_id
+    )
     if version is None:
         return resolve_system_root_artifact_types(merge_manifest_metadata_defaults({}))
     merged = merge_manifest_metadata_defaults(version.manifest_bundle or {})

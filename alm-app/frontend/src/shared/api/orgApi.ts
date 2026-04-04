@@ -127,6 +127,8 @@ export function useOrgProjects(orgSlug: string | undefined) {
       return data;
     },
     enabled: !!orgSlug,
+    // Fresh UUIDs after DB reseed; cached list caused manifest/form-schema 404 with dead project ids.
+    refetchOnMount: "always",
   });
 }
 

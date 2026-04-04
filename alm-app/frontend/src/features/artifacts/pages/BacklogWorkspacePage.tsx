@@ -318,13 +318,22 @@ export default function BacklogWorkspacePage({
     [listSchema, surface],
   );
 
-  const treeFilterExceptQualityDefault = variant === "quality" ? "" : treeFilter;
+  /**
+   * For empty-state copy: default backlog scope is `tree=requirement` — that is not an optional user filter.
+   * Quality route always scopes to quality; do not treat tree as a “narrowing filter” there either.
+   */
+  const treeFilterCountsForEmptyCopy = useMemo(() => {
+    if (variant === "quality") return "";
+    if (variant === "default" && treeFilter === "requirement") return "";
+    return treeFilter;
+  }, [variant, treeFilter]);
+
   const hasActiveArtifactFilters = useMemo(
     () =>
       !!(
         stateFilter ||
         typeFilter ||
-        treeFilterExceptQualityDefault ||
+        treeFilterCountsForEmptyCopy ||
         cycleFilter ||
         releaseFilter ||
         areaNodeFilter ||
@@ -334,7 +343,7 @@ export default function BacklogWorkspacePage({
     [
       stateFilter,
       typeFilter,
-      treeFilterExceptQualityDefault,
+      treeFilterCountsForEmptyCopy,
       cycleFilter,
       releaseFilter,
       areaNodeFilter,
@@ -436,7 +445,14 @@ export default function BacklogWorkspacePage({
     }
     return treeFilter || undefined;
   }, [variant, validTreeIds, treeFilter, searchParams]);
-  const { data: listResult, isLoading, isRefetching, refetch: refetchArtifacts } = useArtifacts(
+  const {
+    data: listResult,
+    isLoading,
+    isRefetching,
+    isError: artifactsListError,
+    error: artifactsListErr,
+    refetch: refetchArtifacts,
+  } = useArtifacts(
     orgSlug,
     project?.id,
     stateFilter || undefined,
@@ -457,6 +473,34 @@ export default function BacklogWorkspacePage({
   );
   const artifacts = useMemo(() => listResult?.items ?? [], [listResult?.items]);
   const totalArtifacts = listResult?.total ?? 0;
+
+  const backlogTraceEnabled =
+    import.meta.env.DEV || import.meta.env.VITE_DEBUG_BACKLOG === "true";
+  useEffect(() => {
+    if (!backlogTraceEnabled || !orgSlug || !project?.id) return;
+    console.info("[alm:backlog]", {
+      variant,
+      orgSlug,
+      projectSlug,
+      projectId: project.id,
+      treeForList: treeForList ?? null,
+      total: totalArtifacts,
+      pageRows: artifacts.length,
+      loading: isLoading,
+      listError: artifactsListError,
+    });
+  }, [
+    backlogTraceEnabled,
+    variant,
+    orgSlug,
+    projectSlug,
+    project?.id,
+    treeForList,
+    totalArtifacts,
+    artifacts.length,
+    isLoading,
+    artifactsListError,
+  ]);
 
   /**
    * Parent picker data for create modal.
@@ -1719,6 +1763,22 @@ export default function BacklogWorkspacePage({
             projectTagOptions={projectTags.map((t) => ({ id: t.id, name: t.name }))}
             onOpenTagsManager={() => setTagsDialogOpen(true)}
           />
+
+          {artifactsListError ? (
+            <div
+              className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm"
+              role="alert"
+            >
+              <p className="font-medium text-destructive">Could not load backlog items</p>
+              <p className="mt-1 text-muted-foreground">
+                {(artifactsListErr as unknown as ProblemDetail | undefined)?.detail ??
+                  "Request failed. Check the browser Network tab for the artifacts request, or try again."}
+              </p>
+              <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => refetchArtifacts()}>
+                Retry
+              </Button>
+            </div>
+          ) : null}
 
           <Dialog open={tagsDialogOpen} onOpenChange={setTagsDialogOpen}>
             <DialogContent aria-describedby={undefined}>

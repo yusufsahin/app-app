@@ -33,8 +33,11 @@ if TYPE_CHECKING:
     import uuid
 
     from alm.artifact.domain.ports import ArtifactRepository, IArtifactTransitionMetrics
-    from alm.process_template.domain.ports import ProcessTemplateRepository
-    from alm.project.domain.ports import ProjectRepository
+from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.application.services.effective_process_template_version import (
+    effective_process_template_version,
+)
+from alm.project.domain.ports import ProjectRepository
 
 
 @dataclass(frozen=True)
@@ -102,11 +105,11 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         if artifact is None or artifact.project_id != command.project_id:
             raise ValidationError("Artifact not found")
 
-        if project.process_template_version_id is None:
-            raise ValidationError("Project has no process template")
-        version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+        version = await effective_process_template_version(
+            self._process_template_repo, project.process_template_version_id
+        )
         if version is None:
-            raise ValidationError("Process template version not found")
+            raise ValidationError("No process template available for this project")
         manifest = version.manifest_bundle or {}
         ast = get_manifest_ast(version.id, manifest)
 

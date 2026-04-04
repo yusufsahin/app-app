@@ -381,19 +381,23 @@ class GetListSchemaHandler(QueryHandler[ListSchema | None]):
 
         if query.entity_type == "task":
             task_bundle: dict[str, Any] | None = None
+            tv = None
             if project.process_template_version_id:
                 tv = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
-                if tv and tv.manifest_bundle:
-                    task_bundle = merge_manifest_metadata_defaults(tv.manifest_bundle)
+            if tv is None:
+                tv = await self._process_template_repo.find_default_version()
+            if tv and tv.manifest_bundle:
+                task_bundle = merge_manifest_metadata_defaults(tv.manifest_bundle)
             return _build_task_list_schema(task_bundle)
 
         if query.entity_type != "artifact":
             return None
 
-        if project.process_template_version_id is None:
-            return _build_artifact_list_schema({"workflows": [], "artifact_types": []}, None, query.surface)
-
-        version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+        version = None
+        if project.process_template_version_id is not None:
+            version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+        if version is None:
+            version = await self._process_template_repo.find_default_version()
         if version is None:
             return _build_artifact_list_schema({"workflows": [], "artifact_types": []}, None, query.surface)
 
