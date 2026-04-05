@@ -352,6 +352,10 @@ export const qualityTrPatches = {
     classicHeaderUpdated: "Güncellendi",
     classicHeaderPriority: "Öncelik",
     openDetail: "Backlog’da aç",
+    tabularEdit: "Düzenle",
+    tabularDelete: "Sil",
+    viewDefectDetails: "Kusur detayını aç",
+    tabularRowActionsAria: "Satır işlemleri",
     prev: "Önceki",
     next: "Sonraki",
     newDefect: "Yeni kusur",
@@ -558,5 +562,8 @@ export const qualityTrPatches = {
     expandTestSteps: "Adımları ve adım bazlı son koşu durumunu göster",
     collapseTestSteps: "Adımları gizle",
     noInlineSteps: "Bu testte satır içi adım yok (yalnızca çağrılar veya boş).",
+  },
+  backlogTabular: {
+    viewTask: "Görevi aç",
   },
 } as const;

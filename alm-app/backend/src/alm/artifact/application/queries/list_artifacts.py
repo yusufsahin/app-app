@@ -51,6 +51,8 @@ class ListArtifacts(Query):
     parent_id: uuid.UUID | None = None  # when set, only direct children of this parent (within tree subtree if any)
     tag_id: uuid.UUID | None = None  # filter artifacts that have this project tag
     team_id: uuid.UUID | None = None  # filter artifacts assigned to this team
+    assignee_id: uuid.UUID | None = None  # filter by assignee user
+    unassigned_only: bool = False  # when True, only artifacts with no assignee
 
 
 @dataclass
@@ -150,6 +152,8 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             fts_regconfig=fts_cfg,
             tag_id=query.tag_id,
             team_id=query.team_id,
+            assignee_id=query.assignee_id,
+            unassigned_only=query.unassigned_only,
         )
         artifacts = await self._artifact_repo.list_by_project(
             query.project_id,
@@ -171,6 +175,8 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             fts_regconfig=fts_cfg,
             tag_id=query.tag_id,
             team_id=query.team_id,
+            assignee_id=query.assignee_id,
+            unassigned_only=query.unassigned_only,
         )
         tag_map = await self._tag_repo.get_tags_by_artifact_ids([a.id for a in artifacts])
         items = [

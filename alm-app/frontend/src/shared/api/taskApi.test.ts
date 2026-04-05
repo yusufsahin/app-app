@@ -32,6 +32,9 @@ function mkTask(id: string): Task {
     assignee_id: null,
     rank_order: null,
     team_id: null,
+    original_estimate_hours: null,
+    remaining_work_hours: null,
+    activity: null,
     created_at: null,
     updated_at: null,
   };
@@ -84,6 +87,28 @@ describe("task mutations", () => {
     });
   });
 
+  it("useCreateTask includes effort and activity when provided", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: mkTask("new") });
+    const { result } = renderHook(() => useCreateTask("org", "pr"), { wrapper: createWrapper() });
+
+    await result.current.mutateAsync({
+      artifactId: "art-99",
+      title: "Hello",
+      original_estimate_hours: 8,
+      remaining_work_hours: 4,
+      activity: "Development",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/orgs/org/projects/pr/artifacts/art-99/tasks", {
+      title: "Hello",
+      description: "",
+      state: "todo",
+      original_estimate_hours: 8,
+      remaining_work_hours: 4,
+      activity: "Development",
+    });
+  });
+
   it("useUpdateTask PATCHes task id under artifact", async () => {
     vi.mocked(apiClient.patch).mockResolvedValue({ data: mkTask("1") });
     const { result } = renderHook(() => useUpdateTask("org", "pr"), { wrapper: createWrapper() });
@@ -98,6 +123,27 @@ describe("task mutations", () => {
     expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org/projects/pr/artifacts/art-1/tasks/task-1", {
       title: "Updated",
       description: "d",
+    });
+  });
+
+  it("useUpdateTask sends effort and activity fields when provided", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({ data: mkTask("1") });
+    const { result } = renderHook(() => useUpdateTask("org", "pr"), { wrapper: createWrapper() });
+
+    await result.current.mutateAsync({
+      artifactId: "art-1",
+      taskId: "task-1",
+      title: "Updated",
+      original_estimate_hours: 2,
+      remaining_work_hours: 1,
+      activity: "Testing",
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org/projects/pr/artifacts/art-1/tasks/task-1", {
+      title: "Updated",
+      original_estimate_hours: 2,
+      remaining_work_hours: 1,
+      activity: "Testing",
     });
   });
 

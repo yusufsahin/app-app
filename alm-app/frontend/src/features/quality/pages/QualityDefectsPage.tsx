@@ -1,10 +1,27 @@
 import type { ChangeEvent } from "react";
 import { useMemo, useState, useEffect, useRef, useCallback, FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ChevronDown, ExternalLink, MessageSquarePlus, Plus, Search } from "lucide-react";
+import {
+  ChevronDown,
+  ExternalLink,
+  Eye,
+  MessageSquarePlus,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "../../../shared/api/client";
 import { useTranslation } from "react-i18next";
 import { useBacklogWorkspaceProject } from "../../artifacts/pages/useBacklogWorkspaceProject";
-import { useArtifacts, useCreateArtifact } from "../../../shared/api/artifactApi";
+import {
+  useArtifacts,
+  useCreateArtifact,
+  useDeleteArtifact,
+  type UpdateArtifactRequest,
+} from "../../../shared/api/artifactApi";
 import { useFormSchema } from "../../../shared/api/formSchemaApi";
 import { useListSchema } from "../../../shared/api/listSchemaApi";
 import { useOrgMembers } from "../../../shared/api/orgApi";
@@ -23,6 +40,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
   Tabs,
   TabsContent,
@@ -48,7 +70,14 @@ import { mapLookupItems } from "../../../shared/components/lists/lookupResolvers
 import { buildArtifactCreatePayload } from "../../artifacts/lib/buildArtifactCreatePayload";
 import { pickDefectArtifactType } from "../lib/defectManifestHelpers";
 import type { ProblemDetail } from "../../../shared/api/types";
-import { getArtifactCellValue } from "../../artifacts/utils";
+import type { FormSchemaDto } from "../../../shared/types/formSchema";
+import {
+  getArtifactCellValue,
+  getSystemRootArtifactTypes,
+  isRootArtifact,
+  TITLE_MAX_LENGTH,
+} from "../../artifacts/utils";
+import { ArtifactStandaloneDetailDialog } from "../../artifacts/components/ArtifactStandaloneDetailDialog";
 import type { Artifact } from "../../../shared/stores/artifactStore";
 import { buildSimilarDefectSearchQuery } from "../lib/similarDefectSearch";
 
@@ -114,6 +143,39 @@ function formatArtifactDate(value: string | null | undefined): string {
   return parsed.toLocaleString();
 }
 
+function buildUpdateArtifactPayload(
+  schema: FormSchemaDto | null | undefined,
+  values: Record<string, unknown>,
+  titleMaxLength: number,
+): { payload?: UpdateArtifactRequest; errors?: Record<string, string> } {
+  const titleTrim = (values.title as string)?.trim();
+  if (!titleTrim) {
+    return { errors: { title: "Title is required." } };
+  }
+  if (titleTrim.length > titleMaxLength) {
+    return { errors: { title: `Title must be at most ${titleMaxLength} characters.` } };
+  }
+  const coreKeys = new Set(["title", "description", "assignee_id", "cycle_id", "area_node_id", "tag_ids"]);
+  const customFields: Record<string, unknown> = {};
+  for (const field of schema?.fields ?? []) {
+    if (!coreKeys.has(field.key)) {
+      customFields[field.key] = values[field.key] ?? null;
+    }
+  }
+  const tagIds = Array.isArray(values.tag_ids) ? (values.tag_ids as string[]) : [];
+  return {
+    payload: {
+      title: titleTrim,
+      description: (values.description as string) || null,
+      assignee_id: (values.assignee_id as string) || null,
+      cycle_id: (values.cycle_id as string) || null,
+      area_node_id: (values.area_node_id as string) || null,
+      tag_ids: tagIds,
+      ...(Object.keys(customFields).length ? { custom_fields: customFields } : {}),
+    },
+  };
+}
+
 /**
  * Defect triage list: defect tree subtree via the same artifact list API; detail opens in Artifacts.
  */
@@ -164,6 +226,8 @@ export default function QualityDefectsPage() {
     undefined,
     undefined,
     undefined,
+    undefined,
+    undefined,
     projectReady,
   );
 
@@ -173,6 +237,9 @@ export default function QualityDefectsPage() {
   const permissions = useAuthStore((s) => s.permissions);
   const canCreateArtifact = hasPermission(permissions, "artifact:create");
   const canCommentArtifact = hasPermission(permissions, "artifact:comment");
+  const canUpdateArtifact = hasPermission(permissions, "artifact:update");
+  const canDeleteArtifact = hasPermission(permissions, "artifact:delete");
+  const queryClient = useQueryClient();
 
   const { data: manifest } = useProjectManifest(orgSlug, project?.id);
   const bundle = manifest?.manifest_bundle;
@@ -186,14 +253,61 @@ export default function QualityDefectsPage() {
     "create",
     defectArtifactType,
   );
-  const { data: defectEditSchema } = useFormSchema(
+  const {
+    data: defectEditSchema,
+    isError: defectEditSchemaError,
+    error: defectEditSchemaErr,
+  } = useFormSchema(orgSlug, project?.id, "artifact", "edit", defectArtifactType);
+  const formSchema403 = formSchemaError && (formSchemaErr as unknown as ProblemDetail)?.status === 403;
+  const defectEditSchema403 =
+    defectEditSchemaError && (defectEditSchemaErr as unknown as ProblemDetail)?.status === 403;
+
+  const systemRootTypes = useMemo(() => getSystemRootArtifactTypes(bundle), [bundle]);
+  const artifactTypeParentMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    const types = bundle?.artifact_types as Array<{ id: string; parent_types?: string[] }> | undefined;
+    for (const at of types ?? []) {
+      if (at.parent_types?.length) map[at.id] = at.parent_types;
+    }
+    return map;
+  }, [bundle]);
+
+  const { data: editParentPickerResult } = useArtifacts(
     orgSlug,
     project?.id,
-    "artifact",
-    "edit",
-    defectArtifactType,
+    undefined,
+    undefined,
+    "updated_at",
+    "desc",
+    undefined,
+    500,
+    0,
+    false,
+    undefined,
+    undefined,
+    undefined,
+    "defect",
+    true,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    listQueryEnabled,
   );
-  const formSchema403 = formSchemaError && (formSchemaErr as unknown as ProblemDetail)?.status === 403;
+  const parentPickerArtifacts = useMemo(
+    () => editParentPickerResult?.items ?? [],
+    [editParentPickerResult?.items],
+  );
+
+  const deleteArtifactMutation = useDeleteArtifact(orgSlug, project?.id);
+  const defectEditSchemaRef = useRef(defectEditSchema);
+  useEffect(() => {
+    defectEditSchemaRef.current = defectEditSchema;
+  }, [defectEditSchema]);
+  const editFormValuesRef = useRef<Record<string, unknown>>({});
+
+  const [tabularDetailId, setTabularDetailId] = useState<string | null>(null);
 
   const { data: members } = useOrgMembers(orgSlug);
 
@@ -339,6 +453,8 @@ export default function QualityDefectsPage() {
     underFolderIdFromUrl,
     undefined,
     undefined,
+    undefined,
+    undefined,
     listQueryEnabled,
   );
 
@@ -432,6 +548,131 @@ export default function QualityDefectsPage() {
     [setSearchParams],
   );
 
+  const openTabularDetail = useCallback((row: Artifact) => {
+    setTabularDetailId(row.id);
+  }, []);
+
+  const openEditArtifactModal = useCallback(
+    (artifact: Artifact) => {
+      const schemaForPayload = () => defectEditSchemaRef.current ?? null;
+      const initialValues: Record<string, unknown> = {
+        title: artifact.title,
+        description: artifact.description ?? "",
+        assignee_id: artifact.assignee_id ?? "",
+        cycle_id: artifact.cycle_id ?? "",
+        area_node_id: artifact.area_node_id ?? "",
+        tag_ids: artifact.tags?.map((tag) => tag.id) ?? [],
+        artifact_type: artifact.artifact_type,
+        ...(artifact.custom_fields ?? {}),
+      };
+      editFormValuesRef.current = initialValues;
+      modalApi.openEditArtifact(
+        {
+          mode: "edit",
+          formSchema: schemaForPayload(),
+          formValues: initialValues,
+          formErrors: {},
+          onFormChange: (values) => {
+            editFormValuesRef.current = values;
+            useModalStore.getState().updateModalProps({ formValues: values, formErrors: {} });
+          },
+          onFormErrors: (errs) => {
+            useModalStore.getState().updateModalProps({ formErrors: errs });
+          },
+          onCreate: async (currentValues) => {
+            const values = currentValues ?? editFormValuesRef.current;
+            const result = buildUpdateArtifactPayload(schemaForPayload(), values, TITLE_MAX_LENGTH);
+            if (result.errors) {
+              if (useModalStore.getState().modalType === "EditArtifactModal") {
+                useModalStore.getState().updateModalProps({ formErrors: result.errors });
+              }
+              return;
+            }
+            try {
+              await apiClient.patch(
+                `/orgs/${orgSlug}/projects/${project?.id}/artifacts/${artifact.id}`,
+                result.payload,
+              );
+              await Promise.all([
+                queryClient.invalidateQueries({
+                  queryKey: ["orgs", orgSlug, "projects", project?.id, "artifacts"],
+                }),
+                queryClient.invalidateQueries({
+                  queryKey: ["orgs", orgSlug, "projects", project?.id, "artifacts", artifact.id],
+                }),
+              ]);
+              modalApi.closeModal();
+              showNotification("Artifact updated successfully.", "success");
+              setTabularDetailId((id) => (id === artifact.id ? null : id));
+            } catch (error) {
+              const body = (error as { body?: ProblemDetail })?.body;
+              showNotification(body?.detail ?? "Failed to update artifact", "error");
+            }
+          },
+          isPending: false,
+          parentArtifacts: parentPickerArtifacts.map((a) => ({
+            id: a.id,
+            title: a.title,
+            artifact_type: a.artifact_type,
+          })),
+          userOptions:
+            members?.map((m) => ({
+              id: m.user_id,
+              label: m.display_name || m.email || m.user_id,
+            })) ?? [],
+          artifactTypeParentMap: Object.fromEntries(
+            Object.entries(artifactTypeParentMap).filter(([, parentTypes]) => Array.isArray(parentTypes)),
+          ) as Record<string, string[]>,
+          formSchemaError: !!defectEditSchemaError,
+          formSchema403: !!defectEditSchema403,
+          hideFieldKeys: ["parent_id"],
+          onCloseComplete: () => {},
+        },
+        { title: `Edit: ${artifact.title}` },
+      );
+    },
+    [
+      artifactTypeParentMap,
+      defectEditSchema403,
+      defectEditSchemaError,
+      members,
+      orgSlug,
+      parentPickerArtifacts,
+      project?.id,
+      queryClient,
+      showNotification,
+    ],
+  );
+
+  const modalTypeOpen = useModalStore((s) => (s.isOpened ? s.modalType : null));
+  useEffect(() => {
+    if (modalTypeOpen !== "EditArtifactModal") return;
+    if (defectEditSchema) {
+      useModalStore.getState().updateModalProps({ formSchema: defectEditSchema });
+    }
+  }, [modalTypeOpen, defectEditSchema]);
+
+  const openDeleteDefect = useCallback(
+    (artifact: Artifact) => {
+      modalApi.openDeleteArtifact({
+        artifact: { id: artifact.id, title: artifact.title, artifact_key: artifact.artifact_key },
+        onConfirm: () => {
+          deleteArtifactMutation.mutate(artifact.id, {
+            onSuccess: () => {
+              setTabularDetailId((id) => (id === artifact.id ? null : id));
+              showNotification("Artifact deleted successfully.", "success");
+            },
+            onError: (error: Error) => {
+              const body = (error as unknown as { body?: ProblemDetail })?.body;
+              showNotification(body?.detail ?? "Failed to delete artifact", "error");
+            },
+          });
+        },
+      });
+    },
+    [deleteArtifactMutation, showNotification],
+  );
+
   const submitComment = useCallback(async () => {
     if (!commentTarget || !project?.id) return;
     const text = commentDraft.trim();
@@ -495,7 +736,14 @@ export default function QualityDefectsPage() {
             const executionSummary = parseExecutionContextSummary(row.custom_fields);
             return (
               <div className="min-w-0 py-1">
-                <p className="font-medium">{row.title}</p>
+                <button
+                  type="button"
+                  className="text-left font-medium text-foreground hover:underline"
+                  onClick={() => openTabularDetail(row)}
+                  aria-label={t("defectsPage.viewDefectDetails")}
+                >
+                  {row.title}
+                </button>
                 <p className="text-xs text-muted-foreground">
                   {row.artifact_key ?? "—"} · {row.artifact_type}
                   {row.state ? ` · ${row.state}` : ""}
@@ -525,7 +773,7 @@ export default function QualityDefectsPage() {
         },
       };
     });
-  }, [defectEditSchema, defectListSchema, memberLabels, members, t]);
+  }, [defectEditSchema, defectListSchema, memberLabels, members, openTabularDetail, t]);
 
   if (projectSlug && orgSlug && !projectsLoading && !project) {
     return (
@@ -820,47 +1068,70 @@ export default function QualityDefectsPage() {
                       data={items}
                       getRowKey={(row) => row.id}
                       emptyMessage={t("defectsPage.empty")}
+                      onRowOpen={(row) => openTabularDetail(row)}
                       renderRowActions={(row) => (
-                        <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
-                          <div className="flex flex-wrap justify-end gap-1">
-                            <Button
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
                               type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 px-2"
-                              onClick={() => runFindSimilar(row.title)}
+                              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-muted"
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label={t("defectsPage.tabularRowActionsAria")}
                             >
-                              <Search className="mr-1 size-3.5 shrink-0" aria-hidden />
-                              <span className="hidden sm:inline">{t("defectsPage.findSimilar")}</span>
-                              <span className="sm:hidden">{t("defectsPage.findSimilarShort")}</span>
-                            </Button>
+                              <MoreHorizontal className="size-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem onClick={() => openTabularDetail(row)}>
+                              <Eye className="mr-2 size-3.5" />
+                              {t("defectsPage.viewDefectDetails")}
+                            </DropdownMenuItem>
+                            {canUpdateArtifact && row.allowed_actions?.includes("update") ? (
+                              <DropdownMenuItem onClick={() => openEditArtifactModal(row)}>
+                                <Pencil className="mr-2 size-3.5" />
+                                {t("defectsPage.tabularEdit")}
+                              </DropdownMenuItem>
+                            ) : null}
+                            {canDeleteArtifact &&
+                            row.allowed_actions?.includes("delete") &&
+                            !isRootArtifact(row, systemRootTypes) ? (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => openDeleteDefect(row)}
+                              >
+                                <Trash2 className="mr-2 size-3.5" />
+                                {t("defectsPage.tabularDelete")}
+                              </DropdownMenuItem>
+                            ) : null}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => runFindSimilar(row.title)}>
+                              <Search className="mr-2 size-3.5" />
+                              {t("defectsPage.findSimilar")}
+                            </DropdownMenuItem>
                             {canCommentArtifact ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 px-2"
+                              <DropdownMenuItem
                                 onClick={() => {
                                   setCommentTarget(row);
                                   setCommentDraft("");
                                 }}
                               >
-                                <MessageSquarePlus className="mr-1 size-3.5 shrink-0" aria-hidden />
-                                <span className="hidden sm:inline">{t("defectsPage.addComment")}</span>
-                                <span className="sm:hidden">{t("defectsPage.addCommentShort")}</span>
-                              </Button>
+                                <MessageSquarePlus className="mr-2 size-3.5" />
+                                {t("defectsPage.addComment")}
+                              </DropdownMenuItem>
                             ) : null}
-                          </div>
-                          {orgSlug && projectSlug ? (
-                            <Link
-                              to={artifactDetailPath(orgSlug, projectSlug, row.id)}
-                              className="inline-flex items-center gap-1 text-primary hover:underline"
-                            >
-                              {t("defectsPage.openDetail")}
-                              <ExternalLink className="size-3.5" />
-                            </Link>
-                          ) : null}
-                        </div>
+                            {orgSlug && projectSlug ? (
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  to={artifactDetailPath(orgSlug, projectSlug, row.id)}
+                                  className="inline-flex cursor-pointer items-center gap-1"
+                                >
+                                  <ExternalLink className="size-3.5" />
+                                  {t("defectsPage.openDetail")}
+                                </Link>
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     />
                   </TabsContent>
@@ -897,6 +1168,17 @@ export default function QualityDefectsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ArtifactStandaloneDetailDialog
+        open={!!tabularDetailId}
+        onClose={() => setTabularDetailId(null)}
+        artifactId={tabularDetailId}
+        orgSlug={orgSlug}
+        projectSlug={projectSlug}
+        projectId={project?.id}
+        onOpenEditArtifact={openEditArtifactModal}
+        canCommentArtifact={canCommentArtifact}
+      />
 
       <Dialog
         open={!!commentTarget}

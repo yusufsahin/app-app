@@ -19,6 +19,7 @@ from alm.shared.domain.exceptions import ValidationError
 from alm.task.application.dtos import TaskDTO
 from alm.task.domain.entities import Task
 from alm.task.domain.ports import TaskRepository
+from alm.task.domain.task_activity import parse_activity, parse_non_negative_hours
 from alm.team.domain.ports import TeamRepository
 
 
@@ -33,6 +34,9 @@ class CreateTask(Command):
     assignee_id: uuid.UUID | None = None
     rank_order: float | None = None
     team_id: uuid.UUID | None = None
+    original_estimate_hours: float | None = None
+    remaining_work_hours: float | None = None
+    activity: str | None = None
     tag_ids: list[uuid.UUID] | None = None
 
 
@@ -92,6 +96,9 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
             raise ValidationError(f"Invalid task state '{chosen}' for this project's manifest")
 
         resolved_team_id = await self._resolve_team_id(command.project_id, command.team_id)
+        oe = parse_non_negative_hours("original_estimate_hours", command.original_estimate_hours)
+        rw = parse_non_negative_hours("remaining_work_hours", command.remaining_work_hours)
+        act = parse_activity(command.activity)
         task = Task.create(
             project_id=command.project_id,
             artifact_id=command.artifact_id,
@@ -101,6 +108,9 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
             assignee_id=command.assignee_id,
             rank_order=command.rank_order,
             team_id=resolved_team_id,
+            original_estimate_hours=oe,
+            remaining_work_hours=rw,
+            activity=act,
         )
         await self._task_repo.add(task)
 
@@ -124,6 +134,9 @@ class CreateTaskHandler(CommandHandler[TaskDTO]):
             assignee_id=task.assignee_id,
             rank_order=task.rank_order,
             team_id=task.team_id,
+            original_estimate_hours=task.original_estimate_hours,
+            remaining_work_hours=task.remaining_work_hours,
+            activity=task.activity,
             created_at=task.created_at.isoformat() if task.created_at else None,
             updated_at=task.updated_at.isoformat() if task.updated_at else None,
             tags=tags,

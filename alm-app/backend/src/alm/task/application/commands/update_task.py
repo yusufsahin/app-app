@@ -14,8 +14,12 @@ from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
 from alm.task.application.dtos import TaskDTO
 from alm.task.domain.ports import TaskRepository
+from alm.task.domain.task_activity import parse_activity, parse_non_negative_hours
 
 _TAG_IDS_OMITTED = object()
+_ORIGINAL_EST_OMITTED = object()
+_REMAINING_HOURS_OMITTED = object()
+_ACTIVITY_OMITTED = object()
 
 
 @dataclass(frozen=True)
@@ -29,6 +33,9 @@ class UpdateTask(Command):
     assignee_id: uuid.UUID | None = None
     rank_order: float | None = None
     team_id: uuid.UUID | None = None
+    original_estimate_hours: Any = _ORIGINAL_EST_OMITTED
+    remaining_work_hours: Any = _REMAINING_HOURS_OMITTED
+    activity: Any = _ACTIVITY_OMITTED
     tag_ids: Any = _TAG_IDS_OMITTED
 
 
@@ -77,6 +84,19 @@ class UpdateTaskHandler(CommandHandler[TaskDTO]):
         if command.team_id is not None:
             task.team_id = command.team_id
 
+        if command.original_estimate_hours is not _ORIGINAL_EST_OMITTED:
+            task.original_estimate_hours = parse_non_negative_hours(
+                "original_estimate_hours",
+                command.original_estimate_hours,
+            )
+        if command.remaining_work_hours is not _REMAINING_HOURS_OMITTED:
+            task.remaining_work_hours = parse_non_negative_hours(
+                "remaining_work_hours",
+                command.remaining_work_hours,
+            )
+        if command.activity is not _ACTIVITY_OMITTED:
+            task.activity = parse_activity(command.activity)
+
         if command.tag_ids is not _TAG_IDS_OMITTED:
             raw = command.tag_ids
             if raw is None:
@@ -105,6 +125,9 @@ class UpdateTaskHandler(CommandHandler[TaskDTO]):
             assignee_id=task.assignee_id,
             rank_order=task.rank_order,
             team_id=task.team_id,
+            original_estimate_hours=task.original_estimate_hours,
+            remaining_work_hours=task.remaining_work_hours,
+            activity=task.activity,
             created_at=task.created_at.isoformat() if task.created_at else None,
             updated_at=task.updated_at.isoformat() if task.updated_at else None,
             tags=tags,

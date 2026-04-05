@@ -11,6 +11,7 @@ import structlog
 
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.action_runner import run_actions
+from alm.artifact.domain.manifest_merge_defaults import merge_manifest_metadata_defaults
 from alm.artifact.domain.guard_evaluator import evaluate_guard, guard_user_message_for_failure
 from alm.artifact.domain.manifest_workflow_metadata import get_resolution_target_state_ids
 from alm.artifact.domain.mpc_resolver import (
@@ -110,7 +111,7 @@ class TransitionArtifactHandler(CommandHandler[ArtifactDTO]):
         )
         if version is None:
             raise ValidationError("No process template available for this project")
-        manifest = version.manifest_bundle or {}
+        manifest = merge_manifest_metadata_defaults(version.manifest_bundle or {})
         ast = get_manifest_ast(version.id, manifest)
 
         # Resolve trigger to target state when client sent trigger

@@ -78,6 +78,10 @@ export interface ArtifactListParams {
   tag_id?: string;
   /** Filter by assigned team id. */
   team_id?: string;
+  /** Filter by assigned user id. */
+  assignee_id?: string;
+  /** When true, only artifacts with no assignee. */
+  unassigned_only?: boolean;
 }
 
 /**
@@ -100,6 +104,8 @@ export function buildArtifactListParams(options: {
   parentId?: string | null;
   tagId?: string | null;
   teamId?: string | null;
+  assigneeId?: string | null;
+  unassignedOnly?: boolean;
 }): ArtifactListParams {
   const params: ArtifactListParams = {};
   const {
@@ -119,6 +125,8 @@ export function buildArtifactListParams(options: {
     parentId,
     tagId,
     teamId,
+    assigneeId,
+    unassignedOnly,
   } = options;
   if (stateFilter) params.state = stateFilter;
   if (typeFilter) params.type = typeFilter;
@@ -141,6 +149,11 @@ export function buildArtifactListParams(options: {
   if (tagTrim) params.tag_id = tagTrim;
   const teamTrim = teamId?.trim();
   if (teamTrim) params.team_id = teamTrim;
+  if (unassignedOnly) params.unassigned_only = true;
+  else {
+    const aid = assigneeId?.trim();
+    if (aid) params.assignee_id = aid;
+  }
   return params;
 }
 
@@ -163,6 +176,8 @@ export function useArtifacts(
   parentId?: string | null,
   tagId?: string | null,
   teamId?: string | null,
+  assigneeId?: string | null,
+  unassignedOnly?: boolean,
   /** When false, the query does not run (e.g. wait for a prerequisite like defect root). */
   queryEnabled: boolean = true,
 ) {
@@ -183,6 +198,8 @@ export function useArtifacts(
     parentId,
     tagId,
     teamId,
+    assigneeId,
+    unassignedOnly,
   });
 
   return useQuery({
@@ -208,6 +225,8 @@ export function useArtifacts(
       parentId?.trim() || null,
       tagId?.trim() || null,
       teamId?.trim() || null,
+      assigneeId?.trim() || null,
+      unassignedOnly ?? false,
       queryEnabled,
     ],
     queryFn: async (): Promise<ArtifactsListResult> => {

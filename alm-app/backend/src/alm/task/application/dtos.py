@@ -21,4 +21,7 @@ class TaskDTO:
     created_at: str | None
     updated_at: str | None
     team_id: uuid.UUID | None = None
+    original_estimate_hours: float | None = None
+    remaining_work_hours: float | None = None
+    activity: str | None = None
     tags: tuple[ProjectTagDTO, ...] = ()

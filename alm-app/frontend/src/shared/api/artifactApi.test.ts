@@ -150,6 +150,18 @@ describe("buildArtifactListParams", () => {
       cycle_id: "cycle-1",
     });
   });
+
+  it("maps assignee_id when assigneeId is non-empty", () => {
+    expect(
+      buildArtifactListParams({ assigneeId: "  user-uuid  " }),
+    ).toEqual({ assignee_id: "user-uuid" });
+  });
+
+  it("sets unassigned_only and omits assignee_id when unassignedOnly is true", () => {
+    expect(
+      buildArtifactListParams({ assigneeId: "user-1", unassignedOnly: true }),
+    ).toEqual({ unassigned_only: true });
+  });
 });
 
 describe("BatchResultResponse", () => {

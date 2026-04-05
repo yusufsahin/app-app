@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -27,27 +27,33 @@ export default function LoginPage() {
   const setTokens = useAuthStore((s) => s.setTokens);
   const setTenant = useTenantStore((s) => s.setTenant);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  /** When set to `location.search`, URL-driven auth messages are hidden until the query string changes. */
+  const [dismissedUrlSearch, setDismissedUrlSearch] = useState<string | null>(null);
+
+  const urlAuthError = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const reason = params.get("reason");
+    if (reason === "tenant-context") {
+      return "Your session lost organization context. Sign in again and reselect your organization.";
+    }
+    if (reason === "session-expired") {
+      return "Your session expired. Sign in again to continue.";
+    }
+    return null;
+  }, [location.search]);
+
+  const error =
+    formError ??
+    (urlAuthError && dismissedUrlSearch !== location.search ? urlAuthError : null);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   });
   const { handleSubmit } = form;
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const reason = params.get("reason");
-    if (reason === "tenant-context") {
-      setError("Your session lost organization context. Sign in again and reselect your organization.");
-      return;
-    }
-    if (reason === "session-expired") {
-      setError("Your session expired. Sign in again to continue.");
-    }
-  }, [location.search]);
-
   const onSubmit = async (data: LoginFormData) => {
-    setError(null);
+    setFormError(null);
     try {
       const result = await login.mutateAsync(data);
 
@@ -64,7 +70,7 @@ export default function LoginPage() {
       }
     } catch (err: unknown) {
       const problem = err as { detail?: string; message?: string };
-      setError(problem.detail ?? problem.message ?? "Login failed. Please try again.");
+      setFormError(problem.detail ?? problem.message ?? "Login failed. Please try again.");
     }
   };
 
@@ -88,7 +94,10 @@ export default function LoginPage() {
               <span>{error}</span>
               <button
                 type="button"
-                onClick={() => setError(null)}
+                onClick={() => {
+                  setFormError(null);
+                  if (urlAuthError) setDismissedUrlSearch(location.search);
+                }}
                 className="shrink-0 rounded p-1 hover:bg-destructive/20"
                 aria-label="Dismiss"
               >

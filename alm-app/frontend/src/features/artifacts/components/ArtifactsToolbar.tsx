@@ -106,7 +106,8 @@ export interface ArtifactsToolbarProps {
   setFiltersPanelOpen: (fn: (prev: boolean) => boolean) => void;
   myTasksMenuAnchor: HTMLElement | null;
   setMyTasksMenuAnchor: (el: HTMLElement | null) => void;
-  filterStates: string[];
+  /** State filter dropdown: value is workflow state id sent to the API; label is manifest display text. */
+  stateFilterOptions: { value: string; label: string }[];
   bundle: Bundle | undefined;
   treeRootOptions: ManifestTreeRoot[];
   releaseCadenceOptions: Cadence[];
@@ -163,7 +164,7 @@ export function ArtifactsToolbar({
   setFiltersPanelOpen,
   myTasksMenuAnchor: _myTasksMenuAnchor,
   setMyTasksMenuAnchor,
-  filterStates,
+  stateFilterOptions,
   bundle,
   treeRootOptions,
   releaseCadenceOptions,
@@ -653,9 +654,9 @@ export function ArtifactsToolbar({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All states</SelectItem>
-                  {filterStates.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
+                  {stateFilterOptions.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
                     </SelectItem>
                   ))}
                 </SelectContent>

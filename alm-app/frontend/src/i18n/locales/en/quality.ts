@@ -538,6 +538,10 @@ export const qualityEn = {
     classicHeaderUpdated: "Updated",
     classicHeaderPriority: "Priority",
     openDetail: "Open in Backlog",
+    tabularEdit: "Edit",
+    tabularDelete: "Delete",
+    viewDefectDetails: "View defect details",
+    tabularRowActionsAria: "Row actions",
     prev: "Previous",
     next: "Next",
     newDefect: "New defect",
@@ -719,6 +723,9 @@ export const qualityEn = {
       status: "Latest status",
       run: "Latest run",
     },
+  },
+  backlogTabular: {
+    viewTask: "View task",
   },
 } as const;
 

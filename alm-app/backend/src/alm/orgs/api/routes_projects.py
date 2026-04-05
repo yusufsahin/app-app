@@ -340,6 +340,11 @@ async def list_artifacts(
     ),
     tag_id: uuid.UUID | None = Query(None, description="Filter artifacts that have this project tag"),
     team_id: uuid.UUID | None = Query(None, description="Filter artifacts assigned to this team"),
+    assignee_id: uuid.UUID | None = Query(None, description="Filter artifacts assigned to this user"),
+    unassigned_only: bool = Query(
+        False,
+        description="When true, return only artifacts with no assignee (ignores assignee_id)",
+    ),
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("artifact:read"),
     _acl: None = require_manifest_acl("artifact", "read"),
@@ -366,6 +371,8 @@ async def list_artifacts(
             actor_roles=list(user.roles or []),
             tag_id=tag_id,
             team_id=team_id,
+            assignee_id=assignee_id,
+            unassigned_only=unassigned_only,
         )
     )
     items = [artifact_response_from_dto(d) for d in result.items]

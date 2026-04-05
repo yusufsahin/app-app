@@ -7,8 +7,9 @@ import BacklogWorkspacePage from "./BacklogWorkspacePage";
 import { useArtifactStore } from "../../../shared/stores/artifactStore";
 import { modalApi } from "../../../shared/modal";
 
-const { useFormSchemaMock } = vi.hoisted(() => ({
+const { useFormSchemaMock, ArtifactDetailSurfaceSpy } = vi.hoisted(() => ({
   useFormSchemaMock: vi.fn(),
+  ArtifactDetailSurfaceSpy: vi.fn((_props?: unknown) => null),
 }));
 
 vi.mock("../../../shared/api/formSchemaApi", () => ({
@@ -84,7 +85,8 @@ vi.mock("../components", async () => {
         ) : null}
       </div>
     ),
-    ArtifactDetailSurface: () => null,
+    ArtifactDetailSurface: (props: unknown) => ArtifactDetailSurfaceSpy(props),
+    ArtifactDetailPanelBody: ({ children }: { children: React.ReactNode }) => <div data-testid="detail-panel-body">{children}</div>,
   };
 });
 
@@ -105,7 +107,7 @@ vi.mock("./useBacklogWorkspaceDetailState", () => ({
   useBacklogWorkspaceDetailState: () => ({
     detailDrawerTab: "details",
     setDetailDrawerTab: vi.fn(),
-    auditTarget: null,
+    auditTarget: "artifact" as const,
     setAuditTarget: vi.fn(),
   }),
 }));
@@ -268,7 +270,7 @@ vi.mock("../../../shared/api/artifactApi", () => ({
     isRefetching: false,
     refetch: vi.fn(),
   }),
-  useArtifact: () => ({ data: null, isError: false }),
+  useArtifact: () => ({ data: null, isError: false, isFetching: false }),
   useCreateArtifact: () => ({ mutateAsync: vi.fn(), isPending: false }),
   usePermittedTransitions: () => ({ data: [] }),
   useTransitionArtifact: () => ({ mutate: vi.fn(), isPending: false }),
@@ -456,5 +458,30 @@ describe("BacklogWorkspacePage", () => {
       (c) => c[2] === "artifact" && c[3] === "create",
     );
     expect(createCalls.some((c) => c[4] === "workitem" && c[5] === true)).toBe(true);
+  });
+
+  it("uses Dialog (not ArtifactDetailSurface) for table + drawer detail when tree default is not forced", async () => {
+    useArtifactStore.getState().resetListState();
+    useArtifactStore.getState().setListState({
+      viewMode: "table",
+      detailArtifactId: "artifact-1",
+    });
+
+    renderWithQualityI18n(
+      <MemoryRouter initialEntries={["/demo-org/demo-project/backlog"]}>
+        <Routes>
+          <Route
+            path="/:orgSlug/:projectSlug/backlog"
+            element={<BacklogWorkspacePage variant="quality" detailMode="drawer" />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("detail-panel-body")).toBeInTheDocument();
+    expect(ArtifactDetailSurfaceSpy).not.toHaveBeenCalled();
   });
 });

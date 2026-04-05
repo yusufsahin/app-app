@@ -21,6 +21,7 @@ vi.mock("../../artifacts/pages/useBacklogWorkspaceProject", () => ({
 vi.mock("../../../shared/api/artifactApi", () => ({
   useArtifacts: vi.fn(),
   useCreateArtifact: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useDeleteArtifact: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 
 vi.mock("../../../shared/api/formSchemaApi", () => ({
@@ -48,9 +49,21 @@ vi.mock("../../../shared/components/Layout", () => ({
   ProjectNotFoundView: () => <div>Project not found</div>,
 }));
 
-vi.mock("../../../shared/modal", () => ({
-  modalApi: { openCreateArtifact: vi.fn(), closeModal: vi.fn() },
-  useModalStore: { getState: () => ({ modalType: null, updateModalProps: vi.fn() }) },
+vi.mock("../../../shared/modal", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../../../shared/modal")>();
+  return {
+    ...mod,
+    modalApi: {
+      ...mod.modalApi,
+      openCreateArtifact: vi.fn(),
+      openEditArtifact: vi.fn(),
+      openDeleteArtifact: vi.fn(),
+    },
+  };
+});
+
+vi.mock("../../artifacts/components/ArtifactStandaloneDetailDialog", () => ({
+  ArtifactStandaloneDetailDialog: () => null,
 }));
 
 const mockUseArtifacts = vi.mocked(useArtifacts);
@@ -77,13 +90,20 @@ describe("QualityDefectsPage", () => {
     } as never);
 
     mockUseArtifacts.mockImplementation((...args) => {
+      const limit = args[7];
       const includeSystemRoots = args[14];
-      if (includeSystemRoots) {
+      if (includeSystemRoots && limit === 5) {
         return {
           data: {
             items: [{ id: "root-defect-id", artifact_type: "root-defect" }],
             total: 1,
           },
+          isPending: false,
+        } as never;
+      }
+      if (includeSystemRoots && limit === 500) {
+        return {
+          data: { items: [], total: 0 },
           isPending: false,
         } as never;
       }

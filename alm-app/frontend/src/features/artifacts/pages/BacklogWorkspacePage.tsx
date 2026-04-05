@@ -73,6 +73,10 @@ import {
   fetchTasksForArtifact,
   type Task,
   type CreateTaskRequest,
+  activityForTaskCreate,
+  optionalHoursForCreate,
+  hoursForTaskPatch,
+  activityForTaskPatch,
 } from "../../../shared/api/taskApi";
 import {
   useArtifactRelationships,
@@ -115,7 +119,15 @@ import {
   getSystemRootArtifactTypes,
   manifestArtifactTypeAllowsChildren,
 } from "../utils";
-import { BacklogToolbar, BacklogWorkspaceLayout, BacklogListFooter, BacklogTabularView, BacklogTreeView, ArtifactDetailSurface } from "../components";
+import {
+  BacklogToolbar,
+  BacklogWorkspaceLayout,
+  BacklogListFooter,
+  BacklogTabularView,
+  BacklogTreeView,
+  ArtifactDetailSurface,
+  ArtifactDetailPanelBody,
+} from "../components";
 import { BacklogArtifactDetailContent } from "../components/BacklogArtifactDetailContent";
 import { BacklogTreeTaskPreviewStrip } from "../components/BacklogTreeTaskPreviewStrip";
 import { useBacklogWorkspaceProject } from "./useBacklogWorkspaceProject";
@@ -123,6 +135,12 @@ import { useBacklogWorkspaceDetailState } from "./useBacklogWorkspaceDetailState
 import { useBacklogWorkspaceListFilters } from "./useBacklogWorkspaceListFilters";
 import { useBacklogWorkspaceCreateFlow } from "./useBacklogWorkspaceCreateFlow";
 import { getTreeRootsFromManifestBundle } from "../../../shared/lib/manifestTreeRoots";
+import {
+  buildWorkflowStateDisplayMap,
+  getMergedWorkflowStatesForAllTypes,
+  getWorkflowStatesForType,
+  type ManifestBundleShape,
+} from "../../../shared/lib/workflowManifest";
 import { artifactDetailPath } from "../../../shared/utils/appPaths";
 
 export type ViewMode = "table" | "tree";
@@ -457,6 +475,8 @@ export default function BacklogWorkspacePage({
   const renameTagMutation = useRenameProjectTag(orgSlug, project?.id);
   const deleteTagMutation = useDeleteProjectTag(orgSlug, project?.id);
   const isTreeSplitView = viewMode === "tree" && detailMode === "drawer";
+  /** Table + drawer: detail in a Dialog on the list URL (no navigate to /backlog/:id). */
+  const isTableDrawerDetailModal = viewMode === "table" && detailMode === "drawer" && !isTreeSplitView;
   /**
    * Quality: always quality subtree. Backlog workspace (default): requirement subtree by default so test cases
    * stay on Quality; `?tree=all` shows every tree (incl. quality).
@@ -791,21 +811,27 @@ export default function BacklogWorkspacePage({
   }, [orgSlug, projectSlug, searchParams]);
   const isRouteDetailPage = detailMode === "page";
 
-  const openArtifactDetail = useCallback((artifactId: string) => {
-    setListState({ detailArtifactId: artifactId, detailDrawerEditing: false });
-    if (isTreeSplitView) return;
-    if (!orgSlug || !projectSlug) return;
-    navigate(
-      artifactDetailPath(orgSlug, projectSlug, artifactId) + (searchParams.toString() ? `?${searchParams.toString()}` : ""),
-    );
-  }, [isTreeSplitView, navigate, orgSlug, projectSlug, searchParams, setListState]);
+  const openArtifactDetail = useCallback(
+    (artifactId: string) => {
+      setListState({ detailArtifactId: artifactId, detailDrawerEditing: false });
+      if (isTreeSplitView) return;
+      if (viewMode === "table" && detailMode === "drawer") return;
+      if (!orgSlug || !projectSlug) return;
+      navigate(
+        artifactDetailPath(orgSlug, projectSlug, artifactId) +
+          (searchParams.toString() ? `?${searchParams.toString()}` : ""),
+      );
+    },
+    [detailMode, isTreeSplitView, navigate, orgSlug, projectSlug, searchParams, setListState, viewMode],
+  );
 
   const closeArtifactDetail = useCallback(() => {
     setTreeTaskPreview(null);
     setListState({ detailArtifactId: null, detailDrawerEditing: false });
     if (isTreeSplitView) return;
+    if (viewMode === "table" && detailMode === "drawer") return;
     if (backlogListPath) navigate(backlogListPath);
-  }, [backlogListPath, isTreeSplitView, navigate, setListState]);
+  }, [backlogListPath, detailMode, isTreeSplitView, navigate, setListState, viewMode]);
 
   const openTaskReadOnlyPreview = useCallback(
     (artifact: Artifact, task: Task) => {
@@ -1037,15 +1063,15 @@ export default function BacklogWorkspacePage({
     return map;
   }, [bundle?.artifact_types]);
 
-  const filterStates = useMemo(() => {
-    const states = new Set<string>();
-    for (const wf of bundle?.workflows ?? []) {
-      for (const s of wf.states ?? []) {
-        if (typeof s === "string") states.add(s);
-      }
-    }
-    return Array.from(states).sort((a, b) => a.localeCompare(b));
-  }, [bundle?.workflows]);
+  const stateFilterOptions = useMemo(() => {
+    const typeFilter = listState.typeFilter?.trim();
+    const shape = (bundle ?? null) as ManifestBundleShape | null;
+    const ids = typeFilter
+      ? getWorkflowStatesForType(shape, typeFilter)
+      : getMergedWorkflowStatesForAllTypes(shape);
+    const displayMap = buildWorkflowStateDisplayMap(shape);
+    return ids.map((id) => ({ value: id, label: displayMap.get(id) ?? id }));
+  }, [bundle, listState.typeFilter]);
 
   const bulkSelectedIds = useMemo(
     () => Array.from(selectedIds).slice(0, 30),
@@ -1380,6 +1406,7 @@ export default function BacklogWorkspacePage({
     for (const f of taskCreateFormSchema?.fields ?? []) {
       if (f.key === "assignee_id") vals[f.key] = "";
       else if (f.type === "tag_list") vals[f.key] = [];
+      else if (f.type === "number") vals[f.key] = "";
       else if (f.key === "team_id" && projectTeams.length > 1) vals[f.key] = defaultProjectTeamId;
       else vals[f.key] = f.default_value ?? "";
     }
@@ -1400,6 +1427,11 @@ export default function BacklogWorkspacePage({
         state: editingTask.state,
         assignee_id: editingTask.assignee_id ?? "",
         team_id: editingTask.team_id ?? "",
+        original_estimate_hours:
+          editingTask.original_estimate_hours != null ? editingTask.original_estimate_hours : "",
+        remaining_work_hours:
+          editingTask.remaining_work_hours != null ? editingTask.remaining_work_hours : "",
+        activity: editingTask.activity ?? "",
         tag_ids: editingTask.tags?.map((x) => x.id) ?? [],
       });
     }
@@ -1408,12 +1440,18 @@ export default function BacklogWorkspacePage({
   const payloadFromTaskFormValues = useCallback(
     (v: Record<string, unknown>): CreateTaskRequest => {
       const teamId = soleProjectTeamId ?? ((v.team_id as string) || null);
+      const oe = optionalHoursForCreate(v.original_estimate_hours);
+      const rw = optionalHoursForCreate(v.remaining_work_hours);
+      const act = activityForTaskCreate(v.activity);
       return {
         title: (v.title as string)?.trim() ?? "",
         description: (v.description as string) || undefined,
         state: (v.state as string) || "todo",
         assignee_id: (v.assignee_id as string) || null,
         team_id: teamId || null,
+        ...(oe !== undefined ? { original_estimate_hours: oe } : {}),
+        ...(rw !== undefined ? { remaining_work_hours: rw } : {}),
+        ...(act !== undefined ? { activity: act } : {}),
         tag_ids: Array.isArray(v.tag_ids) ? (v.tag_ids as string[]) : undefined,
       };
     },
@@ -1496,6 +1534,9 @@ export default function BacklogWorkspacePage({
               state: (values.state as string) ?? undefined,
               assignee_id: (values.assignee_id as string) || null,
               team_id: soleProjectTeamId ?? ((values.team_id as string) || null),
+              original_estimate_hours: hoursForTaskPatch(values.original_estimate_hours),
+              remaining_work_hours: hoursForTaskPatch(values.remaining_work_hours),
+              activity: activityForTaskPatch(values.activity),
               tag_ids: tagIds,
             },
             {
@@ -2006,7 +2047,7 @@ export default function BacklogWorkspacePage({
             setFiltersPanelOpen={setFiltersPanelOpen}
             myTasksMenuAnchor={myTasksMenuAnchor}
             setMyTasksMenuAnchor={setMyTasksMenuAnchor}
-            filterStates={filterStates}
+            stateFilterOptions={stateFilterOptions}
             bundle={bundle}
             treeRootOptions={treeRootOptions}
             releaseCadenceOptions={releaseCadences}
@@ -2143,7 +2184,7 @@ export default function BacklogWorkspacePage({
                           currentTrigger: "",
                           onSelectTrigger: (t) =>
                             setListState({ bulkTransitionTrigger: t, bulkTransitionState: "" }),
-                          stateOptions: filterStates.map((s) => ({ value: s, label: s })),
+                          stateOptions: stateFilterOptions,
                           transitionSchema: bulkTransitionForm.schema,
                           transitionValues,
                           onTransitionFormChange: (v) =>
@@ -2284,6 +2325,7 @@ export default function BacklogWorkspacePage({
               projectId={project?.id}
               effectiveListSchema={effectiveListSchema}
               editFormSchema={artifactEditSchema}
+              manifestBundle={(bundle ?? null) as ManifestBundleShape | null}
               members={members}
               projectTags={projectTags}
               artifacts={artifacts ?? []}
@@ -2468,7 +2510,31 @@ export default function BacklogWorkspacePage({
         </div>
       )}
 
-      {!isTreeSplitView && (
+      {!isTreeSplitView && isTableDrawerDetailModal ? (
+        <Dialog
+          open={!!detailArtifact || detailDrawerLoadingFromUrl}
+          onOpenChange={(open) => {
+            if (!open) closeArtifactDetail();
+          }}
+        >
+          <DialogContent
+            showCloseButton={false}
+            className="flex max-h-[90vh] w-[min(100vw-2rem,920px)] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[920px]"
+            aria-describedby={undefined}
+          >
+            <DialogHeader className="sr-only shrink-0 px-4 pt-4 text-left">
+              <DialogTitle>Artifact details</DialogTitle>
+              <DialogDescription>
+                Inspect work item details, tasks, links, attachments, comments, and audit history.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-2 pb-4">
+              <ArtifactDetailPanelBody>{detailPanelContent}</ArtifactDetailPanelBody>
+              {detailTaskPreviewFooter}
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : !isTreeSplitView ? (
         <ArtifactDetailSurface
           isPage={isRouteDetailPage}
           open={!!detailArtifact || detailDrawerLoadingFromUrl}
@@ -2481,7 +2547,7 @@ export default function BacklogWorkspacePage({
         >
           {detailPanelContent}
         </ArtifactDetailSurface>
-      )}
+      ) : null}
     </div>
   );
 }

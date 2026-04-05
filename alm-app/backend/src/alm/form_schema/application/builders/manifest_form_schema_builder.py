@@ -12,6 +12,7 @@ from alm.artifact.domain.manifest_workflow_metadata import (
 )
 from alm.form_schema.domain.entities import FormFieldSchema, FormSchema, LookupSchema
 from alm.shared.domain.ports import IManifestDefsFlattener
+from alm.task.domain.task_activity import task_activity_options
 
 _CREATE_ARTIFACT_CORE_KEYS = frozenset({"artifact_type", "parent_id", "title", "description", "assignee_id"})
 
@@ -536,11 +537,42 @@ def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None)
             write_target="root",
         ),
         FormFieldSchema(
+            key="original_estimate_hours",
+            type="number",
+            label_key="Original estimate (hours)",
+            required=False,
+            order=43,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            write_target="root",
+        ),
+        FormFieldSchema(
+            key="remaining_work_hours",
+            type="number",
+            label_key="Remaining work (hours)",
+            required=False,
+            order=44,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            write_target="root",
+        ),
+        FormFieldSchema(
+            key="activity",
+            type="choice",
+            label_key="Activity",
+            required=False,
+            options=task_activity_options(),
+            order=45,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            write_target="root",
+        ),
+        FormFieldSchema(
             key="tag_ids",
             type="tag_list",
             label_key="Tags",
             required=False,
-            order=45,
+            order=46,
             editable=True,
             surfaces=_editable_surfaces("tabular", "detail"),
             lookup=_infer_lookup("tag_list"),

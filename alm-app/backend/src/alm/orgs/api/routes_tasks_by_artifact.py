@@ -82,6 +82,9 @@ async def create_task(
             assignee_id=body.assignee_id,
             rank_order=body.rank_order,
             team_id=body.team_id,
+            original_estimate_hours=body.original_estimate_hours,
+            remaining_work_hours=body.remaining_work_hours,
+            activity=body.activity,
             tag_ids=body.tag_ids,
         )
     )
@@ -163,6 +166,12 @@ async def update_task(
     )
     if "tag_ids" in updates:
         cmd_kwargs["tag_ids"] = updates["tag_ids"]
+    if "original_estimate_hours" in updates:
+        cmd_kwargs["original_estimate_hours"] = updates["original_estimate_hours"]
+    if "remaining_work_hours" in updates:
+        cmd_kwargs["remaining_work_hours"] = updates["remaining_work_hours"]
+    if "activity" in updates:
+        cmd_kwargs["activity"] = updates["activity"]
     dto = await mediator.send(UpdateTask(**cmd_kwargs))
     return task_response_from_dto(dto)
 

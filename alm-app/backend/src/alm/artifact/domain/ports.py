@@ -45,6 +45,8 @@ class ArtifactRepository(ABC):
         fts_regconfig: str | None = None,
         tag_id: uuid.UUID | None = None,
         team_id: uuid.UUID | None = None,
+        assignee_id: uuid.UUID | None = None,
+        unassigned_only: bool = False,
     ) -> list[Artifact]: ...
 
     @abstractmethod
@@ -65,6 +67,8 @@ class ArtifactRepository(ABC):
         fts_regconfig: str | None = None,
         tag_id: uuid.UUID | None = None,
         team_id: uuid.UUID | None = None,
+        assignee_id: uuid.UUID | None = None,
+        unassigned_only: bool = False,
     ) -> int:
         """Count artifacts matching the same filters as list_by_project (no limit/offset).
 

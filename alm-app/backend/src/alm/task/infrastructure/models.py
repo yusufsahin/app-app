@@ -42,3 +42,6 @@ class TaskModel(Base, TimestampMixin, SoftDeleteMixin):
         nullable=True,
         index=True,
     )
+    original_estimate_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    remaining_work_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    activity: Mapped[str | None] = mapped_column(String(64), nullable=True)

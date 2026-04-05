@@ -334,9 +334,11 @@ def _build_task_list_schema(manifest_bundle: dict[str, Any] | None = None) -> Li
         ListColumnSchema(key="title", label="Title", order=2, sortable=True),
         ListColumnSchema(key="state", label="State", order=3, sortable=True),
         ListColumnSchema(key="assignee_id", label="Assignee", order=4, sortable=True),
-        ListColumnSchema(key="rank_order", label="Rank", order=5, sortable=True),
-        ListColumnSchema(key="created_at", label="Created", order=6, sortable=True),
-        ListColumnSchema(key="updated_at", label="Updated", order=7, sortable=True),
+        ListColumnSchema(key="remaining_work_hours", label="Remaining (h)", order=5, sortable=True),
+        ListColumnSchema(key="activity", label="Activity", order=6, sortable=True),
+        ListColumnSchema(key="rank_order", label="Rank", order=7, sortable=True),
+        ListColumnSchema(key="created_at", label="Created", order=8, sortable=True),
+        ListColumnSchema(key="updated_at", label="Updated", order=9, sortable=True),
     )
     filters: tuple[ListFilterSchema, ...] = (
         ListFilterSchema(

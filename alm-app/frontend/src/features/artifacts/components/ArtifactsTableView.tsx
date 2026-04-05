@@ -1,10 +1,12 @@
 import { useCallback, useMemo, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, ListTodo, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { ChevronDown, ChevronRight, Eye, ListTodo, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { Artifact } from "../../../shared/api/artifactApi";
 import type { TenantMember } from "../../../shared/api/orgApi";
 import type { ProjectTag } from "../../../shared/api/projectTagApi";
 import type { ListSchemaDto } from "../../../shared/types/listSchema";
 import type { FormSchemaDto } from "../../../shared/types/formSchema";
+import type { ManifestBundleShape } from "../../../shared/lib/workflowManifest";
 import type { Task } from "../../../shared/api/taskApi";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { MetadataDrivenGrid } from "../../../shared/components/lists/MetadataDrivenGrid";
@@ -37,7 +39,8 @@ function TabularExpandedTaskList({
   onDeleteTask?: (artifact: Artifact, task: Task) => void;
   selectedTask: { artifactId: string; taskId: string } | null;
 }) {
-  const taskMenu = Boolean(onEditTask && onDeleteTask);
+  const { t } = useTranslation();
+  const taskMenu = Boolean(onOpenTask);
 
   if (loading && tasks.length === 0) {
     return <p className="px-2 text-sm text-muted-foreground">Loading tasks…</p>;
@@ -81,6 +84,12 @@ function TabularExpandedTaskList({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  {onOpenTask ? (
+                    <DropdownMenuItem onClick={() => onOpenTask(artifact, task)}>
+                      <Eye className="mr-2 size-3.5" />
+                      {t("backlogTabular.viewTask")}
+                    </DropdownMenuItem>
+                  ) : null}
                   {onEditTask ? (
                     <DropdownMenuItem onClick={() => onEditTask(artifact, task)}>
                       <Pencil className="mr-2 size-3.5" />
@@ -111,6 +120,7 @@ interface ArtifactsTabularViewProps {
   projectId?: string;
   effectiveListSchema?: ListSchemaDto | null;
   editFormSchema?: FormSchemaDto | null;
+  manifestBundle?: ManifestBundleShape | null;
   members?: TenantMember[] | null;
   projectTags?: ProjectTag[];
   artifacts: Artifact[];
@@ -142,6 +152,7 @@ export function ArtifactsTabularView({
   projectId,
   effectiveListSchema,
   editFormSchema,
+  manifestBundle = null,
   members,
   projectTags,
   artifacts,
@@ -170,6 +181,7 @@ export function ArtifactsTabularView({
   const tabularColumns = useArtifactsTabularColumns({
     listSchema: effectiveListSchema,
     formSchema: editFormSchema,
+    manifestBundle,
     members,
     projectTags,
   });

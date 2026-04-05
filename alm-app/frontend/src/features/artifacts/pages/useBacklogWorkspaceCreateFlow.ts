@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CreateArtifactRequest } from "../../../shared/api/artifactApi";
 import type { ProblemDetail } from "../../../shared/api/types";
 import type { FormSchemaDto } from "../../../shared/types/formSchema";
@@ -69,7 +69,9 @@ export function useBacklogWorkspaceCreateFlow({
   const createFormValuesRef = useRef<Record<string, unknown>>({});
   const createArtifactTypeIdRef = useRef<string>("");
   const formSchemaRef = useRef(formSchema);
-  formSchemaRef.current = formSchema;
+  useEffect(() => {
+    formSchemaRef.current = formSchema;
+  }, [formSchema]);
 
   const initialFormValues = useMemo(() => {
     const vals: Record<string, unknown> = {};

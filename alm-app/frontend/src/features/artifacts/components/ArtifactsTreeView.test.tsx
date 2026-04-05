@@ -77,7 +77,29 @@ describe("ArtifactsTreeView", () => {
   });
 
   it("shows a chevron when an artifact has tasks but no child artifacts", () => {
-    const tasksMap = new Map<string, Task[]>([["artifact-1", [{ id: "t1", project_id: "p", artifact_id: "artifact-1", title: "Task A", state: "todo", description: "", assignee_id: null, rank_order: null, team_id: null, created_at: null, updated_at: null }]]]);
+    const tasksMap = new Map<string, Task[]>([
+      [
+        "artifact-1",
+        [
+          {
+            id: "t1",
+            project_id: "p",
+            artifact_id: "artifact-1",
+            title: "Task A",
+            state: "todo",
+            description: "",
+            assignee_id: null,
+            rank_order: null,
+            team_id: null,
+            original_estimate_hours: null,
+            remaining_work_hours: null,
+            activity: null,
+            created_at: null,
+            updated_at: null,
+          },
+        ],
+      ],
+    ]);
 
     renderTree(
       <ArtifactsTreeView
@@ -114,6 +136,9 @@ describe("ArtifactsTreeView", () => {
       assignee_id: null,
       rank_order: null,
       team_id: null,
+      original_estimate_hours: null,
+      remaining_work_hours: null,
+      activity: null,
       created_at: null,
       updated_at: null,
     };
@@ -180,6 +205,9 @@ describe("ArtifactsTreeView", () => {
       assignee_id: null,
       rank_order: null,
       team_id: null,
+      original_estimate_hours: null,
+      remaining_work_hours: null,
+      activity: null,
       created_at: null,
       updated_at: null,
     };

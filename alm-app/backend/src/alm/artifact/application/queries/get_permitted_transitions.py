@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from alm.artifact.domain.manifest_merge_defaults import merge_manifest_metadata_defaults
 from alm.artifact.domain.mpc_resolver import get_manifest_ast
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.workflow_sm import get_permitted_triggers
@@ -56,7 +57,7 @@ class GetPermittedTransitionsHandler(QueryHandler[list[PermittedTransitionDTO]])
         if version is None:
             return []
 
-        manifest = version.manifest_bundle or {}
+        manifest = merge_manifest_metadata_defaults(version.manifest_bundle or {})
         ast = get_manifest_ast(version.id, manifest)
         permitted = get_permitted_triggers(
             manifest,

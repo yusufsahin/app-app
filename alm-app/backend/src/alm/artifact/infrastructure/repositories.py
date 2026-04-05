@@ -80,6 +80,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         fts_regconfig: str | None = None,
         tag_id: uuid.UUID | None = None,
         team_id: uuid.UUID | None = None,
+        assignee_id: uuid.UUID | None = None,
+        unassigned_only: bool = False,
     ) -> Any:
         """Apply common filters for list and count."""
         if root_artifact_id is not None:
@@ -99,6 +101,10 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             q = q.where(ArtifactModel.area_node_id == area_node_id)
         if team_id is not None:
             q = q.where(ArtifactModel.team_id == team_id)
+        if unassigned_only:
+            q = q.where(ArtifactModel.assignee_id.is_(None))
+        elif assignee_id is not None:
+            q = q.where(ArtifactModel.assignee_id == assignee_id)
         if search_query and search_query.strip():
             term = search_query.strip()
             cfg = _effective_fts_regconfig(fts_regconfig)
@@ -136,6 +142,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         fts_regconfig: str | None = None,
         tag_id: uuid.UUID | None = None,
         team_id: uuid.UUID | None = None,
+        assignee_id: uuid.UUID | None = None,
+        unassigned_only: bool = False,
     ) -> int:
         q = select(func.count(ArtifactModel.id)).where(
             ArtifactModel.project_id == project_id,
@@ -154,6 +162,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             fts_regconfig=fts_regconfig,
             tag_id=tag_id,
             team_id=team_id,
+            assignee_id=assignee_id,
+            unassigned_only=unassigned_only,
         )
         to_ex = self._root_types_to_exclude(exclude_root_artifact_types, root_type_ids_exclude)
         if to_ex:
@@ -192,6 +202,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         fts_regconfig: str | None = None,
         tag_id: uuid.UUID | None = None,
         team_id: uuid.UUID | None = None,
+        assignee_id: uuid.UUID | None = None,
+        unassigned_only: bool = False,
     ) -> list[Artifact]:
         q = select(ArtifactModel).where(
             ArtifactModel.project_id == project_id,
@@ -210,6 +222,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             fts_regconfig=fts_regconfig,
             tag_id=tag_id,
             team_id=team_id,
+            assignee_id=assignee_id,
+            unassigned_only=unassigned_only,
         )
         to_ex = self._root_types_to_exclude(exclude_root_artifact_types, root_type_ids_exclude)
         if to_ex:

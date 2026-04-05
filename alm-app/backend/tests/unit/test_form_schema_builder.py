@@ -197,6 +197,9 @@ class TestFormSchemaBuilder:
             "state",
             "assignee_id",
             "team_id",
+            "original_estimate_hours",
+            "remaining_work_hours",
+            "activity",
             "tag_ids",
         ]
         state_field = next(f for f in schema.fields if f.key == "state")

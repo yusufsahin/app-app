@@ -19,6 +19,9 @@ export interface Task {
   assignee_id: string | null;
   rank_order: number | null;
   team_id: string | null;
+  original_estimate_hours: number | null;
+  remaining_work_hours: number | null;
+  activity: string | null;
   created_at: string | null;
   updated_at: string | null;
   tags?: TaskTagBrief[];
@@ -31,6 +34,9 @@ export interface CreateTaskRequest {
   assignee_id?: string | null;
   team_id?: string | null;
   rank_order?: number | null;
+  original_estimate_hours?: number | null;
+  remaining_work_hours?: number | null;
+  activity?: string | null;
   tag_ids?: string[];
 }
 
@@ -41,7 +47,38 @@ export interface UpdateTaskRequest {
   assignee_id?: string | null;
   team_id?: string | null;
   rank_order?: number | null;
+  original_estimate_hours?: number | null;
+  remaining_work_hours?: number | null;
+  activity?: string | null;
   tag_ids?: string[];
+}
+
+/** Omit from POST body when empty; use for create form values. */
+export function optionalHoursForCreate(v: unknown): number | undefined {
+  if (v === "" || v === null || v === undefined) return undefined;
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return undefined;
+  return n;
+}
+
+/** Map form value to PATCH payload (empty clears). */
+export function hoursForTaskPatch(v: unknown): number | null {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
+export function activityForTaskCreate(v: unknown): string | null | undefined {
+  if (v === "" || v === null || v === undefined) return undefined;
+  const s = String(v).trim();
+  return s === "" ? undefined : s;
+}
+
+export function activityForTaskPatch(v: unknown): string | null {
+  if (v === "" || v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s === "" ? null : s;
 }
 
 export async function fetchTasksForArtifact(
@@ -107,6 +144,9 @@ export function useCreateTask(orgSlug: string | undefined, projectId: string | u
       if (rest.assignee_id !== undefined) body.assignee_id = rest.assignee_id;
       if (rest.team_id !== undefined) body.team_id = rest.team_id;
       if (rest.rank_order !== undefined) body.rank_order = rest.rank_order;
+      if (rest.original_estimate_hours !== undefined) body.original_estimate_hours = rest.original_estimate_hours;
+      if (rest.remaining_work_hours !== undefined) body.remaining_work_hours = rest.remaining_work_hours;
+      if (rest.activity !== undefined) body.activity = rest.activity;
       if (rest.tag_ids !== undefined) body.tag_ids = rest.tag_ids;
       const { data } = await apiClient.post<Task>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/tasks`,
@@ -138,6 +178,9 @@ export function useUpdateTask(orgSlug: string | undefined, projectId: string | u
       if (rest.assignee_id !== undefined) body.assignee_id = rest.assignee_id;
       if (rest.team_id !== undefined) body.team_id = rest.team_id;
       if (rest.rank_order !== undefined) body.rank_order = rest.rank_order;
+      if (rest.original_estimate_hours !== undefined) body.original_estimate_hours = rest.original_estimate_hours;
+      if (rest.remaining_work_hours !== undefined) body.remaining_work_hours = rest.remaining_work_hours;
+      if (rest.activity !== undefined) body.activity = rest.activity;
       if (rest.tag_ids !== undefined) body.tag_ids = rest.tag_ids;
       const { data } = await apiClient.patch<Task>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/tasks/${taskId}`,

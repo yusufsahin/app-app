@@ -99,6 +99,9 @@ const sampleTask: Task = {
   assignee_id: null,
   rank_order: null,
   team_id: null,
+  original_estimate_hours: null,
+  remaining_work_hours: null,
+  activity: null,
   created_at: null,
   updated_at: null,
 };
@@ -198,6 +201,7 @@ describe("ArtifactsTableView", () => {
     expect(mockUseArtifactsTabularColumns).toHaveBeenCalledWith({
       listSchema,
       formSchema,
+      manifestBundle: null,
       members: sampleMembers,
       projectTags: sampleTags,
     });

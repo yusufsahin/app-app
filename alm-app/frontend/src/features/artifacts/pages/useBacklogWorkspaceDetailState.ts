@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { BacklogDetailTab } from "../components/BacklogArtifactDetailContent";
 
 interface UseBacklogWorkspaceDetailStateArgs {
@@ -8,16 +8,27 @@ interface UseBacklogWorkspaceDetailStateArgs {
 export function useBacklogWorkspaceDetailState({
   detailArtifactId,
 }: UseBacklogWorkspaceDetailStateArgs) {
-  const [detailDrawerTab, setDetailDrawerTab] = useState<BacklogDetailTab>("details");
-  const [auditTarget, setAuditTarget] = useState<string>("artifact");
+  const artifactKey = detailArtifactId ?? "";
 
-  useEffect(() => {
-    setDetailDrawerTab("details");
-  }, [detailArtifactId]);
+  const [detailDrawerTabById, setDetailDrawerTabById] = useState<Record<string, BacklogDetailTab>>({});
+  const [auditTargetById, setAuditTargetById] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    setAuditTarget("artifact");
-  }, [detailArtifactId]);
+  const detailDrawerTab = detailDrawerTabById[artifactKey] ?? "details";
+  const auditTarget = auditTargetById[artifactKey] ?? "artifact";
+
+  const setDetailDrawerTab = useCallback(
+    (tab: BacklogDetailTab) => {
+      setDetailDrawerTabById((m) => ({ ...m, [artifactKey]: tab }));
+    },
+    [artifactKey],
+  );
+
+  const setAuditTarget = useCallback(
+    (target: string) => {
+      setAuditTargetById((m) => ({ ...m, [artifactKey]: target }));
+    },
+    [artifactKey],
+  );
 
   return {
     detailDrawerTab,

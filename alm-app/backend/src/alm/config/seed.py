@@ -157,6 +157,15 @@ def _demo_planning_leaf_type(manifest_bundle: dict[str, Any]) -> str:
     return under_epic
 
 
+# Defect triage: same value set for Severity and defect-specific Priority (distinct from backlog `priority` on requirements/work items).
+_DEFECT_SEVERITY_AND_PRIORITY_OPTIONS: list[dict[str, str]] = [
+    {"id": "low", "label": "Low"},
+    {"id": "medium", "label": "Medium"},
+    {"id": "high", "label": "High"},
+    {"id": "critical", "label": "Critical"},
+]
+
+
 def _open_text_defect_parity_fields(*, visible_in: list[str]) -> list[dict[str, Any]]:
     """Custom fields aligned with OpenText-style defect triage (manifest `typeName` → `artifact_type` in forms)."""
     vw = {"field": "typeName", "in": visible_in}
@@ -165,25 +174,14 @@ def _open_text_defect_parity_fields(*, visible_in: list[str]) -> list[dict[str, 
             "id": "severity",
             "name": "Severity",
             "type": "choice",
-            "options": [
-                {"id": "low", "label": "Low"},
-                {"id": "medium", "label": "Medium"},
-                {"id": "high", "label": "High"},
-                {"id": "critical", "label": "Critical"},
-            ],
+            "options": list(_DEFECT_SEVERITY_AND_PRIORITY_OPTIONS),
             "visibleWhen": vw,
         },
         {
             "id": "defect_priority",
             "name": "Priority",
             "type": "choice",
-            "options": [
-                {"id": "1", "label": "1"},
-                {"id": "2", "label": "2"},
-                {"id": "3", "label": "3"},
-                {"id": "4", "label": "4"},
-                {"id": "5", "label": "5"},
-            ],
+            "options": list(_DEFECT_SEVERITY_AND_PRIORITY_OPTIONS),
             "visibleWhen": vw,
         },
         {
@@ -2260,7 +2258,7 @@ async def hydrate_stranded_demo_workspace(
                         artifact_key=f"{proj.code}-{seq_d}",
                         custom_fields={
                             "severity": "high",
-                            "defect_priority": "2",
+                            "defect_priority": "high",
                             "reproducible": "yes",
                         },
                     )
@@ -2732,7 +2730,7 @@ async def seed_demo_data(
                         artifact_key=f"{first_project[0].code}-{seq_d1}",
                         custom_fields={
                             "severity": "high",
-                            "defect_priority": "2",
+                            "defect_priority": "high",
                             "reproducible": "yes",
                             "detected_environment": "staging",
                             "detected_by": str(user.id),
@@ -2753,7 +2751,7 @@ async def seed_demo_data(
                         artifact_key=f"{first_project[0].code}-{seq_d2}",
                         custom_fields={
                             "severity": "medium",
-                            "defect_priority": "3",
+                            "defect_priority": "medium",
                             "reproducible": "unknown",
                             "detected_environment": "integration",
                             "estimated_fix_days": 3,
@@ -2774,7 +2772,7 @@ async def seed_demo_data(
                         resolution="fixed",
                         custom_fields={
                             "severity": "low",
-                            "defect_priority": "4",
+                            "defect_priority": "low",
                             "reproducible": "yes",
                             "detected_environment": "production",
                             "planned_fix_version": "2.5.0",
@@ -3611,7 +3609,7 @@ async def seed_demo_data(
                                 "severity": "high",
                                 "reproducible": "yes",
                                 "detected_environment": "dev",
-                                "defect_priority": "2",
+                                "defect_priority": "high",
                             },
                         )
                         def_p2.created_by = user.id

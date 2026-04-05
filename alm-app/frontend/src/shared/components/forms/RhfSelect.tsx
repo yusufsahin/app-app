@@ -52,6 +52,9 @@ export function RhfSelect<TFieldValues extends import("react-hook-form").FieldVa
   });
 
   const size = selectProps?.size ?? "default";
+  const hasEmptyOption = options.some(
+    (o) => o.value === "" || o.value === undefined || o.value === null,
+  );
 
   return (
     <Controller
@@ -80,14 +83,14 @@ export function RhfSelect<TFieldValues extends import("react-hook-form").FieldVa
               <SelectValue placeholder={placeholder ?? "Select…"} />
             </SelectTrigger>
             <SelectContent>
-              {placeholder != null && placeholder !== "" && (
+              {placeholder != null && placeholder !== "" && !hasEmptyOption && (
                 <SelectItem value="__empty__">{placeholder}</SelectItem>
               )}
-              {options.map((opt) => {
+              {options.map((opt, idx) => {
                 const val = opt.value === "" || opt.value === undefined || opt.value === null ? "__empty__" : String(opt.value);
                 return (
                   <SelectItem
-                    key={val}
+                    key={val === "__empty__" ? `__empty__-${idx}` : val}
                     value={val}
                     disabled={opt.disabled}
                   >

@@ -149,7 +149,7 @@ function ToolbarHarness(harnessProps: HarnessProps = {}) {
       setFiltersPanelOpen={vi.fn()}
       myTasksMenuAnchor={null}
       setMyTasksMenuAnchor={vi.fn()}
-      filterStates={[]}
+      stateFilterOptions={[]}
       bundle={
         bundleOverride ?? {
           artifact_types: [

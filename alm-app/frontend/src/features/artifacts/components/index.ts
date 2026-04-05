@@ -10,6 +10,7 @@ export { ArtifactDetailDrawer } from "./ArtifactDetailDrawer";
 export type { ArtifactDetailDrawerProps } from "./ArtifactDetailDrawer";
 export { ArtifactDetailSurface } from "./ArtifactDetailSurface";
 export type { ArtifactDetailSurfaceProps } from "./ArtifactDetailSurface";
+export { ArtifactDetailDndProvider, ArtifactDetailPanelBody } from "./ArtifactDetailPanelBody";
 export { ArtifactDetailHeader } from "./ArtifactDetailHeader";
 export { ArtifactDetailDetails } from "./ArtifactDetailDetails";
 export { ArtifactDetailTasks } from "./ArtifactDetailTasks";

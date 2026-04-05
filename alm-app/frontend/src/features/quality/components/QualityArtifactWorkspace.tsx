@@ -1626,10 +1626,16 @@ export default function QualityArtifactWorkspace({
                     </Select>
                   </div>
                   <div className="flex items-end">
-                    <label className="flex items-center gap-2 text-sm">
-                      <Checkbox checked={importValidateOnly} onCheckedChange={(checked) => setImportValidateOnly(checked === true)} />
-                      Validate only
-                    </label>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        id="quality-testcase-import-validate-only"
+                        checked={importValidateOnly}
+                        onCheckedChange={(checked) => setImportValidateOnly(checked === true)}
+                      />
+                      <Label htmlFor="quality-testcase-import-validate-only" className="font-normal">
+                        Validate only
+                      </Label>
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-2">
