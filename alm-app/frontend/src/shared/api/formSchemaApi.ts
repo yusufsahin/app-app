@@ -1,7 +1,7 @@
 /**
  * Form schema API — metadata-driven form definitions for artifact create, etc.
  */
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiClient } from "./client";
 import type { FormSchemaDto } from "../types/formSchema";
 
@@ -11,6 +11,8 @@ export function useFormSchema(
   entityType = "artifact",
   context = "create",
   artifactType?: string,
+  /** Avoid empty body while `artifactType` query key changes (narrowed create/edit). */
+  keepPreviousDataWhileFetching = false,
 ) {
   return useQuery({
     queryKey: ["orgs", orgSlug, "projects", projectId, "form-schema", entityType, context, artifactType],
@@ -25,5 +27,6 @@ export function useFormSchema(
     },
     enabled: !!orgSlug && !!projectId,
     staleTime: 60_000,
+    placeholderData: keepPreviousDataWhileFetching ? keepPreviousData : undefined,
   });
 }

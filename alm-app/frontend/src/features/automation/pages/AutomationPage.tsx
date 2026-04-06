@@ -1,4 +1,3 @@
-import { useParams } from "react-router-dom";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -27,8 +26,7 @@ import {
   DialogFooter,
 } from "../../../shared/components/ui";
 import { RhfSelect, RhfSwitch, RhfTextField } from "../../../shared/components/forms";
-import { useOrgProjects } from "../../../shared/api/orgApi";
-import { useProjectStore } from "../../../shared/stores/projectStore";
+import { useOrgProjectFromRoute } from "../../../shared/hooks/useOrgProjectFromRoute";
 import {
   useWorkflowRules,
   useCreateWorkflowRule,
@@ -67,12 +65,7 @@ const addRuleSchema = z.object({
 type AddRuleFormValues = z.infer<typeof addRuleSchema>;
 
 export default function AutomationPage() {
-  const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
-  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
-  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
-  const project =
-    projects?.find((p) => p.slug === projectSlug) ??
-    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
+  const { orgSlug, projectSlug, project, projectsLoading } = useOrgProjectFromRoute();
   const { data: rules = [], isLoading } = useWorkflowRules(orgSlug, project?.id);
   const createRule = useCreateWorkflowRule(orgSlug, project?.id);
   const deleteRule = useDeleteWorkflowRule(orgSlug, project?.id);

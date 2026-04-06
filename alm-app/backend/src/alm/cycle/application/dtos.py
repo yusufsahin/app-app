@@ -23,4 +23,4 @@ class CadenceDTO:
     type: str  # "release" | "cycle"
     created_at: str | None
     updated_at: str | None
-    children: list["CadenceDTO"] = field(default_factory=list)
+    children: list[CadenceDTO] = field(default_factory=list)

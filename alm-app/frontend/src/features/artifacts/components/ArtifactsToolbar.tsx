@@ -1,7 +1,7 @@
 /**
  * Toolbar for Backlog page: title, My tasks dropdown, search, view mode, collapsible filters.
  */
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -15,6 +15,7 @@ import {
   Network,
   FilterX,
   Loader2,
+  MoreHorizontal,
 } from "lucide-react";
 import { FormProvider } from "react-hook-form";
 import type { UseFormReturn } from "react-hook-form";
@@ -24,6 +25,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -40,7 +44,8 @@ import {
 } from "../../../shared/components/ui";
 import { RhfTextField, RhfSelect, RhfCheckbox } from "../../../shared/components/forms";
 import { modalApi } from "../../../shared/modal";
-import { downloadArtifactsCsv } from "../utils";
+import { downloadArtifactsCsv, getSystemRootArtifactTypes, getToolbarCreatableArtifactTypeIds } from "../utils";
+import type { ManifestBundleForChildTypes } from "../utils";
 import type { Artifact } from "../../../shared/stores/artifactStore";
 import {
   buildArtifactListParams,
@@ -77,8 +82,14 @@ type Cadence = { id: string; path?: string; name?: string };
 type AreaNode = { id: string; path?: string; name?: string };
 type SavedQuery = { id: string; name: string; visibility?: string };
 type ProjectTagOption = { id: string; name: string };
-type Bundle = {
-  artifact_types?: Array<{ id: string; name?: string }>;
+/** Toolbar manifest row: explicit `id` + optional label (intersection with ManifestBundleForChildTypes left `id` optional). */
+type BundleArtifactTypeRow = NonNullable<ManifestBundleForChildTypes["artifact_types"]>[number] & {
+  id: string;
+  name?: string;
+};
+type Bundle = Omit<ManifestBundleForChildTypes, "artifact_types"> & {
+  artifact_types?: BundleArtifactTypeRow[];
+  workflows?: unknown[];
 };
 type Project = { id: string; name: string; slug: string };
 type Member = { user_id: string; display_name?: string; email?: string };
@@ -95,7 +106,8 @@ export interface ArtifactsToolbarProps {
   setFiltersPanelOpen: (fn: (prev: boolean) => boolean) => void;
   myTasksMenuAnchor: HTMLElement | null;
   setMyTasksMenuAnchor: (el: HTMLElement | null) => void;
-  filterStates: string[];
+  /** State filter dropdown: value is workflow state id sent to the API; label is manifest display text. */
+  stateFilterOptions: { value: string; label: string }[];
   bundle: Bundle | undefined;
   treeRootOptions: ManifestTreeRoot[];
   releaseCadenceOptions: Cadence[];
@@ -134,6 +146,11 @@ export interface ArtifactsToolbarProps {
   showNotification: (message: string, severity?: "success" | "error" | "warning") => void;
   projectTagOptions?: ProjectTagOption[];
   onOpenTagsManager?: () => void;
+  /**
+   * Active backlog tree module (`tree_roots[].tree_id`). When null/undefined, toolbar does not offer
+   * "New work item" (avoids creating under the wrong module or duplicating system roots).
+   */
+  workItemTreeId?: string | null;
 }
 
 export function ArtifactsToolbar({
@@ -147,7 +164,7 @@ export function ArtifactsToolbar({
   setFiltersPanelOpen,
   myTasksMenuAnchor: _myTasksMenuAnchor,
   setMyTasksMenuAnchor,
-  filterStates,
+  stateFilterOptions,
   bundle,
   treeRootOptions,
   releaseCadenceOptions,
@@ -169,6 +186,7 @@ export function ArtifactsToolbar({
   showNotification,
   projectTagOptions,
   onOpenTagsManager,
+  workItemTreeId = null,
 }: ArtifactsToolbarProps) {
   const { t } = useTranslation("quality");
   const [newWorkItemOpen, setNewWorkItemOpen] = useState(false);
@@ -180,7 +198,29 @@ export function ArtifactsToolbar({
   const [importResult, setImportResult] = useState<ArtifactImportResult | null>(null);
   const [ioBusy, setIoBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const artifactTypes = bundle?.artifact_types ?? [];
+  const artifactTypes: BundleArtifactTypeRow[] = (bundle?.artifact_types ?? []).filter(
+    (at): at is BundleArtifactTypeRow => typeof at.id === "string" && at.id.length > 0,
+  );
+  const moduleRootType =
+    workItemTreeId != null && String(workItemTreeId).trim() !== ""
+      ? (treeRootOptions.find((o) => o.tree_id === workItemTreeId)?.root_artifact_type ?? "")
+      : "";
+  const systemRootsForToolbar = useMemo(() => getSystemRootArtifactTypes(bundle), [bundle]);
+  const toolbarCreatableTypeIds = useMemo(() => {
+    if (!moduleRootType || !bundle) return [] as string[];
+    return getToolbarCreatableArtifactTypeIds(bundle, moduleRootType, systemRootsForToolbar);
+  }, [bundle, moduleRootType, systemRootsForToolbar]);
+  const creatableTypeIdSet = useMemo(() => new Set(toolbarCreatableTypeIds), [toolbarCreatableTypeIds]);
+  const workItemArtifactTypes = useMemo(
+    () =>
+      artifactTypes.filter(
+        (at) =>
+          creatableTypeIdSet.has(at.id) &&
+          !systemRootsForToolbar.has(at.id) &&
+          !String(at.id).startsWith("root-"),
+      ),
+    [artifactTypes, creatableTypeIdSet, systemRootsForToolbar],
+  );
   const canCreate =
     listResult?.allowed_actions?.includes("create") ??
     artifacts[0]?.allowed_actions?.includes("create") ??
@@ -332,62 +372,121 @@ export function ArtifactsToolbar({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={() => refetchArtifacts()}
-            disabled={isLoading}
-            aria-label="Refresh list"
-            title="Refresh list"
-          >
-            {isRefetching ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCw className="size-4" />
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            size="default"
-            onClick={() => downloadArtifactsCsv(artifacts, members ?? [], listColumns)}
-            disabled={artifacts.length === 0}
-            aria-label="Export CSV"
-            title="Export current page to CSV"
-          >
-            <Download className="mr-2 size-4" />
-            Export CSV
-          </Button>
+          <div className="hidden items-center gap-2 lg:flex">
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={() => refetchArtifacts()}
+              disabled={isLoading}
+              aria-label="Refresh list"
+              title="Refresh list"
+            >
+              {isRefetching ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="default"
+              onClick={() => downloadArtifactsCsv(artifacts, members ?? [], listColumns)}
+              disabled={artifacts.length === 0}
+              aria-label="Export CSV"
+              title="Export current page to CSV"
+            >
+              <Download className="mr-2 size-4" />
+              Export CSV
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={ioBusy}>
+                  <Download className="mr-2 size-4" />
+                  Export All
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportAll("csv", "generic")}>Artifacts CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportAll("xlsx", "generic")}>Artifacts XLSX</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={ioBusy}>
+                  Templates
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleTemplateDownload("csv", "generic")}>
+                  Artifact CSV template
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleTemplateDownload("xlsx", "generic")}>
+                  Artifact XLSX template
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="outline" onClick={() => setImportOpen(true)} disabled={ioBusy}>
+              Import
+            </Button>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={ioBusy}>
+              <Button
+                variant="outline"
+                size="icon"
+                className="lg:hidden"
+                aria-label="More actions"
+                title="More actions"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 lg:hidden">
+              <DropdownMenuItem
+                onClick={() => refetchArtifacts()}
+                disabled={isLoading}
+              >
+                <RefreshCw className="mr-2 size-4" />
+                Refresh list
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => downloadArtifactsCsv(artifacts, members ?? [], listColumns)}
+                disabled={artifacts.length === 0}
+              >
                 <Download className="mr-2 size-4" />
-                Export All
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleExportAll("csv", "generic")}>Artifacts CSV</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportAll("xlsx", "generic")}>Artifacts XLSX</DropdownMenuItem>
+                Export CSV
+              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={ioBusy}>
+                  <Download className="mr-2 size-4" />
+                  Export all
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => handleExportAll("csv", "generic")}>Artifacts CSV</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportAll("xlsx", "generic")}>Artifacts XLSX</DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={ioBusy}>Templates</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => handleTemplateDownload("csv", "generic")}>
+                    Artifact CSV template
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleTemplateDownload("xlsx", "generic")}>
+                    Artifact XLSX template
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuItem onClick={() => setImportOpen(true)} disabled={ioBusy}>
+                Import
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={ioBusy}>
-                Templates
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleTemplateDownload("csv", "generic")}>Artifact CSV template</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleTemplateDownload("xlsx", "generic")}>Artifact XLSX template</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={ioBusy}>
-            Import
-          </Button>
-          {canCreate && artifactTypes.length > 0 &&
-            (artifactTypes.length === 1 ? (
-              <Button onClick={() => onCreateArtifact(artifactTypes[0]!.id)}>
+          {canCreate && workItemArtifactTypes.length > 0 &&
+            (workItemArtifactTypes.length === 1 ? (
+              <Button onClick={() => onCreateArtifact(workItemArtifactTypes[0]!.id)}>
                 <Plus className="mr-2 size-4" />
-                New {artifactTypes[0]!.name ?? artifactTypes[0]!.id}
+                New {workItemArtifactTypes[0]!.name ?? workItemArtifactTypes[0]!.id}
               </Button>
             ) : (
               <DropdownMenu open={newWorkItemOpen} onOpenChange={setNewWorkItemOpen}>
@@ -398,7 +497,7 @@ export function ArtifactsToolbar({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {artifactTypes.map((at) => (
+                  {workItemArtifactTypes.map((at) => (
                     <DropdownMenuItem
                       key={at.id}
                       onClick={() => {
@@ -555,9 +654,9 @@ export function ArtifactsToolbar({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All states</SelectItem>
-                  {filterStates.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
+                  {stateFilterOptions.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -571,7 +670,7 @@ export function ArtifactsToolbar({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All types</SelectItem>
-                  {(bundle?.artifact_types ?? []).map((at) => (
+                  {artifactTypes.map((at) => (
                     <SelectItem key={at.id} value={at.id}>
                       {at.name ?? at.id}
                     </SelectItem>

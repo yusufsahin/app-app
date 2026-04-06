@@ -24,6 +24,9 @@ class Task(AggregateRoot):
         assignee_id: uuid.UUID | None = None,
         rank_order: float | None = None,
         team_id: uuid.UUID | None = None,
+        original_estimate_hours: float | None = None,
+        remaining_work_hours: float | None = None,
+        activity: str | None = None,
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
     ) -> None:
@@ -36,6 +39,9 @@ class Task(AggregateRoot):
         self.assignee_id = assignee_id
         self.rank_order = rank_order
         self.team_id = team_id
+        self.original_estimate_hours = original_estimate_hours
+        self.remaining_work_hours = remaining_work_hours
+        self.activity = activity
         self.created_at = created_at
         self.updated_at = updated_at
 
@@ -52,6 +58,9 @@ class Task(AggregateRoot):
         assignee_id: uuid.UUID | None = None,
         rank_order: float | None = None,
         team_id: uuid.UUID | None = None,
+        original_estimate_hours: float | None = None,
+        remaining_work_hours: float | None = None,
+        activity: str | None = None,
     ) -> Task:
         return cls(
             project_id=project_id,
@@ -63,6 +72,9 @@ class Task(AggregateRoot):
             assignee_id=assignee_id,
             rank_order=rank_order,
             team_id=team_id,
+            original_estimate_hours=original_estimate_hours,
+            remaining_work_hours=remaining_work_hours,
+            activity=activity,
         )
 
     def to_snapshot_dict(self) -> dict[str, Any]:
@@ -76,6 +88,9 @@ class Task(AggregateRoot):
             "assignee_id": str(self.assignee_id) if self.assignee_id else None,
             "rank_order": self.rank_order,
             "team_id": str(self.team_id) if self.team_id else None,
+            "original_estimate_hours": self.original_estimate_hours,
+            "remaining_work_hours": self.remaining_work_hours,
+            "activity": self.activity,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

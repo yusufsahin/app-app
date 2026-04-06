@@ -33,6 +33,18 @@ uv run pytest
 ALM_TEST_DATABASE_URL="postgresql+asyncpg://alm:alm_dev_password@localhost:5432/alm_test" uv run pytest
 ```
 
+## Demo seed (uçtan uca API)
+
+Tam `run_startup_seeds` + demo tenant + `tree=requirement` backlog doluluğu, **diğer entegrasyon testlerinden bağımsız** bir veritabanında doğrulanır (`alm_demo_seed_e2e`, aynı Postgres sunucusunda yeni DB adı).
+
+```bash
+cd backend
+# Postgres erişimi (compose veya testcontainers) ile:
+uv run pytest tests/test_demo_seed_stack.py -v --log-cli-level=INFO
+```
+
+Log satırları için `--log-cli-level=INFO` kullan (`alm.tests.demo_seed_stack`).
+
 ## Hızlı (sadece unit testler)
 
 PostgreSQL olmadan sadece unit testler çalışır; entegrasyon testleri skip edilir:

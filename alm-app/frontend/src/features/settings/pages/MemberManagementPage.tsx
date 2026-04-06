@@ -127,40 +127,43 @@ export default function MemberManagementPage() {
       }))
     : (orgMembers ?? []).map((m) => ({ ...m, deleted_at: null }));
 
-  const allColumns: MemberColumn[] = [
-    ...baseColumns,
-    ...(includeDeleted
-      ? [
-          {
-            field: "deleted_at" as const,
-            headerName: "Deleted",
-            minWidth: 120,
-            render: (row: MemberRow) =>
-              row.deleted_at ? (
-                <Badge variant="destructive" className="text-xs">Deleted</Badge>
-              ) : (
-                "—"
-              ),
-          },
-          {
-            field: "actions" as const,
-            headerName: " ",
-            minWidth: 56,
-            render: (row: MemberRow) =>
-              !row.deleted_at ? (
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center rounded-md p-1.5 text-destructive hover:bg-destructive/10"
-                  aria-label="Delete user"
-                  onClick={() => setRemoveDialogUser({ user_id: row.user_id, email: row.email })}
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              ) : null,
-          },
-        ]
-      : []),
-  ];
+  const allColumns = useMemo<MemberColumn[]>(
+    () => [
+      ...baseColumns,
+      ...(includeDeleted
+        ? [
+            {
+              field: "deleted_at" as const,
+              headerName: "Deleted",
+              minWidth: 120,
+              render: (row: MemberRow) =>
+                row.deleted_at ? (
+                  <Badge variant="destructive" className="text-xs">Deleted</Badge>
+                ) : (
+                  "—"
+                ),
+            },
+            {
+              field: "actions" as const,
+              headerName: " ",
+              minWidth: 56,
+              render: (row: MemberRow) =>
+                !row.deleted_at ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-md p-1.5 text-destructive hover:bg-destructive/10"
+                    aria-label="Delete user"
+                    onClick={() => setRemoveDialogUser({ user_id: row.user_id, email: row.email })}
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                ) : null,
+            },
+          ]
+        : []),
+    ],
+    [includeDeleted],
+  );
 
   const gridColumns = useMemo<TabularColumnModel<MemberRow>[]>(() => allColumns
     .filter((column) => column.field !== "actions")

@@ -10,9 +10,6 @@ from alm.artifact.domain.entities import Artifact
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.project.domain.ports import ProjectRepository
 from alm.quality.application.execution_linked_tests import linked_execution_test_ids_for_run
-from alm.relationship.domain.entities import Relationship
-from alm.relationship.domain.ports import RelationshipRepository
-from alm.relationship.domain.types import RUN_FOR_SUITE
 from alm.quality.application.run_metrics_v1 import (
     configuration_id_from_metrics_row,
     configuration_name_from_metrics_row,
@@ -22,6 +19,9 @@ from alm.quality.application.run_metrics_v1 import (
     step_defect_ids_from_metrics_row,
     step_statuses_from_metrics_row,
 )
+from alm.relationship.domain.entities import Relationship
+from alm.relationship.domain.ports import RelationshipRepository
+from alm.relationship.domain.types import RUN_FOR_SUITE
 from alm.shared.application.query import Query, QueryHandler
 from alm.shared.domain.exceptions import ValidationError
 

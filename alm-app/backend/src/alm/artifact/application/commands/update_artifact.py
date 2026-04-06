@@ -132,7 +132,9 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
                         )
                     artifact.parent_id = new_parent_id
                 else:
-                    artifact.parent_id = None
+                    raise ValidationError(
+                        "parent_id cannot be cleared; non-root artifacts must always have a parent under a project root or folder."
+                    )
 
         if "title" in updates:
             title = updates["title"]

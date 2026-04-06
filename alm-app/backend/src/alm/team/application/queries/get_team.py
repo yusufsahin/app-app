@@ -44,6 +44,7 @@ class GetTeamHandler(QueryHandler[TeamDTO | None]):
             project_id=team.project_id,
             name=team.name,
             description=team.description,
+            is_default=team.is_default,
             created_at=team.created_at.isoformat() if team.created_at else None,
             updated_at=team.updated_at.isoformat() if team.updated_at else None,
             members=[TeamMemberDTO(team_id=m.team_id, user_id=m.user_id, role=m.role) for m in members],

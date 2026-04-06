@@ -12,6 +12,7 @@ from alm.artifact.domain.manifest_workflow_metadata import (
 )
 from alm.form_schema.domain.entities import FormFieldSchema, FormSchema, LookupSchema
 from alm.shared.domain.ports import IManifestDefsFlattener
+from alm.task.domain.task_activity import task_activity_options
 
 _CREATE_ARTIFACT_CORE_KEYS = frozenset({"artifact_type", "parent_id", "title", "description", "assignee_id"})
 
@@ -58,6 +59,16 @@ def _artifact_type_declares_field(artifact_types: list[dict[str, Any]], type_id:
             if isinstance(fld, dict) and fld.get("id") == field_key:
                 return True
     return False
+
+
+def _norm_manifest_condition(c: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Map manifest condition field names to form value keys (create + edit)."""
+    if not c or not isinstance(c, dict):
+        return c
+    out = dict(c)
+    if out.get("field") == "typeName":
+        out["field"] = "artifact_type"
+    return out
 
 
 def _humanize_id(obj_id: str) -> str:
@@ -208,20 +219,8 @@ def build_artifact_create_form_schema(
                 continue
             seen_keys.add(fid)
 
-            visible_when = f.get("visibleWhen") or f.get("visible_when")
-            required_when = f.get("requiredWhen") or f.get("required_when")
-
-            # Normalize condition field: typeName -> artifact_type (form key)
-            def _norm_condition(c: dict[str, Any] | None) -> dict[str, Any] | None:
-                if not c or not isinstance(c, dict):
-                    return c
-                out = dict(c)
-                if out.get("field") == "typeName":
-                    out["field"] = "artifact_type"
-                return out
-
-            visible_when = _norm_condition(visible_when)
-            required_when = _norm_condition(required_when)
+            visible_when = _norm_manifest_condition(f.get("visibleWhen") or f.get("visible_when"))
+            required_when = _norm_manifest_condition(f.get("requiredWhen") or f.get("required_when"))
 
             field_type = f.get("type", "string")
             options = None
@@ -447,6 +446,8 @@ def build_artifact_edit_form_schema(
                         allowed_parent_types_val = [str(x).strip() for x in raw_pt if str(x).strip()]
                         if not allowed_parent_types_val:
                             allowed_parent_types_val = None
+                v_when = _norm_manifest_condition(f.get("visibleWhen") or f.get("visible_when"))
+                r_when = _norm_manifest_condition(f.get("requiredWhen") or f.get("required_when"))
                 fields.append(
                     FormFieldSchema(
                         key=fid,
@@ -454,8 +455,8 @@ def build_artifact_edit_form_schema(
                         label_key=f.get("name") or _humanize_id(str(fid)),
                         required=bool(f.get("required", False)),
                         order=order,
-                        visible_when=f.get("visibleWhen") or f.get("visible_when"),
-                        required_when=f.get("requiredWhen") or f.get("required_when"),
+                        visible_when=v_when,
+                        required_when=r_when,
                         options=options,
                         entity_ref=entity_ref_val,
                         allowed_parent_types=allowed_parent_types_val,
@@ -536,24 +537,45 @@ def build_task_create_form_schema(manifest_bundle: dict[str, Any] | None = None)
             write_target="root",
         ),
         FormFieldSchema(
+            key="original_estimate_hours",
+            type="number",
+            label_key="Original estimate (hours)",
+            required=False,
+            order=43,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            write_target="root",
+        ),
+        FormFieldSchema(
+            key="remaining_work_hours",
+            type="number",
+            label_key="Remaining work (hours)",
+            required=False,
+            order=44,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            write_target="root",
+        ),
+        FormFieldSchema(
+            key="activity",
+            type="choice",
+            label_key="Activity",
+            required=False,
+            options=task_activity_options(),
+            order=45,
+            editable=True,
+            surfaces=_editable_surfaces("tabular", "detail"),
+            write_target="root",
+        ),
+        FormFieldSchema(
             key="tag_ids",
             type="tag_list",
             label_key="Tags",
             required=False,
-            order=45,
+            order=46,
             editable=True,
             surfaces=_editable_surfaces("tabular", "detail"),
             lookup=_infer_lookup("tag_list"),
-            write_target="root",
-        ),
-        FormFieldSchema(
-            key="rank_order",
-            type="number",
-            label_key="Rank order",
-            required=False,
-            order=50,
-            editable=True,
-            surfaces=_editable_surfaces("tabular", "detail"),
             write_target="root",
         ),
     ]

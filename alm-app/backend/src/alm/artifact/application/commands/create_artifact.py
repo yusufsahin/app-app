@@ -9,7 +9,10 @@ from typing import Any
 from alm.area.domain.ports import AreaRepository
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.entities import Artifact
-from alm.artifact.domain.manifest_workflow_metadata import resolve_system_root_artifact_types
+from alm.artifact.domain.manifest_workflow_metadata import (
+    is_system_root_artifact_type,
+    resolve_system_root_artifact_types,
+)
 from alm.artifact.domain.mpc_resolver import (
     get_artifact_type_def,
     get_manifest_ast,
@@ -18,6 +21,9 @@ from alm.artifact.domain.mpc_resolver import (
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.application.services.effective_process_template_version import (
+    effective_process_template_version,
+)
 from alm.project.domain.ports import ProjectRepository
 from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.command import Command, CommandHandler
@@ -65,12 +71,11 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
         if project is None or project.tenant_id != command.tenant_id:
             raise ValidationError("Project not found")
 
-        if project.process_template_version_id is None:
-            raise ValidationError("Project has no process template")
-
-        version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+        version = await effective_process_template_version(
+            self._process_template_repo, project.process_template_version_id
+        )
         if version is None:
-            raise ValidationError("Process template version not found")
+            raise ValidationError("No process template available for this project")
 
         manifest = version.manifest_bundle or {}
         ast = get_manifest_ast(version.id, manifest)
@@ -140,6 +145,17 @@ class CreateArtifactHandler(CommandHandler[ArtifactDTO]):
                 raise ValidationError(
                     f"Artifact type '{command.artifact_type}' must be created under a '{expected_parent_type}'"
                 )
+
+        if effective_parent_id is None and is_system_root_artifact_type(command.artifact_type, manifest):
+            raise ValidationError(
+                "System tree roots are created when the project is set up and cannot be added via the artifact API."
+            )
+
+        if effective_parent_id is None:
+            raise ValidationError(
+                "A parent artifact is required (parent_id). "
+                "Create work items under the correct root or folder for this process template."
+            )
 
         artifact_key = command.artifact_key
         if artifact_key is None or artifact_key.strip() == "":

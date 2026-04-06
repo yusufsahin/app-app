@@ -30,6 +30,12 @@ type BacklogArtifactModalProps = {
   artifactTypeParentMap: Record<string, string[]>;
   formSchemaError?: boolean;
   formSchema403?: boolean;
+  /** True while a new narrowed schema is being fetched (same modal session). */
+  formSchemaRefreshing?: boolean;
+  /** Omit these schema keys from the details form (values may still be sent on create). */
+  hideFieldKeys?: string[];
+  /** Invoked when the modal stack closes this dialog (see modal store). */
+  onCloseComplete?: () => void;
 };
 
 /** Create artifact – parent provides schema and form state */
@@ -47,6 +53,7 @@ export type AddTaskModalProps = {
   isPending: boolean;
   userOptions: Array<{ id: string; label: string }>;
   projectTagOptions?: Array<{ id: string; name: string }>;
+  hideFieldKeys?: string[];
 };
 
 /** Edit task – parent provides schema; modal passes current values to onSubmit */
@@ -58,7 +65,7 @@ export type EditTaskModalProps = {
     description?: string | null;
     state?: string;
     assignee_id?: string | null;
-    rank_order?: number | null;
+    team_id?: string | null;
     tags?: Array<{ id: string; name: string }>;
   };
   values: Record<string, unknown>;
@@ -67,6 +74,7 @@ export type EditTaskModalProps = {
   isPending: boolean;
   userOptions: Array<{ id: string; label: string }>;
   projectTagOptions?: Array<{ id: string; name: string }>;
+  hideFieldKeys?: string[];
 };
 
 /** Add link */

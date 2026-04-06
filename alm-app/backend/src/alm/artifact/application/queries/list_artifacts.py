@@ -5,6 +5,8 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, replace
 
+import structlog
+
 from alm.artifact.application.dtos import ArtifactDTO
 from alm.artifact.domain.fulltext_config import resolve_fulltext_regconfig
 from alm.artifact.domain.manifest_merge_defaults import merge_manifest_metadata_defaults
@@ -17,9 +19,14 @@ from alm.artifact.domain.ports import ArtifactRepository
 from alm.config.settings import settings
 from alm.cycle.domain.ports import CycleRepository
 from alm.process_template.domain.ports import ProcessTemplateRepository
+from alm.project.application.services.effective_process_template_version import (
+    effective_process_template_version,
+)
 from alm.project.domain.ports import ProjectRepository
 from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.query import Query, QueryHandler
+
+logger = structlog.get_logger()
 
 
 @dataclass(frozen=True)
@@ -43,6 +50,8 @@ class ListArtifacts(Query):
     parent_id: uuid.UUID | None = None  # when set, only direct children of this parent (within tree subtree if any)
     tag_id: uuid.UUID | None = None  # filter artifacts that have this project tag
     team_id: uuid.UUID | None = None  # filter artifacts assigned to this team
+    assignee_id: uuid.UUID | None = None  # filter by assignee user
+    unassigned_only: bool = False  # when True, only artifacts with no assignee
 
 
 @dataclass
@@ -73,9 +82,9 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
         if project is None or project.tenant_id != query.tenant_id:
             return ListArtifactsResult(items=[], total=0)
 
-        version = None
-        if project.process_template_version_id:
-            version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
+        version = await effective_process_template_version(
+            self._process_template_repo, project.process_template_version_id
+        )
         manifest_bundle: dict | None = None
         if version:
             manifest_bundle = merge_manifest_metadata_defaults(version.manifest_bundle or {})
@@ -101,18 +110,30 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             cycle_id_single = query.cycle_id
 
         root_artifact_id: uuid.UUID | None = None
-        if query.tree and query.tree.strip():
-            root_type = resolve_tree_root_artifact_type(query.tree, manifest_bundle)
-            if root_type:
+        tree_slug = (query.tree or "").strip()
+        resolved_root_type: str | None = None
+        if tree_slug:
+            resolved_root_type = resolve_tree_root_artifact_type(query.tree, manifest_bundle)
+            if resolved_root_type:
                 roots = await self._artifact_repo.list_by_project(
                     query.project_id,
-                    type_filter=root_type,
+                    type_filter=resolved_root_type,
                     limit=1,
                     include_deleted=query.include_deleted,
                     fts_regconfig=fts_cfg,
                 )
                 if roots:
                     root_artifact_id = roots[0].id
+                else:
+                    # Tree filter requested but root row missing: do not widen to whole project.
+                    if settings.debug:
+                        logger.debug(
+                            "list_artifacts_tree_root_missing",
+                            project_id=str(query.project_id),
+                            tree=tree_slug,
+                            resolved_root_type=resolved_root_type,
+                        )
+                    return ListArtifactsResult(items=[], total=0)
 
         total = await self._artifact_repo.count_by_project(
             query.project_id,
@@ -130,6 +151,8 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             fts_regconfig=fts_cfg,
             tag_id=query.tag_id,
             team_id=query.team_id,
+            assignee_id=query.assignee_id,
+            unassigned_only=query.unassigned_only,
         )
         artifacts = await self._artifact_repo.list_by_project(
             query.project_id,
@@ -151,6 +174,8 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             fts_regconfig=fts_cfg,
             tag_id=query.tag_id,
             team_id=query.team_id,
+            assignee_id=query.assignee_id,
+            unassigned_only=query.unassigned_only,
         )
         tag_map = await self._tag_repo.get_tags_by_artifact_ids([a.id for a in artifacts])
         items = [
@@ -189,5 +214,16 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
                 updates = {k: v for k, v in redacted_snapshot.items() if k in dto_fields}
                 redacted_items.append(replace(dto, **updates) if updates else dto)
             items = redacted_items
+
+        if settings.debug:
+            logger.debug(
+                "list_artifacts_result",
+                project_id=str(query.project_id),
+                tree=query.tree,
+                total=total,
+                page_items=len(items),
+                root_artifact_id=str(root_artifact_id) if root_artifact_id else None,
+                include_system_roots=query.include_system_roots,
+            )
 
         return ListArtifactsResult(items=items, total=total)

@@ -84,6 +84,9 @@ class SqlAlchemyTaskRepository(TaskRepository):
             assignee_id=task.assignee_id,
             rank_order=task.rank_order,
             team_id=task.team_id,
+            original_estimate_hours=task.original_estimate_hours,
+            remaining_work_hours=task.remaining_work_hours,
+            activity=task.activity,
         )
         self._session.add(model)
         await self._session.flush()
@@ -100,6 +103,9 @@ class SqlAlchemyTaskRepository(TaskRepository):
                 assignee_id=task.assignee_id,
                 rank_order=task.rank_order,
                 team_id=task.team_id,
+                original_estimate_hours=task.original_estimate_hours,
+                remaining_work_hours=task.remaining_work_hours,
+                activity=task.activity,
             )
         )
         await self._session.flush()
@@ -133,6 +139,9 @@ class SqlAlchemyTaskRepository(TaskRepository):
             assignee_id=m.assignee_id,
             rank_order=m.rank_order,
             team_id=m.team_id,
+            original_estimate_hours=m.original_estimate_hours,
+            remaining_work_hours=m.remaining_work_hours,
+            activity=m.activity,
             created_at=m.created_at,
             updated_at=m.updated_at,
         )

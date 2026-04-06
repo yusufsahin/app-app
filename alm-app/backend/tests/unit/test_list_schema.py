@@ -229,7 +229,17 @@ def test_build_task_list_schema():
     schema = _build_task_list_schema()
     assert schema.entity_type == "task"
     column_keys = [c.key for c in schema.columns]
-    assert column_keys == ["id", "title", "state", "assignee_id", "rank_order", "created_at", "updated_at"]
+    assert column_keys == [
+        "id",
+        "title",
+        "state",
+        "assignee_id",
+        "remaining_work_hours",
+        "activity",
+        "rank_order",
+        "created_at",
+        "updated_at",
+    ]
     assert len(schema.filters) == 1
     assert schema.filters[0].key == "state"
     assert schema.filters[0].options == ["todo", "in_progress", "done"]

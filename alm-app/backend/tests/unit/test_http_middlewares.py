@@ -8,7 +8,7 @@ import pytest
 from starlette.requests import Request
 from starlette.responses import Response
 
-from alm.shared.infrastructure.rate_limit_middleware import RateLimitMiddleware
+from alm.shared.infrastructure.rate_limit_middleware import RateLimitMiddleware, is_scm_provider_webhook_path
 from alm.shared.infrastructure.security.jwt import InvalidTokenError
 from alm.shared.infrastructure.security_headers import SecureHeadersMiddleware
 from alm.shared.infrastructure.tenant_middleware import TenantContextMiddleware
@@ -37,6 +37,43 @@ async def _ok_response(_: Request) -> Response:
 
 
 class TestRateLimitMiddleware:
+    def test_is_scm_provider_webhook_path(self) -> None:
+        pid = uuid.uuid4()
+        base = f"/api/v1/orgs/acme/projects/{pid}"
+        assert is_scm_provider_webhook_path(f"{base}/webhooks/github") is True
+        assert is_scm_provider_webhook_path(f"{base}/webhooks/gitlab") is True
+        assert is_scm_provider_webhook_path(f"{base}/webhooks/github/") is True
+        assert is_scm_provider_webhook_path(f"{base}/webhooks/unmatched-events") is False
+
+    @pytest.mark.asyncio
+    async def test_bypasses_scm_provider_webhooks_with_bearer(self) -> None:
+        """Proxies that forward Authorization must not burn tenant rate limit on webhooks."""
+        middleware = RateLimitMiddleware(app=AsyncMock())
+        tenant_id = uuid.uuid4()
+        pid = uuid.uuid4()
+        request = _request(
+            f"/api/v1/orgs/acme/projects/{pid}/webhooks/github",
+            authorization="Bearer token",
+        )
+        call_next = AsyncMock(side_effect=_ok_response)
+
+        with (
+            patch(
+                "alm.shared.infrastructure.rate_limit_middleware.decode_token",
+                return_value=SimpleNamespace(tid=tenant_id),
+            ) as decode,
+            patch(
+                "alm.shared.infrastructure.rate_limit_middleware.check_sliding_window",
+                new=AsyncMock(),
+            ) as check,
+        ):
+            response = await middleware.dispatch(request, call_next)
+
+        assert response.status_code == 200
+        decode.assert_not_called()
+        check.assert_not_awaited()
+        call_next.assert_awaited_once()
+
     @pytest.mark.asyncio
     async def test_bypasses_non_api_paths(self) -> None:
         middleware = RateLimitMiddleware(app=AsyncMock())

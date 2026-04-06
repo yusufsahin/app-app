@@ -71,7 +71,7 @@ class ArtifactImpactAnalysisNodeDTO:
     depth: int
     has_more: bool = False
     hierarchy_path: tuple[ImpactHierarchyRefDTO, ...] = ()
-    children: list["ArtifactImpactAnalysisNodeDTO"] = field(default_factory=list)
+    children: list[ArtifactImpactAnalysisNodeDTO] = field(default_factory=list)
 
 
 @dataclass

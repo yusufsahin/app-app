@@ -3,13 +3,11 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from alm.artifact.domain.entities import Artifact
-from alm.artifact.domain.manifest_workflow_metadata import get_tree_root_type_map
 from alm.artifact.domain.ports import ArtifactRepository
-from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
 from alm.config.settings import settings
 from alm.process_template.domain.ports import ProcessTemplateRepository
 from alm.project.application.dtos import ProjectDTO
+from alm.project.application.services.ensure_project_tree_roots import ensure_project_tree_roots
 from alm.project.domain.entities import Project
 from alm.project.domain.ports import ProjectMemberRepository, ProjectRepository
 from alm.project.domain.project_member import ProjectMember
@@ -76,6 +74,14 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
                     from_tenant = raw.strip()
             template_slug = from_tenant or settings.default_process_template_slug
         version = await self._process_template_repo.find_version_by_template_slug(template_slug)
+        if version is None:
+            version = await self._process_template_repo.find_default_version()
+        if version is None:
+            raise ValidationError(
+                "No process template version is available for this project. "
+                "Built-in templates may not be seeded yet — restart the application or run migrations."
+            )
+
         project = Project.create(
             tenant_id=command.tenant_id,
             name=command.name,
@@ -83,8 +89,7 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
             code=project_code.value,
             description=command.description,
         )
-        if version is not None:
-            project.process_template_version_id = version.id
+        project.process_template_version_id = version.id
         project.created_by = command.created_by
         project = await self._project_repo.add(project)
 
@@ -97,8 +102,7 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
             )
             await self._project_member_repo.add(member)
 
-        if project.process_template_version_id:
-            await self._create_project_roots(project)
+        await self._create_project_roots(project)
 
         return ProjectDTO(
             id=project.id,
@@ -112,35 +116,10 @@ class CreateProjectHandler(CommandHandler[ProjectDTO]):
         )
 
     async def _create_project_roots(self, project: Project) -> None:
-        """Create project roots from manifest tree_roots (requirements / tests / Campaign tree testsuites / defects)."""
-        from alm.artifact.domain.mpc_resolver import get_manifest_ast
-
-        version = await self._process_template_repo.find_version_by_id(project.process_template_version_id)
-        if not version or not version.manifest_bundle:
-            return
-        manifest = version.manifest_bundle
-        ast = get_manifest_ast(version.id, manifest)
-        root_type_map = get_tree_root_type_map(manifest)
-        root_types = list(dict.fromkeys(root_type_map.values()))
-        key_suffix_map = {
-            "root-requirement": "R0",
-            "root-tests": "T0",
-            "root-testsuites": "TS0",
-            "root-defect": "D0",
-            "root-quality": "Q0",
-        }
-
-        for root_type in root_types:
-            state = workflow_get_initial_state(manifest, root_type, ast=ast)
-            if state is None:
-                continue
-            suffix = key_suffix_map.get(root_type, f"{root_type.upper()}0")
-            root = Artifact.create(
-                project_id=project.id,
-                artifact_type=root_type,
-                title=project.name,
-                state=state,
-                parent_id=None,
-                artifact_key=f"{project.code}-{suffix}",
-            )
-            await self._artifact_repo.add(root)
+        """Create project roots from manifest tree_roots (requirements / quality / testsuites / defects)."""
+        await ensure_project_tree_roots(
+            project=project,
+            artifact_repo=self._artifact_repo,
+            process_template_repo=self._process_template_repo,
+            only_if_missing=True,
+        )

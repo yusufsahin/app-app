@@ -38,4 +38,9 @@ class DeleteTeamHandler(CommandHandler[None]):
         if team is None or team.project_id != command.project_id:
             raise ValidationError("Team not found")
 
+        if team.is_default:
+            others = [t for t in await self._team_repo.list_by_project(command.project_id) if t.id != team.id]
+            if others:
+                await self._team_repo.set_default_team(command.project_id, others[0].id)
+
         await self._team_repo.delete(command.team_id)

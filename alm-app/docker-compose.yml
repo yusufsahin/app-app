@@ -36,6 +36,7 @@ services:
 
   # If backend exits with "privileges does not exist" / schema verify fails, the pgdata volume
   # is likely out of sync with Alembic: run `docker compose down -v` then `up --build`.
+  # Partial demo seed (tenant+projects but no relationships) is auto-repaired on startup when possible.
   backend:
     build:
       # Context must be parent of alm-manifest-app (repo root). From alm-app: ../..
@@ -45,6 +46,7 @@ services:
     ports:
       - "9000:8000"
     environment:
+      ALM_ENVIRONMENT: "development"
       ALM_DEBUG: "true"
       ALM_DATABASE_URL: "postgresql+asyncpg://alm:alm_dev_password@db:5432/alm"
       ALM_REDIS_URL: "redis://redis:6379/0"
@@ -69,7 +71,8 @@ services:
 
   frontend:
     build:
-      context: ../..
+      # Same repo root as backend (parent of `alm-manifest-app`).
+      context: ${ALM_DOCKER_CONTEXT:-../..}
       dockerfile: alm-manifest-app/alm-app/frontend/Dockerfile
     ports:
       - "9001:80"

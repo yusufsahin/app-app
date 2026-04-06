@@ -10,7 +10,10 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from alm.artifact.domain.quality_manifest_extension import merge_quality_domain_into_defs
+from alm.artifact.domain.quality_manifest_extension import (
+    ensure_quality_folder_workflow,
+    merge_quality_domain_into_defs,
+)
 
 # Keep aligned with seed _MANIFEST_TASK_AND_TREES / _TASK_BASIC_WORKFLOW_DEF.
 _DEFAULT_TREE_ROOTS: list[dict[str, str]] = [
@@ -71,5 +74,6 @@ def merge_manifest_metadata_defaults(bundle: dict[str, Any] | None) -> dict[str,
             _append_task_basic(defs)
         _patch_resolution_targets(defs)
         out["defs"] = merge_quality_domain_into_defs(defs)
+        ensure_quality_folder_workflow(out["defs"])
 
     return out

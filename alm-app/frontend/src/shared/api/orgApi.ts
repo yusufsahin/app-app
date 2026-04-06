@@ -56,6 +56,8 @@ export interface Team {
   project_id: string;
   name: string;
   description: string;
+  /** Project default team when multiple teams exist (new tasks get this if team not chosen). */
+  is_default: boolean;
   created_at: string | null;
   updated_at: string | null;
   members: TeamMember[];
@@ -127,6 +129,8 @@ export function useOrgProjects(orgSlug: string | undefined) {
       return data;
     },
     enabled: !!orgSlug,
+    // Fresh UUIDs after DB reseed; cached list caused manifest/form-schema 404 with dead project ids.
+    refetchOnMount: "always",
   });
 }
 

@@ -5,12 +5,20 @@
 export interface ManifestBundleWorkflow {
   id: string;
   states?: unknown[];
+  transitions?: Array<{ from: string; to: string }>;
 }
 
 export interface ManifestBundleArtifactType {
   id: string;
   name?: string;
   workflow_id?: string;
+  /** System tree root rows (e.g. folder roots); hide from Board type picker by default. */
+  is_system_root?: boolean;
+}
+
+/** Board type filter: exclude folder roots and explicit system root types. */
+export function isBoardSelectableArtifactType(at: ManifestBundleArtifactType): boolean {
+  return !at.id.startsWith("root-") && at.is_system_root !== true;
 }
 
 export interface ManifestBundleShape {
@@ -18,16 +26,48 @@ export interface ManifestBundleShape {
   artifact_types?: ManifestBundleArtifactType[];
 }
 
+function stateIdsFromWorkflowStates(states: unknown[] | undefined): string[] {
+  if (!states?.length) return [];
+  const arr = states as Array<string | { id: string }>;
+  return arr.map((s) => (typeof s === "string" ? s : s.id));
+}
+
+function stateIdAndLabelFromEntry(entry: unknown): { id: string; label: string } {
+  if (typeof entry === "string") return { id: entry, label: entry };
+  const o = entry as { id: string; name?: string };
+  const id = o.id;
+  const name = o.name?.trim();
+  return { id, label: name ? name : id };
+}
+
 /**
- * Returns workflow state ids for the given artifact type (or default workflow).
- * Order is from the API (backend guarantees def order or canonical order for flat manifests).
+ * Map workflow state id → display label from manifest workflows (first occurrence wins).
+ * String states use the string as both id and label; object states use `name ?? id`.
  */
-export function getWorkflowStatesForType(
+export function buildWorkflowStateDisplayMap(bundle: ManifestBundleShape | null): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const wf of bundle?.workflows ?? []) {
+    for (const raw of wf.states ?? []) {
+      const { id, label } = stateIdAndLabelFromEntry(raw);
+      if (!m.has(id)) m.set(id, label);
+    }
+  }
+  return m;
+}
+
+/**
+ * Human-readable state label for a row: uses the workflow linked to `artifactTypeId`, then falls
+ * back to the first global match in `buildWorkflowStateDisplayMap` (case-insensitive on id).
+ */
+export function getWorkflowStateLabelForArtifactType(
   bundle: ManifestBundleShape | null,
-  artifactTypeId: string | null,
-): string[] {
+  artifactTypeId: string | null | undefined,
+  stateId: string | null | undefined,
+): string {
+  const rawId = (stateId ?? "").trim();
+  if (!rawId) return "";
   const workflows = bundle?.workflows ?? [];
-  if (!workflows.length) return [];
+  if (!workflows.length) return rawId;
   let wf = workflows[0];
   if (artifactTypeId && bundle?.artifact_types?.length) {
     const at = bundle.artifact_types.find((a) => a.id === artifactTypeId);
@@ -36,7 +76,185 @@ export function getWorkflowStatesForType(
       if (found) wf = found;
     }
   }
-  if (!wf?.states?.length) return [];
-  const states = wf.states as Array<string | { id: string }>;
-  return states.map((s) => (typeof s === "string" ? s : s.id));
+  const target = normalizeWorkflowStateKey(rawId);
+  for (const entry of wf?.states ?? []) {
+    const { id, label } = stateIdAndLabelFromEntry(entry);
+    if (normalizeWorkflowStateKey(id) === target) return label;
+  }
+  const m = buildWorkflowStateDisplayMap(bundle);
+  for (const [id, label] of m) {
+    if (normalizeWorkflowStateKey(id) === target) return label;
+  }
+  return rawId;
+}
+
+/** Normalized key for grouping board columns (trim + lowercase; empty → sentinel). */
+const EMPTY_STATE_NORMALIZED = "\u0000";
+
+export function normalizeWorkflowStateKey(state: string | null | undefined): string {
+  const s = (state ?? "").trim();
+  return s.length === 0 ? EMPTY_STATE_NORMALIZED : s.toLowerCase();
+}
+
+/**
+ * De-duplicate state ids in order; later entries that match an earlier one case-insensitively
+ * (or empty/whitespace-only) are dropped. Keeps the first spelling (manifest / merge order).
+ */
+export function dedupeStatesCaseInsensitive(ordered: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of ordered) {
+    const k = normalizeWorkflowStateKey(id);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(id);
+  }
+  return out;
+}
+
+/**
+ * Exact workflow state string for an artifact type that matches the column (case-insensitive),
+ * or null if that type has no such state.
+ */
+export function resolveWorkflowStateForArtifactType(
+  bundle: ManifestBundleShape | null,
+  artifactTypeId: string,
+  columnStateLabel: string,
+): string | null {
+  const states = getWorkflowStatesForType(bundle, artifactTypeId);
+  const target = normalizeWorkflowStateKey(columnStateLabel);
+  for (const s of states) {
+    if (normalizeWorkflowStateKey(s) === target) return s;
+  }
+  return null;
+}
+
+/**
+ * Returns workflow state ids for the given artifact type (or default workflow).
+ * Order is from the API (backend guarantees def order or canonical order for flat manifests).
+ */
+/** Resolved workflow for an artifact type (or first workflow when type is null / unlinked). */
+export function getWorkflowForArtifactType(
+  bundle: ManifestBundleShape | null,
+  artifactTypeId: string | null,
+): ManifestBundleWorkflow | undefined {
+  const workflows = bundle?.workflows ?? [];
+  if (!workflows.length) return undefined;
+  let wf = workflows[0];
+  if (artifactTypeId && bundle?.artifact_types?.length) {
+    const at = bundle.artifact_types.find((a) => a.id === artifactTypeId);
+    if (at?.workflow_id) {
+      const found = workflows.find((w) => w.id === at.workflow_id);
+      if (found) wf = found;
+    }
+  }
+  return wf;
+}
+
+export function getWorkflowStatesForType(
+  bundle: ManifestBundleShape | null,
+  artifactTypeId: string | null,
+): string[] {
+  const wf = getWorkflowForArtifactType(bundle, artifactTypeId);
+  return dedupeStatesCaseInsensitive(stateIdsFromWorkflowStates(wf?.states));
+}
+
+/** Default workflow category when manifest omits `category` on a state. */
+export function inferCategoryFromStateEntry(entry: unknown): string {
+  if (typeof entry === "string") return "proposed";
+  const o = entry as { category?: string };
+  const c = o.category?.trim().toLowerCase();
+  if (c === "proposed" || c === "in_progress" || c === "completed") return c;
+  return "proposed";
+}
+
+/** Category for a state id in the given workflow, or null if state is not defined there. */
+export function categoryForStateInWorkflow(
+  wf: ManifestBundleWorkflow | undefined,
+  stateId: string,
+): string | null {
+  if (!wf?.states) return null;
+  const target = normalizeWorkflowStateKey(stateId);
+  for (const raw of wf.states) {
+    const id = typeof raw === "string" ? raw : (raw as { id: string }).id;
+    if (normalizeWorkflowStateKey(id) === target) return inferCategoryFromStateEntry(raw);
+  }
+  return null;
+}
+
+/** First state id in workflow definition order whose category matches `categoryKey` (case-insensitive). */
+export function firstStateIdInCategoryForWorkflow(
+  wf: ManifestBundleWorkflow | undefined,
+  categoryKey: string,
+): string | null {
+  if (!wf?.states) return null;
+  const ck = categoryKey.trim().toLowerCase();
+  for (const raw of wf.states) {
+    const id = typeof raw === "string" ? raw : (raw as { id: string }).id;
+    if (inferCategoryFromStateEntry(raw).toLowerCase() === ck) return id;
+  }
+  return null;
+}
+
+function mergeWorkflowStatesForArtifactTypeList(
+  bundle: ManifestBundleShape | null,
+  types: ManifestBundleArtifactType[],
+): string[] {
+  const workflows = bundle?.workflows ?? [];
+  if (!workflows.length) return [];
+  if (!types.length) {
+    return dedupeStatesCaseInsensitive(stateIdsFromWorkflowStates(workflows[0]?.states));
+  }
+  const referencedIds = new Set<string>();
+  for (const at of types) {
+    const wid = at.workflow_id?.trim();
+    if (wid) referencedIds.add(wid);
+  }
+  if (referencedIds.size === 0) {
+    return dedupeStatesCaseInsensitive(stateIdsFromWorkflowStates(workflows[0]?.states));
+  }
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const wf of workflows) {
+    if (!referencedIds.has(wf.id)) continue;
+    for (const id of stateIdsFromWorkflowStates(wf.states)) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        ordered.push(id);
+      }
+    }
+  }
+  if (ordered.length === 0) {
+    return dedupeStatesCaseInsensitive(stateIdsFromWorkflowStates(workflows[0]?.states));
+  }
+  return dedupeStatesCaseInsensitive(ordered);
+}
+
+/**
+ * Union of workflow states for workflows referenced only by the given artifact type ids
+ * (manifest order). Empty `typeIds` → first workflow only (same safe fallback as an empty type list).
+ */
+export function getMergedWorkflowStatesForArtifactTypes(
+  bundle: ManifestBundleShape | null,
+  typeIds: string[],
+): string[] {
+  if (!typeIds.length) {
+    const workflows = bundle?.workflows ?? [];
+    if (!workflows.length) return [];
+    return dedupeStatesCaseInsensitive(stateIdsFromWorkflowStates(workflows[0]?.states));
+  }
+  const idSet = new Set(typeIds);
+  const types = (bundle?.artifact_types ?? []).filter((at) => idSet.has(at.id));
+  return mergeWorkflowStatesForArtifactTypeList(bundle, types);
+}
+
+/**
+ * Union of workflow states for every workflow referenced by an artifact type, in workflow
+ * definition order (workflows array order, then each workflow's state order). De-duplicates.
+ * When there are no artifact types or none reference a workflow, falls back to the first workflow.
+ */
+export function getMergedWorkflowStatesForAllTypes(bundle: ManifestBundleShape | null): string[] {
+  const workflows = bundle?.workflows ?? [];
+  if (!workflows.length) return [];
+  return mergeWorkflowStatesForArtifactTypeList(bundle, bundle?.artifact_types ?? []);
 }

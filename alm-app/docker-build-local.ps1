@@ -10,6 +10,12 @@ if (-not (Test-Path (Join-Path $almManifestAppDir "manifest-platform-core-suite"
     Write-Warning "manifest-platform-core-suite not found at $almManifestAppDir\manifest-platform-core-suite."
 }
 
+docker version *> $null
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Docker CLI failed or Docker Desktop is not running. Start Docker Desktop, then retry."
+    exit 1
+}
+
 $env:ALM_DOCKER_CONTEXT = $contextDir
 Set-Location $almAppDir
 docker compose up --build -d

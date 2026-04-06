@@ -82,10 +82,36 @@ async def create_task(
             assignee_id=body.assignee_id,
             rank_order=body.rank_order,
             team_id=body.team_id,
+            original_estimate_hours=body.original_estimate_hours,
+            remaining_work_hours=body.remaining_work_hours,
+            activity=body.activity,
             tag_ids=body.tag_ids,
         )
     )
     return task_response_from_dto(dto)
+
+
+@router.post(
+    "/projects/{project_id}/artifacts/{artifact_id}/tasks/reorder",
+    status_code=204,
+)
+async def reorder_tasks_for_artifact(
+    project_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    body: TaskReorderRequest,
+    org: ResolvedOrg = Depends(resolve_org),
+    user: CurrentUser = require_permission("task:update"),
+    _acl: None = require_manifest_acl("artifact", "update"),
+    mediator: Mediator = Depends(get_mediator),
+) -> None:
+    await mediator.send(
+        ReorderArtifactTasks(
+            tenant_id=org.tenant_id,
+            project_id=project_id,
+            artifact_id=artifact_id,
+            ordered_task_ids=tuple(body.ordered_task_ids),
+        )
+    )
 
 
 @router.get(
@@ -140,6 +166,12 @@ async def update_task(
     )
     if "tag_ids" in updates:
         cmd_kwargs["tag_ids"] = updates["tag_ids"]
+    if "original_estimate_hours" in updates:
+        cmd_kwargs["original_estimate_hours"] = updates["original_estimate_hours"]
+    if "remaining_work_hours" in updates:
+        cmd_kwargs["remaining_work_hours"] = updates["remaining_work_hours"]
+    if "activity" in updates:
+        cmd_kwargs["activity"] = updates["activity"]
     dto = await mediator.send(UpdateTask(**cmd_kwargs))
     return task_response_from_dto(dto)
 

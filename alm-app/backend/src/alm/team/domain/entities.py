@@ -18,6 +18,7 @@ class Team(AggregateRoot):
         *,
         id: uuid.UUID | None = None,
         description: str = "",
+        is_default: bool = False,
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
     ) -> None:
@@ -25,14 +26,17 @@ class Team(AggregateRoot):
         self.project_id = project_id
         self.name = (name or "").strip()
         self.description = description or ""
+        self.is_default = bool(is_default)
         self.created_at = created_at
         self.updated_at = updated_at
 
-    def update(self, name: str | None = None, description: str | None = None) -> None:
+    def update(self, name: str | None = None, description: str | None = None, is_default: bool | None = None) -> None:
         if name is not None:
             self.name = (name or "").strip()
         if description is not None:
             self.description = description or ""
+        if is_default is not None:
+            self.is_default = bool(is_default)
 
 
 class TeamMember:

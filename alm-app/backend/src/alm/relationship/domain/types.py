@@ -18,7 +18,10 @@ CAMPAIGN_INCLUDES_SUITE = "campaign_includes_suite"
 DIRECTED = "directed"
 SYMMETRIC = "symmetric"
 
-PLANNING_TYPES = ("epic", "feature", "requirement", "task", "backlog-item")
+# Union of planning artifact ids for artifact↔artifact relationships (blocks, impacts, verifies, affects).
+# Sprint/work items use the Task entity (tasks.artifact_id → parent artifact), not LinkType endpoints.
+# `issue` kept for legacy rows; new manifests use `workitem`.
+PLANNING_TYPES = ("epic", "feature", "requirement", "user_story", "workitem", "issue")
 
 
 @dataclass(frozen=True)
@@ -241,6 +244,4 @@ def relationship_type_allowed(
     target_type = (target_artifact_type or "").strip().lower()
     if rel_type.allowed_source_types and source_type not in rel_type.allowed_source_types:
         return False
-    if rel_type.allowed_target_types and target_type not in rel_type.allowed_target_types:
-        return False
-    return True
+    return not (rel_type.allowed_target_types and target_type not in rel_type.allowed_target_types)

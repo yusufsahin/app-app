@@ -27,8 +27,8 @@ from alm.shared.infrastructure.health import health_router
 from alm.shared.infrastructure.rate_limit_middleware import RateLimitMiddleware
 from alm.shared.infrastructure.security_headers import SecureHeadersMiddleware
 from alm.shared.infrastructure.tenant_middleware import TenantContextMiddleware
-from alm.tenant.api.router import router as tenant_router
 from alm.team.api.router import router as team_router
+from alm.tenant.api.router import router as tenant_router
 
 logger = structlog.get_logger()
 

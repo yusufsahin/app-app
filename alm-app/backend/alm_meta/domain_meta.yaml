@@ -18,7 +18,7 @@ kinds:
   # ── Task BC (actionable work units: "how it gets done") ──
   - name: Task
     aggregate: Task
-    required_props: [title, status, assignee]
+    required_props: [title, status]
     allowed_types: [string, int, bool, date]
 
   # ── Supporting kinds ──

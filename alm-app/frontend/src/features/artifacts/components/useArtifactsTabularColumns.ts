@@ -8,12 +8,18 @@ import { schemaToGridColumns } from "../../../shared/components/lists/schemaToGr
 import { mapLookupItems } from "../../../shared/components/lists/lookupResolvers";
 import type { TabularColumnModel } from "../../../shared/components/lists/types";
 import { getArtifactCellValue } from "../utils";
+import {
+  getWorkflowStateLabelForArtifactType,
+  type ManifestBundleShape,
+} from "../../../shared/lib/workflowManifest";
 
 interface UseArtifactsTabularColumnsOptions {
   listSchema?: ListSchemaDto | null;
   formSchema?: FormSchemaDto | null;
   members?: TenantMember[] | null;
   projectTags?: ProjectTag[];
+  /** When set, the `state` column shows labels from each row's type workflow (not a single global map). */
+  manifestBundle?: ManifestBundleShape | null;
 }
 
 export function useArtifactsTabularColumns({
@@ -21,6 +27,7 @@ export function useArtifactsTabularColumns({
   formSchema,
   members,
   projectTags = [],
+  manifestBundle = null,
 }: UseArtifactsTabularColumnsOptions): TabularColumnModel<Artifact>[] {
   return useMemo(
     () =>
@@ -68,8 +75,20 @@ export function useArtifactsTabularColumns({
               return unknownValues.length > 0 ? "Tags must match existing project tags." : null;
             },
           },
+          ...(manifestBundle != null
+            ? {
+                state: {
+                  getDisplayValue: (row, value) =>
+                    getWorkflowStateLabelForArtifactType(
+                      manifestBundle,
+                      row.artifact_type,
+                      value === null || value === undefined ? "" : String(value),
+                    ),
+                },
+              }
+            : {}),
         },
       }),
-    [formSchema, listSchema, members, projectTags],
+    [formSchema, listSchema, members, projectTags, manifestBundle],
   );
 }

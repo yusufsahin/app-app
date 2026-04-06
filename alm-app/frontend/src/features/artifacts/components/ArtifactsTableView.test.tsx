@@ -1,9 +1,11 @@
 /** @vitest-environment jsdom */
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { ComponentProps } from "react";
+import userEvent from "@testing-library/user-event";
+import type { ComponentProps, ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ArtifactsTableView } from "./ArtifactsTableView";
 import type { Artifact } from "../../../shared/api/artifactApi";
+import type { Task } from "../../../shared/api/taskApi";
 import type { TenantMember } from "../../../shared/api/orgApi";
 import type { ProjectTag } from "../../../shared/api/projectTagApi";
 import type { ListSchemaDto } from "../../../shared/types/listSchema";
@@ -25,40 +27,51 @@ vi.mock("./useArtifactsTabularCommit", () => ({
   useArtifactsTabularCommit: (...args: unknown[]) => mockUseArtifactsTabularCommit(...args),
 }));
 
+let lastMetadataDrivenGridProps: Record<string, unknown> = {};
+
 vi.mock("../../../shared/components/lists/MetadataDrivenGrid", () => ({
-  MetadataDrivenGrid: (props: Record<string, unknown>) => (
-    <div data-testid="metadata-driven-grid">
-      <button type="button" onClick={() => (props.onRowOpen as ((row: Artifact) => void) | undefined)?.(sampleArtifacts[0]!)}>
-        open-row
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          ((props.columns as Array<{ key: string; renderDisplay?: (row: Artifact, value: unknown) => unknown }>)?.find(
-            (column) => column.key === "tags",
-          )?.renderDisplay?.(sampleArtifacts[0]!, ["tag-1"]) as { props?: { onCommit?: (nextValue: string[]) => void } } | undefined)?.props?.onCommit?.([
-            "tag-2",
-          ])
-        }
-      >
-        commit-tags
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          ((props.columns as Array<{ key: string; renderDisplay?: (row: Artifact, value: unknown) => unknown }>)?.find(
-            (column) => column.key === "assignee_id",
-          )?.renderDisplay?.(sampleArtifacts[0]!, "user-1") as { props?: { onCommit?: (nextValue: string | null) => void } } | undefined)?.props?.onCommit?.(
-            "user-2",
-          )
-        }
-      >
-        commit-assignee
-      </button>
-      <span data-testid="grid-empty-message">{String(props.emptyMessage)}</span>
-      <span data-testid="grid-selection-column">{String(props.selectionColumn)}</span>
-    </div>
-  ),
+  MetadataDrivenGrid: (props: Record<string, unknown>) => {
+    lastMetadataDrivenGridProps = props;
+    return (
+      <div data-testid="metadata-driven-grid">
+        <button type="button" onClick={() => (props.onRowOpen as ((row: Artifact) => void) | undefined)?.(sampleArtifacts[0]!)}>
+          open-row
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            ((props.columns as Array<{ key: string; renderDisplay?: (row: Artifact, value: unknown) => unknown }>)?.find(
+              (column) => column.key === "tags",
+            )?.renderDisplay?.(sampleArtifacts[0]!, ["tag-1"]) as { props?: { onCommit?: (nextValue: string[]) => void } } | undefined)?.props?.onCommit?.([
+              "tag-2",
+            ])
+          }
+        >
+          commit-tags
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            ((props.columns as Array<{ key: string; renderDisplay?: (row: Artifact, value: unknown) => unknown }>)?.find(
+              (column) => column.key === "assignee_id",
+            )?.renderDisplay?.(sampleArtifacts[0]!, "user-1") as { props?: { onCommit?: (nextValue: string | null) => void } } | undefined)?.props?.onCommit?.(
+              "user-2",
+            )
+          }
+        >
+          commit-assignee
+        </button>
+        {typeof props.renderRowActions === "function" ? (
+          <div data-testid="mock-row-actions">{props.renderRowActions(sampleArtifacts[0]!)}</div>
+        ) : null}
+        {typeof props.renderExpandedRow === "function" ? (
+          <div data-testid="mock-expanded-slot">{(props.renderExpandedRow as (row: Artifact) => ReactNode)(sampleArtifacts[0]!)}</div>
+        ) : null}
+        <span data-testid="grid-empty-message">{String(props.emptyMessage)}</span>
+        <span data-testid="grid-selection-column">{String(props.selectionColumn)}</span>
+      </div>
+    );
+  },
 }));
 
 const sampleArtifacts: Artifact[] = [
@@ -75,6 +88,23 @@ const sampleArtifacts: Artifact[] = [
     custom_fields: {},
   },
 ];
+
+const sampleTask: Task = {
+  id: "task-1",
+  project_id: "project-1",
+  artifact_id: "art-1",
+  title: "Task Alpha",
+  state: "new",
+  description: "",
+  assignee_id: null,
+  rank_order: null,
+  team_id: null,
+  original_estimate_hours: null,
+  remaining_work_hours: null,
+  activity: null,
+  created_at: null,
+  updated_at: null,
+};
 
 const sampleMembers: TenantMember[] = [
   {
@@ -114,6 +144,7 @@ const formSchema: FormSchemaDto = {
 };
 
 beforeEach(() => {
+  lastMetadataDrivenGridProps = {};
   mockUseArtifactsTabularColumns.mockReset();
   mockUseArtifactsTabularRows.mockReset();
   mockUseArtifactsTabularCommit.mockReset();
@@ -170,6 +201,7 @@ describe("ArtifactsTableView", () => {
     expect(mockUseArtifactsTabularColumns).toHaveBeenCalledWith({
       listSchema,
       formSchema,
+      manifestBundle: null,
       members: sampleMembers,
       projectTags: sampleTags,
     });
@@ -203,6 +235,132 @@ describe("ArtifactsTableView", () => {
 
     expect(screen.getByTestId("grid-empty-message")).toHaveTextContent("No artifacts");
     expect(screen.getByTestId("grid-selection-column")).toHaveTextContent("true");
+  });
+
+  it("forwards table-row expansion props to MetadataDrivenGrid and shows a helper hint", () => {
+    const onToggle = vi.fn();
+    const onOpen = vi.fn();
+    renderView({
+      expandedTableRowKeys: new Set<string>(),
+      onToggleTableExpandRow: onToggle,
+      onOpenTableTask: onOpen,
+      tasksByArtifactId: new Map([["art-1", [sampleTask]]]),
+    });
+
+    expect(screen.getByText("Use arrow next to actions to show tasks.")).toBeInTheDocument();
+    expect(lastMetadataDrivenGridProps.expandedDetailRowKeys).toEqual(new Set<string>());
+    expect(typeof lastMetadataDrivenGridProps.renderExpandedRow).toBe("function");
+
+    fireEvent.click(screen.getByRole("button", { name: /expand tasks for artifact a/i }));
+    expect(onToggle).toHaveBeenCalledWith("art-1");
+  });
+
+  it("renders expanded tasks and calls onOpenTableTask when a task row is clicked", () => {
+    const onOpen = vi.fn();
+    renderView({
+      expandedTableRowKeys: new Set(["art-1"]),
+      onToggleTableExpandRow: vi.fn(),
+      onOpenTableTask: onOpen,
+      tasksByArtifactId: new Map([["art-1", [sampleTask]]]),
+    });
+
+    fireEvent.click(screen.getByText("Task Alpha"));
+    expect(onOpen).toHaveBeenCalledWith(sampleArtifacts[0], sampleTask);
+  });
+
+  it("shows loading state for expanded tasks", () => {
+    renderView({
+      expandedTableRowKeys: new Set(["art-1"]),
+      onToggleTableExpandRow: vi.fn(),
+      onOpenTableTask: vi.fn(),
+      tasksByArtifactId: new Map([["art-1", []]]),
+      tasksLoadingArtifactIds: new Set(["art-1"]),
+    });
+
+    expect(screen.getByText("Loading tasks…")).toBeInTheDocument();
+  });
+
+  it("shows tasks while refetching when cached tasks exist (no loading-only placeholder)", () => {
+    renderView({
+      expandedTableRowKeys: new Set(["art-1"]),
+      onToggleTableExpandRow: vi.fn(),
+      onOpenTableTask: vi.fn(),
+      tasksByArtifactId: new Map([["art-1", [sampleTask]]]),
+      tasksLoadingArtifactIds: new Set(["art-1"]),
+    });
+
+    expect(screen.getByText("Task Alpha")).toBeInTheDocument();
+    expect(screen.queryByText("Loading tasks…")).not.toBeInTheDocument();
+  });
+
+  it("shows empty-task copy when expanded but there are no tasks", () => {
+    renderView({
+      expandedTableRowKeys: new Set(["art-1"]),
+      onToggleTableExpandRow: vi.fn(),
+      onOpenTableTask: vi.fn(),
+      tasksByArtifactId: new Map([["art-1", []]]),
+      tasksLoadingArtifactIds: new Set(),
+    });
+
+    expect(screen.getByText("No tasks for this item.")).toBeInTheDocument();
+  });
+
+  it("does not pass expansion to the grid when onOpenTableTask is missing (chevron can still toggle)", () => {
+    renderView({
+      expandedTableRowKeys: new Set<string>(),
+      onToggleTableExpandRow: vi.fn(),
+      tasksByArtifactId: new Map(),
+    });
+
+    expect(screen.queryByText("Use arrow next to actions to show tasks.")).not.toBeInTheDocument();
+    expect(lastMetadataDrivenGridProps.renderExpandedRow).toBeUndefined();
+    expect(lastMetadataDrivenGridProps.expandedDetailRowKeys).toBeUndefined();
+  });
+
+  it("uses collapse label on the expand chevron when the row is expanded", () => {
+    renderView({
+      expandedTableRowKeys: new Set(["art-1"]),
+      onToggleTableExpandRow: vi.fn(),
+      onOpenTableTask: vi.fn(),
+      tasksByArtifactId: new Map([["art-1", [sampleTask]]]),
+    });
+
+    expect(screen.getByRole("button", { name: /collapse tasks for artifact a/i })).toBeInTheDocument();
+  });
+
+  it("applies selected styles when selectedTableTask matches a task", () => {
+    renderView({
+      expandedTableRowKeys: new Set(["art-1"]),
+      onToggleTableExpandRow: vi.fn(),
+      onOpenTableTask: vi.fn(),
+      tasksByArtifactId: new Map([["art-1", [sampleTask]]]),
+      selectedTableTask: { artifactId: "art-1", taskId: "task-1" },
+    });
+
+    expect(screen.getByText("Task Alpha").closest("li")).toHaveClass("bg-muted/40");
+  });
+
+  it("invokes onEditTableTask and onDeleteTableTask from the task overflow menu", async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+
+    renderView({
+      expandedTableRowKeys: new Set(["art-1"]),
+      onToggleTableExpandRow: vi.fn(),
+      onOpenTableTask: vi.fn(),
+      onEditTableTask: onEdit,
+      onDeleteTableTask: onDelete,
+      tasksByArtifactId: new Map([["art-1", [sampleTask]]]),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Task actions" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+    expect(onEdit).toHaveBeenCalledWith(sampleArtifacts[0], sampleTask);
+
+    await user.click(screen.getByRole("button", { name: "Task actions" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalledWith(sampleArtifacts[0], sampleTask);
   });
 
   it("shows loading, error, and unavailable schema fallbacks", () => {

@@ -7,6 +7,15 @@ import BacklogWorkspacePage from "./BacklogWorkspacePage";
 import { useArtifactStore } from "../../../shared/stores/artifactStore";
 import { modalApi } from "../../../shared/modal";
 
+const { useFormSchemaMock, ArtifactDetailSurfaceSpy } = vi.hoisted(() => ({
+  useFormSchemaMock: vi.fn(),
+  ArtifactDetailSurfaceSpy: vi.fn((_props?: unknown) => null),
+}));
+
+vi.mock("../../../shared/api/formSchemaApi", () => ({
+  useFormSchema: (...args: unknown[]) => useFormSchemaMock(...args),
+}));
+
 const mockHandleCreateOpen = vi.fn();
 const mockOpenCreateArtifactModal = vi.fn();
 const mockArtifacts = [
@@ -76,7 +85,8 @@ vi.mock("../components", async () => {
         ) : null}
       </div>
     ),
-    ArtifactDetailSurface: () => null,
+    ArtifactDetailSurface: (props: unknown) => ArtifactDetailSurfaceSpy(props),
+    ArtifactDetailPanelBody: ({ children }: { children: React.ReactNode }) => <div data-testid="detail-panel-body">{children}</div>,
   };
 });
 
@@ -97,7 +107,7 @@ vi.mock("./useBacklogWorkspaceDetailState", () => ({
   useBacklogWorkspaceDetailState: () => ({
     detailDrawerTab: "details",
     setDetailDrawerTab: vi.fn(),
-    auditTarget: null,
+    auditTarget: "artifact" as const,
     setAuditTarget: vi.fn(),
   }),
 }));
@@ -142,9 +152,15 @@ vi.mock("../../../shared/modal", () => ({
     openCreateArtifact: vi.fn(),
     openEditArtifact: vi.fn(),
     openDeleteArtifact: vi.fn(),
+    openAddTask: vi.fn(),
+    openEditTask: vi.fn(),
     closeModal: vi.fn(),
   },
-  useModalStore: { getState: () => ({ modalType: null, updateModalProps: vi.fn() }) },
+  useModalStore: Object.assign(
+    (selector: (s: { isOpened: boolean; modalType: string | null }) => unknown) =>
+      selector({ isOpened: false, modalType: null }),
+    { getState: () => ({ modalType: null, isOpened: false, updateModalProps: vi.fn() }) },
+  ),
 }));
 
 vi.mock("../../../shared/stores/realtimeStore", () => ({
@@ -158,7 +174,16 @@ vi.mock("../../../shared/stores/notificationStore", () => ({
 }));
 
 vi.mock("../../../shared/api/manifestApi", () => ({
-  useProjectManifest: () => ({ data: { manifest_bundle: { artifact_types: [] } } }),
+  useProjectManifest: () => ({
+    data: {
+      manifest_bundle: {
+        artifact_types: [
+          { id: "workitem", name: "Work item", child_types: [] },
+          { id: "epic", name: "Epic", child_types: ["workitem"] },
+        ],
+      },
+    },
+  }),
 }));
 
 vi.mock("../../../shared/api/listSchemaApi", () => ({
@@ -173,16 +198,9 @@ vi.mock("../../../shared/api/listSchemaApi", () => ({
   }),
 }));
 
-vi.mock("../../../shared/api/formSchemaApi", () => ({
-  useFormSchema: () => ({
-    data: { entity_type: "artifact", context: "edit", fields: [], artifact_type_options: [] },
-    isError: false,
-    error: null,
-  }),
-}));
-
 vi.mock("../../../shared/api/orgApi", () => ({
   useOrgMembers: () => ({ data: [] }),
+  useProjectTeams: () => ({ data: [] }),
   useProjectMembers: vi.fn(),
   useAddProjectMember: vi.fn(),
   useRemoveProjectMember: vi.fn(),
@@ -202,6 +220,8 @@ vi.mock("../../../shared/api/taskApi", () => ({
   useCreateTask: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateTask: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteTask: () => ({ mutate: vi.fn(), isPending: false }),
+  useReorderArtifactTasks: () => ({ mutate: vi.fn(), isPending: false }),
+  fetchTasksForArtifact: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("../../../shared/api/relationshipApi", () => ({
@@ -250,7 +270,7 @@ vi.mock("../../../shared/api/artifactApi", () => ({
     isRefetching: false,
     refetch: vi.fn(),
   }),
-  useArtifact: () => ({ data: null, isError: false }),
+  useArtifact: () => ({ data: null, isError: false, isFetching: false }),
   useCreateArtifact: () => ({ mutateAsync: vi.fn(), isPending: false }),
   usePermittedTransitions: () => ({ data: [] }),
   useTransitionArtifact: () => ({ mutate: vi.fn(), isPending: false }),
@@ -264,6 +284,67 @@ vi.mock("../../../shared/api/artifactApi", () => ({
 describe("BacklogWorkspacePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useFormSchemaMock.mockImplementation(
+      (
+        _org?: string,
+        _project?: string,
+        entityType = "artifact",
+        context = "create",
+        artifactType?: string,
+        _keepPrevious?: boolean,
+      ) => {
+        if (entityType === "task") {
+          return {
+            data: { entity_type: "task", context, fields: [], artifact_type_options: [] },
+            isError: false,
+            error: null,
+            isFetching: false,
+          };
+        }
+        if (entityType === "artifact" && context === "edit") {
+          return {
+            data: { entity_type: "artifact", context: "edit", fields: [], artifact_type_options: [] },
+            isError: false,
+            error: null,
+            isFetching: false,
+          };
+        }
+        if (entityType === "artifact" && context === "create") {
+          const mergedOrTestCase = !artifactType || artifactType === "test-case";
+          const fields = [
+            { key: "artifact_type", type: "choice", label_key: "Type", order: 1 },
+            { key: "parent_id", type: "entity_ref", label_key: "Parent", entity_ref: "artifact", order: 2 },
+            { key: "title", type: "string", label_key: "Title", order: 3 },
+            ...(mergedOrTestCase
+              ? [{ key: "test_steps_json", type: "string", label_key: "Steps", order: 99 }]
+              : []),
+          ];
+          const typeOpts = artifactType
+            ? [{ id: artifactType, label: artifactType }]
+            : [
+                { id: "workitem", label: "Work item" },
+                { id: "test-case", label: "Test case" },
+              ];
+          return {
+            data: {
+              entity_type: "artifact",
+              context: "create",
+              fields,
+              artifact_type_options: typeOpts,
+            },
+            isError: false,
+            error: null,
+            isFetching: false,
+          };
+        }
+        return {
+          data: { entity_type: artifactType ?? "artifact", context, fields: [], artifact_type_options: [] },
+          isError: false,
+          error: null,
+          isFetching: false,
+        };
+      },
+    );
     useArtifactStore.getState().resetListState();
     mockArtifacts.splice(
       0,
@@ -320,9 +401,16 @@ describe("BacklogWorkspacePage", () => {
     const newChild = await screen.findByText("New child");
     fireEvent.click(newChild);
     expect(mockOpenCreateArtifactModal).toHaveBeenCalled();
+    expect(mockOpenCreateArtifactModal).toHaveBeenCalledWith(
+      expect.objectContaining({ parent_id: "artifact-1", artifact_type: "workitem" }),
+      { hideFieldKeys: ["parent_id"] },
+    );
 
     fireEvent.click(await screen.findByText("Edit"));
     expect(modalApi.openEditArtifact).toHaveBeenCalled();
+
+    fireEvent.click(await screen.findByText("Add task"));
+    expect(modalApi.openAddTask).toHaveBeenCalled();
 
     fireEvent.click(await screen.findByText("Delete"));
     expect(modalApi.openDeleteArtifact).toHaveBeenCalled();
@@ -348,5 +436,52 @@ describe("BacklogWorkspacePage", () => {
 
     fireEvent.click(screen.getByText("tree-create"));
     expect(mockHandleCreateOpen).toHaveBeenCalled();
+  });
+
+  it("requests narrowed artifact create form-schema with default workitem type", async () => {
+    renderWithQualityI18n(
+      <MemoryRouter initialEntries={["/demo-org/demo-project/backlog"]}>
+        <Routes>
+          <Route
+            path="/:orgSlug/:projectSlug/backlog"
+            element={<BacklogWorkspacePage variant="default" detailMode="drawer" />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("tree-view")).toBeInTheDocument();
+    });
+
+    const createCalls = useFormSchemaMock.mock.calls.filter(
+      (c) => c[2] === "artifact" && c[3] === "create",
+    );
+    expect(createCalls.some((c) => c[4] === "workitem" && c[5] === true)).toBe(true);
+  });
+
+  it("uses Dialog (not ArtifactDetailSurface) for table + drawer detail when tree default is not forced", async () => {
+    useArtifactStore.getState().resetListState();
+    useArtifactStore.getState().setListState({
+      viewMode: "table",
+      detailArtifactId: "artifact-1",
+    });
+
+    renderWithQualityI18n(
+      <MemoryRouter initialEntries={["/demo-org/demo-project/backlog"]}>
+        <Routes>
+          <Route
+            path="/:orgSlug/:projectSlug/backlog"
+            element={<BacklogWorkspacePage variant="quality" detailMode="drawer" />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("detail-panel-body")).toBeInTheDocument();
+    expect(ArtifactDetailSurfaceSpy).not.toHaveBeenCalled();
   });
 });

@@ -25,6 +25,9 @@ function isSpecialColumn(columnId: string): boolean {
   return columnId === "__select__" || columnId === "__actions__";
 }
 
+/** Synthetic ReactGrid body rows for expandable detail use this suffix; excluded from `rowMap` and cell commits. */
+export const METADATA_GRID_DETAIL_ROW_SUFFIX = "__taskDetail";
+
 interface PendingGridChange<T> {
   key: string;
   row: T;
@@ -59,6 +62,8 @@ export function MetadataDrivenGrid<T>({
   renderRowActions,
   onRowOpen,
   onCellCommit,
+  expandedDetailRowKeys,
+  renderExpandedRow,
 }: MetadataDrivenGridProps<T>) {
   const [drafts, setDrafts] = useState<Record<string, TabularDraftState>>({});
   const [focusLocation, setFocusLocation] = useState<CellLocation | undefined>(undefined);
@@ -118,6 +123,12 @@ export function MetadataDrivenGrid<T>({
     if (rowId === "__header__") {
       return { rowId: getRowKey(firstRow), columnId: firstFocusableColumnId };
     }
+    if (rowId.endsWith(METADATA_GRID_DETAIL_ROW_SUFFIX)) {
+      const parentId = rowId.slice(0, -METADATA_GRID_DETAIL_ROW_SUFFIX.length);
+      if (rowMap.has(parentId)) {
+        return { rowId: parentId, columnId: firstFocusableColumnId };
+      }
+    }
     const hasRow = rowMap.has(rowId);
     const safeRowId = hasRow ? rowId : getRowKey(firstRow);
     const columnId = String(location.columnId);
@@ -156,7 +167,7 @@ export function MetadataDrivenGrid<T>({
       });
     }
 
-    const bodyRows = data.map((row) => {
+    const bodyRows = data.flatMap((row) => {
       const rowId = getRowKey(row);
       const cells: GridCell[] = [];
 
@@ -223,11 +234,58 @@ export function MetadataDrivenGrid<T>({
         );
       }
 
-      return { rowId, cells, height: 38 };
+      const mainRow = { rowId, cells, height: 38 as const };
+      const expanded =
+        renderExpandedRow &&
+        expandedDetailRowKeys?.has(rowId) === true;
+
+      if (!expanded) {
+        return [mainRow];
+      }
+
+      const detailRowId = `${rowId}${METADATA_GRID_DETAIL_ROW_SUFFIX}`;
+      const detailCells: GridCell[] = [];
+      if (selectionColumn) {
+        detailCells.push({
+          type: "checkbox",
+          checked: false,
+          nonEditable: true,
+        });
+      }
+      for (let i = 0; i < columns.length; i++) {
+        if (i === 0) {
+          detailCells.push(
+            staticTextCell("", () => (
+              <div className="-m-px border-t border-border bg-muted/30 px-1 py-2 text-left">
+                {renderExpandedRow(row)}
+              </div>
+            )),
+          );
+        } else {
+          detailCells.push({ type: "text", text: "", nonEditable: true });
+        }
+      }
+      if (renderRowActions) {
+        detailCells.push(staticTextCell("", () => <span className="inline-block w-full" aria-hidden />));
+      }
+
+      return [mainRow, { rowId: detailRowId, cells: detailCells, height: 120 }];
     });
 
     return [{ rowId: "__header__", cells: headerCells, height: 40 }, ...bodyRows];
-  }, [allSelected, columns, data, drafts, getRowKey, onRowOpen, renderRowActions, selectedSet, selectionColumn]);
+  }, [
+    allSelected,
+    columns,
+    data,
+    drafts,
+    expandedDetailRowKeys,
+    getRowKey,
+    onRowOpen,
+    renderExpandedRow,
+    renderRowActions,
+    selectedSet,
+    selectionColumn,
+  ]);
 
   const handleCellsChanged = useCallback((changes: CellChange[]) => {
     void (async () => {
@@ -236,6 +294,8 @@ export function MetadataDrivenGrid<T>({
       for (const change of changes) {
         const rowId = String(change.rowId);
         const columnId = String(change.columnId);
+
+        if (rowId.endsWith(METADATA_GRID_DETAIL_ROW_SUFFIX)) continue;
 
         if (rowId === "__header__" && columnId === "__select__" && change.type === "checkbox") {
           onSelectAll?.(change.newCell.checked);

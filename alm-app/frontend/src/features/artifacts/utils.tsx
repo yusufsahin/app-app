@@ -6,6 +6,7 @@ import {
   Bug,
   CheckCircle2,
   CircleDot,
+  ClipboardList,
   FileText,
   Folder,
   FolderKanban,
@@ -21,6 +22,7 @@ import type { ListColumnSchema } from "../../shared/types/listSchema";
 import type { ListSchemaDto } from "../../shared/types/listSchema";
 import type { ManifestTreeRoot } from "../../shared/lib/manifestTreeRoots";
 import { formatDateTime as formatDateTimeShared } from "../../shared/utils/formatDateTime";
+import { getValidTransitionsFromBundle, type ManifestBundleForTransitions } from "../../shared/lib/workflowTransitions";
 
 export const formatDateTime = formatDateTimeShared;
 
@@ -55,7 +57,13 @@ export function isManifestFieldExcludedFromForms(field: unknown): boolean {
   return Boolean(o.exclude_from_form_schema ?? o.excludeFromFormSchema);
 }
 
-const DEFAULT_SYSTEM_ROOT_TYPES = new Set(["root-requirement", "root-quality", "root-defect"]);
+/** Keep in sync with backend `DEFAULT_SYSTEM_ROOT_TYPES` when manifest omits `system_roots`. */
+const DEFAULT_SYSTEM_ROOT_TYPES = new Set([
+  "root-requirement",
+  "root-quality",
+  "root-testsuites",
+  "root-defect",
+]);
 
 type ManifestBundleLike = {
   system_roots?: unknown[];
@@ -91,6 +99,140 @@ export function isRootArtifact(
   const roots =
     bundleOrRoots instanceof Set ? bundleOrRoots : getSystemRootArtifactTypes(bundleOrRoots ?? undefined);
   return roots.has(artifact.artifact_type);
+}
+
+/** Manifest bundle slice used to resolve `child_types` for an artifact type. */
+export type ManifestBundleForChildTypes = {
+  artifact_types?: Array<{
+    id?: string;
+    child_types?: unknown;
+    childTypes?: unknown;
+    allow_create_children?: unknown;
+    allows_children?: unknown;
+    flags?: { allow_create_children?: unknown; allows_children?: unknown };
+  }>;
+  defs?: unknown[];
+};
+
+/** When false, manifest forbids creating new child artifacts under this parent type (UI + should match BE). */
+function manifestParentDeniesChildCreation(
+  bundle: ManifestBundleForChildTypes | null | undefined,
+  parentTypeId: string,
+): boolean {
+  if (!bundle || !parentTypeId) return false;
+  const fromFlat = bundle.artifact_types?.find((t) => t.id === parentTypeId);
+  if (fromFlat) {
+    const flags = fromFlat.flags;
+    if (fromFlat.allow_create_children === false || fromFlat.allows_children === false) return true;
+    if (flags?.allow_create_children === false || flags?.allows_children === false) return true;
+  }
+  for (const d of bundle.defs ?? []) {
+    if (!d || typeof d !== "object") continue;
+    const o = d as Record<string, unknown>;
+    if (o.kind !== "ArtifactType") continue;
+    if (String(o.id) !== parentTypeId) continue;
+    const flags = o.flags as Record<string, unknown> | undefined;
+    if (o.allow_create_children === false || o.allows_children === false) return true;
+    if (flags?.allow_create_children === false || flags?.allows_children === false) return true;
+    break;
+  }
+  return false;
+}
+
+function normalizeManifestChildTypeList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((x) => String(x).trim()).filter(Boolean);
+}
+
+/**
+ * Ordered list of child artifact type ids allowed under `parentTypeId` per manifest (`child_types`).
+ * Reads flattened `artifact_types` first, then `defs` ArtifactType entries.
+ */
+export function getManifestChildTypeIdsForParent(
+  bundle: ManifestBundleForChildTypes | null | undefined,
+  parentTypeId: string,
+): string[] {
+  if (!bundle || !parentTypeId) return [];
+  if (manifestParentDeniesChildCreation(bundle, parentTypeId)) return [];
+  const fromFlat = bundle.artifact_types?.find((t) => t.id === parentTypeId);
+  if (fromFlat) {
+    const ids = normalizeManifestChildTypeList(fromFlat.child_types ?? fromFlat.childTypes);
+    if (ids.length > 0) return ids;
+  }
+  for (const d of bundle.defs ?? []) {
+    if (!d || typeof d !== "object") continue;
+    const o = d as Record<string, unknown>;
+    if (o.kind !== "ArtifactType") continue;
+    if (String(o.id) !== parentTypeId) continue;
+    return normalizeManifestChildTypeList(o.child_types ?? o.childTypes);
+  }
+  return [];
+}
+
+/** True when manifest allows creating at least one child type under this parent artifact type. */
+export function manifestArtifactTypeAllowsChildren(
+  bundle: ManifestBundleForChildTypes | null | undefined,
+  parentTypeId: string,
+): boolean {
+  return getManifestChildTypeIdsForParent(bundle, parentTypeId).length > 0;
+}
+
+/** BFS over manifest `child_types` starting at `moduleRootType` (inclusive). */
+export function collectManifestReachableTypeIds(
+  bundle: ManifestBundleForChildTypes | null | undefined,
+  moduleRootType: string,
+): Set<string> {
+  const reachable = new Set<string>();
+  if (!bundle || !moduleRootType) return reachable;
+  const queue = [moduleRootType];
+  reachable.add(moduleRootType);
+  while (queue.length > 0) {
+    const p = queue.shift()!;
+    for (const c of getManifestChildTypeIdsForParent(bundle, p)) {
+      if (!reachable.has(c)) {
+        reachable.add(c);
+        queue.push(c);
+      }
+    }
+  }
+  return reachable;
+}
+
+/**
+ * Non-system artifact types that may appear as children somewhere under a tree module, in manifest order.
+ * Used to narrow backlog toolbar "New work item" to the active tree.
+ */
+export function getToolbarCreatableArtifactTypeIds(
+  bundle: ManifestBundleForChildTypes | null | undefined,
+  moduleRootArtifactType: string,
+  systemRoots: Set<string>,
+): string[] {
+  if (!bundle || !moduleRootArtifactType) return [];
+  const reachable = collectManifestReachableTypeIds(bundle, moduleRootArtifactType);
+  const creatable = new Set<string>();
+  for (const p of reachable) {
+    for (const t of getManifestChildTypeIdsForParent(bundle, p)) {
+      if (systemRoots.has(t)) continue;
+      if (t.startsWith("root-")) continue;
+      creatable.add(t);
+    }
+  }
+  const order = (bundle.artifact_types ?? []).map((x) => x.id).filter(Boolean) as string[];
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+  for (const id of order) {
+    if (creatable.has(id) && !seen.has(id)) {
+      seen.add(id);
+      ordered.push(id);
+    }
+  }
+  for (const id of creatable) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      ordered.push(id);
+    }
+  }
+  return ordered;
 }
 
 function escapeCsvCell(value: string | number | null | undefined): string {
@@ -221,9 +363,24 @@ const LUCIDE_BY_ICON_ID: Record<string, LucideIcon> = {
   target: Target,
 };
 
+type ArtifactTypeBundle = { artifact_types?: Array<{ id?: string; icon?: string; name?: string }> } | null | undefined;
+
+/**
+ * User-visible type label: manifest `artifact_types[].name` when set.
+ * Legacy manifest/API type id `requirement` (leaf under epic→feature) maps to "User story" when no name is set.
+ */
+export function getArtifactTypeDisplayLabel(type: string, bundle?: ArtifactTypeBundle): string {
+  const raw = bundle?.artifact_types?.find((a) => a.id === type)?.name?.trim();
+  if (raw) return raw;
+  if (!type) return "Work item";
+  if (type === "requirement") return "User story";
+  if (type === "workitem" || type === "issue") return "Work item";
+  return type.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function getArtifactIcon(
   type: string,
-  bundle?: { artifact_types?: Array<{ id?: string; icon?: string }> } | null,
+  bundle?: ArtifactTypeBundle,
 ): ReactElement {
   const at = bundle?.artifact_types?.find((a) => a.id === type);
   const iconId = at?.icon?.trim().toLowerCase();
@@ -232,12 +389,22 @@ export function getArtifactIcon(
     return <Icon className="size-4" />;
   }
   switch (type) {
+    case "epic":
+      return <Layers className="size-4 text-violet-600" />;
+    case "feature":
+      return <CircleDot className="size-4 text-blue-600" />;
+    case "workitem":
+    case "issue":
+      return <ClipboardList className="size-4 text-sky-600" />;
     case "defect":
       return <Bug className="size-4" />;
     case "root-defect":
       return <Bug className="size-4" />;
+    /* Leaf backlog item: API/manifest id is often `requirement`; same icon as user-story. */
     case "requirement":
-      return <FileText className="size-4" />;
+    case "user-story":
+    case "user_story":
+      return <FileText className="size-4 text-slate-600" />;
     case "quality-folder":
       return <Folder className="size-4 text-blue-500" />;
     case "test-suite":
@@ -259,17 +426,11 @@ export function getValidTransitions(
   artifactType: string,
   currentState: string,
 ): string[] {
-  const bundle = manifest?.manifest_bundle;
-  if (!bundle) return [];
-  const workflows = (bundle.workflows ?? []) as Array<{ id: string; transitions?: Array<{ from: string; to: string }> }>;
-  const artifactTypes = bundle.artifact_types ?? [];
-  const at = artifactTypes.find((a) => a.id === artifactType);
-  if (!at?.workflow_id) return [];
-  const wf = workflows.find((w) => w.id === at.workflow_id);
-  if (!wf?.transitions) return [];
-  return wf.transitions
-    .filter((t) => t.from === currentState)
-    .map((t) => t.to);
+  return getValidTransitionsFromBundle(
+    (manifest?.manifest_bundle as ManifestBundleForTransitions | undefined) ?? null,
+    artifactType,
+    currentState,
+  );
 }
 
 export interface ArtifactNode extends Artifact {

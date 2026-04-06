@@ -29,17 +29,18 @@ from sqlalchemy.pool import NullPool
 import alm.admin.infrastructure.models  # noqa: F401
 import alm.area.infrastructure.models  # noqa: F401
 import alm.artifact.infrastructure.models  # noqa: F401
-import alm.relationship.infrastructure.models  # noqa: F401
 import alm.attachment.infrastructure.models  # noqa: F401
 import alm.auth.infrastructure.models  # noqa: F401
-import alm.comment.infrastructure.models  # noqa: F401
 import alm.capacity.infrastructure.models  # noqa: F401
+import alm.comment.infrastructure.models  # noqa: F401
 import alm.cycle.infrastructure.models  # noqa: F401
 import alm.process_template.infrastructure.models  # noqa: F401
 import alm.project.infrastructure.models  # noqa: F401
-import alm.project_tag.infrastructure.models  # noqa: F401 — project_tags, artifact_tags, task_tags
 import alm.project.infrastructure.project_member_models  # noqa: F401
+import alm.project_tag.infrastructure.models  # noqa: F401 — project_tags, artifact_tags, task_tags
+import alm.relationship.infrastructure.models  # noqa: F401
 import alm.saved_query.infrastructure.models  # noqa: F401
+import alm.scm.infrastructure.models  # noqa: F401
 import alm.shared.audit.models  # noqa: F401
 import alm.task.infrastructure.models  # noqa: F401
 import alm.team.infrastructure.models  # noqa: F401

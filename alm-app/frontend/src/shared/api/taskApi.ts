@@ -19,6 +19,9 @@ export interface Task {
   assignee_id: string | null;
   rank_order: number | null;
   team_id: string | null;
+  original_estimate_hours: number | null;
+  remaining_work_hours: number | null;
+  activity: string | null;
   created_at: string | null;
   updated_at: string | null;
   tags?: TaskTagBrief[];
@@ -31,6 +34,9 @@ export interface CreateTaskRequest {
   assignee_id?: string | null;
   team_id?: string | null;
   rank_order?: number | null;
+  original_estimate_hours?: number | null;
+  remaining_work_hours?: number | null;
+  activity?: string | null;
   tag_ids?: string[];
 }
 
@@ -41,7 +47,51 @@ export interface UpdateTaskRequest {
   assignee_id?: string | null;
   team_id?: string | null;
   rank_order?: number | null;
+  original_estimate_hours?: number | null;
+  remaining_work_hours?: number | null;
+  activity?: string | null;
   tag_ids?: string[];
+}
+
+/** Omit from POST body when empty; use for create form values. */
+export function optionalHoursForCreate(v: unknown): number | undefined {
+  if (v === "" || v === null || v === undefined) return undefined;
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return undefined;
+  return n;
+}
+
+/** Map form value to PATCH payload (empty clears). */
+export function hoursForTaskPatch(v: unknown): number | null {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
+export function activityForTaskCreate(v: unknown): string | null | undefined {
+  if (v === "" || v === null || v === undefined) return undefined;
+  const s = String(v).trim();
+  return s === "" ? undefined : s;
+}
+
+export function activityForTaskPatch(v: unknown): string | null {
+  if (v === "" || v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s === "" ? null : s;
+}
+
+export async function fetchTasksForArtifact(
+  orgSlug: string,
+  projectId: string,
+  artifactId: string,
+  teamId: string | null = null,
+): Promise<Task[]> {
+  const { data } = await apiClient.get<Task[]>(
+    `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/tasks`,
+    { params: teamId ? { team_id: teamId } : undefined },
+  );
+  return data;
 }
 
 export function useTasksByArtifact(
@@ -50,15 +100,11 @@ export function useTasksByArtifact(
   artifactId: string | undefined,
   teamId?: string | null,
 ) {
+  const tid = teamId ?? null;
   return useQuery({
-    queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "tasks", teamId ?? null],
-    queryFn: async (): Promise<Task[]> => {
-      const { data } = await apiClient.get<Task[]>(
-        `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/tasks`,
-        { params: teamId ? { team_id: teamId } : undefined },
-      );
-      return data;
-    },
+    queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "tasks", tid],
+    queryFn: () =>
+      fetchTasksForArtifact(orgSlug!, projectId!, artifactId!, tid === null ? null : tid),
     enabled: !!orgSlug && !!projectId && !!artifactId,
   });
 }
@@ -82,88 +128,119 @@ export function useMyTasksInProject(
   });
 }
 
-export function useCreateTask(
-  orgSlug: string | undefined,
-  projectId: string | undefined,
-  artifactId: string | undefined,
-) {
+export type CreateTaskMutationInput = CreateTaskRequest & { artifactId: string };
+
+export function useCreateTask(orgSlug: string | undefined, projectId: string | undefined) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: CreateTaskRequest): Promise<Task> => {
+    mutationFn: async (payload: CreateTaskMutationInput): Promise<Task> => {
+      const { artifactId, ...rest } = payload;
       const body: Record<string, unknown> = {
-        title: payload.title,
-        description: payload.description ?? "",
-        state: payload.state ?? "todo",
+        title: rest.title,
+        description: rest.description ?? "",
+        state: rest.state ?? "todo",
       };
-      if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id;
-      if (payload.team_id !== undefined) body.team_id = payload.team_id;
-      if (payload.rank_order !== undefined) body.rank_order = payload.rank_order;
-      if (payload.tag_ids !== undefined) body.tag_ids = payload.tag_ids;
+      if (rest.assignee_id !== undefined) body.assignee_id = rest.assignee_id;
+      if (rest.team_id !== undefined) body.team_id = rest.team_id;
+      if (rest.rank_order !== undefined) body.rank_order = rest.rank_order;
+      if (rest.original_estimate_hours !== undefined) body.original_estimate_hours = rest.original_estimate_hours;
+      if (rest.remaining_work_hours !== undefined) body.remaining_work_hours = rest.remaining_work_hours;
+      if (rest.activity !== undefined) body.activity = rest.activity;
+      if (rest.tag_ids !== undefined) body.tag_ids = rest.tag_ids;
       const { data } = await apiClient.post<Task>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/tasks`,
         body,
       );
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "tasks"],
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", variables.artifactId, "tasks"],
       });
       queryClient.invalidateQueries({ queryKey: ["orgs", orgSlug, "projects", projectId, "tasks"] });
     },
   });
 }
 
-export function useUpdateTask(
-  orgSlug: string | undefined,
-  projectId: string | undefined,
-  artifactId: string | undefined,
-  taskId: string | undefined,
-) {
+export type UpdateTaskMutationInput = UpdateTaskRequest & { artifactId: string; taskId: string };
+
+export function useUpdateTask(orgSlug: string | undefined, projectId: string | undefined) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: UpdateTaskRequest): Promise<Task> => {
+    mutationFn: async (payload: UpdateTaskMutationInput): Promise<Task> => {
+      const { artifactId, taskId, ...rest } = payload;
       const body: Record<string, unknown> = {};
-      if (payload.title !== undefined) body.title = payload.title;
-      if (payload.state !== undefined) body.state = payload.state;
-      if (payload.description !== undefined) body.description = payload.description;
-      if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id;
-      if (payload.team_id !== undefined) body.team_id = payload.team_id;
-      if (payload.rank_order !== undefined) body.rank_order = payload.rank_order;
-      if (payload.tag_ids !== undefined) body.tag_ids = payload.tag_ids;
+      if (rest.title !== undefined) body.title = rest.title;
+      if (rest.state !== undefined) body.state = rest.state;
+      if (rest.description !== undefined) body.description = rest.description;
+      if (rest.assignee_id !== undefined) body.assignee_id = rest.assignee_id;
+      if (rest.team_id !== undefined) body.team_id = rest.team_id;
+      if (rest.rank_order !== undefined) body.rank_order = rest.rank_order;
+      if (rest.original_estimate_hours !== undefined) body.original_estimate_hours = rest.original_estimate_hours;
+      if (rest.remaining_work_hours !== undefined) body.remaining_work_hours = rest.remaining_work_hours;
+      if (rest.activity !== undefined) body.activity = rest.activity;
+      if (rest.tag_ids !== undefined) body.tag_ids = rest.tag_ids;
       const { data } = await apiClient.patch<Task>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/tasks/${taskId}`,
         body,
       );
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "tasks"],
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", variables.artifactId, "tasks"],
       });
       queryClient.invalidateQueries({ queryKey: ["orgs", orgSlug, "projects", projectId, "tasks"] });
     },
   });
 }
 
-export function useDeleteTask(
-  orgSlug: string | undefined,
-  projectId: string | undefined,
-  artifactId: string | undefined,
-) {
+export type DeleteTaskMutationInput = { artifactId: string; taskId: string };
+
+export type ReorderArtifactTasksInput = { artifactId: string; orderedTaskIds: string[] };
+
+export async function reorderTasksForArtifact(
+  orgSlug: string,
+  projectId: string,
+  artifactId: string,
+  orderedTaskIds: string[],
+): Promise<void> {
+  await apiClient.post(
+    `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/tasks/reorder`,
+    { ordered_task_ids: orderedTaskIds },
+  );
+}
+
+export function useReorderArtifactTasks(orgSlug: string | undefined, projectId: string | undefined) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (taskId: string): Promise<void> => {
+    mutationFn: async ({ artifactId, orderedTaskIds }: ReorderArtifactTasksInput): Promise<void> => {
+      await reorderTasksForArtifact(orgSlug!, projectId!, artifactId, orderedTaskIds);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", variables.artifactId, "tasks"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["orgs", orgSlug, "projects", projectId, "tasks"] });
+    },
+  });
+}
+
+export function useDeleteTask(orgSlug: string | undefined, projectId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ artifactId, taskId }: DeleteTaskMutationInput): Promise<void> => {
       await apiClient.delete(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}/tasks/${taskId}`,
       );
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", artifactId, "tasks"],
+        queryKey: ["orgs", orgSlug, "projects", projectId, "artifacts", variables.artifactId, "tasks"],
       });
       queryClient.invalidateQueries({ queryKey: ["orgs", orgSlug, "projects", projectId, "tasks"] });
     },

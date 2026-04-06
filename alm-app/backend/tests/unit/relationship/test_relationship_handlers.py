@@ -263,11 +263,11 @@ async def test_get_artifact_impact_analysis_builds_upstream_and_downstream_trees
 
     focus = Artifact.create(
         project_id=project_id,
-        artifact_type="backlog-item",
+        artifact_type="user_story",
         title="Focus",
         state="active",
         id=focus_id,
-        artifact_key="BI-1",
+        artifact_key="US-1",
     )
     upstream = Artifact.create(
         project_id=project_id,
@@ -287,11 +287,11 @@ async def test_get_artifact_impact_analysis_builds_upstream_and_downstream_trees
     )
     deep = Artifact.create(
         project_id=project_id,
-        artifact_type="task",
+        artifact_type="user_story",
         title="Deep child",
-        state="todo",
+        state="new",
         id=deep_id,
-        artifact_key="TASK-1",
+        artifact_key="US-2",
         parent_id=downstream_id,
     )
 
@@ -393,19 +393,19 @@ async def test_get_artifact_impact_analysis_prevents_cycles_and_marks_has_more()
 
     focus = Artifact.create(
         project_id=project_id,
-        artifact_type="backlog-item",
+        artifact_type="user_story",
         title="Focus",
         state="active",
         id=focus_id,
-        artifact_key="BI-1",
+        artifact_key="US-1",
     )
     next_artifact = Artifact.create(
         project_id=project_id,
-        artifact_type="task",
+        artifact_type="feature",
         title="Next",
         state="active",
         id=next_id,
-        artifact_key="TASK-1",
+        artifact_key="FEAT-1",
         parent_id=focus_id,
     )
 

@@ -17,6 +17,10 @@ export interface Project {
   status?: string | null;
   settings?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
+  /** True when a GitHub webhook secret is stored; value is never returned in settings. */
+  scm_webhook_github_secret_configured?: boolean;
+  /** True when a GitLab webhook token is stored; value is never returned in settings. */
+  scm_webhook_gitlab_secret_configured?: boolean;
 }
 
 export interface DashboardStats {

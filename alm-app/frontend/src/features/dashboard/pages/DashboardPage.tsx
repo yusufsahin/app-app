@@ -200,13 +200,12 @@ export default function DashboardPage() {
   } = useProjectBurndown(orgSlug, selectedProject?.id, { lastN });
 
   const { data: projectManifest } = useProjectManifest(orgSlug, selectedProject?.id);
+  /** Task rows use `task_workflow_id` + Task entity (`artifact_id`), not artifact type `task`. */
   const manifestSupportsTasks = useMemo(() => {
-    const b = projectManifest?.manifest_bundle as
-      | { task_workflow_id?: string; artifact_types?: Array<{ id?: string }> }
-      | undefined;
+    const b = projectManifest?.manifest_bundle as { task_workflow_id?: string } | undefined;
     if (!b) return true;
-    if (b.task_workflow_id) return true;
-    return (b.artifact_types ?? []).some((t) => t.id === "task");
+    const id = b.task_workflow_id;
+    return typeof id === "string" && id.trim().length > 0;
   }, [projectManifest?.manifest_bundle]);
 
   const activityList: DashboardActivityItem[] = (activity as DashboardActivityItem[] | undefined) ?? [];

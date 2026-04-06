@@ -79,8 +79,8 @@ from alm.form_schema.api.schemas import (
     FormSchemaResponse,
     ListColumnSchemaResponse,
     ListFilterSchemaResponse,
-    LookupSchemaResponse,
     ListSchemaResponse,
+    LookupSchemaResponse,
 )
 from alm.form_schema.application.queries.get_form_schema import GetFormSchema
 from alm.form_schema.application.queries.get_list_schema import GetListSchema
@@ -104,10 +104,16 @@ from alm.project.application.queries.get_org_dashboard_activity import GetOrgDas
 from alm.project.application.queries.get_org_dashboard_stats import GetOrgDashboardStats
 from alm.project.application.queries.get_project import GetProject
 from alm.project.application.queries.get_project_manifest import GetProjectManifest
+from alm.project.application.queries.get_velocity import GetVelocity
+from alm.project.application.queries.list_project_members import ListProjectMembers
+from alm.project.application.queries.list_projects import ListProjects
+from alm.project_tag.application.commands.create_project_tag import CreateProjectTag
+from alm.project_tag.application.commands.delete_project_tag import DeleteProjectTag
+from alm.project_tag.application.commands.rename_project_tag import RenameProjectTag
+from alm.project_tag.application.queries.list_project_tags import ListProjectTags
 from alm.relationship.api.schemas import (
-    ArtifactImpactAnalysisResponse,
     ArtifactImpactAnalysisNodeResponse,
-    ImpactHierarchyRefResponse,
+    ArtifactImpactAnalysisResponse,
     ArtifactRelationshipBulkCreateRequest,
     ArtifactRelationshipBulkDeleteRequest,
     ArtifactRelationshipBulkResultItem,
@@ -115,6 +121,7 @@ from alm.relationship.api.schemas import (
     ArtifactRelationshipCreateRequest,
     ArtifactRelationshipReorderRequest,
     ArtifactRelationshipResponse,
+    ImpactHierarchyRefResponse,
     RelationshipTypeOptionResponse,
 )
 from alm.relationship.application.commands.create_relationship import CreateRelationship
@@ -124,13 +131,6 @@ from alm.relationship.application.dtos import ArtifactImpactAnalysisNodeDTO
 from alm.relationship.application.queries.get_artifact_impact_analysis import GetArtifactImpactAnalysis
 from alm.relationship.application.queries.list_relationship_type_options import ListRelationshipTypeOptions
 from alm.relationship.application.queries.list_relationships_for_artifact import ListRelationshipsForArtifact
-from alm.project.application.queries.get_velocity import GetVelocity
-from alm.project.application.queries.list_project_members import ListProjectMembers
-from alm.project.application.queries.list_projects import ListProjects
-from alm.project_tag.application.commands.create_project_tag import CreateProjectTag
-from alm.project_tag.application.commands.delete_project_tag import DeleteProjectTag
-from alm.project_tag.application.commands.rename_project_tag import RenameProjectTag
-from alm.project_tag.application.queries.list_project_tags import ListProjectTags
 from alm.saved_query.api.schemas import (
     SavedQueryCreateRequest,
     SavedQueryResponse,
@@ -165,12 +165,14 @@ from alm.shared.infrastructure.security.field_masking import (
 from alm.shared.infrastructure.security.manifest_acl import require_manifest_acl
 from alm.task.api.schemas import (
     TaskCreateRequest,
+    TaskReorderRequest,
     TaskResponse,
     TaskUpdateRequest,
     task_response_from_dto,
 )
 from alm.task.application.commands.create_task import CreateTask
 from alm.task.application.commands.delete_task import DeleteTask
+from alm.task.application.commands.reorder_artifact_tasks import ReorderArtifactTasks
 from alm.task.application.commands.update_task import UpdateTask
 from alm.task.application.queries.get_task import GetTask
 from alm.task.application.queries.list_tasks_by_artifact import ListTasksByArtifact

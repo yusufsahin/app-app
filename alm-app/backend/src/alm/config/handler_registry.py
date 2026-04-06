@@ -65,8 +65,6 @@ from alm.artifact.domain.governance_adapter import ALMGovernanceAdapter
 from alm.artifact.infrastructure.metrics import PrometheusArtifactTransitionMetrics
 from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepository
 
-from alm.relationship.infrastructure.repositories import SqlAlchemyRelationshipRepository
-
 # ── Attachment commands ──
 from alm.attachment.application.commands.create_attachment import (
     CreateAttachment,
@@ -206,30 +204,6 @@ from alm.project.application.queries.get_velocity import (
     GetVelocity,
     GetVelocityHandler,
 )
-from alm.relationship.application.commands.create_relationship import (
-    CreateRelationship,
-    CreateRelationshipHandler,
-)
-from alm.relationship.application.commands.delete_relationship import (
-    DeleteRelationship,
-    DeleteRelationshipHandler,
-)
-from alm.relationship.application.commands.reorder_relationships import (
-    ReorderOutgoingRelationships,
-    ReorderOutgoingRelationshipsHandler,
-)
-from alm.relationship.application.queries.list_relationship_type_options import (
-    ListRelationshipTypeOptions,
-    ListRelationshipTypeOptionsHandler,
-)
-from alm.relationship.application.queries.get_artifact_impact_analysis import (
-    GetArtifactImpactAnalysis,
-    GetArtifactImpactAnalysisHandler,
-)
-from alm.relationship.application.queries.list_relationships_for_artifact import (
-    ListRelationshipsForArtifact,
-    ListRelationshipsForArtifactHandler,
-)
 from alm.project.application.queries.list_project_members import (
     ListProjectMembers,
     ListProjectMembersHandler,
@@ -262,21 +236,46 @@ from alm.quality.application.queries.batch_last_test_execution_status import (
     BatchLastTestExecutionStatus,
     BatchLastTestExecutionStatusHandler,
 )
-from alm.quality.application.queries.resolve_test_execution_config import (
-    ResolveTestExecutionConfig,
-    ResolveTestExecutionConfigHandler,
-)
 from alm.quality.application.queries.requirement_coverage_analysis import (
     RequirementCoverageAnalysis,
     RequirementCoverageAnalysisHandler,
 )
 from alm.quality.application.queries.requirement_traceability_matrix import (
     RequirementTraceabilityMatrix,
-    RequirementTraceabilityMatrixSummary,
     RequirementTraceabilityMatrixHandler,
+    RequirementTraceabilityMatrixSummary,
     RequirementTraceabilityMatrixSummaryHandler,
 )
+from alm.quality.application.queries.resolve_test_execution_config import (
+    ResolveTestExecutionConfig,
+    ResolveTestExecutionConfigHandler,
+)
 from alm.realtime.event_handlers import on_artifact_state_changed_realtime
+from alm.relationship.application.commands.create_relationship import (
+    CreateRelationship,
+    CreateRelationshipHandler,
+)
+from alm.relationship.application.commands.delete_relationship import (
+    DeleteRelationship,
+    DeleteRelationshipHandler,
+)
+from alm.relationship.application.commands.reorder_relationships import (
+    ReorderOutgoingRelationships,
+    ReorderOutgoingRelationshipsHandler,
+)
+from alm.relationship.application.queries.get_artifact_impact_analysis import (
+    GetArtifactImpactAnalysis,
+    GetArtifactImpactAnalysisHandler,
+)
+from alm.relationship.application.queries.list_relationship_type_options import (
+    ListRelationshipTypeOptions,
+    ListRelationshipTypeOptionsHandler,
+)
+from alm.relationship.application.queries.list_relationships_for_artifact import (
+    ListRelationshipsForArtifact,
+    ListRelationshipsForArtifactHandler,
+)
+from alm.relationship.infrastructure.repositories import SqlAlchemyRelationshipRepository
 
 # ── Saved query commands ──
 from alm.saved_query.application.commands.create_saved_query import (
@@ -302,6 +301,14 @@ from alm.saved_query.application.queries.list_saved_queries import (
     ListSavedQueriesHandler,
 )
 from alm.saved_query.infrastructure.repositories import SqlAlchemySavedQueryRepository
+from alm.scm.application.commands.create_scm_link import CreateScmLink, CreateScmLinkHandler
+from alm.scm.application.commands.delete_scm_link import DeleteScmLink, DeleteScmLinkHandler
+from alm.scm.application.queries.list_scm_links_by_artifact import (
+    ListScmLinksByArtifact,
+    ListScmLinksByArtifactHandler,
+)
+from alm.scm.application.queries.preview_scm_url import PreviewScmUrl, PreviewScmUrlHandler
+from alm.scm.infrastructure.repositories import SqlAlchemyScmLinkRepository
 
 # DDD Enterprise Clean Architecture: Domain Event Dispatcher
 from alm.shared.application.mediator import (
@@ -324,6 +331,7 @@ from alm.shared.infrastructure.security.password import BcryptPasswordHasher
 # ── Task commands ──
 from alm.task.application.commands.create_task import CreateTask, CreateTaskHandler
 from alm.task.application.commands.delete_task import DeleteTask, DeleteTaskHandler
+from alm.task.application.commands.reorder_artifact_tasks import ReorderArtifactTasks, ReorderArtifactTasksHandler
 from alm.task.application.commands.update_task import UpdateTask, UpdateTaskHandler
 from alm.task.application.queries.get_task import GetTask, GetTaskHandler
 
@@ -1000,6 +1008,7 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             process_template_repo=SqlAlchemyProcessTemplateRepository(s),
             tag_repo=SqlAlchemyProjectTagRepository(s),
+            team_repo=SqlAlchemyTeamRepository(s),
         ),
     )
     register_command_handler(
@@ -1015,6 +1024,14 @@ def register_all_handlers() -> None:
         DeleteTask,
         lambda s: DeleteTaskHandler(
             task_repo=SqlAlchemyTaskRepository(s),
+        ),
+    )
+    register_command_handler(
+        ReorderArtifactTasks,
+        lambda s: ReorderArtifactTasksHandler(
+            task_repo=SqlAlchemyTaskRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
     # ── Task queries ──
@@ -1144,6 +1161,41 @@ def register_all_handlers() -> None:
             project_repo=SqlAlchemyProjectRepository(s),
             artifact_repo=SqlAlchemyArtifactRepository(s),
             relationship_repo=SqlAlchemyRelationshipRepository(s),
+        ),
+    )
+
+    # ── SCM links (artifact ↔ Git) ──
+    register_command_handler(
+        CreateScmLink,
+        lambda s: CreateScmLinkHandler(
+            scm_repo=SqlAlchemyScmLinkRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+            task_repo=SqlAlchemyTaskRepository(s),
+        ),
+    )
+    register_command_handler(
+        DeleteScmLink,
+        lambda s: DeleteScmLinkHandler(
+            scm_repo=SqlAlchemyScmLinkRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_query_handler(
+        ListScmLinksByArtifact,
+        lambda s: ListScmLinksByArtifactHandler(
+            scm_repo=SqlAlchemyScmLinkRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_query_handler(
+        PreviewScmUrl,
+        lambda s: PreviewScmUrlHandler(
+            artifact_repo=SqlAlchemyArtifactRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+            scm_repo=SqlAlchemyScmLinkRepository(s),
         ),
     )
 

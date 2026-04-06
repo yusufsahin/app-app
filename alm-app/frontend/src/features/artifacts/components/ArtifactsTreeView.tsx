@@ -1,21 +1,32 @@
 import type { ReactNode } from "react";
-import { ChevronDown, ChevronRight, Copy, List, MoreHorizontal, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  List,
+  MoreHorizontal,
+  Trash2,
+} from "lucide-react";
 import type { Artifact } from "../../../shared/api/artifactApi";
+import type { Task } from "../../../shared/api/taskApi";
 import type { ManifestTreeRoot } from "../../../shared/lib/manifestTreeRoots";
-import { Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../shared/components/ui";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../shared/components/ui";
 import { cn } from "../../../shared/components/ui";
 import { EmptyState } from "../../../shared/components/EmptyState";
-import { buildArtifactTree, getArtifactIcon, type ArtifactNode } from "../utils";
+import { buildArtifactTree, getArtifactIcon, getArtifactTypeDisplayLabel, type ArtifactNode } from "../utils";
+import { TreeArtifactTaskRows } from "./TreeArtifactTaskRows";
+
+const EMPTY_TASKS_MAP = new Map<string, Task[]>();
+const EMPTY_LOADING_IDS = new Set<string>();
 
 interface TreeIconBundle {
-  artifact_types?: Array<{ id?: string; icon?: string }>;
+  artifact_types?: Array<{ id?: string; icon?: string; name?: string }>;
 }
 
 interface ArtifactsTreeViewProps {
   artifacts: Artifact[];
   treeRootOptions: ManifestTreeRoot[];
   iconBundle?: TreeIconBundle | null;
-  customFieldColumns: { key: string; label: string }[];
   expandedIds: Set<string>;
   selectedArtifactId?: string | null;
   onToggleExpand: (id: string) => void;
@@ -27,13 +38,24 @@ interface ArtifactsTreeViewProps {
   emptyListDescription: string;
   isRefetching: boolean;
   renderMenuContent: (artifact: Artifact) => ReactNode;
+  /** Tasks listed under an artifact when its node is expanded (keys: artifact id). */
+  tasksByArtifactId?: ReadonlyMap<string, Task[]>;
+  /** Artifact ids whose task list query is still loading (no cached data yet). */
+  tasksLoadingArtifactIds?: ReadonlySet<string>;
+  onOpenTask?: (artifact: Artifact, task: Task) => void;
+  onEditTask?: (artifact: Artifact, task: Task) => void;
+  onDeleteTask?: (artifact: Artifact, task: Task) => void;
+  /** Highlights the task row when it matches (e.g. read-only preview selection). */
+  selectedTreeTask?: { artifactId: string; taskId: string } | null;
+  /** Persist task order after tree drag-reorder. */
+  onReorderArtifactTasks?: (artifact: Artifact, orderedTaskIds: string[]) => void;
+  artifactTaskReorderPending?: boolean;
 }
 
 export function ArtifactsTreeView({
   artifacts,
   treeRootOptions,
   iconBundle,
-  customFieldColumns,
   expandedIds,
   selectedArtifactId,
   onToggleExpand,
@@ -45,6 +67,14 @@ export function ArtifactsTreeView({
   emptyListDescription,
   isRefetching,
   renderMenuContent,
+  tasksByArtifactId = EMPTY_TASKS_MAP,
+  tasksLoadingArtifactIds = EMPTY_LOADING_IDS,
+  onOpenTask,
+  onEditTask,
+  onDeleteTask,
+  selectedTreeTask = null,
+  onReorderArtifactTasks,
+  artifactTaskReorderPending = false,
 }: ArtifactsTreeViewProps) {
   if (artifacts.length === 0) {
     return (
@@ -72,12 +102,19 @@ export function ArtifactsTreeView({
             key={node.id}
             node={node}
             iconBundle={iconBundle}
-            customFieldColumns={customFieldColumns}
             renderMenuContent={renderMenuContent}
             onSelect={onOpenArtifact}
             expandedIds={expandedIds}
             selectedArtifactId={selectedArtifactId}
             onToggleExpand={onToggleExpand}
+            tasksByArtifactId={tasksByArtifactId}
+            tasksLoadingArtifactIds={tasksLoadingArtifactIds}
+            onOpenTask={onOpenTask}
+            onEditTask={onEditTask}
+            onDeleteTask={onDeleteTask}
+            selectedTreeTask={selectedTreeTask}
+            onReorderArtifactTasks={onReorderArtifactTasks}
+            artifactTaskReorderPending={artifactTaskReorderPending}
             depth={0}
           />
         ))}
@@ -91,35 +128,57 @@ export { ArtifactsTreeView as BacklogTreeView };
 function ArtifactTreeNode({
   node,
   iconBundle,
-  customFieldColumns,
   renderMenuContent,
   onSelect,
   expandedIds,
   selectedArtifactId,
   onToggleExpand,
+  tasksByArtifactId,
+  tasksLoadingArtifactIds,
+  onOpenTask,
+  onEditTask,
+  onDeleteTask,
+  selectedTreeTask,
+  onReorderArtifactTasks,
+  artifactTaskReorderPending,
   depth,
 }: {
   node: ArtifactNode;
   iconBundle?: TreeIconBundle | null;
-  customFieldColumns: { key: string; label: string }[];
   renderMenuContent: (artifact: Artifact) => ReactNode;
   onSelect: (artifactId: string) => void;
   expandedIds: Set<string>;
   selectedArtifactId?: string | null;
   onToggleExpand: (id: string) => void;
+  tasksByArtifactId: ReadonlyMap<string, Task[]>;
+  tasksLoadingArtifactIds: ReadonlySet<string>;
+  onOpenTask?: (artifact: Artifact, task: Task) => void;
+  onEditTask?: (artifact: Artifact, task: Task) => void;
+  onDeleteTask?: (artifact: Artifact, task: Task) => void;
+  selectedTreeTask: { artifactId: string; taskId: string } | null;
+  onReorderArtifactTasks?: (artifact: Artifact, orderedTaskIds: string[]) => void;
+  artifactTaskReorderPending?: boolean;
   depth: number;
 }) {
-  const hasChildren = node.children.length > 0;
+  const taskList = tasksByArtifactId.get(node.id) ?? [];
+  const tasksLoading = tasksLoadingArtifactIds.has(node.id);
+  const hasArtifactChildren = node.children.length > 0;
+  /** Tasks load only after expand; leaves would never get a chevron if we waited for taskList/tasksLoading first. */
+  const tasksFeature = Boolean(onOpenTask);
+  const hasExpandableContent =
+    hasArtifactChildren || taskList.length > 0 || tasksLoading || tasksFeature;
   const expanded = expandedIds.has(node.id);
   const selected = selectedArtifactId === node.id;
-
   return (
     <>
-      <div className={cn("flex items-center gap-2 border-b py-2", selected && "bg-muted/60")} style={{ paddingLeft: 8 + depth * 12 }}>
-        {hasChildren ? (
+      <div
+        className={cn("grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b py-2", selected && "bg-muted/60")}
+        style={{ paddingLeft: 8 + depth * 12 }}
+      >
+        {hasExpandableContent ? (
           <button
             type="button"
-            className="mr-1 inline-flex size-8 shrink-0 items-center justify-center rounded hover:bg-muted"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded hover:bg-muted"
             onClick={(e) => {
               e.stopPropagation();
               onToggleExpand(node.id);
@@ -129,11 +188,14 @@ function ArtifactTreeNode({
             {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
           </button>
         ) : (
-          <span className="inline-block w-8" />
+          <span className="inline-block w-8 shrink-0" />
         )}
         <button
           type="button"
-          className={cn("flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left", selected && "font-medium")}
+          className={cn(
+            "flex min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left",
+            selected && "font-medium",
+          )}
           onClick={() => onSelect(node.id)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -141,30 +203,26 @@ function ArtifactTreeNode({
               onSelect(node.id);
             }
           }}
+          aria-label={
+            node.artifact_key
+              ? `${node.artifact_key}: ${node.title} (${getArtifactTypeDisplayLabel(node.artifact_type, iconBundle)})`
+              : `${node.title} (${getArtifactTypeDisplayLabel(node.artifact_type, iconBundle)})`
+          }
         >
-          {node.artifact_key && (
-            <span className="min-w-[56px] font-mono text-sm text-muted-foreground">{node.artifact_key}</span>
-          )}
-          {getArtifactIcon(node.artifact_type, iconBundle)}
-          <span className="text-sm capitalize text-muted-foreground">{node.artifact_type}</span>
-          <span className="truncate font-medium">{node.title}</span>
-          <Badge variant="outline" className="ml-1 text-xs">
-            {node.state}
-          </Badge>
-          {node.state_reason && (
-            <span className="ml-1 text-xs text-muted-foreground">{node.state_reason}</span>
-          )}
-          {node.resolution && (
-            <span className="ml-1 text-xs text-muted-foreground">- {node.resolution}</span>
-          )}
-          {customFieldColumns.slice(0, 2).map(
-            (c) =>
-              node.custom_fields?.[c.key] != null && (
-                <Badge key={c.key} className="ml-1 h-5 text-[0.7rem]">
-                  {c.label}: {String(node.custom_fields[c.key])}
-                </Badge>
-              ),
-          )}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {node.artifact_key && (
+              <span className="min-w-[3.25rem] font-mono text-sm text-muted-foreground tabular-nums">
+                {node.artifact_key}
+              </span>
+            )}
+            <span
+              className="inline-flex shrink-0 text-muted-foreground"
+              title={getArtifactTypeDisplayLabel(node.artifact_type, iconBundle)}
+            >
+              {getArtifactIcon(node.artifact_type, iconBundle)}
+            </span>
+          </div>
+          <span className="min-w-0 flex-1 truncate font-medium">{node.title}</span>
         </button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -182,22 +240,62 @@ function ArtifactTreeNode({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {hasChildren && expanded && (
+      {expanded && (hasArtifactChildren || taskList.length > 0 || tasksLoading || tasksFeature) && (
         <div>
           {node.children.map((child) => (
             <ArtifactTreeNode
               key={child.id}
               node={child}
               iconBundle={iconBundle}
-              customFieldColumns={customFieldColumns}
               renderMenuContent={renderMenuContent}
               onSelect={onSelect}
               expandedIds={expandedIds}
               selectedArtifactId={selectedArtifactId}
               onToggleExpand={onToggleExpand}
+              tasksByArtifactId={tasksByArtifactId}
+              tasksLoadingArtifactIds={tasksLoadingArtifactIds}
+              onOpenTask={onOpenTask}
+              onEditTask={onEditTask}
+              onDeleteTask={onDeleteTask}
+              selectedTreeTask={selectedTreeTask}
+              onReorderArtifactTasks={onReorderArtifactTasks}
+              artifactTaskReorderPending={artifactTaskReorderPending}
               depth={depth + 1}
             />
           ))}
+          {tasksLoading && taskList.length === 0 ? (
+            <div
+              className="border-b py-2 text-sm text-muted-foreground"
+              style={{ paddingLeft: 8 + (depth + 1) * 12 }}
+            >
+              Loading tasks…
+            </div>
+          ) : null}
+          {tasksFeature && !hasArtifactChildren && !tasksLoading && taskList.length === 0 ? (
+            <div
+              className="border-b py-2 text-sm text-muted-foreground"
+              style={{ paddingLeft: 8 + (depth + 1) * 12 }}
+            >
+              No tasks for this item.
+            </div>
+          ) : null}
+          {onOpenTask ? (
+            <TreeArtifactTaskRows
+              artifact={node}
+              tasks={taskList}
+              depth={depth}
+              selectedTreeTask={selectedTreeTask}
+              onOpenTask={onOpenTask}
+              onEditTask={onEditTask}
+              onDeleteTask={onDeleteTask}
+              onReorderCommitted={
+                onReorderArtifactTasks
+                  ? (_artifactId, orderedTaskIds) => onReorderArtifactTasks(node, orderedTaskIds)
+                  : undefined
+              }
+              reorderPending={artifactTaskReorderPending}
+            />
+          ) : null}
         </div>
       )}
     </>

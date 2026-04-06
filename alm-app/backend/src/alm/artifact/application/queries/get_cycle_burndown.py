@@ -57,9 +57,9 @@ class GetCycleBurndownHandler(QueryHandler[list[BurndownPoint]]):
 
         # 2. Completed effort per date (convention: daily burndown)
         # MVP: use daily snapshots or calculate from current state (simpler MVP)
-        # Real burndown needs daily historical data. For now, we will return 
+        # Real burndown needs daily historical data. For now, we will return
         # a simple start-to-end ideal line + current remaining as latest point.
-        
+
         # To calculate remaining effort: total - done effort
         done_states = ("closed", "done", "resolved")
         done_sums = await self._artifact_repo.sum_effort_by_cycles(
@@ -79,10 +79,10 @@ class GetCycleBurndownHandler(QueryHandler[list[BurndownPoint]]):
             current_date = start_dt + timedelta(days=i)
             # Ideal: linear from total_effort down to 0
             ideal = total_effort * (1 - i / (days - 1)) if days > 1 else total_effort
-            
+
             # Remaining: current remaining if today or before, otherwise None (placeholder)
             rem = remaining_now if current_date <= today else None
-            
+
             points.append(
                 BurndownPoint(
                     date=current_date.isoformat(),

@@ -29,7 +29,7 @@ export function ArtifactDetailHeader({
   onClose,
 }: ArtifactDetailHeaderProps) {
   return (
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <div className="mb-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
       <div className="flex items-center gap-1">
         {hasArtifact && !isLoading && (
           <>
@@ -64,7 +64,7 @@ export function ArtifactDetailHeader({
           </>
         )}
       </div>
-      <h2 className="min-w-0 flex-1 text-lg font-semibold">Artifact details</h2>
+      <h2 className="min-w-0 truncate text-lg font-semibold">Artifact details</h2>
       <div className="flex gap-1">
         {isLoading && <span className="text-sm text-muted-foreground">Loading…</span>}
         {hasArtifact && !isEditing && (

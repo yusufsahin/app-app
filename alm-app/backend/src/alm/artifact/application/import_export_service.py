@@ -909,21 +909,25 @@ async def import_artifacts(
                         )
                     )
                 else:
+                    update_payload: dict[str, Any] = {
+                        "title": row.title,
+                        "description": row.description,
+                        "assignee_id": row.assignee_id,
+                        "custom_fields": custom_fields,
+                        "cycle_id": row.cycle_id,
+                        "area_node_id": row.area_node_id,
+                        "team_id": row.team_id,
+                    }
+                    # Omit parent_id when the row does not specify a parent; passing None would clear the parent,
+                    # which is invalid for non-root artifacts.
+                    if row.parent_key or (row.path and "/" in row.path):
+                        update_payload["parent_id"] = parent_id
                     dto = await update_handler.handle(
                         UpdateArtifact(
                             tenant_id=tenant_id,
                             project_id=project_id,
                             artifact_id=current.id,
-                            updates={
-                                "title": row.title,
-                                "description": row.description,
-                                "parent_id": parent_id,
-                                "assignee_id": row.assignee_id,
-                                "custom_fields": custom_fields,
-                                "cycle_id": row.cycle_id,
-                                "area_node_id": row.area_node_id,
-                                "team_id": row.team_id,
-                            },
+                            updates=update_payload,
                             updated_by=actor_id,
                         )
                     )

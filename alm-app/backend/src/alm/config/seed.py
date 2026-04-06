@@ -7,15 +7,16 @@ from typing import Any
 
 import structlog
 import yaml  # type: ignore[import-untyped]
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from alm.artifact.domain.entities import Artifact as ArtifactEntity
-from alm.artifact.domain.manifest_workflow_metadata import get_tree_root_type_map
+from alm.artifact.domain.manifest_merge_defaults import merge_manifest_metadata_defaults
+from alm.artifact.domain.manifest_workflow_metadata import DEFAULT_SYSTEM_ROOT_TYPES
 from alm.artifact.domain.mpc_resolver import get_manifest_ast
-from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.quality_manifest_extension import with_quality_manifest_bundle
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
+from alm.artifact.infrastructure.models import ArtifactModel
 from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepository
 from alm.auth.domain.entities import User
 from alm.auth.infrastructure.repositories import SqlAlchemyUserRepository
@@ -23,6 +24,7 @@ from alm.config.settings import settings
 from alm.process_template.infrastructure.repositories import (
     SqlAlchemyProcessTemplateRepository,
 )
+from alm.project.application.services.ensure_project_tree_roots import ensure_project_tree_roots
 from alm.project.domain.entities import Project
 from alm.project.infrastructure.models import ProjectModel
 from alm.project.infrastructure.repositories import SqlAlchemyProjectRepository
@@ -46,11 +48,8 @@ from alm.tenant.infrastructure.repositories import (
 
 logger = structlog.get_logger()
 
-
-class DemoSeedStateError(RuntimeError):
-    """Raised when demo seed data exists in a partial, non-recoverable state."""
-
-# Optional manifest roots (metadata-driven UI / API); task workflow for linked tasks.
+# Optional manifest roots (metadata-driven UI / API).
+# task_workflow_id drives the separate Task aggregate (artifact_id FK)—not an artifact/work item type.
 _MANIFEST_TASK_AND_TREES: dict[str, Any] = {
     "task_workflow_id": "task_basic",
     "tree_roots": [
@@ -91,6 +90,81 @@ _MANIFEST_TASK_AND_TREES: dict[str, Any] = {
     },
 }
 
+
+def _root_requirement_child_type_ids(manifest_bundle: dict[str, Any]) -> list[str]:
+    """Return root-requirement's child_types (e.g. ['workitem'] for flat Basic, ['epic'] for Scrum/ADO)."""
+    raw = manifest_bundle.get("defs")
+    if not isinstance(raw, list):
+        return []
+    for d in raw:
+        if not isinstance(d, dict):
+            continue
+        if d.get("kind") == "ArtifactType" and d.get("id") == "root-requirement":
+            c = d.get("child_types")
+            if isinstance(c, list):
+                return [str(x) for x in c if x]
+            return []
+    return []
+
+
+def _epic_child_type_ids(manifest_bundle: dict[str, Any]) -> list[str]:
+    """Return epic's child_types from defs (e.g. ['workitem'] for ADO, ['feature'] for Scrum)."""
+    raw = manifest_bundle.get("defs")
+    if not isinstance(raw, list):
+        return []
+    for d in raw:
+        if not isinstance(d, dict):
+            continue
+        if d.get("kind") == "ArtifactType" and d.get("id") == "epic":
+            c = d.get("child_types")
+            if isinstance(c, list):
+                return [str(x) for x in c if x]
+            return []
+    return []
+
+
+def _artifact_type_child_types(manifest_bundle: dict[str, Any], type_id: str) -> list[str]:
+    """Return child_types for a given ArtifactType id (e.g. feature -> ['user_story'])."""
+    raw = manifest_bundle.get("defs")
+    if not isinstance(raw, list):
+        return []
+    for d in raw:
+        if not isinstance(d, dict):
+            continue
+        if d.get("kind") == "ArtifactType" and d.get("id") == type_id:
+            c = d.get("child_types")
+            if isinstance(c, list):
+                return [str(x) for x in c if x]
+            return []
+    return []
+
+
+def _demo_planning_leaf_type(manifest_bundle: dict[str, Any]) -> str:
+    """Backlog leaf artifact type for demo rows (must exist on the active template)."""
+    root_ch = _root_requirement_child_type_ids(manifest_bundle)
+    if root_ch == ["workitem"]:
+        return "workitem"
+    epic_ch = _epic_child_type_ids(manifest_bundle)
+    if epic_ch == ["workitem"]:
+        return "workitem"
+    if not epic_ch:
+        return "requirement"
+    under_epic = str(epic_ch[0])
+    deeper = _artifact_type_child_types(manifest_bundle, under_epic)
+    if deeper:
+        return str(deeper[0])
+    return under_epic
+
+
+# Defect triage: same value set for Severity and defect-specific Priority (distinct from backlog `priority` on requirements/work items).
+_DEFECT_SEVERITY_AND_PRIORITY_OPTIONS: list[dict[str, str]] = [
+    {"id": "low", "label": "Low"},
+    {"id": "medium", "label": "Medium"},
+    {"id": "high", "label": "High"},
+    {"id": "critical", "label": "Critical"},
+]
+
+
 def _open_text_defect_parity_fields(*, visible_in: list[str]) -> list[dict[str, Any]]:
     """Custom fields aligned with OpenText-style defect triage (manifest `typeName` → `artifact_type` in forms)."""
     vw = {"field": "typeName", "in": visible_in}
@@ -99,25 +173,14 @@ def _open_text_defect_parity_fields(*, visible_in: list[str]) -> list[dict[str, 
             "id": "severity",
             "name": "Severity",
             "type": "choice",
-            "options": [
-                {"id": "low", "label": "Low"},
-                {"id": "medium", "label": "Medium"},
-                {"id": "high", "label": "High"},
-                {"id": "critical", "label": "Critical"},
-            ],
+            "options": list(_DEFECT_SEVERITY_AND_PRIORITY_OPTIONS),
             "visibleWhen": vw,
         },
         {
             "id": "defect_priority",
             "name": "Priority",
             "type": "choice",
-            "options": [
-                {"id": "1", "label": "1"},
-                {"id": "2", "label": "2"},
-                {"id": "3", "label": "3"},
-                {"id": "4", "label": "4"},
-                {"id": "5", "label": "5"},
-            ],
+            "options": list(_DEFECT_SEVERITY_AND_PRIORITY_OPTIONS),
             "visibleWhen": vw,
         },
         {
@@ -227,7 +290,7 @@ DEMO_PROJECTS = [
     {
         "name": "Unima",
         "code": "UNIMA",
-        "description": "Secondary demo project with a small seeded epic, requirement, and defect",
+        "description": "Secondary demo project with seeded backlog items, defect, and test traceability",
     },
 ]
 
@@ -395,10 +458,1414 @@ async def seed_privileges(session_factory: async_sessionmaker[AsyncSession]) -> 
         raise
 
 
+# Flat backlog: Work item under requirements root (Azure DevOps Basic–style); Task = ALM Task entity (task_workflow_id).
+_BUILTIN_MANIFEST_CORE_BASIC: dict[str, Any] = {
+    "schemaVersion": 1,
+    "namespace": "alm",
+    "name": "basic",
+    "manifestVersion": "1.0.0",
+    **_MANIFEST_TASK_AND_TREES,
+    "defs": [
+        {
+            "kind": "Workflow",
+            "id": "root",
+            "initial": "Active",
+            "states": ["Active"],
+            "transitions": [],
+        },
+        {
+            "kind": "Workflow",
+            "id": "basic",
+            "initial": "new",
+            "finals": ["closed"],
+            "states": ["new", "active", "resolved", "closed"],
+            "transitions": [
+                {
+                    "from": "new",
+                    "to": "active",
+                    "trigger": "start",
+                    "trigger_label": "Start",
+                    "guard": "assignee_required",
+                },
+                {
+                    "from": "active",
+                    "to": "resolved",
+                    "trigger": "resolve",
+                    "trigger_label": "Resolve",
+                },
+                {"from": "resolved", "to": "closed", "trigger": "close", "trigger_label": "Close"},
+                {"from": "closed", "to": "active", "trigger": "reopen", "trigger_label": "Reopen"},
+            ],
+            "state_reason_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "new_item", "label": "New item"},
+                {"id": "work_started", "label": "Work started"},
+                {"id": "work_finished", "label": "Work finished"},
+                {"id": "deferred", "label": "Deferred"},
+            ],
+            "resolution_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "fixed", "label": "Fixed"},
+                {"id": "wont_fix", "label": "Won't fix"},
+                {"id": "duplicate", "label": "Duplicate"},
+                {"id": "as_designed", "label": "As designed"},
+            ],
+            "resolution_target_states": ["resolved", "closed"],
+        },
+        _TASK_BASIC_WORKFLOW_DEF,
+        {
+            "kind": "ArtifactType",
+            "id": "root-requirement",
+            "name": "Project root (Requirements)",
+            "workflow_id": "root",
+            "child_types": ["workitem"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-quality",
+            "name": "Project root (Quality)",
+            "workflow_id": "root",
+            "child_types": ["test-case"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-defect",
+            "name": "Project root (Defects)",
+            "workflow_id": "root",
+            "child_types": ["defect"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "defect",
+            "name": "Defect",
+            "workflow_id": "basic",
+            "parent_types": ["root-defect"],
+            "child_types": [],
+            "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "test-case",
+            "name": "Test case",
+            "workflow_id": "basic",
+            "parent_types": ["root-quality"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1 - Critical"},
+                        {"id": "2", "label": "2 - High"},
+                        {"id": "3", "label": "3 - Medium"},
+                        {"id": "4", "label": "4 - Low"},
+                    ],
+                },
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "workitem",
+            "name": "Work item",
+            "workflow_id": "basic",
+            "parent_types": ["root-requirement"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1 - Critical"},
+                        {"id": "2", "label": "2 - High"},
+                        {"id": "3", "label": "3 - Medium"},
+                        {"id": "4", "label": "4 - Low"},
+                    ],
+                },
+                {
+                    "id": "severity",
+                    "name": "Severity",
+                    "type": "choice",
+                    "options": [
+                        {"id": "low", "label": "Low"},
+                        {"id": "medium", "label": "Medium"},
+                        {"id": "high", "label": "High"},
+                        {"id": "critical", "label": "Critical"},
+                    ],
+                },
+                {"id": "story_points", "name": "Story Points", "type": "number"},
+                {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"},
+                {"id": "repro_steps", "name": "Repro Steps", "type": "string"},
+            ],
+        },
+        {"kind": "LinkType", "id": "hierarchy", "name": "Hierarchy"},
+        {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
+        {
+            "kind": "LinkType",
+            "id": "blocks",
+            "name": "Blocks",
+            "inverse_name": "Blocked By",
+            "from_types": ["workitem"],
+            "to_types": ["workitem"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "impacts",
+            "name": "Impacts",
+            "inverse_name": "Impacted By",
+            "from_types": ["workitem"],
+            "to_types": ["workitem"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "verifies",
+            "name": "Verifies",
+            "inverse_name": "Verified By",
+            "from_types": ["test-case"],
+            "to_types": ["workitem"],
+        },
+        {"kind": "LinkType", "id": "tests", "name": "Tests"},
+        {
+            "kind": "LinkType",
+            "id": "affects",
+            "name": "Affects",
+            "inverse_name": "Affected By Defect",
+            "from_types": ["defect"],
+            "to_types": ["workitem"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "discovered_in",
+            "name": "Discovered In",
+            "inverse_name": "Found Defects",
+            "from_types": ["defect"],
+            "to_types": ["test-run"],
+        },
+        {
+            "kind": "TransitionPolicy",
+            "id": "assignee_required_on_active",
+            "when": {"state": "active"},
+            "require": "assignee",
+        },
+    ],
+}
+
+
+_BUILTIN_MANIFEST_CORE_SCRUM: dict[str, Any] = {
+    "schemaVersion": 1,
+    "namespace": "alm",
+    "name": "scrum",
+    "manifestVersion": "1.0.0",
+    **_MANIFEST_TASK_AND_TREES,
+    "defs": [
+        {
+            "kind": "Workflow",
+            "id": "root",
+            "initial": "Active",
+            "states": ["Active"],
+            "transitions": [],
+        },
+        {
+            "kind": "Workflow",
+            "id": "scrum",
+            "initial": "new",
+            "finals": ["done"],
+            "states": ["new", "approved", "in_progress", "in_review", "done"],
+            "transitions": [
+                {"from": "new", "to": "approved", "on": "approve"},
+                {"from": "approved", "to": "in_progress", "on": "start"},
+                {"from": "in_progress", "to": "in_review", "on": "submit"},
+                {"from": "in_review", "to": "done", "on": "complete"},
+                {"from": "in_review", "to": "in_progress", "on": "rework"},
+                {"from": "done", "to": "in_progress", "on": "reopen"},
+            ],
+            "state_reason_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "new_backlog_item", "label": "New backlog item"},
+                {"id": "approved", "label": "Approved by Product Owner"},
+                {"id": "commitment_made", "label": "Commitment made by the team"},
+                {"id": "work_stopped", "label": "Work stopped"},
+                {"id": "work_finished", "label": "Work finished"},
+            ],
+            "resolution_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "fixed", "label": "Fixed"},
+                {"id": "fixed_and_verified", "label": "Fixed and verified"},
+                {"id": "wont_fix", "label": "Won't fix"},
+                {"id": "duplicate", "label": "Duplicate"},
+                {"id": "as_designed", "label": "As designed"},
+                {"id": "not_a_bug", "label": "Not a bug"},
+            ],
+            "resolution_target_states": ["done"],
+        },
+        _TASK_BASIC_WORKFLOW_DEF,
+        {
+            "kind": "ArtifactType",
+            "id": "root-requirement",
+            "name": "Project root (Requirements)",
+            "workflow_id": "root",
+            "child_types": ["epic"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-quality",
+            "name": "Project root (Quality)",
+            "workflow_id": "root",
+            "child_types": ["test-case"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-defect",
+            "name": "Project root (Defects)",
+            "workflow_id": "root",
+            "child_types": ["defect"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "test-case",
+            "name": "Test case",
+            "workflow_id": "scrum",
+            "parent_types": ["root-quality"],
+            "child_types": [],
+            "fields": [
+                {"id": "story_points", "name": "Story Points", "type": "number"},
+                {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "epic",
+            "workflow_id": "scrum",
+            "parent_types": ["root-requirement"],
+            "child_types": ["feature"],
+            "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "feature",
+            "workflow_id": "scrum",
+            "parent_types": ["epic"],
+            "child_types": ["user_story"],
+            "fields": [{"id": "story_points", "name": "Story Points", "type": "number"}],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "user_story",
+            "workflow_id": "scrum",
+            "parent_types": ["feature"],
+            "fields": [
+                {
+                    "id": "story_points",
+                    "name": "Story Points",
+                    "type": "number",
+                    "requiredWhen": {"field": "typeName", "eq": "user_story"},
+                },
+                {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "defect",
+            "workflow_id": "scrum",
+            "parent_types": ["root-defect"],
+            "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
+        },
+        {
+            "kind": "TransitionPolicy",
+            "id": "assignee_in_progress",
+            "when": {"state": "in_progress"},
+            "require": "assignee",
+        },
+        {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
+        {
+            "kind": "LinkType",
+            "id": "verifies",
+            "name": "Verifies",
+            "inverse_name": "Verified By",
+            "from_types": ["test-case"],
+            "to_types": ["epic", "feature", "user_story"],
+        },
+        {"kind": "LinkType", "id": "tests", "name": "Tests"},
+        {
+            "kind": "LinkType",
+            "id": "blocks",
+            "name": "Blocks",
+            "inverse_name": "Blocked By",
+            "from_types": ["epic", "feature", "user_story"],
+            "to_types": ["epic", "feature", "user_story"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "impacts",
+            "name": "Impacts",
+            "inverse_name": "Impacted By",
+            "from_types": ["epic", "feature", "user_story"],
+            "to_types": ["epic", "feature", "user_story"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "affects",
+            "name": "Affects",
+            "inverse_name": "Affected By Defect",
+            "from_types": ["defect"],
+            "to_types": ["epic", "feature", "user_story"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "discovered_in",
+            "name": "Discovered In",
+            "inverse_name": "Found Defects",
+            "from_types": ["defect"],
+            "to_types": ["test-run"],
+        },
+    ],
+}
+
+
+_BUILTIN_MANIFEST_CORE_KANBAN: dict[str, Any] = {
+    "schemaVersion": 1,
+    "namespace": "alm",
+    "name": "kanban",
+    "manifestVersion": "1.0.0",
+    **_MANIFEST_TASK_AND_TREES,
+    "defs": [
+        {
+            "kind": "Workflow",
+            "id": "root",
+            "initial": "Active",
+            "states": ["Active"],
+            "transitions": [],
+        },
+        {
+            "kind": "Workflow",
+            "id": "kanban",
+            "initial": "backlog",
+            "finals": ["done"],
+            "states": ["backlog", "ready", "in_progress", "done"],
+            "transitions": [
+                {"from": "backlog", "to": "ready", "on": "prepare"},
+                {"from": "ready", "to": "in_progress", "on": "start"},
+                {"from": "in_progress", "to": "done", "on": "complete"},
+                {"from": "done", "to": "in_progress", "on": "reopen"},
+            ],
+            "state_reason_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "new_item", "label": "New item"},
+                {"id": "ready_for_work", "label": "Ready for work"},
+                {"id": "work_started", "label": "Work started"},
+                {"id": "work_finished", "label": "Work finished"},
+            ],
+            "resolution_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "fixed", "label": "Fixed"},
+                {"id": "fixed_and_verified", "label": "Fixed and verified"},
+                {"id": "wont_fix", "label": "Won't fix"},
+                {"id": "duplicate", "label": "Duplicate"},
+                {"id": "as_designed", "label": "As designed"},
+            ],
+            "resolution_target_states": ["done"],
+        },
+        _TASK_BASIC_WORKFLOW_DEF,
+        {
+            "kind": "ArtifactType",
+            "id": "root-requirement",
+            "name": "Project root (Requirements)",
+            "workflow_id": "root",
+            "child_types": ["epic"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-quality",
+            "name": "Project root (Quality)",
+            "workflow_id": "root",
+            "child_types": ["test-case"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-defect",
+            "name": "Project root (Defects)",
+            "workflow_id": "root",
+            "child_types": ["defect"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "test-case",
+            "name": "Test case",
+            "workflow_id": "kanban",
+            "parent_types": ["root-quality"],
+            "child_types": [],
+            "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "epic",
+            "workflow_id": "kanban",
+            "parent_types": ["root-requirement"],
+            "child_types": ["feature"],
+            "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "feature",
+            "workflow_id": "kanban",
+            "parent_types": ["epic"],
+            "child_types": [],
+            "fields": [{"id": "story_points", "name": "Story Points", "type": "number"}],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "defect",
+            "workflow_id": "kanban",
+            "parent_types": ["root-defect"],
+            "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
+        },
+        {
+            "kind": "TransitionPolicy",
+            "id": "assignee_in_progress",
+            "when": {"state": "in_progress"},
+            "require": "assignee",
+        },
+        {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
+        {
+            "kind": "LinkType",
+            "id": "verifies",
+            "name": "Verifies",
+            "inverse_name": "Verified By",
+            "from_types": ["test-case"],
+            "to_types": ["epic", "feature"],
+        },
+        {"kind": "LinkType", "id": "tests", "name": "Tests"},
+        {
+            "kind": "LinkType",
+            "id": "blocks",
+            "name": "Blocks",
+            "inverse_name": "Blocked By",
+            "from_types": ["epic", "feature"],
+            "to_types": ["epic", "feature"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "impacts",
+            "name": "Impacts",
+            "inverse_name": "Impacted By",
+            "from_types": ["epic", "feature"],
+            "to_types": ["epic", "feature"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "affects",
+            "name": "Affects",
+            "inverse_name": "Affected By Defect",
+            "from_types": ["defect"],
+            "to_types": ["epic", "feature"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "discovered_in",
+            "name": "Discovered In",
+            "inverse_name": "Found Defects",
+            "from_types": ["defect"],
+            "to_types": ["test-run"],
+        },
+    ],
+}
+
+
+_BUILTIN_MANIFEST_CORE_ADO: dict[str, Any] = {
+    "schemaVersion": 1,
+    "namespace": "alm",
+    "name": "ado",
+    "manifestVersion": "1.0.0",
+    **_MANIFEST_TASK_AND_TREES,
+    "defs": [
+        {
+            "kind": "Workflow",
+            "id": "root",
+            "initial": "Active",
+            "states": ["Active"],
+            "transitions": [],
+        },
+        {
+            "kind": "Workflow",
+            "id": "ado_basic",
+            "initial": "new",
+            "finals": ["closed"],
+            "states": ["new", "active", "resolved", "closed"],
+            "transitions": [
+                {
+                    "from": "new",
+                    "to": "active",
+                    "trigger": "start",
+                    "trigger_label": "Start",
+                    "guard": "assignee_required",
+                },
+                {
+                    "from": "active",
+                    "to": "resolved",
+                    "trigger": "resolve",
+                    "trigger_label": "Resolve",
+                },
+                {"from": "resolved", "to": "closed", "trigger": "close", "trigger_label": "Close"},
+                {"from": "closed", "to": "active", "trigger": "reopen", "trigger_label": "Reopen"},
+            ],
+            "state_reason_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "new_item", "label": "New item"},
+                {"id": "work_started", "label": "Work started"},
+                {"id": "work_finished", "label": "Work finished"},
+                {"id": "deferred", "label": "Deferred"},
+            ],
+            "resolution_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "fixed", "label": "Fixed"},
+                {"id": "wont_fix", "label": "Won't fix"},
+                {"id": "duplicate", "label": "Duplicate"},
+                {"id": "as_designed", "label": "As designed"},
+            ],
+            "resolution_target_states": ["resolved", "closed"],
+        },
+        _TASK_BASIC_WORKFLOW_DEF,
+        {
+            "kind": "ArtifactType",
+            "id": "root-requirement",
+            "name": "Project root (Requirements)",
+            "workflow_id": "root",
+            "child_types": ["epic"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-quality",
+            "name": "Project root (Quality)",
+            "workflow_id": "root",
+            "child_types": ["test-case"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-defect",
+            "name": "Project root (Defects)",
+            "workflow_id": "root",
+            "child_types": ["defect"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "defect",
+            "name": "Defect",
+            "workflow_id": "ado_basic",
+            "parent_types": ["root-defect"],
+            "child_types": [],
+            "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "test-case",
+            "name": "Test case",
+            "workflow_id": "ado_basic",
+            "parent_types": ["root-quality"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1 - Critical"},
+                        {"id": "2", "label": "2 - High"},
+                        {"id": "3", "label": "3 - Medium"},
+                        {"id": "4", "label": "4 - Low"},
+                    ],
+                },
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "epic",
+            "name": "Epic",
+            "workflow_id": "ado_basic",
+            "parent_types": ["root-requirement"],
+            "child_types": ["workitem"],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1 - Critical"},
+                        {"id": "2", "label": "2 - High"},
+                        {"id": "3", "label": "3 - Medium"},
+                        {"id": "4", "label": "4 - Low"},
+                    ],
+                },
+                {"id": "business_value", "name": "Business Value", "type": "number"},
+                {"id": "target_date", "name": "Target Date", "type": "date"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "workitem",
+            "name": "Work item",
+            "workflow_id": "ado_basic",
+            "parent_types": ["epic"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1 - Critical"},
+                        {"id": "2", "label": "2 - High"},
+                        {"id": "3", "label": "3 - Medium"},
+                        {"id": "4", "label": "4 - Low"},
+                    ],
+                },
+                {
+                    "id": "severity",
+                    "name": "Severity",
+                    "type": "choice",
+                    "options": [
+                        {"id": "low", "label": "Low"},
+                        {"id": "medium", "label": "Medium"},
+                        {"id": "high", "label": "High"},
+                        {"id": "critical", "label": "Critical"},
+                    ],
+                },
+                {"id": "story_points", "name": "Story Points", "type": "number"},
+                {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"},
+                {"id": "repro_steps", "name": "Repro Steps", "type": "string"},
+            ],
+        },
+        {"kind": "LinkType", "id": "hierarchy", "name": "Hierarchy"},
+        {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
+        {
+            "kind": "LinkType",
+            "id": "blocks",
+            "name": "Blocks",
+            "inverse_name": "Blocked By",
+            "from_types": ["epic", "workitem"],
+            "to_types": ["epic", "workitem"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "impacts",
+            "name": "Impacts",
+            "inverse_name": "Impacted By",
+            "from_types": ["epic", "workitem"],
+            "to_types": ["epic", "workitem"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "verifies",
+            "name": "Verifies",
+            "inverse_name": "Verified By",
+            "from_types": ["test-case"],
+            "to_types": ["epic", "workitem"],
+        },
+        {"kind": "LinkType", "id": "tests", "name": "Tests"},
+        {
+            "kind": "LinkType",
+            "id": "affects",
+            "name": "Affects",
+            "inverse_name": "Affected By Defect",
+            "from_types": ["defect"],
+            "to_types": ["epic", "workitem"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "discovered_in",
+            "name": "Discovered In",
+            "inverse_name": "Found Defects",
+            "from_types": ["defect"],
+            "to_types": ["test-run"],
+        },
+        {
+            "kind": "TransitionPolicy",
+            "id": "assignee_required_on_active",
+            "when": {"state": "active"},
+            "require": "assignee",
+        },
+    ],
+}
+
+
+# Azure DevOps Agile: Epic → Feature → User Story; Work item for blocking.
+# Sprint breakdown uses ALM Task entity (linked to artifacts), not a Task work item type in the manifest.
+_BUILTIN_MANIFEST_CORE_AGILE: dict[str, Any] = {
+    "schemaVersion": 1,
+    "namespace": "alm",
+    "name": "agile",
+    "manifestVersion": "1.0.0",
+    **_MANIFEST_TASK_AND_TREES,
+    "defs": [
+        {
+            "kind": "Workflow",
+            "id": "root",
+            "initial": "Active",
+            "states": ["Active"],
+            "transitions": [],
+        },
+        {
+            "kind": "Workflow",
+            "id": "agile",
+            "initial": "new",
+            "finals": ["closed"],
+            "states": ["new", "active", "resolved", "closed"],
+            "transitions": [
+                {"from": "new", "to": "active", "on": "start"},
+                {"from": "active", "to": "resolved", "on": "resolve"},
+                {"from": "resolved", "to": "closed", "on": "close"},
+                {"from": "closed", "to": "active", "on": "reopen"},
+            ],
+            "state_reason_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "new_user_story", "label": "New"},
+                {"id": "work_started", "label": "Work started"},
+                {"id": "work_finished", "label": "Work finished"},
+                {"id": "deferred", "label": "Deferred"},
+            ],
+            "resolution_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "fixed", "label": "Fixed"},
+                {"id": "wont_fix", "label": "Won't fix"},
+                {"id": "duplicate", "label": "Duplicate"},
+                {"id": "as_designed", "label": "As designed"},
+            ],
+            "resolution_target_states": ["resolved", "closed"],
+        },
+        _TASK_BASIC_WORKFLOW_DEF,
+        {
+            "kind": "ArtifactType",
+            "id": "root-requirement",
+            "name": "Project root (Requirements)",
+            "workflow_id": "root",
+            "child_types": ["epic", "workitem"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-quality",
+            "name": "Project root (Quality)",
+            "workflow_id": "root",
+            "child_types": ["test-case"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-defect",
+            "name": "Project root (Defects)",
+            "workflow_id": "root",
+            "child_types": ["defect"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "test-case",
+            "name": "Test case",
+            "workflow_id": "agile",
+            "parent_types": ["root-quality"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1"},
+                        {"id": "2", "label": "2"},
+                        {"id": "3", "label": "3"},
+                        {"id": "4", "label": "4"},
+                    ],
+                },
+                {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "defect",
+            "name": "Defect",
+            "workflow_id": "agile",
+            "parent_types": ["root-defect"],
+            "child_types": [],
+            "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "epic",
+            "name": "Epic",
+            "workflow_id": "agile",
+            "parent_types": ["root-requirement"],
+            "child_types": ["feature"],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1 - Critical"},
+                        {"id": "2", "label": "2 - High"},
+                        {"id": "3", "label": "3 - Medium"},
+                        {"id": "4", "label": "4 - Low"},
+                    ],
+                },
+                {
+                    "id": "value_area",
+                    "name": "Value area",
+                    "type": "choice",
+                    "options": [
+                        {"id": "business", "label": "Business"},
+                        {"id": "architectural", "label": "Architectural"},
+                    ],
+                },
+                {"id": "business_value", "name": "Business value", "type": "number"},
+                {"id": "target_date", "name": "Target date", "type": "date"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "feature",
+            "name": "Feature",
+            "workflow_id": "agile",
+            "parent_types": ["epic"],
+            "child_types": ["user_story"],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1"},
+                        {"id": "2", "label": "2"},
+                        {"id": "3", "label": "3"},
+                        {"id": "4", "label": "4"},
+                    ],
+                },
+                {"id": "story_points", "name": "Story points", "type": "number"},
+                {"id": "target_date", "name": "Target date", "type": "date"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "user_story",
+            "name": "User story",
+            "workflow_id": "agile",
+            "parent_types": ["feature"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1"},
+                        {"id": "2", "label": "2"},
+                        {"id": "3", "label": "3"},
+                        {"id": "4", "label": "4"},
+                    ],
+                },
+                {
+                    "id": "risk_agile",
+                    "name": "Risk",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1 - High"},
+                        {"id": "2", "label": "2 - Medium"},
+                        {"id": "3", "label": "3 - Low"},
+                    ],
+                },
+                {"id": "story_points", "name": "Story points", "type": "number"},
+                {"id": "acceptance_criteria", "name": "Acceptance criteria", "type": "string"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "workitem",
+            "name": "Work item",
+            "workflow_id": "agile",
+            "parent_types": ["root-requirement"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1"},
+                        {"id": "2", "label": "2"},
+                        {"id": "3", "label": "3"},
+                        {"id": "4", "label": "4"},
+                    ],
+                },
+                {"id": "issue_description", "name": "Details", "type": "string"},
+            ],
+        },
+        {
+            "kind": "TransitionPolicy",
+            "id": "assignee_active_agile",
+            "when": {"state": "active"},
+            "require": "assignee",
+        },
+        {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
+        {
+            "kind": "LinkType",
+            "id": "verifies",
+            "name": "Verifies",
+            "inverse_name": "Verified By",
+            "from_types": ["test-case"],
+            "to_types": ["epic", "feature", "user_story", "workitem"],
+        },
+        {"kind": "LinkType", "id": "tests", "name": "Tests"},
+        {
+            "kind": "LinkType",
+            "id": "blocks",
+            "name": "Blocks",
+            "inverse_name": "Blocked By",
+            "from_types": ["epic", "feature", "user_story", "workitem"],
+            "to_types": ["epic", "feature", "user_story", "workitem"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "impacts",
+            "name": "Impacts",
+            "inverse_name": "Impacted By",
+            "from_types": ["epic", "feature", "user_story", "workitem"],
+            "to_types": ["epic", "feature", "user_story", "workitem"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "affects",
+            "name": "Affects",
+            "inverse_name": "Affected By Defect",
+            "from_types": ["defect"],
+            "to_types": ["epic", "feature", "user_story", "workitem"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "discovered_in",
+            "name": "Discovered In",
+            "inverse_name": "Found Defects",
+            "from_types": ["defect"],
+            "to_types": ["test-run"],
+        },
+    ],
+}
+
+
+# Azure DevOps CMMI-style: Epic → Feature → Requirement; Change Request, Risk, Review, Work item at root.
+# Iteration work and estimates use ALM Task entity (artifact_id), not a Task WIT in defs.
+_BUILTIN_MANIFEST_CORE_CMMI: dict[str, Any] = {
+    "schemaVersion": 1,
+    "namespace": "alm",
+    "name": "cmmi",
+    "manifestVersion": "1.0.0",
+    **_MANIFEST_TASK_AND_TREES,
+    "defs": [
+        {
+            "kind": "Workflow",
+            "id": "root",
+            "initial": "Active",
+            "states": ["Active"],
+            "transitions": [],
+        },
+        {
+            "kind": "Workflow",
+            "id": "cmmi",
+            "initial": "proposed",
+            "finals": ["closed"],
+            "states": ["proposed", "active", "resolved", "closed"],
+            "transitions": [
+                {"from": "proposed", "to": "active", "on": "start"},
+                {"from": "active", "to": "resolved", "on": "resolve"},
+                {"from": "resolved", "to": "closed", "on": "close"},
+                {"from": "closed", "to": "active", "on": "reopen"},
+            ],
+            "state_reason_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "new_item", "label": "New"},
+                {"id": "triaged", "label": "Triaged"},
+                {"id": "work_started", "label": "Work started"},
+                {"id": "work_complete", "label": "Work complete"},
+                {"id": "accepted", "label": "Accepted"},
+                {"id": "deferred", "label": "Deferred"},
+            ],
+            "resolution_options": [
+                {"id": "", "label": "— None —"},
+                {"id": "fixed", "label": "Fixed"},
+                {"id": "wont_fix", "label": "Won't fix"},
+                {"id": "duplicate", "label": "Duplicate"},
+                {"id": "as_designed", "label": "As designed"},
+            ],
+            "resolution_target_states": ["resolved", "closed"],
+        },
+        _TASK_BASIC_WORKFLOW_DEF,
+        {
+            "kind": "ArtifactType",
+            "id": "root-requirement",
+            "name": "Project root (Requirements)",
+            "workflow_id": "root",
+            "child_types": ["epic", "change_request", "risk", "review", "workitem"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-quality",
+            "name": "Project root (Quality)",
+            "workflow_id": "root",
+            "child_types": ["test-case"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "root-defect",
+            "name": "Project root (Defects)",
+            "workflow_id": "root",
+            "child_types": ["defect"],
+            "fields": [],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "test-case",
+            "name": "Test case",
+            "workflow_id": "cmmi",
+            "parent_types": ["root-quality"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1"},
+                        {"id": "2", "label": "2"},
+                        {"id": "3", "label": "3"},
+                        {"id": "4", "label": "4"},
+                    ],
+                },
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "defect",
+            "name": "Defect",
+            "workflow_id": "cmmi",
+            "parent_types": ["root-defect"],
+            "child_types": [],
+            "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "epic",
+            "name": "Epic",
+            "workflow_id": "cmmi",
+            "parent_types": ["root-requirement"],
+            "child_types": ["feature"],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1"},
+                        {"id": "2", "label": "2"},
+                        {"id": "3", "label": "3"},
+                        {"id": "4", "label": "4"},
+                    ],
+                },
+                {
+                    "id": "value_area",
+                    "name": "Value area",
+                    "type": "choice",
+                    "options": [
+                        {"id": "business", "label": "Business"},
+                        {"id": "architectural", "label": "Architectural"},
+                    ],
+                },
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "feature",
+            "name": "Feature",
+            "workflow_id": "cmmi",
+            "parent_types": ["epic"],
+            "child_types": ["requirement"],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1"},
+                        {"id": "2", "label": "2"},
+                        {"id": "3", "label": "3"},
+                        {"id": "4", "label": "4"},
+                    ],
+                },
+                {"id": "size", "name": "Size", "type": "number"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "requirement",
+            "name": "Requirement",
+            "workflow_id": "cmmi",
+            "parent_types": ["feature"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1"},
+                        {"id": "2", "label": "2"},
+                        {"id": "3", "label": "3"},
+                        {"id": "4", "label": "4"},
+                    ],
+                },
+                {
+                    "id": "requirement_type",
+                    "name": "Requirement type",
+                    "type": "choice",
+                    "options": [
+                        {"id": "business_objective", "label": "Business objective"},
+                        {"id": "feature", "label": "Feature"},
+                        {"id": "functional", "label": "Functional"},
+                        {"id": "interface", "label": "Interface"},
+                        {"id": "operational", "label": "Operational"},
+                        {"id": "qos", "label": "Quality of service"},
+                        {"id": "safety", "label": "Safety"},
+                        {"id": "scenario", "label": "Scenario"},
+                        {"id": "security", "label": "Security"},
+                    ],
+                },
+                {"id": "size", "name": "Size", "type": "number"},
+                {"id": "impact_assessment", "name": "Impact assessment", "type": "string"},
+                {
+                    "id": "user_acceptance_test",
+                    "name": "User acceptance test",
+                    "type": "choice",
+                    "options": [
+                        {"id": "not_ready", "label": "Not ready"},
+                        {"id": "ready", "label": "Ready"},
+                        {"id": "pass", "label": "Pass"},
+                        {"id": "fail", "label": "Fail"},
+                        {"id": "skipped", "label": "Skipped"},
+                        {"id": "info_received", "label": "Info received"},
+                    ],
+                },
+                {
+                    "id": "triage",
+                    "name": "Triage",
+                    "type": "choice",
+                    "options": [
+                        {"id": "pending", "label": "Pending"},
+                        {"id": "more_info", "label": "More info"},
+                        {"id": "info_received", "label": "Info received"},
+                        {"id": "triaged", "label": "Triaged"},
+                    ],
+                },
+                {
+                    "id": "committed",
+                    "name": "Committed",
+                    "type": "choice",
+                    "options": [
+                        {"id": "no", "label": "No"},
+                        {"id": "yes", "label": "Yes"},
+                    ],
+                },
+                {
+                    "id": "blocked",
+                    "name": "Blocked",
+                    "type": "choice",
+                    "options": [
+                        {"id": "no", "label": "No"},
+                        {"id": "yes", "label": "Yes"},
+                    ],
+                },
+                {"id": "start_date", "name": "Start date", "type": "date"},
+                {"id": "finish_date", "name": "Finish date", "type": "date"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "change_request",
+            "name": "Change request",
+            "workflow_id": "cmmi",
+            "parent_types": ["root-requirement"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1"},
+                        {"id": "2", "label": "2"},
+                        {"id": "3", "label": "3"},
+                        {"id": "4", "label": "4"},
+                    ],
+                },
+                {"id": "justification", "name": "Justification", "type": "string"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "risk",
+            "name": "Risk",
+            "workflow_id": "cmmi",
+            "parent_types": ["root-requirement"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "probability",
+                    "name": "Probability",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1 - High"},
+                        {"id": "2", "label": "2 - Medium"},
+                        {"id": "3", "label": "3 - Low"},
+                    ],
+                },
+                {"id": "mitigation_plan", "name": "Mitigation plan", "type": "string"},
+                {"id": "contingency_plan", "name": "Contingency plan", "type": "string"},
+                {"id": "mitigation_triggers", "name": "Mitigation triggers", "type": "string"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "review",
+            "name": "Review",
+            "workflow_id": "cmmi",
+            "parent_types": ["root-requirement"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "review_type",
+                    "name": "Review type",
+                    "type": "choice",
+                    "options": [
+                        {"id": "design", "label": "Design"},
+                        {"id": "code", "label": "Code"},
+                        {"id": "requirements", "label": "Requirements"},
+                    ],
+                },
+                {"id": "review_notes", "name": "Review notes", "type": "string"},
+            ],
+        },
+        {
+            "kind": "ArtifactType",
+            "id": "workitem",
+            "name": "Work item",
+            "workflow_id": "cmmi",
+            "parent_types": ["root-requirement"],
+            "child_types": [],
+            "fields": [
+                {
+                    "id": "priority",
+                    "name": "Priority",
+                    "type": "choice",
+                    "options": [
+                        {"id": "1", "label": "1"},
+                        {"id": "2", "label": "2"},
+                        {"id": "3", "label": "3"},
+                        {"id": "4", "label": "4"},
+                    ],
+                },
+                {"id": "issue_description", "name": "Details", "type": "string"},
+            ],
+        },
+        {
+            "kind": "TransitionPolicy",
+            "id": "assignee_active_cmmi",
+            "when": {"state": "active"},
+            "require": "assignee",
+        },
+        {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
+        {
+            "kind": "LinkType",
+            "id": "verifies",
+            "name": "Verifies",
+            "inverse_name": "Verified By",
+            "from_types": ["test-case"],
+            "to_types": [
+                "epic",
+                "feature",
+                "requirement",
+                "change_request",
+                "workitem",
+            ],
+        },
+        {"kind": "LinkType", "id": "tests", "name": "Tests"},
+        {
+            "kind": "LinkType",
+            "id": "blocks",
+            "name": "Blocks",
+            "inverse_name": "Blocked By",
+            "from_types": ["epic", "feature", "requirement", "change_request", "risk", "workitem"],
+            "to_types": ["epic", "feature", "requirement", "change_request", "risk", "workitem"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "impacts",
+            "name": "Impacts",
+            "inverse_name": "Impacted By",
+            "from_types": ["epic", "feature", "requirement", "change_request", "risk", "workitem"],
+            "to_types": ["epic", "feature", "requirement", "change_request", "risk", "workitem"],
+        },
+        {
+            "kind": "LinkType",
+            "id": "affects",
+            "name": "Affects",
+            "inverse_name": "Affected By Defect",
+            "from_types": ["defect"],
+            "to_types": [
+                "epic",
+                "feature",
+                "requirement",
+                "change_request",
+                "workitem",
+            ],
+        },
+        {
+            "kind": "LinkType",
+            "id": "discovered_in",
+            "name": "Discovered In",
+            "inverse_name": "Found Defects",
+            "from_types": ["defect"],
+            "to_types": ["test-run"],
+        },
+    ],
+}
+
+
+def iter_builtin_merged_manifest_bundles_for_tests() -> list[tuple[str, dict[str, Any]]]:
+    """Merged built-in template bundles (same as process template seed). For manifest validation tests."""
+    return [
+        ("basic", with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_BASIC)),
+        ("scrum", with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_SCRUM)),
+        ("kanban", with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_KANBAN)),
+        ("ado", with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_ADO)),
+        ("agile", with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_AGILE)),
+        ("cmmi", with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_CMMI)),
+    ]
+
+
 async def seed_process_templates(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Seed built-in process templates (Basic) if empty."""
+    """Seed built-in process templates (idempotent per slug)."""
     from sqlalchemy import select
 
     from alm.process_template.infrastructure.models import (
@@ -406,853 +1873,167 @@ async def seed_process_templates(
         ProcessTemplateVersionModel,
     )
 
+    builtin_templates = [
+        (
+            "basic",
+            "Basic",
+            "basic",
+            "Flat backlog: Work items under the requirements root (Azure DevOps Basic–style), plus defects and quality trees. "
+            "Tasks are ALM Task entities (artifact-linked), not manifest artifact types.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_BASIC),
+        ),
+        (
+            "scrum",
+            "Scrum",
+            "scrum",
+            "Agile framework with sprints and user stories. "
+            "Sprint tasks are ALM Task entities (artifact-linked), not manifest artifact types.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_SCRUM),
+        ),
+        (
+            "kanban",
+            "Kanban",
+            "kanban",
+            "Flow-based work on the board. "
+            "Breakdown items are ALM Task entities linked via artifact_id, not Task work item types in the manifest.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_KANBAN),
+        ),
+        (
+            "ado",
+            "ADO",
+            "basic",
+            "Minimal Azure Boards–style Epic and Work item. "
+            "Tasks are ALM Task entities (artifact-linked), not manifest artifact types.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_ADO),
+        ),
+        (
+            "agile",
+            "Agile",
+            "agile",
+            "Azure DevOps Agile: Epic, Feature, User story, Work item. "
+            "Sprint tasks are ALM Task entities (artifact-linked), not manifest artifact types.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_AGILE),
+        ),
+        (
+            "cmmi",
+            "CMMI",
+            "cmmi",
+            "CMMI-style: Epic, Feature, Requirement; change request, risk, review, work item. "
+            "Iteration tasks and effort are ALM Task entities, not work item types here.",
+            with_quality_manifest_bundle(_BUILTIN_MANIFEST_CORE_CMMI),
+        ),
+    ]
+
     try:
         async with session_factory() as session:
-            result = await session.execute(select(ProcessTemplateModel).limit(1))
-            if result.scalar_one_or_none() is not None:
+            created: list[str] = []
+            for slug, name, ttype, description, manifest_bundle in builtin_templates:
+                existing = await session.scalar(
+                    select(ProcessTemplateModel).where(ProcessTemplateModel.slug == slug).limit(1)
+                )
+                if existing is not None:
+                    continue
+
+                template = ProcessTemplateModel(
+                    slug=slug,
+                    name=name,
+                    is_builtin=True,
+                    description=description,
+                    type=ttype,
+                )
+                session.add(template)
+                await session.flush()
+
+                version = ProcessTemplateVersionModel(
+                    template_id=template.id,
+                    version="1.0.0",
+                    manifest_bundle=manifest_bundle,
+                )
+                session.add(version)
+                created.append(slug)
+
+            if created:
+                await session.commit()
+                logger.info("process_templates_seeded", templates=created)
+            else:
                 logger.info("process_templates_already_seeded")
-                return
-
-            basic = ProcessTemplateModel(
-                slug="basic",
-                name="Basic",
-                is_builtin=True,
-                description="Simple workflow for requirements and defects",
-                type="basic",
-            )
-            session.add(basic)
-            await session.flush()
-
-            version = ProcessTemplateVersionModel(
-                template_id=basic.id,
-                version="1.0.0",
-                manifest_bundle=with_quality_manifest_bundle(
-                    {
-                        "schemaVersion": 1,
-                        "namespace": "alm",
-                        "name": "basic",
-                        "manifestVersion": "1.0.0",
-                        **_MANIFEST_TASK_AND_TREES,
-                        "defs": [
-                            {
-                                "kind": "Workflow",
-                                "id": "root",
-                                "initial": "Active",
-                                "states": ["Active"],
-                                "transitions": [],
-                            },
-                            {
-                                "kind": "Workflow",
-                                "id": "basic",
-                                "initial": "new",
-                                "finals": ["closed"],
-                                "states": ["new", "active", "resolved", "closed"],
-                                "transitions": [
-                                    {"from": "new", "to": "active", "on": "start", "on_enter": ["log_transition"]},
-                                    {"from": "active", "to": "resolved", "on": "resolve"},
-                                    {"from": "resolved", "to": "closed", "on": "close"},
-                                    {"from": "closed", "to": "active", "on": "reopen"},
-                                ],
-                                "state_reason_options": [
-                                    {"id": "", "label": "— None —"},
-                                    {"id": "new_defect_reported", "label": "New defect reported"},
-                                    {"id": "build_failure", "label": "Build failure"},
-                                    {"id": "work_started", "label": "Work started"},
-                                    {"id": "code_complete", "label": "Code complete"},
-                                    {"id": "work_finished", "label": "Work finished"},
-                                    {"id": "accepted", "label": "Accepted"},
-                                    {"id": "deferred", "label": "Deferred"},
-                                ],
-                                "resolution_options": [
-                                    {"id": "", "label": "— None —"},
-                                    {"id": "fixed", "label": "Fixed"},
-                                    {"id": "fixed_and_verified", "label": "Fixed and verified"},
-                                    {"id": "wont_fix", "label": "Won't fix"},
-                                    {"id": "duplicate", "label": "Duplicate"},
-                                    {"id": "as_designed", "label": "As designed"},
-                                    {"id": "not_a_bug", "label": "Not a bug"},
-                                ],
-                                "resolution_target_states": ["resolved", "closed"],
-                            },
-                            _TASK_BASIC_WORKFLOW_DEF,
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-requirement",
-                                "name": "Project root (Requirements)",
-                                "workflow_id": "root",
-                                "child_types": ["epic"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-quality",
-                                "name": "Project root (Quality)",
-                                "workflow_id": "root",
-                                "child_types": ["test-case"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-defect",
-                                "name": "Project root (Defects)",
-                                "workflow_id": "root",
-                                "child_types": ["defect"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "test-case",
-                                "name": "Test case",
-                                "workflow_id": "basic",
-                                "parent_types": ["root-quality"],
-                                "child_types": [],
-                                "fields": [
-                                    {"id": "priority", "name": "Priority", "type": "string"},
-                                    {
-                                        "id": "automation",
-                                        "name": "Automation",
-                                        "type": "choice",
-                                        "options": [
-                                            {"id": "manual", "label": "Manual"},
-                                            {"id": "automated", "label": "Automated"},
-                                        ],
-                                    },
-                                ],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "epic",
-                                "workflow_id": "basic",
-                                "parent_types": ["root-requirement"],
-                                "child_types": ["feature"],
-                                "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "feature",
-                                "workflow_id": "basic",
-                                "parent_types": ["epic"],
-                                "child_types": ["requirement"],
-                                "fields": [
-                                    {
-                                        "id": "story_points",
-                                        "name": "Story Points",
-                                        "type": "number",
-                                        "requiredWhen": {"field": "typeName", "eq": "feature"},
-                                    },
-                                ],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "requirement",
-                                "workflow_id": "basic",
-                                "parent_types": ["feature", "epic"],
-                                "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "defect",
-                                "workflow_id": "basic",
-                                "parent_types": ["root-defect"],
-                                "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
-                            },
-                            {
-                                "kind": "TransitionPolicy",
-                                "id": "assignee_active",
-                                "when": {"state": "active"},
-                                "require": "assignee",
-                            },
-                            {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
-                            {
-                                "kind": "LinkType",
-                                "id": "verifies",
-                                "name": "Verifies",
-                                "inverse_name": "Verified By",
-                                "from_types": ["test-case"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {"kind": "LinkType", "id": "tests", "name": "Tests"},
-                            {
-                                "kind": "LinkType",
-                                "id": "blocks",
-                                "name": "Blocks",
-                                "inverse_name": "Blocked By",
-                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "impacts",
-                                "name": "Impacts",
-                                "inverse_name": "Impacted By",
-                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "affects",
-                                "name": "Affects",
-                                "inverse_name": "Affected By Defect",
-                                "from_types": ["defect"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "discovered_in",
-                                "name": "Discovered In",
-                                "inverse_name": "Found Defects",
-                                "from_types": ["defect"],
-                                "to_types": ["test-run"],
-                            },
-                        ],
-                    }
-                ),
-            )
-            session.add(version)
-
-            # Scrum template
-            scrum = ProcessTemplateModel(
-                slug="scrum",
-                name="Scrum",
-                is_builtin=True,
-                description="Agile framework with sprints and user stories",
-                type="scrum",
-            )
-            session.add(scrum)
-            await session.flush()
-
-            scrum_version = ProcessTemplateVersionModel(
-                template_id=scrum.id,
-                version="1.0.0",
-                manifest_bundle=with_quality_manifest_bundle(
-                    {
-                        "schemaVersion": 1,
-                        "namespace": "alm",
-                        "name": "scrum",
-                        "manifestVersion": "1.0.0",
-                        **_MANIFEST_TASK_AND_TREES,
-                        "defs": [
-                            {
-                                "kind": "Workflow",
-                                "id": "root",
-                                "initial": "Active",
-                                "states": ["Active"],
-                                "transitions": [],
-                            },
-                            {
-                                "kind": "Workflow",
-                                "id": "scrum",
-                                "initial": "new",
-                                "finals": ["done"],
-                                "states": ["new", "approved", "in_progress", "in_review", "done"],
-                                "transitions": [
-                                    {"from": "new", "to": "approved", "on": "approve"},
-                                    {"from": "approved", "to": "in_progress", "on": "start"},
-                                    {"from": "in_progress", "to": "in_review", "on": "submit"},
-                                    {"from": "in_review", "to": "done", "on": "complete"},
-                                    {"from": "in_review", "to": "in_progress", "on": "rework"},
-                                    {"from": "done", "to": "in_progress", "on": "reopen"},
-                                ],
-                                "state_reason_options": [
-                                    {"id": "", "label": "— None —"},
-                                    {"id": "new_backlog_item", "label": "New backlog item"},
-                                    {"id": "approved", "label": "Approved by Product Owner"},
-                                    {"id": "commitment_made", "label": "Commitment made by the team"},
-                                    {"id": "work_stopped", "label": "Work stopped"},
-                                    {"id": "work_finished", "label": "Work finished"},
-                                ],
-                                "resolution_options": [
-                                    {"id": "", "label": "— None —"},
-                                    {"id": "fixed", "label": "Fixed"},
-                                    {"id": "fixed_and_verified", "label": "Fixed and verified"},
-                                    {"id": "wont_fix", "label": "Won't fix"},
-                                    {"id": "duplicate", "label": "Duplicate"},
-                                    {"id": "as_designed", "label": "As designed"},
-                                    {"id": "not_a_bug", "label": "Not a bug"},
-                                ],
-                                "resolution_target_states": ["done"],
-                            },
-                            _TASK_BASIC_WORKFLOW_DEF,
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-requirement",
-                                "name": "Project root (Requirements)",
-                                "workflow_id": "root",
-                                "child_types": ["epic"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-quality",
-                                "name": "Project root (Quality)",
-                                "workflow_id": "root",
-                                "child_types": ["test-case"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-defect",
-                                "name": "Project root (Defects)",
-                                "workflow_id": "root",
-                                "child_types": ["defect"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "test-case",
-                                "name": "Test case",
-                                "workflow_id": "scrum",
-                                "parent_types": ["root-quality"],
-                                "child_types": [],
-                                "fields": [
-                                    {"id": "story_points", "name": "Story Points", "type": "number"},
-                                    {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"},
-                                ],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "epic",
-                                "workflow_id": "scrum",
-                                "parent_types": ["root-requirement"],
-                                "child_types": ["feature"],
-                                "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "feature",
-                                "workflow_id": "scrum",
-                                "parent_types": ["epic"],
-                                "child_types": ["user_story"],
-                                "fields": [{"id": "story_points", "name": "Story Points", "type": "number"}],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "user_story",
-                                "workflow_id": "scrum",
-                                "parent_types": ["feature"],
-                                "fields": [
-                                    {
-                                        "id": "story_points",
-                                        "name": "Story Points",
-                                        "type": "number",
-                                        "requiredWhen": {"field": "typeName", "eq": "user_story"},
-                                    },
-                                    {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"},
-                                ],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "defect",
-                                "workflow_id": "scrum",
-                                "parent_types": ["root-defect"],
-                                "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
-                            },
-                            {
-                                "kind": "TransitionPolicy",
-                                "id": "assignee_in_progress",
-                                "when": {"state": "in_progress"},
-                                "require": "assignee",
-                            },
-                            {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
-                            {
-                                "kind": "LinkType",
-                                "id": "verifies",
-                                "name": "Verifies",
-                                "inverse_name": "Verified By",
-                                "from_types": ["test-case"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {"kind": "LinkType", "id": "tests", "name": "Tests"},
-                            {
-                                "kind": "LinkType",
-                                "id": "blocks",
-                                "name": "Blocks",
-                                "inverse_name": "Blocked By",
-                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "impacts",
-                                "name": "Impacts",
-                                "inverse_name": "Impacted By",
-                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "affects",
-                                "name": "Affects",
-                                "inverse_name": "Affected By Defect",
-                                "from_types": ["defect"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "discovered_in",
-                                "name": "Discovered In",
-                                "inverse_name": "Found Defects",
-                                "from_types": ["defect"],
-                                "to_types": ["test-run"],
-                            },
-                        ],
-                    }
-                ),
-            )
-            session.add(scrum_version)
-
-            # Kanban template
-            kanban = ProcessTemplateModel(
-                slug="kanban",
-                name="Kanban",
-                is_builtin=True,
-                description="Flow-based work management",
-                type="kanban",
-            )
-            session.add(kanban)
-            await session.flush()
-
-            kanban_version = ProcessTemplateVersionModel(
-                template_id=kanban.id,
-                version="1.0.0",
-                manifest_bundle=with_quality_manifest_bundle(
-                    {
-                        "schemaVersion": 1,
-                        "namespace": "alm",
-                        "name": "kanban",
-                        "manifestVersion": "1.0.0",
-                        **_MANIFEST_TASK_AND_TREES,
-                        "defs": [
-                            {
-                                "kind": "Workflow",
-                                "id": "root",
-                                "initial": "Active",
-                                "states": ["Active"],
-                                "transitions": [],
-                            },
-                            {
-                                "kind": "Workflow",
-                                "id": "kanban",
-                                "initial": "backlog",
-                                "finals": ["done"],
-                                "states": ["backlog", "ready", "in_progress", "done"],
-                                "transitions": [
-                                    {"from": "backlog", "to": "ready", "on": "prepare"},
-                                    {"from": "ready", "to": "in_progress", "on": "start"},
-                                    {"from": "in_progress", "to": "done", "on": "complete"},
-                                    {"from": "done", "to": "in_progress", "on": "reopen"},
-                                ],
-                                "state_reason_options": [
-                                    {"id": "", "label": "— None —"},
-                                    {"id": "new_item", "label": "New item"},
-                                    {"id": "ready_for_work", "label": "Ready for work"},
-                                    {"id": "work_started", "label": "Work started"},
-                                    {"id": "work_finished", "label": "Work finished"},
-                                ],
-                                "resolution_options": [
-                                    {"id": "", "label": "— None —"},
-                                    {"id": "fixed", "label": "Fixed"},
-                                    {"id": "fixed_and_verified", "label": "Fixed and verified"},
-                                    {"id": "wont_fix", "label": "Won't fix"},
-                                    {"id": "duplicate", "label": "Duplicate"},
-                                    {"id": "as_designed", "label": "As designed"},
-                                ],
-                                "resolution_target_states": ["done"],
-                            },
-                            _TASK_BASIC_WORKFLOW_DEF,
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-requirement",
-                                "name": "Project root (Requirements)",
-                                "workflow_id": "root",
-                                "child_types": ["epic"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-quality",
-                                "name": "Project root (Quality)",
-                                "workflow_id": "root",
-                                "child_types": ["test-case"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-defect",
-                                "name": "Project root (Defects)",
-                                "workflow_id": "root",
-                                "child_types": ["defect"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "test-case",
-                                "name": "Test case",
-                                "workflow_id": "kanban",
-                                "parent_types": ["root-quality"],
-                                "child_types": [],
-                                "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "epic",
-                                "workflow_id": "kanban",
-                                "parent_types": ["root-requirement"],
-                                "child_types": ["feature"],
-                                "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "feature",
-                                "workflow_id": "kanban",
-                                "parent_types": ["epic"],
-                                "child_types": ["task"],
-                                "fields": [{"id": "story_points", "name": "Story Points", "type": "number"}],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "task",
-                                "workflow_id": "kanban",
-                                "parent_types": ["feature"],
-                                "fields": [{"id": "priority", "name": "Priority", "type": "string"}],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "defect",
-                                "workflow_id": "kanban",
-                                "parent_types": ["root-defect"],
-                                "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
-                            },
-                            {
-                                "kind": "TransitionPolicy",
-                                "id": "assignee_in_progress",
-                                "when": {"state": "in_progress"},
-                                "require": "assignee",
-                            },
-                            {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
-                            {
-                                "kind": "LinkType",
-                                "id": "verifies",
-                                "name": "Verifies",
-                                "inverse_name": "Verified By",
-                                "from_types": ["test-case"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {"kind": "LinkType", "id": "tests", "name": "Tests"},
-                            {
-                                "kind": "LinkType",
-                                "id": "blocks",
-                                "name": "Blocks",
-                                "inverse_name": "Blocked By",
-                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "impacts",
-                                "name": "Impacts",
-                                "inverse_name": "Impacted By",
-                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "affects",
-                                "name": "Affects",
-                                "inverse_name": "Affected By Defect",
-                                "from_types": ["defect"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "discovered_in",
-                                "name": "Discovered In",
-                                "inverse_name": "Found Defects",
-                                "from_types": ["defect"],
-                                "to_types": ["test-run"],
-                            },
-                        ],
-                    }
-                ),
-            )
-            session.add(kanban_version)
-
-            # Azure DevOps Basic (Epic, Issue only; Task is a separate entity in ALM)
-            ado_basic = ProcessTemplateModel(
-                slug="azure_devops_basic",
-                name="Azure DevOps Basic",
-                is_builtin=True,
-                description="Epic, Issue — aligned with Azure DevOps Basic (Task is separate entity)",
-                type="basic",
-            )
-            session.add(ado_basic)
-            await session.flush()
-
-            ado_basic_version = ProcessTemplateVersionModel(
-                template_id=ado_basic.id,
-                version="1.0.0",
-                manifest_bundle=with_quality_manifest_bundle(
-                    {
-                        "schemaVersion": 1,
-                        "namespace": "alm",
-                        "name": "azure_devops_basic",
-                        "manifestVersion": "1.0.0",
-                        **_MANIFEST_TASK_AND_TREES,
-                        "defs": [
-                            {
-                                "kind": "Workflow",
-                                "id": "root",
-                                "initial": "Active",
-                                "states": ["Active"],
-                                "transitions": [],
-                            },
-                            {
-                                "kind": "Workflow",
-                                "id": "ado_basic",
-                                "initial": "new",
-                                "finals": ["closed"],
-                                "states": ["new", "active", "resolved", "closed"],
-                                "transitions": [
-                                    {
-                                        "from": "new",
-                                        "to": "active",
-                                        "trigger": "start",
-                                        "trigger_label": "Start",
-                                        "guard": "assignee_required",
-                                    },
-                                    {
-                                        "from": "active",
-                                        "to": "resolved",
-                                        "trigger": "resolve",
-                                        "trigger_label": "Resolve",
-                                    },
-                                    {"from": "resolved", "to": "closed", "trigger": "close", "trigger_label": "Close"},
-                                    {"from": "closed", "to": "active", "trigger": "reopen", "trigger_label": "Reopen"},
-                                ],
-                                "state_reason_options": [
-                                    {"id": "", "label": "— None —"},
-                                    {"id": "new_item", "label": "New item"},
-                                    {"id": "work_started", "label": "Work started"},
-                                    {"id": "work_finished", "label": "Work finished"},
-                                    {"id": "deferred", "label": "Deferred"},
-                                ],
-                                "resolution_options": [
-                                    {"id": "", "label": "— None —"},
-                                    {"id": "fixed", "label": "Fixed"},
-                                    {"id": "wont_fix", "label": "Won't fix"},
-                                    {"id": "duplicate", "label": "Duplicate"},
-                                    {"id": "as_designed", "label": "As designed"},
-                                ],
-                                "resolution_target_states": ["resolved", "closed"],
-                            },
-                            _TASK_BASIC_WORKFLOW_DEF,
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-requirement",
-                                "name": "Project root (Requirements)",
-                                "workflow_id": "root",
-                                "child_types": ["epic"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-quality",
-                                "name": "Project root (Quality)",
-                                "workflow_id": "root",
-                                "child_types": ["test-case"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "root-defect",
-                                "name": "Project root (Defects)",
-                                "workflow_id": "root",
-                                "child_types": ["defect"],
-                                "fields": [],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "defect",
-                                "name": "Defect",
-                                "workflow_id": "ado_basic",
-                                "parent_types": ["root-defect"],
-                                "child_types": [],
-                                "fields": _open_text_defect_parity_fields(visible_in=["defect"]),
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "test-case",
-                                "name": "Test case",
-                                "workflow_id": "ado_basic",
-                                "parent_types": ["root-quality"],
-                                "child_types": [],
-                                "fields": [
-                                    {
-                                        "id": "priority",
-                                        "name": "Priority",
-                                        "type": "choice",
-                                        "options": [
-                                            {"id": "1", "label": "1 - Critical"},
-                                            {"id": "2", "label": "2 - High"},
-                                            {"id": "3", "label": "3 - Medium"},
-                                            {"id": "4", "label": "4 - Low"},
-                                        ],
-                                    },
-                                ],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "epic",
-                                "name": "Epic",
-                                "workflow_id": "ado_basic",
-                                "parent_types": ["root-requirement"],
-                                "child_types": ["issue"],
-                                "fields": [
-                                    {
-                                        "id": "priority",
-                                        "name": "Priority",
-                                        "type": "choice",
-                                        "options": [
-                                            {"id": "1", "label": "1 - Critical"},
-                                            {"id": "2", "label": "2 - High"},
-                                            {"id": "3", "label": "3 - Medium"},
-                                            {"id": "4", "label": "4 - Low"},
-                                        ],
-                                    },
-                                    {"id": "business_value", "name": "Business Value", "type": "number"},
-                                    {"id": "target_date", "name": "Target Date", "type": "date"},
-                                ],
-                            },
-                            {
-                                "kind": "ArtifactType",
-                                "id": "issue",
-                                "name": "Issue",
-                                "workflow_id": "ado_basic",
-                                "parent_types": ["epic"],
-                                "child_types": [],
-                                "fields": [
-                                    {
-                                        "id": "priority",
-                                        "name": "Priority",
-                                        "type": "choice",
-                                        "options": [
-                                            {"id": "1", "label": "1 - Critical"},
-                                            {"id": "2", "label": "2 - High"},
-                                            {"id": "3", "label": "3 - Medium"},
-                                            {"id": "4", "label": "4 - Low"},
-                                        ],
-                                    },
-                                    {
-                                        "id": "severity",
-                                        "name": "Severity",
-                                        "type": "choice",
-                                        "options": [
-                                            {"id": "low", "label": "Low"},
-                                            {"id": "medium", "label": "Medium"},
-                                            {"id": "high", "label": "High"},
-                                            {"id": "critical", "label": "Critical"},
-                                        ],
-                                    },
-                                    {"id": "story_points", "name": "Story Points", "type": "number"},
-                                    {"id": "acceptance_criteria", "name": "Acceptance Criteria", "type": "string"},
-                                    {"id": "repro_steps", "name": "Repro Steps", "type": "string"},
-                                ],
-                            },
-                            {"kind": "LinkType", "id": "hierarchy", "name": "Hierarchy"},
-                            {"kind": "LinkType", "id": "related", "name": "Related", "direction": "symmetric"},
-                            {
-                                "kind": "LinkType",
-                                "id": "blocks",
-                                "name": "Blocks",
-                                "inverse_name": "Blocked By",
-                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "impacts",
-                                "name": "Impacts",
-                                "inverse_name": "Impacted By",
-                                "from_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "verifies",
-                                "name": "Verifies",
-                                "inverse_name": "Verified By",
-                                "from_types": ["test-case"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {"kind": "LinkType", "id": "tests", "name": "Tests"},
-                            {
-                                "kind": "LinkType",
-                                "id": "affects",
-                                "name": "Affects",
-                                "inverse_name": "Affected By Defect",
-                                "from_types": ["defect"],
-                                "to_types": ["epic", "feature", "requirement", "task", "backlog-item"],
-                            },
-                            {
-                                "kind": "LinkType",
-                                "id": "discovered_in",
-                                "name": "Discovered In",
-                                "inverse_name": "Found Defects",
-                                "from_types": ["defect"],
-                                "to_types": ["test-run"],
-                            },
-                            {
-                                "kind": "TransitionPolicy",
-                                "id": "assignee_required_on_active",
-                                "when": {"state": "active"},
-                                "require": "assignee",
-                            },
-                        ],
-                    }
-                ),
-            )
-            session.add(ado_basic_version)
-
-            await session.commit()
-            logger.info(
-                "process_templates_seeded",
-                templates=["basic", "scrum", "kanban", "azure_devops_basic"],
-            )
     except Exception as e:
         logger.exception("seed_process_templates_failed", error=str(e))
         raise
 
 
-async def _create_project_roots_in_seed(
-    artifact_repo: ArtifactRepository,
-    project: Project,
-    manifest_bundle: dict[str, Any],
-    version_id: uuid.UUID,
+async def backfill_projects_missing_process_template(
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Create project roots from manifest tree_roots (used in seed only)."""
-    ast = get_manifest_ast(version_id, manifest_bundle)
-    root_type_map = get_tree_root_type_map(manifest_bundle)
-    root_types = list(dict.fromkeys(root_type_map.values()))
-    key_suffix_map = {
-        "root-requirement": "R0",
-        "root-testsuites": "TS0",
-        "root-defect": "D0",
-        "root-quality": "Q0",
-    }
-    for root_type in root_types:
-        state = workflow_get_initial_state(manifest_bundle, root_type, ast=ast)
-        if state is None:
-            continue
-        suffix = key_suffix_map.get(root_type, f"{root_type.upper()}0")
-        root = ArtifactEntity.create(
-            project_id=project.id,
-            artifact_type=root_type,
-            title=project.name,
-            state=state,
-            parent_id=None,
-            artifact_key=f"{project.code}-{suffix}",
+    """Bind projects with NULL or orphaned process_template_version_id to default basic; add roots if missing."""
+    async with session_factory() as session:
+        pt_repo = SqlAlchemyProcessTemplateRepository(session)
+        default_ver = await pt_repo.find_default_version()
+        if default_ver is None or not (default_ver.manifest_bundle or {}):
+            return
+
+        project_repo = SqlAlchemyProjectRepository(session)
+        artifact_repo = SqlAlchemyArtifactRepository(session)
+
+        result = await session.execute(select(ProjectModel).where(ProjectModel.deleted_at.is_(None)))
+        candidates = list(result.scalars().all())
+        orphans: list[ProjectModel] = []
+        for m in candidates:
+            if m.process_template_version_id is None:
+                orphans.append(m)
+                continue
+            v = await pt_repo.find_version_by_id(m.process_template_version_id)
+            if v is None:
+                orphans.append(m)
+
+        if not orphans:
+            return
+
+        for model in orphans:
+            proj = SqlAlchemyProjectRepository._to_entity(model)
+            proj.process_template_version_id = default_ver.id
+            await project_repo.update(proj)
+
+            await ensure_project_tree_roots(
+                project=proj,
+                artifact_repo=artifact_repo,
+                process_template_repo=pt_repo,
+                only_if_missing=True,
+            )
+
+        await session.commit()
+        logger.info(
+            "project_process_template_backfill",
+            projects_updated=len(orphans),
+            template_version_id=str(default_ver.id),
         )
-        await artifact_repo.add(root)
+
+
+async def backfill_projects_missing_tree_roots(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Create missing system tree root rows for any project (fixes empty backlog when roots were never seeded)."""
+    async with session_factory() as session:
+        pt_repo = SqlAlchemyProcessTemplateRepository(session)
+        artifact_repo = SqlAlchemyArtifactRepository(session)
+        result = await session.execute(select(ProjectModel).where(ProjectModel.deleted_at.is_(None)))
+        models = list(result.scalars().all())
+        total_created = 0
+        for model in models:
+            proj = SqlAlchemyProjectRepository._to_entity(model)
+            total_created += await ensure_project_tree_roots(
+                project=proj,
+                artifact_repo=artifact_repo,
+                process_template_repo=pt_repo,
+                only_if_missing=True,
+            )
+        if total_created > 0:
+            await session.commit()
+            logger.info(
+                "project_tree_roots_backfill",
+                roots_created=total_created,
+                projects_scanned=len(models),
+            )
 
 
 async def _count_demo_relationships(session: AsyncSession, project_ids: list[uuid.UUID]) -> int:
@@ -1289,6 +2070,7 @@ async def _detect_demo_seed_state(session: AsyncSession) -> tuple[str, dict[str,
         "demo_tenant_id": str(demo_tenant.id) if demo_tenant is not None else None,
         "demo_user_id": str(demo_user.id) if demo_user is not None else None,
         "project_slugs": [row.slug for row in project_rows],
+        "project_ids": [str(row.id) for row in project_rows],
         "relationship_rows_present": relationship_count > 0,
     }
 
@@ -1301,6 +2083,247 @@ async def _detect_demo_seed_state(session: AsyncSession) -> tuple[str, dict[str,
     return "partial", details
 
 
+async def hydrate_stranded_demo_workspace(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Fill demo tenant with minimal backlog/quality/defect rows when projects exist but no leaf artifacts.
+
+    Covers partial demo DB state and old volumes with NULL templates.
+    Idempotent when any non-system-root artifact already exists under the demo tenant.
+    """
+    if not settings.seed_demo_data or settings.is_production:
+        return
+
+    try:
+        async with session_factory() as session:
+            demo_tenant = await session.scalar(select(TenantModel).where(TenantModel.slug == "demo").limit(1))
+            if demo_tenant is None:
+                return
+
+            user_repo = SqlAlchemyUserRepository(session)
+            user = await user_repo.find_by_email(DEMO_EMAIL)
+            if user is None:
+                return
+
+            project_repo = SqlAlchemyProjectRepository(session)
+            process_template_repo = SqlAlchemyProcessTemplateRepository(session)
+            artifact_repo = SqlAlchemyArtifactRepository(session)
+
+            projects = await project_repo.list_by_tenant(demo_tenant.id)
+            if len(projects) < len(DEMO_PROJECTS):
+                return
+
+            default_version = await process_template_repo.find_default_version()
+            if default_version is None:
+                logger.warning("hydrate_stranded_demo_skipped", reason="no_basic_template")
+                return
+
+            vid = default_version.id
+            for p in projects:
+                if p.process_template_version_id != vid:
+                    p.process_template_version_id = vid
+                    await project_repo.update(p)
+            await session.flush()
+
+            for p in projects:
+                await ensure_project_tree_roots(
+                    project=p,
+                    artifact_repo=artifact_repo,
+                    process_template_repo=process_template_repo,
+                    only_if_missing=True,
+                )
+            await session.flush()
+
+            projects = await project_repo.list_by_tenant(demo_tenant.id)
+            mb = merge_manifest_metadata_defaults(default_version.manifest_bundle or {})
+            ast_seed = get_manifest_ast(default_version.id, mb)
+            root_children = _root_requirement_child_type_ids(mb)
+            workitem_under_epic = _epic_child_type_ids(mb) == ["workitem"]
+            backlog_leaf_type = _demo_planning_leaf_type(mb)
+            st_leaf = workflow_get_initial_state(mb, backlog_leaf_type, ast=ast_seed) or "new"
+
+            hydrated_project_ids: list[uuid.UUID] = []
+            pending_relationships: list[tuple[uuid.UUID, uuid.UUID, uuid.UUID]] = []
+
+            for proj in projects:
+                leaf_n = await session.scalar(
+                    select(func.count())
+                    .select_from(ArtifactModel)
+                    .where(
+                        ArtifactModel.project_id == proj.id,
+                        ArtifactModel.deleted_at.is_(None),
+                        ArtifactModel.artifact_type.notin_(tuple(DEFAULT_SYSTEM_ROOT_TYPES)),
+                    )
+                )
+                if (leaf_n or 0) > 0:
+                    continue
+
+                root_req_list = await artifact_repo.list_by_project(proj.id, type_filter="root-requirement")
+                root_req_id = root_req_list[0].id if root_req_list else None
+                if root_req_id is None:
+                    logger.warning(
+                        "hydrate_stranded_demo_failed",
+                        reason="missing_root_requirement",
+                        project_id=str(proj.id),
+                    )
+                    continue
+
+                demo_epic: ArtifactEntity | None = None
+                demo_feature: ArtifactEntity | None = None
+                req_parent_id = root_req_id
+
+                if root_req_id and "epic" in root_children:
+                    st_epic = workflow_get_initial_state(mb, "epic", ast=ast_seed) or "new"
+                    seq_e = await project_repo.increment_artifact_seq(proj.id)
+                    demo_epic = ArtifactEntity(
+                        project_id=proj.id,
+                        artifact_type="epic",
+                        title="Demo — Platform delivery",
+                        description="Hydrated epic for stranded demo workspace.",
+                        state=st_epic,
+                        parent_id=root_req_id,
+                        artifact_key=f"{proj.code}-{seq_e}",
+                        custom_fields={"priority": "2"},
+                    )
+                    demo_epic.created_by = user.id
+                    await artifact_repo.add(demo_epic)
+                    if not workitem_under_epic:
+                        st_feat = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
+                        seq_f = await project_repo.increment_artifact_seq(proj.id)
+                        demo_feature = ArtifactEntity(
+                            project_id=proj.id,
+                            artifact_type="feature",
+                            title="Authentication & session management",
+                            description="Hydrated feature for stranded demo workspace.",
+                            state=st_feat,
+                            parent_id=demo_epic.id,
+                            artifact_key=f"{proj.code}-{seq_f}",
+                            custom_fields={"story_points": 8},
+                        )
+                        demo_feature.created_by = user.id
+                        await artifact_repo.add(demo_feature)
+
+                if backlog_leaf_type == "workitem":
+                    req_parent_id = (
+                        demo_epic.id if (workitem_under_epic and demo_epic is not None) else root_req_id
+                    )
+                elif backlog_leaf_type == "feature":
+                    req_parent_id = demo_epic.id if demo_epic is not None else root_req_id
+                else:
+                    req_parent_id = demo_feature.id if demo_feature is not None else root_req_id
+
+                seq = await project_repo.increment_artifact_seq(proj.id)
+                _titles = {
+                    "workitem": "Sample work item",
+                    "user_story": "Sample user story",
+                    "feature": "Sample feature",
+                    "requirement": "Sample requirement",
+                }
+                sample_title = _titles.get(backlog_leaf_type, f"Sample {backlog_leaf_type.replace('_', ' ')}")
+                cf: dict[str, Any] = {"priority": "2"}
+                if backlog_leaf_type == "workitem":
+                    cf["governance_artifact_id"] = "schema.cycle.v1"
+                elif backlog_leaf_type == "feature":
+                    cf["story_points"] = 3
+
+                sample = ArtifactEntity(
+                    project_id=proj.id,
+                    artifact_type=backlog_leaf_type,
+                    title=sample_title,
+                    description="Auto-hydrated for stranded demo workspace (no leaf artifacts).",
+                    state=st_leaf,
+                    parent_id=req_parent_id,
+                    artifact_key=f"{proj.code}-{seq}",
+                    custom_fields=cf,
+                )
+                sample.created_by = user.id
+                await artifact_repo.add(sample)
+
+                defect_entity: ArtifactEntity | None = None
+                root_defect_list = await artifact_repo.list_by_project(proj.id, type_filter="root-defect")
+                root_defect_id = root_defect_list[0].id if root_defect_list else None
+                if root_defect_id:
+                    st_def = workflow_get_initial_state(mb, "defect", ast=ast_seed) or "new"
+                    seq_d = await project_repo.increment_artifact_seq(proj.id)
+                    defect_entity = ArtifactEntity(
+                        project_id=proj.id,
+                        artifact_type="defect",
+                        title="Session cookie persists after logout",
+                        description="Hydrated defect for stranded demo workspace.",
+                        state=st_def,
+                        parent_id=root_defect_id,
+                        assignee_id=user.id,
+                        artifact_key=f"{proj.code}-{seq_d}",
+                        custom_fields={
+                            "severity": "high",
+                            "defect_priority": "high",
+                            "reproducible": "yes",
+                        },
+                    )
+                    defect_entity.created_by = user.id
+                    await artifact_repo.add(defect_entity)
+
+                root_quality_list = await artifact_repo.list_by_project(proj.id, type_filter="root-quality")
+                parent_tests_id = root_quality_list[0].id if root_quality_list else None
+                root_suites_list = await artifact_repo.list_by_project(proj.id, type_filter="root-testsuites")
+                parent_suites_id = root_suites_list[0].id if root_suites_list else None
+                if parent_tests_id and parent_suites_id:
+                    seq_qf = await project_repo.increment_artifact_seq(proj.id)
+                    q_folder = ArtifactEntity(
+                        project_id=proj.id,
+                        artifact_type="quality-folder",
+                        title="Sprint 24 - Tests",
+                        description="Hydrated quality folder for catalog demo.",
+                        state="Active",
+                        parent_id=parent_tests_id,
+                        artifact_key=f"{proj.code}-{seq_qf}",
+                        custom_fields={},
+                    )
+                    q_folder.created_by = user.id
+                    await artifact_repo.add(q_folder)
+                    seq_sf = await project_repo.increment_artifact_seq(proj.id)
+                    s_folder = ArtifactEntity(
+                        project_id=proj.id,
+                        artifact_type="testsuite-folder",
+                        title="Sprint 24 — Collections",
+                        description="Hydrated suite folder for catalog demo.",
+                        state="Active",
+                        parent_id=parent_suites_id,
+                        artifact_key=f"{proj.code}-{seq_sf}",
+                        custom_fields={},
+                    )
+                    s_folder.created_by = user.id
+                    await artifact_repo.add(s_folder)
+
+                await session.flush()
+                hydrated_project_ids.append(proj.id)
+                if defect_entity is not None:
+                    pending_relationships.append((proj.id, sample.id, defect_entity.id))
+
+            if not hydrated_project_ids:
+                return
+
+            rel_repo = SqlAlchemyRelationshipRepository(session)
+            for pid, sid, did in pending_relationships:
+                await rel_repo.add(
+                    Relationship.create(
+                        project_id=pid,
+                        source_artifact_id=sid,
+                        target_artifact_id=did,
+                        relationship_type="related",
+                    )
+                )
+
+            await session.commit()
+            logger.info(
+                "stranded_demo_workspace_hydrated",
+                tenant_id=str(demo_tenant.id),
+                project_ids=[str(x) for x in hydrated_project_ids],
+            )
+    except Exception as exc:
+        logger.exception("hydrate_stranded_demo_failed", error=str(exc))
+
+
 async def run_startup_seeds(session_factory: async_sessionmaker[AsyncSession]) -> None:
     logger.info("seed_phase_started", phase="privileges")
     await seed_privileges(session_factory)
@@ -1308,9 +2331,29 @@ async def run_startup_seeds(session_factory: async_sessionmaker[AsyncSession]) -
     logger.info("seed_phase_started", phase="process_templates")
     await seed_process_templates(session_factory)
 
-    if settings.seed_demo_data and settings.is_dev:
+    logger.info("seed_phase_started", phase="project_template_backfill")
+    await backfill_projects_missing_process_template(session_factory)
+
+    logger.info("seed_phase_started", phase="project_tree_roots_backfill")
+    await backfill_projects_missing_tree_roots(session_factory)
+
+    # Demo + repair run in any non-production environment (docker/staging/local), not only when
+    # environment string is exactly "development" — ALM_ENVIRONMENT=staging used to skip all of this.
+    if settings.seed_demo_data and not settings.is_production:
         logger.info("seed_phase_started", phase="demo_data")
         await seed_demo_data(session_factory)
+        # Demo seed creates projects in the same boot pass; run backfill again so NULL
+        # process_template_version_id / missing tree roots cannot strand the backlog UI.
+        logger.info("seed_phase_started", phase="post_demo_template_and_roots_backfill")
+        await backfill_projects_missing_process_template(session_factory)
+        await backfill_projects_missing_tree_roots(session_factory)
+        logger.info("seed_phase_started", phase="stranded_demo_hydrate")
+        await hydrate_stranded_demo_workspace(session_factory)
+
+    logger.info(
+        "run_startup_seeds_finished",
+        demo_phase_ran=bool(settings.seed_demo_data and not settings.is_production),
+    )
 
 
 async def seed_demo_data(
@@ -1329,10 +2372,14 @@ async def seed_demo_data(
             logger.info("demo_data_skipped", reason="demo_seed_already_present", **details)
             return
         if state == "partial":
-            raise DemoSeedStateError(
-                "Partial demo seed detected. Reset the local DB or complete the missing demo seed phases "
-                f"before startup continues. Details: {details}"
+            # Stale volumes: demo rows exist but state is not "empty" or "complete". Do not re-run full
+            # bootstrap here (duplicate user/tenant risk). run_startup_seeds always runs hydrate after this.
+            logger.warning(
+                "demo_seed_partial",
+                hint="Mixed demo DB; hydrate runs next in startup. For a clean slate: docker compose down -v.",
+                **details,
             )
+            return
 
     async with session_factory() as session:
         privilege_repo = SqlAlchemyPrivilegeRepository(session)
@@ -1398,13 +2445,19 @@ async def seed_demo_data(
                 await project_repo.add(project)
                 if first_project_id is None:
                     first_project_id = project.id
-                if version_id and default_version and default_version.manifest_bundle:
-                    await _create_project_roots_in_seed(
-                        artifact_repo, project, default_version.manifest_bundle, default_version.id
+                if version_id:
+                    await ensure_project_tree_roots(
+                        project=project,
+                        artifact_repo=artifact_repo,
+                        process_template_repo=process_template_repo,
+                        only_if_missing=True,
                     )
 
+            await session.flush()
             first_project = await project_repo.list_by_tenant(provisioned.tenant_id)
-            if first_project and version_id and default_version:
+            seeded_demo_artifacts = False
+            if first_project and default_version:
+                seeded_demo_artifacts = True
                 demo_defect_high: ArtifactEntity | None = None
                 demo_defect_medium: ArtifactEntity | None = None
                 demo_defect_resolved: ArtifactEntity | None = None
@@ -1412,6 +2465,22 @@ async def seed_demo_data(
                 req_audit: ArtifactEntity | None = None
                 demo_feature_o11y: ArtifactEntity | None = None
                 logger.info("seed_phase_started", phase="demo_artifacts")
+
+                vid = default_version.id
+                for p in first_project:
+                    if p.process_template_version_id != vid:
+                        p.process_template_version_id = vid
+                        await project_repo.update(p)
+                await session.flush()
+                for p in first_project:
+                    await ensure_project_tree_roots(
+                        project=p,
+                        artifact_repo=artifact_repo,
+                        process_template_repo=process_template_repo,
+                        only_if_missing=True,
+                    )
+                await session.flush()
+                first_project = await project_repo.list_by_tenant(provisioned.tenant_id)
 
                 mb = default_version.manifest_bundle or {}
                 ast_seed = get_manifest_ast(default_version.id, mb)
@@ -1424,14 +2493,19 @@ async def seed_demo_data(
                 demo_epic: ArtifactEntity | None = None
                 demo_feature: ArtifactEntity | None = None
 
-                if root_req_id:
+                root_children = _root_requirement_child_type_ids(mb)
+                workitem_under_epic = _epic_child_type_ids(mb) == ["workitem"]
+                backlog_leaf_type = _demo_planning_leaf_type(mb)
+                st_leaf = workflow_get_initial_state(mb, backlog_leaf_type, ast=ast_seed) or "new"
+
+                if root_req_id and "epic" in root_children:
                     st_epic = workflow_get_initial_state(mb, "epic", ast=ast_seed) or "new"
                     seq_e = await project_repo.increment_artifact_seq(first_project[0].id)
                     demo_epic = ArtifactEntity(
                         project_id=first_project[0].id,
                         artifact_type="epic",
                         title="Demo — Platform delivery",
-                        description="Seeded epic; requirements sit under a feature (manifest-valid hierarchy).",
+                        description="Seeded epic; child work items follow the active process template hierarchy.",
                         state=st_epic,
                         parent_id=root_req_id,
                         artifact_key=f"{first_project[0].code}-{seq_e}",
@@ -1440,48 +2514,66 @@ async def seed_demo_data(
                     demo_epic.created_by = user.id
                     await artifact_repo.add(demo_epic)
 
-                    st_feat = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
-                    seq_f = await project_repo.increment_artifact_seq(first_project[0].id)
-                    demo_feature = ArtifactEntity(
-                        project_id=first_project[0].id,
-                        artifact_type="feature",
-                        title="Authentication & session management",
-                        description="Feature bucket for login, tokens, and session lifecycle requirements.",
-                        state=st_feat,
-                        parent_id=demo_epic.id,
-                        artifact_key=f"{first_project[0].code}-{seq_f}",
-                        custom_fields={"story_points": 8},
-                    )
-                    demo_feature.created_by = user.id
-                    await artifact_repo.add(demo_feature)
-                    req_parent_id = demo_feature.id
+                    if not workitem_under_epic:
+                        st_feat = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
+                        seq_f = await project_repo.increment_artifact_seq(first_project[0].id)
+                        demo_feature = ArtifactEntity(
+                            project_id=first_project[0].id,
+                            artifact_type="feature",
+                            title="Authentication & session management",
+                            description="Feature bucket for login, tokens, and session lifecycle requirements.",
+                            state=st_feat,
+                            parent_id=demo_epic.id,
+                            artifact_key=f"{first_project[0].code}-{seq_f}",
+                            custom_fields={"story_points": 8},
+                        )
+                        demo_feature.created_by = user.id
+                        await artifact_repo.add(demo_feature)
 
-                    st_o11y = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
-                    seq_o = await project_repo.increment_artifact_seq(first_project[0].id)
-                    demo_feature_o11y = ArtifactEntity(
-                        project_id=first_project[0].id,
-                        artifact_type="feature",
-                        title="Observability & compliance",
-                        description="Audit trails, metrics export, and retention policies for regulated workloads.",
-                        state=st_o11y,
-                        parent_id=demo_epic.id,
-                        artifact_key=f"{first_project[0].code}-{seq_o}",
-                        custom_fields={"story_points": 5},
-                    )
-                    demo_feature_o11y.created_by = user.id
-                    await artifact_repo.add(demo_feature_o11y)
+                        st_o11y = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
+                        seq_o = await project_repo.increment_artifact_seq(first_project[0].id)
+                        demo_feature_o11y = ArtifactEntity(
+                            project_id=first_project[0].id,
+                            artifact_type="feature",
+                            title="Observability & compliance",
+                            description="Audit trails, metrics export, and retention policies for regulated workloads.",
+                            state=st_o11y,
+                            parent_id=demo_epic.id,
+                            artifact_key=f"{first_project[0].code}-{seq_o}",
+                            custom_fields={"story_points": 5},
+                        )
+                        demo_feature_o11y.created_by = user.id
+                        await artifact_repo.add(demo_feature_o11y)
 
-                st_req = workflow_get_initial_state(mb, "requirement", ast=ast_seed) or "new"
+                if backlog_leaf_type == "workitem":
+                    req_parent_id = (
+                        demo_epic.id if workitem_under_epic and demo_epic is not None else root_req_id
+                    )
+                elif backlog_leaf_type == "feature":
+                    req_parent_id = demo_epic.id if demo_epic is not None else root_req_id
+                else:
+                    req_parent_id = demo_feature.id if demo_feature is not None else root_req_id
+
                 seq = await project_repo.increment_artifact_seq(first_project[0].id)
+                _sample_titles = {
+                    "workitem": "Sample work item",
+                    "user_story": "Sample user story",
+                    "feature": "Sample feature",
+                    "requirement": "Sample requirement",
+                }
+                sample_title = _sample_titles.get(
+                    backlog_leaf_type,
+                    f"Sample {backlog_leaf_type.replace('_', ' ')}",
+                )
                 sample = ArtifactEntity(
                     project_id=first_project[0].id,
-                    artifact_type="requirement",
-                    title="Sample requirement",
-                    description="Traced by seeded test cases; parent is a feature per Basic template rules.",
-                    state=st_req,
+                    artifact_type=backlog_leaf_type,
+                    title=sample_title,
+                    description="Traced by seeded test cases; parent matches the process template hierarchy.",
+                    state=st_leaf,
                     parent_id=req_parent_id,
                     artifact_key=f"{first_project[0].code}-{seq}",
-                    custom_fields={"governance_artifact_id": "schema.cycle.v1", "priority": "high"},
+                    custom_fields={"governance_artifact_id": "schema.cycle.v1", "priority": "2"},
                 )
                 sample.created_by = user.id
                 await artifact_repo.add(sample)
@@ -1489,10 +2581,10 @@ async def seed_demo_data(
                 seq_manifest = await project_repo.increment_artifact_seq(first_project[0].id)
                 gov_manifest = ArtifactEntity(
                     project_id=first_project[0].id,
-                    artifact_type="requirement",
+                    artifact_type=backlog_leaf_type,
                     title="Governance anchor: manifest sample (demo)",
                     description="Maps to artifact_catalog manifest_sample.cycle.minimal for traceability export",
-                    state=st_req,
+                    state=st_leaf,
                     parent_id=req_parent_id,
                     artifact_key=f"{first_project[0].code}-{seq_manifest}",
                     custom_fields={"governance_artifact_id": "manifest_sample.cycle.minimal"},
@@ -1503,10 +2595,10 @@ async def seed_demo_data(
                 seq_rule = await project_repo.increment_artifact_seq(first_project[0].id)
                 gov_rule = ArtifactEntity(
                     project_id=first_project[0].id,
-                    artifact_type="requirement",
+                    artifact_type=backlog_leaf_type,
                     title="Governance anchor: rule pack (demo)",
                     description="Maps to artifact_catalog rule_pack.cycle.v1 for traceability export",
-                    state=st_req,
+                    state=st_leaf,
                     parent_id=req_parent_id,
                     artifact_key=f"{first_project[0].code}-{seq_rule}",
                     custom_fields={"governance_artifact_id": "rule_pack.cycle.v1"},
@@ -1514,39 +2606,107 @@ async def seed_demo_data(
                 gov_rule.created_by = user.id
                 await artifact_repo.add(gov_rule)
 
-                if demo_feature is not None:
+                if backlog_leaf_type == "workitem":
                     seq_mfa = await project_repo.increment_artifact_seq(first_project[0].id)
                     req_mfa = ArtifactEntity(
                         project_id=first_project[0].id,
-                        artifact_type="requirement",
+                        artifact_type="workitem",
                         title="MFA enrollment is mandatory for privileged roles",
                         description=(
                             "Administrators and support roles must enroll TOTP before production access."
                         ),
-                        state=st_req,
-                        parent_id=demo_feature.id,
+                        state=st_leaf,
+                        parent_id=req_parent_id,
                         artifact_key=f"{first_project[0].code}-{seq_mfa}",
-                        custom_fields={"priority": "high", "governance_artifact_id": "schema.cycle.v1"},
+                        custom_fields={"priority": "2", "governance_artifact_id": "schema.cycle.v1"},
                     )
                     req_mfa.created_by = user.id
                     await artifact_repo.add(req_mfa)
 
-                if demo_feature_o11y is not None:
                     seq_audit = await project_repo.increment_artifact_seq(first_project[0].id)
                     req_audit = ArtifactEntity(
                         project_id=first_project[0].id,
-                        artifact_type="requirement",
+                        artifact_type="workitem",
                         title="Structured audit stream for security-sensitive API calls",
                         description=(
                             "AuthN, authZ, and data-export endpoints emit immutable audit events."
                         ),
-                        state=st_req,
-                        parent_id=demo_feature_o11y.id,
+                        state=st_leaf,
+                        parent_id=req_parent_id,
                         artifact_key=f"{first_project[0].code}-{seq_audit}",
-                        custom_fields={"priority": "medium"},
+                        custom_fields={"priority": "3"},
                     )
                     req_audit.created_by = user.id
                     await artifact_repo.add(req_audit)
+                elif backlog_leaf_type == "feature" and demo_epic is not None:
+                    st_feat_demo = workflow_get_initial_state(mb, "feature", ast=ast_seed) or "new"
+                    seq_mfa = await project_repo.increment_artifact_seq(first_project[0].id)
+                    req_mfa = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="feature",
+                        title="MFA enrollment is mandatory for privileged roles",
+                        description=(
+                            "Administrators and support roles must enroll TOTP before production access."
+                        ),
+                        state=st_feat_demo,
+                        parent_id=demo_epic.id,
+                        artifact_key=f"{first_project[0].code}-{seq_mfa}",
+                        custom_fields={"story_points": 5, "governance_artifact_id": "schema.cycle.v1"},
+                    )
+                    req_mfa.created_by = user.id
+                    await artifact_repo.add(req_mfa)
+
+                    seq_audit = await project_repo.increment_artifact_seq(first_project[0].id)
+                    req_audit = ArtifactEntity(
+                        project_id=first_project[0].id,
+                        artifact_type="feature",
+                        title="Structured audit stream for security-sensitive API calls",
+                        description=(
+                            "AuthN, authZ, and data-export endpoints emit immutable audit events."
+                        ),
+                        state=st_feat_demo,
+                        parent_id=demo_epic.id,
+                        artifact_key=f"{first_project[0].code}-{seq_audit}",
+                        custom_fields={"story_points": 3},
+                    )
+                    req_audit.created_by = user.id
+                    await artifact_repo.add(req_audit)
+                else:
+                    if demo_feature is not None:
+                        st_story = workflow_get_initial_state(mb, backlog_leaf_type, ast=ast_seed) or "new"
+                        seq_mfa = await project_repo.increment_artifact_seq(first_project[0].id)
+                        req_mfa = ArtifactEntity(
+                            project_id=first_project[0].id,
+                            artifact_type=backlog_leaf_type,
+                            title="MFA enrollment is mandatory for privileged roles",
+                            description=(
+                                "Administrators and support roles must enroll TOTP before production access."
+                            ),
+                            state=st_story,
+                            parent_id=demo_feature.id,
+                            artifact_key=f"{first_project[0].code}-{seq_mfa}",
+                            custom_fields={"priority": "high", "governance_artifact_id": "schema.cycle.v1"},
+                        )
+                        req_mfa.created_by = user.id
+                        await artifact_repo.add(req_mfa)
+
+                    if demo_feature_o11y is not None:
+                        st_story2 = workflow_get_initial_state(mb, backlog_leaf_type, ast=ast_seed) or "new"
+                        seq_audit = await project_repo.increment_artifact_seq(first_project[0].id)
+                        req_audit = ArtifactEntity(
+                            project_id=first_project[0].id,
+                            artifact_type=backlog_leaf_type,
+                            title="Structured audit stream for security-sensitive API calls",
+                            description=(
+                                "AuthN, authZ, and data-export endpoints emit immutable audit events."
+                            ),
+                            state=st_story2,
+                            parent_id=demo_feature_o11y.id,
+                            artifact_key=f"{first_project[0].code}-{seq_audit}",
+                            custom_fields={"priority": "medium"},
+                        )
+                        req_audit.created_by = user.id
+                        await artifact_repo.add(req_audit)
 
                 root_defect_list = await artifact_repo.list_by_project(
                     first_project[0].id, type_filter="root-defect"
@@ -1566,7 +2726,7 @@ async def seed_demo_data(
                         artifact_key=f"{first_project[0].code}-{seq_d1}",
                         custom_fields={
                             "severity": "high",
-                            "defect_priority": "2",
+                            "defect_priority": "high",
                             "reproducible": "yes",
                             "detected_environment": "staging",
                             "detected_by": str(user.id),
@@ -1587,7 +2747,7 @@ async def seed_demo_data(
                         artifact_key=f"{first_project[0].code}-{seq_d2}",
                         custom_fields={
                             "severity": "medium",
-                            "defect_priority": "3",
+                            "defect_priority": "medium",
                             "reproducible": "unknown",
                             "detected_environment": "integration",
                             "estimated_fix_days": 3,
@@ -1608,7 +2768,7 @@ async def seed_demo_data(
                         resolution="fixed",
                         custom_fields={
                             "severity": "low",
-                            "defect_priority": "4",
+                            "defect_priority": "low",
                             "reproducible": "yes",
                             "detected_environment": "production",
                             "planned_fix_version": "2.5.0",
@@ -2304,66 +3464,132 @@ async def seed_demo_data(
                     rr2 = await artifact_repo.list_by_project(p2.id, type_filter="root-requirement")
                     rd2 = await artifact_repo.list_by_project(p2.id, type_filter="root-defect")
                     if rr2 and rd2:
-                        st_e2 = workflow_get_initial_state(mb2, "epic", ast=ast2) or "new"
-                        seq_p2e = await project_repo.increment_artifact_seq(p2.id)
-                        epic_p2 = ArtifactEntity(
-                            project_id=p2.id,
-                            artifact_type="epic",
-                            title="UNIMA — mobile onboarding",
-                            description=(
-                                "Second-project backlog: feature, two requirements, defect, and test."
-                            ),
-                            state=st_e2,
-                            parent_id=rr2[0].id,
-                            artifact_key=f"{p2.code}-{seq_p2e}",
-                            custom_fields={"priority": "2"},
-                        )
-                        epic_p2.created_by = user.id
-                        await artifact_repo.add(epic_p2)
+                        root_children2 = _root_requirement_child_type_ids(mb2)
+                        issues_under_root2 = root_children2 == ["workitem"]
+                        workitem_only_p2 = _epic_child_type_ids(mb2) == ["workitem"]
+                        backlog_parent_p2 = rr2[0].id
 
-                        st_f2 = workflow_get_initial_state(mb2, "feature", ast=ast2) or "new"
-                        seq_p2f = await project_repo.increment_artifact_seq(p2.id)
-                        feat_p2 = ArtifactEntity(
-                            project_id=p2.id,
-                            artifact_type="feature",
-                            title="First-run experience",
-                            description="Account creation, profile basics, and first successful login.",
-                            state=st_f2,
-                            parent_id=epic_p2.id,
-                            artifact_key=f"{p2.code}-{seq_p2f}",
-                            custom_fields={"story_points": 3},
-                        )
-                        feat_p2.created_by = user.id
-                        await artifact_repo.add(feat_p2)
+                        if "epic" in root_children2:
+                            st_e2 = workflow_get_initial_state(mb2, "epic", ast=ast2) or "new"
+                            seq_p2e = await project_repo.increment_artifact_seq(p2.id)
+                            epic_p2 = ArtifactEntity(
+                                project_id=p2.id,
+                                artifact_type="epic",
+                                title="UNIMA — mobile onboarding",
+                                description=(
+                                    "Second-project backlog: work items under epic, defect, and test."
+                                ),
+                                state=st_e2,
+                                parent_id=rr2[0].id,
+                                artifact_key=f"{p2.code}-{seq_p2e}",
+                                custom_fields={"priority": "2"},
+                            )
+                            epic_p2.created_by = user.id
+                            await artifact_repo.add(epic_p2)
+                            backlog_parent_p2 = epic_p2.id
 
-                        st_r2 = workflow_get_initial_state(mb2, "requirement", ast=ast2) or "new"
-                        seq_p2r = await project_repo.increment_artifact_seq(p2.id)
-                        req_p2 = ArtifactEntity(
-                            project_id=p2.id,
-                            artifact_type="requirement",
-                            title="Email verification before workspace access",
-                            description="New users must confirm email before seeing project data.",
-                            state=st_r2,
-                            parent_id=feat_p2.id,
-                            artifact_key=f"{p2.code}-{seq_p2r}",
-                            custom_fields={"priority": "high"},
-                        )
-                        req_p2.created_by = user.id
-                        await artifact_repo.add(req_p2)
+                            if workitem_only_p2:
+                                st_i2 = workflow_get_initial_state(mb2, "workitem", ast=ast2) or "new"
+                                seq_p2r = await project_repo.increment_artifact_seq(p2.id)
+                                req_p2 = ArtifactEntity(
+                                    project_id=p2.id,
+                                    artifact_type="workitem",
+                                    title="Email verification before workspace access",
+                                    description="New users must confirm email before seeing project data.",
+                                    state=st_i2,
+                                    parent_id=backlog_parent_p2,
+                                    artifact_key=f"{p2.code}-{seq_p2r}",
+                                    custom_fields={"priority": "2"},
+                                )
+                                req_p2.created_by = user.id
+                                await artifact_repo.add(req_p2)
 
-                        seq_p2r2 = await project_repo.increment_artifact_seq(p2.id)
-                        req_p2_b = ArtifactEntity(
-                            project_id=p2.id,
-                            artifact_type="requirement",
-                            title="Profile photo optional but validated when present",
-                            description="If the user uploads an avatar, MIME type and dimensions are enforced.",
-                            state=st_r2,
-                            parent_id=feat_p2.id,
-                            artifact_key=f"{p2.code}-{seq_p2r2}",
-                            custom_fields={"priority": "low"},
-                        )
-                        req_p2_b.created_by = user.id
-                        await artifact_repo.add(req_p2_b)
+                                seq_p2r2 = await project_repo.increment_artifact_seq(p2.id)
+                                req_p2_b = ArtifactEntity(
+                                    project_id=p2.id,
+                                    artifact_type="workitem",
+                                    title="Profile photo optional but validated when present",
+                                    description="If the user uploads an avatar, MIME type and dimensions are enforced.",
+                                    state=st_i2,
+                                    parent_id=backlog_parent_p2,
+                                    artifact_key=f"{p2.code}-{seq_p2r2}",
+                                    custom_fields={"priority": "4"},
+                                )
+                                req_p2_b.created_by = user.id
+                                await artifact_repo.add(req_p2_b)
+                            else:
+                                st_f2 = workflow_get_initial_state(mb2, "feature", ast=ast2) or "new"
+                                seq_p2f = await project_repo.increment_artifact_seq(p2.id)
+                                feat_p2 = ArtifactEntity(
+                                    project_id=p2.id,
+                                    artifact_type="feature",
+                                    title="First-run experience",
+                                    description="Account creation, profile basics, and first successful login.",
+                                    state=st_f2,
+                                    parent_id=backlog_parent_p2,
+                                    artifact_key=f"{p2.code}-{seq_p2f}",
+                                    custom_fields={"story_points": 3},
+                                )
+                                feat_p2.created_by = user.id
+                                await artifact_repo.add(feat_p2)
+
+                                st_r2 = workflow_get_initial_state(mb2, "requirement", ast=ast2) or "new"
+                                seq_p2r = await project_repo.increment_artifact_seq(p2.id)
+                                req_p2 = ArtifactEntity(
+                                    project_id=p2.id,
+                                    artifact_type="requirement",
+                                    title="Email verification before workspace access",
+                                    description="New users must confirm email before seeing project data.",
+                                    state=st_r2,
+                                    parent_id=feat_p2.id,
+                                    artifact_key=f"{p2.code}-{seq_p2r}",
+                                    custom_fields={"priority": "high"},
+                                )
+                                req_p2.created_by = user.id
+                                await artifact_repo.add(req_p2)
+
+                                seq_p2r2 = await project_repo.increment_artifact_seq(p2.id)
+                                req_p2_b = ArtifactEntity(
+                                    project_id=p2.id,
+                                    artifact_type="requirement",
+                                    title="Profile photo optional but validated when present",
+                                    description="If the user uploads an avatar, MIME type and dimensions are enforced.",
+                                    state=st_r2,
+                                    parent_id=feat_p2.id,
+                                    artifact_key=f"{p2.code}-{seq_p2r2}",
+                                    custom_fields={"priority": "low"},
+                                )
+                                req_p2_b.created_by = user.id
+                                await artifact_repo.add(req_p2_b)
+                        elif issues_under_root2:
+                            st_i2 = workflow_get_initial_state(mb2, "workitem", ast=ast2) or "new"
+                            seq_p2r = await project_repo.increment_artifact_seq(p2.id)
+                            req_p2 = ArtifactEntity(
+                                project_id=p2.id,
+                                artifact_type="workitem",
+                                title="Email verification before workspace access",
+                                description="New users must confirm email before seeing project data.",
+                                state=st_i2,
+                                parent_id=rr2[0].id,
+                                artifact_key=f"{p2.code}-{seq_p2r}",
+                                custom_fields={"priority": "2"},
+                            )
+                            req_p2.created_by = user.id
+                            await artifact_repo.add(req_p2)
+
+                            seq_p2r2 = await project_repo.increment_artifact_seq(p2.id)
+                            req_p2_b = ArtifactEntity(
+                                project_id=p2.id,
+                                artifact_type="workitem",
+                                title="Profile photo optional but validated when present",
+                                description="If the user uploads an avatar, MIME type and dimensions are enforced.",
+                                state=st_i2,
+                                parent_id=rr2[0].id,
+                                artifact_key=f"{p2.code}-{seq_p2r2}",
+                                custom_fields={"priority": "4"},
+                            )
+                            req_p2_b.created_by = user.id
+                            await artifact_repo.add(req_p2_b)
 
                         st_d2 = workflow_get_initial_state(mb2, "defect", ast=ast2) or "new"
                         seq_p2d = await project_repo.increment_artifact_seq(p2.id)
@@ -2379,7 +3605,7 @@ async def seed_demo_data(
                                 "severity": "high",
                                 "reproducible": "yes",
                                 "detected_environment": "dev",
-                                "defect_priority": "2",
+                                "defect_priority": "high",
                             },
                         )
                         def_p2.created_by = user.id
@@ -2469,7 +3695,7 @@ async def seed_demo_data(
                         sample.id,
                         "Walk through acceptance criteria with product owner",
                         state="in_progress",
-                        description="Demo task linked to the sample requirement.",
+                        description="Demo task linked to the sample backlog item.",
                         assignee_id=user.id,
                         rank_order=1.0,
                     )
@@ -2740,16 +3966,33 @@ async def seed_demo_data(
                     )
 
             await session.commit()
-            logger.info(
-                "demo_data_seeded",
-                email=DEMO_EMAIL,
-                org=DEMO_ORG_NAME,
-                projects=len(DEMO_PROJECTS),
-                includes=(
-                    "epic_multi_feature_requirements defects quality_campaign "
-                    "tags_tasks_param_test call_plan run_metrics_ids unima_backlog"
-                ),
-            )
+            if seeded_demo_artifacts:
+                logger.info(
+                    "demo_data_seeded",
+                    email=DEMO_EMAIL,
+                    org=DEMO_ORG_NAME,
+                    projects=len(DEMO_PROJECTS),
+                    includes=(
+                        "epic_multi_feature_requirements defects quality_campaign "
+                        "tags_tasks_param_test call_plan run_metrics_ids unima_backlog"
+                    ),
+                )
+            elif not first_project:
+                logger.warning(
+                    "demo_data_incomplete",
+                    reason="no_projects_created",
+                    email=DEMO_EMAIL,
+                    org=DEMO_ORG_NAME,
+                )
+            else:
+                logger.warning(
+                    "demo_data_incomplete",
+                    reason="no_basic_process_template_version",
+                    hint="Backlog will stay empty until projects have a template; check process template seed.",
+                    email=DEMO_EMAIL,
+                    org=DEMO_ORG_NAME,
+                    projects=len(first_project),
+                )
     except Exception as e:
         logger.exception("seed_demo_data_failed", error=str(e))
         raise

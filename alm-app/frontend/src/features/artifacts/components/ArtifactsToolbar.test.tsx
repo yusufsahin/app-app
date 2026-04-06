@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import type React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { screen } from "@testing-library/react";
 import { useForm } from "react-hook-form";
 import { MemoryRouter } from "react-router-dom";
@@ -19,6 +20,9 @@ vi.mock("../../../shared/components/ui", async () => {
         {children}
       </button>
     ),
+    DropdownMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DropdownMenuSubTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DropdownMenuSubContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     Select: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     SelectTrigger: ({ children, ...props }: React.ComponentProps<"button">) => <button type="button" {...props}>{children}</button>,
     SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder ?? ""}</span>,
@@ -55,11 +59,31 @@ vi.mock("../../../shared/modal", () => ({
   },
 }));
 
-vi.mock("../utils", () => ({
-  downloadArtifactsCsv: vi.fn(),
-}));
+vi.mock("../utils", async () => {
+  const actual = await vi.importActual<typeof import("../utils")>("../utils");
+  return {
+    ...actual,
+    downloadArtifactsCsv: vi.fn(),
+  };
+});
 
-function ToolbarHarness() {
+type HarnessProps = {
+  workItemTreeId?: string | null;
+  listResult?: { allowed_actions?: string[] };
+  onCreateArtifact?: (artifactTypeId: string) => void;
+  bundle?: {
+    artifact_types: Array<{ id: string; name?: string }>;
+    defs?: Array<Record<string, unknown>>;
+  };
+};
+
+function ToolbarHarness(harnessProps: HarnessProps = {}) {
+  const {
+    workItemTreeId = "requirement",
+    listResult,
+    bundle: bundleOverride,
+    onCreateArtifact = vi.fn(),
+  } = harnessProps;
   const toolbarForm = useForm<ToolbarFilterValues>({
     defaultValues: {
       searchInput: "",
@@ -125,9 +149,22 @@ function ToolbarHarness() {
       setFiltersPanelOpen={vi.fn()}
       myTasksMenuAnchor={null}
       setMyTasksMenuAnchor={vi.fn()}
-      filterStates={[]}
-      bundle={{ artifact_types: [{ id: "epic", name: "Epic" }] }}
-      treeRootOptions={[]}
+      stateFilterOptions={[]}
+      bundle={
+        bundleOverride ?? {
+          artifact_types: [
+            { id: "root-requirement", name: "Req root" },
+            { id: "epic", name: "Epic" },
+            { id: "task", name: "Task" },
+          ],
+          defs: [
+            { kind: "ArtifactType", id: "root-requirement", child_types: ["epic"] },
+            { kind: "ArtifactType", id: "epic", child_types: ["task"] },
+          ],
+        }
+      }
+      treeRootOptions={[{ tree_id: "requirement", root_artifact_type: "root-requirement", label: "Req" }]}
+      workItemTreeId={workItemTreeId}
       releaseCadenceOptions={[]}
       cycleNodesFlat={[]}
       areaNodesFlat={[]}
@@ -140,9 +177,9 @@ function ToolbarHarness() {
       isRefetching={false}
       artifacts={[]}
       members={[]}
-      listResult={{ allowed_actions: ["create"] }}
+      listResult={listResult ?? { allowed_actions: ["create"] }}
       listColumns={[]}
-      onCreateArtifact={vi.fn()}
+      onCreateArtifact={onCreateArtifact}
       listStateToFilterParams={() => ({})}
       showNotification={vi.fn()}
       projectTagOptions={[]}
@@ -152,6 +189,10 @@ function ToolbarHarness() {
 }
 
 describe("ArtifactsToolbar", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("keeps only generic import export actions in backlog", () => {
     renderWithQualityI18n(
       <MemoryRouter>
@@ -159,10 +200,11 @@ describe("ArtifactsToolbar", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Artifacts CSV")).toBeInTheDocument();
-    expect(screen.getByText("Artifacts XLSX")).toBeInTheDocument();
-    expect(screen.getByText("Artifact CSV template")).toBeInTheDocument();
-    expect(screen.getByText("Artifact XLSX template")).toBeInTheDocument();
+    // Submenu mocks render duplicate nodes in the flat test DOM; assert presence, not uniqueness.
+    expect(screen.getAllByText("Artifacts CSV").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Artifacts XLSX").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Artifact CSV template").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Artifact XLSX template").length).toBeGreaterThanOrEqual(1);
 
     expect(screen.queryByText("Test cases CSV bundle")).not.toBeInTheDocument();
     expect(screen.queryByText("Test cases XLSX")).not.toBeInTheDocument();
@@ -170,5 +212,84 @@ describe("ArtifactsToolbar", () => {
     expect(screen.queryByText("Test case XLSX template")).not.toBeInTheDocument();
     expect(screen.queryByText("Runs CSV")).not.toBeInTheDocument();
     expect(screen.queryByText("Members")).not.toBeInTheDocument();
+  });
+
+  it("New work item lists only manifest-descendant types for the active tree (no system roots)", () => {
+    renderWithQualityI18n(
+      <MemoryRouter>
+        <ToolbarHarness />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("New work item")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Epic" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Task" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Req root" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Req root/ })).not.toBeInTheDocument();
+  });
+
+  it("hides New work item when no workItemTreeId (all trees / unspecified module)", () => {
+    renderWithQualityI18n(
+      <MemoryRouter>
+        <ToolbarHarness workItemTreeId={null} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText("New work item")).not.toBeInTheDocument();
+  });
+
+  it("renders a single primary button when exactly one creatable type exists", () => {
+    const onCreate = vi.fn();
+    renderWithQualityI18n(
+      <MemoryRouter>
+        <ToolbarHarness
+          onCreateArtifact={onCreate}
+          bundle={{
+            artifact_types: [{ id: "epic", name: "Epic" }],
+            defs: [{ kind: "ArtifactType", id: "root-requirement", child_types: ["epic"] }],
+          }}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("button", { name: /New Epic/i })).toBeInTheDocument();
+    expect(screen.queryByText("New work item")).not.toBeInTheDocument();
+  });
+
+  it("invokes onCreateArtifact when the single-type New button is clicked", async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn();
+    renderWithQualityI18n(
+      <MemoryRouter>
+        <ToolbarHarness
+          onCreateArtifact={onCreate}
+          bundle={{
+            artifact_types: [{ id: "epic", name: "Epic" }],
+            defs: [{ kind: "ArtifactType", id: "root-requirement", child_types: ["epic"] }],
+          }}
+        />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole("button", { name: /New Epic/i }));
+    expect(onCreate).toHaveBeenCalledWith("epic");
+  });
+
+  it("hides create actions when list disallows create and no row implies create", () => {
+    renderWithQualityI18n(
+      <MemoryRouter>
+        <ToolbarHarness listResult={{ allowed_actions: [] }} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText("New work item")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /New Epic/i })).not.toBeInTheDocument();
+  });
+
+  it("invokes onCreateArtifact when choosing a dropdown work item type", async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn();
+    renderWithQualityI18n(
+      <MemoryRouter>
+        <ToolbarHarness onCreateArtifact={onCreate} />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole("button", { name: "Task" }));
+    expect(onCreate).toHaveBeenCalledWith("task");
   });
 });

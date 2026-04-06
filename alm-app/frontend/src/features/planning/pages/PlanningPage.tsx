@@ -1,11 +1,10 @@
-import { useParams, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent, Dialog, DialogContent, DialogTitle, DialogFooter, Skeleton } from "../../../shared/components/ui";
 import { GitBranch, ChevronDown, ChevronRight, Plus, Folder, Pencil, Trash2, List, Package, IterationCw } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { RhfSelect, RhfTextField } from "../../../shared/components/forms";
-import { useOrgProjects } from "../../../shared/api/orgApi";
-import { useProjectStore } from "../../../shared/stores/projectStore";
+import { useOrgProjectFromRoute } from "../../../shared/hooks/useOrgProjectFromRoute";
 import {
   useCadences,
   useAreaNodes,
@@ -299,12 +298,7 @@ function BacklogArtifactRow({
 }
 
 export default function PlanningPage() {
-  const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>();
-  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
-  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
-  const project =
-    projects?.find((p) => p.slug === projectSlug) ??
-    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
+  const { orgSlug, projectSlug, project, projectsLoading } = useOrgProjectFromRoute();
 
   const [activeTab, setActiveTab] = useState<"cycles" | "areas" | "backlog">("cycles");
   const backlogForm = useForm<{ releaseId: string; cycleId: string }>({ defaultValues: { releaseId: "", cycleId: "" } });

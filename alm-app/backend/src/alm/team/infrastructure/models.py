@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import ForeignKey, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from alm.shared.infrastructure.db.base_model import Base, TimestampMixin
@@ -22,6 +22,7 @@ class TeamModel(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     members: Mapped[list[TeamMemberModel]] = relationship(
         "TeamMemberModel",

@@ -44,6 +44,34 @@ class TestMpcResolver:
         assert is_valid_parent_child(SAMPLE_MANIFEST, "feature", "requirement")
         assert not is_valid_parent_child(SAMPLE_MANIFEST, "requirement", "epic")
 
+    def test_is_valid_parent_child_false_when_parent_disallows_create(self):
+        m = {
+            "defs": [
+                {
+                    "kind": "Workflow",
+                    "id": "basic",
+                    "initial": "new",
+                    "states": ["new", "active"],
+                    "transitions": [{"from": "new", "to": "active", "on": "go"}],
+                },
+                {
+                    "kind": "ArtifactType",
+                    "id": "epic",
+                    "workflow_id": "basic",
+                    "allow_create_children": False,
+                    "child_types": ["feature"],
+                },
+                {
+                    "kind": "ArtifactType",
+                    "id": "feature",
+                    "workflow_id": "basic",
+                    "parent_types": ["epic"],
+                    "child_types": [],
+                },
+            ],
+        }
+        assert not is_valid_parent_child(m, "epic", "feature")
+
     def test_check_transition_policies_assignee_required(self):
         ast = get_manifest_ast(uuid.uuid4(), SAMPLE_MANIFEST)
         event = {
@@ -141,9 +169,9 @@ class TestMpcResolver:
                 "name": "Blocks",
                 "direction": "directed",
                 "cardinality": "many-to-many",
-                "from_types": ["task"],
+                "from_types": ["feature"],
                 "to_types": ["requirement"],
-                "description": "Task blocks requirement",
+                "description": "Feature blocks requirement",
             },
         ]
 
@@ -156,6 +184,42 @@ class TestMpcResolver:
             "trigger": "start",
             "trigger_label": "Start",
         }
+
+    def test_manifest_defs_to_flat_preserves_allow_create_children_and_flags(self):
+        flat = manifest_defs_to_flat(
+            {
+                "defs": [
+                    {
+                        "kind": "ArtifactType",
+                        "id": "epic",
+                        "workflow_id": "basic",
+                        "child_types": ["feature"],
+                        "allow_create_children": False,
+                        "flags": {"allow_create_children": False},
+                    },
+                ],
+            }
+        )
+        epic = next(at for at in flat["artifact_types"] if at["id"] == "epic")
+        assert epic["allow_create_children"] is False
+        assert epic["flags"]["allow_create_children"] is False
+
+    def test_manifest_defs_to_flat_preserves_allows_children_false(self):
+        flat = manifest_defs_to_flat(
+            {
+                "defs": [
+                    {
+                        "kind": "ArtifactType",
+                        "id": "folder",
+                        "workflow_id": "basic",
+                        "child_types": ["item"],
+                        "allows_children": False,
+                    },
+                ],
+            }
+        )
+        folder = next(at for at in flat["artifact_types"] if at["id"] == "folder")
+        assert folder["allows_children"] is False
 
     def test_manifest_defs_to_flat_empty_and_flat_format(self):
         assert manifest_defs_to_flat(None) == {"workflows": [], "artifact_types": [], "relationship_types": []}

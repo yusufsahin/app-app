@@ -38,6 +38,21 @@ _QUALITY_CAMPAIGN_WORKFLOW_DEF: dict[str, Any] = {
         {"from": "in_progress", "to": "cancelled", "on": "cancel"},
     ],
 }
+# Catalog groups + campaign collections: Board needs more than root's single "Active" column.
+_QUALITY_FOLDER_WORKFLOW_DEF: dict[str, Any] = {
+    "kind": "Workflow",
+    "id": "quality_folder",
+    "initial": "Active",
+    "states": ["Planning", "Active", "Archived"],
+    "transitions": [
+        {"from": "Planning", "to": "Active", "trigger": "activate", "trigger_label": "Activate"},
+        {"from": "Active", "to": "Planning", "trigger": "to_planning", "trigger_label": "Planning"},
+        {"from": "Active", "to": "Archived", "trigger": "archive", "trigger_label": "Archive"},
+        {"from": "Archived", "to": "Active", "trigger": "restore", "trigger_label": "Restore"},
+        {"from": "Planning", "to": "Archived", "trigger": "archive_from_planning", "trigger_label": "Archive"},
+        {"from": "Archived", "to": "Planning", "trigger": "restore_to_planning", "trigger_label": "Restore to planning"},
+    ],
+}
 _QUALITY_EXTRA_LINK_TYPES: list[dict[str, Any]] = [
     {"kind": "LinkType", "id": "suite_includes_test", "name": "Suite includes test"},
     {"kind": "LinkType", "id": "run_for_suite", "name": "Run for suite"},
@@ -46,6 +61,12 @@ _QUALITY_EXTRA_LINK_TYPES: list[dict[str, Any]] = [
 
 # Stable manifest slug ``testsuites``; UI labels it "Campaign" (see frontend ``manifestTreeRoots``).
 _TESTSUITES_TREE_ROOT: dict[str, str] = {"tree_id": "testsuites", "root_artifact_type": "root-testsuites"}
+
+# Form evaluation uses ``artifact_type`` in values (see form schema builder normalization).
+_TC_FIELD_VW: dict[str, Any] = {"field": "artifact_type", "eq": "test-case"}
+_SUITE_FIELD_VW: dict[str, Any] = {"field": "artifact_type", "eq": "test-suite"}
+_RUN_FIELD_VW: dict[str, Any] = {"field": "artifact_type", "eq": "test-run"}
+_CAMPAIGN_FIELD_VW: dict[str, Any] = {"field": "artifact_type", "eq": "test-campaign"}
 
 
 def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dict[str, Any]]:
@@ -62,7 +83,7 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
             "kind": "ArtifactType",
             "id": "quality-folder",
             "name": "Catalog group",
-            "workflow_id": "root",
+            "workflow_id": "quality_folder",
             "parent_types": ["root-quality", "quality-folder"],
             "child_types": ["quality-folder", "test-case"],
             "fields": [],
@@ -71,7 +92,7 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
             "kind": "ArtifactType",
             "id": "testsuite-folder",
             "name": "Campaign collection",
-            "workflow_id": "root",
+            "workflow_id": "quality_folder",
             "parent_types": ["root-testsuites", "testsuite-folder"],
             "child_types": ["testsuite-folder", "test-suite", "test-run", "test-campaign"],
             "fields": [],
@@ -83,7 +104,14 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
             "workflow_id": test_case_workflow_id,
             "parent_types": ["root-testsuites", "testsuite-folder"],
             "child_types": [],
-            "fields": [{"id": "suite_note", "name": "Notes", "type": "string"}],
+            "fields": [
+                {
+                    "id": "suite_note",
+                    "name": "Notes",
+                    "type": "string",
+                    "visibleWhen": dict(_SUITE_FIELD_VW),
+                }
+            ],
         },
         {
             "kind": "ArtifactType",
@@ -93,8 +121,18 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
             "parent_types": ["root-testsuites", "testsuite-folder"],
             "child_types": [],
             "fields": [
-                {"id": "environment", "name": "Environment", "type": "string"},
-                {"id": "run_metrics_json", "name": "Run metrics (JSON)", "type": "string"},
+                {
+                    "id": "environment",
+                    "name": "Environment",
+                    "type": "string",
+                    "visibleWhen": dict(_RUN_FIELD_VW),
+                },
+                {
+                    "id": "run_metrics_json",
+                    "name": "Run metrics (JSON)",
+                    "type": "string",
+                    "visibleWhen": dict(_RUN_FIELD_VW),
+                },
             ],
         },
         {
@@ -105,8 +143,18 @@ def _quality_domain_extra_artifact_types(test_case_workflow_id: str) -> list[dic
             "parent_types": ["root-testsuites", "testsuite-folder"],
             "child_types": [],
             "fields": [
-                {"id": "target_environment", "name": "Target environment", "type": "string"},
-                {"id": "campaign_config_json", "name": "Suite order config (JSON)", "type": "string"},
+                {
+                    "id": "target_environment",
+                    "name": "Target environment",
+                    "type": "string",
+                    "visibleWhen": dict(_CAMPAIGN_FIELD_VW),
+                },
+                {
+                    "id": "campaign_config_json",
+                    "name": "Suite order config (JSON)",
+                    "type": "string",
+                    "visibleWhen": dict(_CAMPAIGN_FIELD_VW),
+                },
             ],
         },
     ]
@@ -138,6 +186,7 @@ def _inject_quality_domain_defs(defs: list[dict[str, Any]]) -> list[dict[str, An
 
         if kind == "Workflow" and aid == "task_basic":
             out.append(d)
+            out.append(dict(_QUALITY_FOLDER_WORKFLOW_DEF))
             out.append(dict(_QUALITY_RUN_WORKFLOW_DEF))
             out.append(dict(_QUALITY_CAMPAIGN_WORKFLOW_DEF))
             i += 1
@@ -164,6 +213,7 @@ def _inject_quality_domain_defs(defs: list[dict[str, Any]]) -> list[dict[str, An
                         "id": "test_params_json",
                         "name": "Test configurations (JSON)",
                         "type": "string",
+                        "visibleWhen": dict(_TC_FIELD_VW),
                     }
                 )
             if not any(isinstance(f, dict) and f.get("id") == "test_steps_json" for f in fields):
@@ -172,6 +222,7 @@ def _inject_quality_domain_defs(defs: list[dict[str, Any]]) -> list[dict[str, An
                         "id": "test_steps_json",
                         "name": "Test steps (JSON)",
                         "type": "string",
+                        "visibleWhen": dict(_TC_FIELD_VW),
                     }
                 )
             out.append(
@@ -210,6 +261,30 @@ def merge_quality_domain_into_defs(defs: list[Any]) -> list[Any]:
     return _inject_quality_domain_defs(coerced)
 
 
+_FOLDER_TYPES_USE_QUALITY_WF = frozenset({"quality-folder", "testsuite-folder"})
+
+
+def ensure_quality_folder_workflow(defs: list[Any]) -> None:
+    """Mutate defs in place: add ``quality_folder`` workflow and attach folder artifact types.
+
+    Runs even when Quality domain was merged earlier (single-state ``root`` workflow); upgrades
+    catalog groups and campaign collections for Kanban/Board.
+    """
+    if not isinstance(defs, list):
+        return
+    has_folder_wf = any(
+        isinstance(d, dict) and d.get("kind") == "Workflow" and d.get("id") == "quality_folder" for d in defs
+    )
+    if not has_folder_wf:
+        defs.append(dict(_QUALITY_FOLDER_WORKFLOW_DEF))
+    for d in defs:
+        if not isinstance(d, dict) or d.get("kind") != "ArtifactType":
+            continue
+        aid = d.get("id")
+        if aid in _FOLDER_TYPES_USE_QUALITY_WF and d.get("workflow_id") == "root":
+            d["workflow_id"] = "quality_folder"
+
+
 def _merge_test_tree_roots(bundle: dict[str, Any]) -> dict[str, Any]:
     raw_roots = bundle.get("tree_roots")
     roots = [r for r in raw_roots if isinstance(r, dict)] if isinstance(raw_roots, list) else []
@@ -230,5 +305,8 @@ def with_quality_manifest_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     raw_defs = bundle.get("defs")
     if not isinstance(raw_defs, list):
         return _merge_test_tree_roots(bundle)
-    merged = {**bundle, "defs": merge_quality_domain_into_defs(list(raw_defs))}
+    defs_out = merge_quality_domain_into_defs(list(raw_defs))
+    if isinstance(defs_out, list):
+        ensure_quality_folder_workflow(defs_out)
+    merged = {**bundle, "defs": defs_out}
     return _merge_test_tree_roots(merged)

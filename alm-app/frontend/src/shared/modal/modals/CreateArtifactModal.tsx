@@ -24,6 +24,8 @@ export function CreateArtifactModal({
   artifactTypeParentMap,
   formSchemaError,
   formSchema403,
+  formSchemaRefreshing,
+  hideFieldKeys,
   onClose,
 }: Props) {
   const [formValues, setFormValues] = useState(initialFormValues);
@@ -121,6 +123,18 @@ export function CreateArtifactModal({
 
         <hr className="my-4 border-border" />
 
+        {isEditMode ? (
+          <p className="mb-3 text-xs text-muted-foreground">
+            Parent hierarchy is not changed here — use the backlog tree or Move to reparent.
+          </p>
+        ) : null}
+
+        {formSchemaRefreshing ? (
+          <p className="mb-3 text-xs text-muted-foreground" role="status">
+            Updating form…
+          </p>
+        ) : null}
+
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)}>
           <TabsList className="h-10 border-b border-border bg-transparent">
             <TabsTrigger value={DETAILS_TAB}>Details</TabsTrigger>
@@ -145,6 +159,7 @@ export function CreateArtifactModal({
                 artifactTypeParentMap={artifactTypeParentMap}
                 userOptions={userOptions}
                 disableNativeRequired
+                hideFieldKeys={hideFieldKeys}
               />
             </TabsContent>
           )}

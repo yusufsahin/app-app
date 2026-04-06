@@ -19,6 +19,7 @@ class TeamDTO:
     project_id: uuid.UUID
     name: str
     description: str
+    is_default: bool
     created_at: str | None
     updated_at: str | None
     members: list[TeamMemberDTO]

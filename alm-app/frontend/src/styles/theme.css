@@ -43,6 +43,22 @@
   --sidebar-accent-foreground: #0f172a;
   --sidebar-border: #e2e8f0;
   --sidebar-ring: #94a3b8;
+
+  /* Backlog / artifact split: tree = minmax(0,1fr), detail = var(--artifact-detail-track) */
+  --artifact-detail-min: 18rem;
+  /* Detail panel should feel primary when reading; tree stays scannable in the remainder */
+  --artifact-detail-max: 56rem;
+  --artifact-detail-split-preferred: min(52vw, 50rem);
+  --artifact-detail-track: clamp(
+    var(--artifact-detail-min),
+    var(--artifact-detail-split-preferred),
+    var(--artifact-detail-max)
+  );
+  /* Sheet: mostly full-width on small screens, same max cap as split */
+  --artifact-detail-sheet-max-width: min(
+    100dvw - 1.5rem,
+    clamp(var(--artifact-detail-min), 92dvw, var(--artifact-detail-max))
+  );
 }
 
 .dark {

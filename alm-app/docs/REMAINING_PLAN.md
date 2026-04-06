@@ -20,6 +20,7 @@ Bu doküman, mevcut durum özetinden sonra kalan işleri öncelik sırasıyla li
 - ESLint 9 flat config; test: Playwright e2e, Vitest unit (manifestPreviewSchema, workflowManifest, permissions, savedQueryApi, workflowRuleApi, artifactApi, appPaths, planningApi); pytest unit (backend: mpc_resolver, list_schema, form_schema_builder, security _matches_permission)
 - D1: Tasarım + GuardPort/AuthPort + field masking (artifact:read_sensitive, SENSITIVE_CUSTOM_FIELD_KEYS) + transition policy hook; pytest unit (field_masking). **Not:** Field masking’in taşınması veya port refactor’u mimari refactor kapsamı dışındadır (out of scope).
 - **Admin context (G1–G5):** Health (app_version, environment, /health/ready), Access audit (login success/failure, GET /admin/audit/access), Admin kullanıcı oluşturma/liste/soft delete (POST/GET/DELETE /admin/users), Tenant arşivleme (DELETE /tenants/{id}); UI: Members sayfasında admin (include deleted, create user, delete), Access audit sayfası, Settings’te Archive organization
+- **SCM izlenebilirlik (F1 S1–S3):** Artifact SCM links API + Kaynak sekmesi; GitHub/GitLab webhook (imza, ping/PR/push, isteğe bağlı politika, 1 MiB gövde sınırı, provider teslimat idempotency: `X-GitHub-Delivery` / `X-Gitlab-Event-UUID` → `duplicate_delivery`); unmatched kuyruk + triage; proje **Git webhooks** kartı. Ayrıntı: [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md); proje `settings` anahtar tablosu: [manifest-schema.md](./manifest-schema.md) (“Proje settings ve SCM webhook”).
 
 **Referans:** Aşama planının tam listesi için [alm-app.md §12](./alm-app.md#12-asama-plani-phases) kullanılır.
 
@@ -144,12 +145,14 @@ Bu blok [PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md](./PLAN_IMPROVEMENTS_D1_TASK
 
 | # | Başlık | Doküman | Not |
 |---|--------|---------|-----|
-| F1 | SCM traceability (PR/commit, webhook opsiyonel) | [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) | Artifact detay + API; GitHub/GitLab soyutlama |
+| F1 | SCM traceability (PR/commit + webhook) | [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) | **S1–S3 MVP üründe:** manuel/API SCM links, GitHub/GitLab webhook, politikalar, teslimat idempotency, unmatched kuyruk, UI. **S4+:** deploy/CI birleşimi plan içinde |
 | F2 | İleri analitik (capacity, load vs capacity, forecast) | [PLAN_ADVANCED_ANALYTICS.md](./PLAN_ADVANCED_ANALYTICS.md) | P4/P5 üzerine; capacity [PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md](./PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md) §3 ile uyumlu |
+
+**F1 plan notu:** SCM planı Conventional Commits ve GitHub/GitLab referans pratikleriyle hizalanmıştır; veri modelinde `task_id` / `source`, S1+ URL parse, webhook eşleme önceliği, unmatched kuyruk tercihi, teslimat idempotency (`scm_webhook_processed_deliveries`, migration 051) ve genişletilmiş ölçümler [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) içinde tanımlıdır. **S1–S3** teslimatı tamamlandı; **S4** (deploy event’leri vb.) hâlâ ileri faz.
 
 **Gap özeti:** [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) — Traceability ve Planning satırları.
 
-**Çıktı:** İki plandan bağımsız yürütülebilir; önerilen sıra: capacity/load (F2 A1–A2) ile planning güçlendirilir, SCM MVP (F1 S1) paralel veya hemen sonra.
+**Çıktı:** İki plandan bağımsız yürütülebilir; SCM çekirdeği (F1 S1–S3) mevcut. Sonraki ağırlık: F2 (capacity/analitik) veya F1 S4 (deploy ile izlenebilirlik), ürün önceliğine göre.
 
 ---
 

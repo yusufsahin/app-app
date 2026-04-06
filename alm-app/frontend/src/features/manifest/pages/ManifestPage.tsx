@@ -1,10 +1,8 @@
-import { useParams } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent, Badge, Skeleton } from "../../../shared/components/ui";
 import { LayoutGrid, GitBranch, Code, Save, Braces, Shield } from "lucide-react";
 import yaml from "js-yaml";
-import { useOrgProjects } from "../../../shared/api/orgApi";
-import { useProjectStore } from "../../../shared/stores/projectStore";
+import { useOrgProjectFromRoute } from "../../../shared/hooks/useOrgProjectFromRoute";
 import {
   useProjectManifest,
   useUpdateProjectManifest,
@@ -61,15 +59,7 @@ function syncDefsFromArtifactTypes(bundle: Record<string, unknown>): void {
 }
 
 export default function ManifestPage() {
-  const { orgSlug, projectSlug } = useParams<{
-    orgSlug: string;
-    projectSlug: string;
-  }>();
-  const { data: projects, isLoading: projectsLoading } = useOrgProjects(orgSlug);
-  const currentProjectFromStore = useProjectStore((s) => s.currentProject);
-  const project =
-    projects?.find((p) => p.slug === projectSlug) ??
-    (currentProjectFromStore?.slug === projectSlug ? currentProjectFromStore : undefined);
+  const { orgSlug, projectSlug, project, projectsLoading } = useOrgProjectFromRoute();
 
   const {
     data: manifest,

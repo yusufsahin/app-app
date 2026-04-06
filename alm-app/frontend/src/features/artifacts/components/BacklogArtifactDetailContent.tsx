@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { PlayCircle } from "lucide-react";
 import { Badge, Button, Skeleton, Tabs, TabsList, TabsTrigger } from "../../../shared/components/ui";
 import { qualityRunExecutePath } from "../../quality/lib/qualityRunPaths";
@@ -18,9 +19,18 @@ import { ArtifactDetailHeader } from "./ArtifactDetailHeader";
 import { ArtifactDetailImpactAnalysis } from "./ArtifactDetailImpactAnalysis";
 import { ArtifactDetailLinks } from "./ArtifactDetailLinks";
 import { ArtifactDetailTasks } from "./ArtifactDetailTasks";
+import { ArtifactDetailSource } from "./ArtifactDetailSource";
 import type { ArtifactImpactAnalysisResponse } from "../../../shared/api/relationshipApi";
 
-export type BacklogDetailTab = "details" | "tasks" | "links" | "impact" | "attachments" | "comments" | "audit";
+export type BacklogDetailTab =
+  | "details"
+  | "tasks"
+  | "links"
+  | "source"
+  | "impact"
+  | "attachments"
+  | "comments"
+  | "audit";
 
 interface TagOption {
   id: string;
@@ -61,6 +71,11 @@ interface BacklogArtifactDetailContentProps {
   onEditTask: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
   onAddTask: () => void;
+  /** When set (e.g. tree task click), Tasks list scrolls/highlights this task id for the open artifact. */
+  highlightedDetailTaskId?: string | null;
+  /** Persist task order after drag-reorder in the Tasks tab. */
+  onReorderTasksCommitted?: (orderedTaskIds: string[]) => void;
+  taskReorderPending?: boolean;
   artifactLinks: ArtifactRelationship[];
   linksLoading: boolean;
   impactAnalysis: ArtifactImpactAnalysisResponse | undefined;
@@ -72,6 +87,7 @@ interface BacklogArtifactDetailContentProps {
   onImpactToggleRelationshipType: (relationshipType: string, checked: boolean) => void;
   onRefreshImpactAnalysis: () => void;
   commentsCount: number;
+  scmLinksCount: number;
   onOpenLinkedArtifact: (artifactId: string) => void;
   onRemoveLink: (link: ArtifactRelationship) => void;
   onAddLink: () => void;
@@ -120,6 +136,9 @@ export function BacklogArtifactDetailContent({
   onEditTask,
   onDeleteTask,
   onAddTask,
+  highlightedDetailTaskId = null,
+  onReorderTasksCommitted,
+  taskReorderPending = false,
   artifactLinks,
   linksLoading,
   impactAnalysis,
@@ -131,6 +150,7 @@ export function BacklogArtifactDetailContent({
   onImpactToggleRelationshipType,
   onRefreshImpactAnalysis,
   commentsCount,
+  scmLinksCount,
   onOpenLinkedArtifact,
   onRemoveLink,
   onAddLink,
@@ -146,6 +166,8 @@ export function BacklogArtifactDetailContent({
   entityHistoryError,
   entityHistory,
 }: BacklogArtifactDetailContentProps) {
+  const { t } = useTranslation("quality");
+
   return (
     <>
       <ArtifactDetailHeader
@@ -246,25 +268,46 @@ export function BacklogArtifactDetailContent({
                   </div>
                 )}
               <Tabs value={detailTab} onValueChange={(v) => setDetailTab(v as BacklogDetailTab)} className="mb-2 min-h-[40px]">
-                <TabsList className="w-full">
-                  <TabsTrigger value="details">Details</TabsTrigger>
-                  <TabsTrigger value="tasks">Tasks ({tasks.length})</TabsTrigger>
-                  <TabsTrigger value="links">Links ({artifactLinks.length})</TabsTrigger>
-                  <TabsTrigger value="impact">Impact</TabsTrigger>
-                  <TabsTrigger value="attachments">Attachments ({attachments.length})</TabsTrigger>
-                  <TabsTrigger value="comments">Comments ({commentsCount})</TabsTrigger>
-                  <TabsTrigger value="audit">Audit</TabsTrigger>
-                </TabsList>
+                <div className="-mx-1 max-w-full overflow-x-auto px-1 [scrollbar-width:thin]">
+                  <TabsList className="inline-flex h-auto min-w-min w-max max-w-none flex-nowrap justify-start gap-0.5 bg-muted/80 p-1">
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="details">
+                      Details
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="tasks">
+                      Tasks ({tasks.length})
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="links">
+                      Links ({artifactLinks.length})
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="source">
+                      {t("workItemDetail.tabs.source", { count: scmLinksCount })}
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="impact">
+                      Impact
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="attachments">
+                      Attachments ({attachments.length})
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="comments">
+                      Comments ({commentsCount})
+                    </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="audit">
+                      Audit
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
                 <ArtifactDetailDetails artifact={detailArtifact} cadencesFlat={cadencesFlat} areaNodesFlat={areaNodesFlat} />
                 {detailTab === "tasks" && (
                   <ArtifactDetailTasks
                     tasks={tasks}
                     tasksLoading={tasksLoading}
-                    artifactTags={detailArtifact.tags ?? []}
                     members={members}
+                    highlightedTaskId={highlightedDetailTaskId}
                     onEditTask={onEditTask}
                     onDeleteTask={onDeleteTask}
                     onAddTask={onAddTask}
+                    onReorderTasksCommitted={onReorderTasksCommitted}
+                    taskReorderPending={taskReorderPending}
                   />
                 )}
                 {detailTab === "links" && orgSlug && projectSlug && (
@@ -275,6 +318,17 @@ export function BacklogArtifactDetailContent({
                     onOpenArtifact={onOpenLinkedArtifact}
                     onRemoveLink={onRemoveLink}
                     onAddLink={onAddLink}
+                  />
+                )}
+                {detailTab === "source" && (
+                  <ArtifactDetailSource
+                    orgSlug={orgSlug}
+                    projectSlug={projectSlug}
+                    projectId={projectId}
+                    artifactId={detailArtifact.id}
+                    tasks={tasks}
+                    canEdit={canEditArtifact}
+                    taskScopeId={highlightedDetailTaskId}
                   />
                 )}
                 {detailTab === "impact" && (

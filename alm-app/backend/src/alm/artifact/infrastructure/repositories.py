@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alm.artifact.domain.entities import Artifact
@@ -23,6 +23,7 @@ from alm.project_tag.infrastructure.models import ArtifactTagModel
 from alm.shared.application.mediator import buffer_events
 from alm.shared.audit.core import ChangeType
 from alm.shared.audit.interceptor import buffer_audit
+from alm.task.infrastructure.models import TaskModel
 
 
 def _effective_fts_regconfig(explicit: str | None) -> str:
@@ -79,6 +80,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         fts_regconfig: str | None = None,
         tag_id: uuid.UUID | None = None,
         team_id: uuid.UUID | None = None,
+        assignee_id: uuid.UUID | None = None,
+        unassigned_only: bool = False,
     ) -> Any:
         """Apply common filters for list and count."""
         if root_artifact_id is not None:
@@ -98,6 +101,10 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             q = q.where(ArtifactModel.area_node_id == area_node_id)
         if team_id is not None:
             q = q.where(ArtifactModel.team_id == team_id)
+        if unassigned_only:
+            q = q.where(ArtifactModel.assignee_id.is_(None))
+        elif assignee_id is not None:
+            q = q.where(ArtifactModel.assignee_id == assignee_id)
         if search_query and search_query.strip():
             term = search_query.strip()
             cfg = _effective_fts_regconfig(fts_regconfig)
@@ -135,6 +142,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         fts_regconfig: str | None = None,
         tag_id: uuid.UUID | None = None,
         team_id: uuid.UUID | None = None,
+        assignee_id: uuid.UUID | None = None,
+        unassigned_only: bool = False,
     ) -> int:
         q = select(func.count(ArtifactModel.id)).where(
             ArtifactModel.project_id == project_id,
@@ -153,6 +162,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             fts_regconfig=fts_regconfig,
             tag_id=tag_id,
             team_id=team_id,
+            assignee_id=assignee_id,
+            unassigned_only=unassigned_only,
         )
         to_ex = self._root_types_to_exclude(exclude_root_artifact_types, root_type_ids_exclude)
         if to_ex:
@@ -191,6 +202,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         fts_regconfig: str | None = None,
         tag_id: uuid.UUID | None = None,
         team_id: uuid.UUID | None = None,
+        assignee_id: uuid.UUID | None = None,
+        unassigned_only: bool = False,
     ) -> list[Artifact]:
         q = select(ArtifactModel).where(
             ArtifactModel.project_id == project_id,
@@ -209,6 +222,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             fts_regconfig=fts_regconfig,
             tag_id=tag_id,
             team_id=team_id,
+            assignee_id=assignee_id,
+            unassigned_only=unassigned_only,
         )
         to_ex = self._root_types_to_exclude(exclude_root_artifact_types, root_type_ids_exclude)
         if to_ex:
@@ -241,13 +256,13 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         return result.scalar_one() or 0
 
     async def count_tasks_by_project_ids(self, project_ids: list[uuid.UUID]) -> int:
+        """Count Task entity rows (not artifact_type=task; tasks link to artifacts via artifact_id)."""
         if not project_ids:
             return 0
         result = await self._session.execute(
-            select(func.count(ArtifactModel.id)).where(
-                ArtifactModel.project_id.in_(project_ids),
-                ArtifactModel.deleted_at.is_(None),
-                ArtifactModel.artifact_type.in_(["task", "requirement"]),
+            select(func.count(TaskModel.id)).where(
+                TaskModel.project_id.in_(project_ids),
+                TaskModel.deleted_at.is_(None),
             )
         )
         return result.scalar_one() or 0
@@ -295,6 +310,24 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
                 ArtifactModel.project_id == project_id,
                 ArtifactModel.id.in_(artifact_ids),
                 ArtifactModel.deleted_at.is_(None),
+            )
+        )
+        return [self._to_entity(m) for m in result.scalars().all()]
+
+    async def list_by_project_and_artifact_keys(
+        self,
+        project_id: uuid.UUID,
+        keys: tuple[str, ...],
+    ) -> list[Artifact]:
+        uppers = [k.strip().upper() for k in keys if k.strip()]
+        if not uppers:
+            return []
+        conditions = [func.upper(ArtifactModel.artifact_key) == u for u in uppers]
+        result = await self._session.execute(
+            select(ArtifactModel).where(
+                ArtifactModel.project_id == project_id,
+                ArtifactModel.deleted_at.is_(None),
+                or_(*conditions),
             )
         )
         return [self._to_entity(m) for m in result.scalars().all()]
