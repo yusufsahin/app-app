@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from alm.artifact.api.schemas import ArtifactImportResponse, ArtifactImportResponseRow
 from alm.artifact.application.import_export_service import export_artifacts, export_import_template, import_artifacts
 from alm.orgs.api._router_deps import *  # noqa: F403
+from alm.project.api.project_response import project_dto_to_response
 
 router = APIRouter()
 
@@ -144,16 +145,7 @@ async def create_project(
             created_by=user.id,
         )
     )
-    return ProjectResponse(
-        id=dto.id,
-        code=dto.code,
-        name=dto.name,
-        slug=dto.slug,
-        description=dto.description,
-        status=dto.status,
-        settings=dto.settings,
-        metadata=dto.metadata_,
-    )
+    return project_dto_to_response(dto)
 
 
 @router.get("/projects", response_model=list[ProjectResponse])
@@ -163,19 +155,7 @@ async def list_projects(
     mediator: Mediator = Depends(get_mediator),
 ) -> list[ProjectResponse]:
     dtos = await mediator.query(ListProjects(tenant_id=org.tenant_id))
-    return [
-        ProjectResponse(
-            id=d.id,
-            code=d.code,
-            name=d.name,
-            slug=d.slug,
-            description=d.description,
-            status=d.status,
-            settings=d.settings,
-            metadata=d.metadata_,
-        )
-        for d in dtos
-    ]
+    return [project_dto_to_response(d) for d in dtos]
 
 
 @router.get("/projects/{project_id}", response_model=ProjectResponse)
@@ -188,16 +168,7 @@ async def get_project(
     dto = await mediator.query(GetProject(tenant_id=org.tenant_id, project_id=project_id))
     if dto is None:
         raise EntityNotFound("Project", project_id)
-    return ProjectResponse(
-        id=dto.id,
-        code=dto.code,
-        name=dto.name,
-        slug=dto.slug,
-        description=dto.description,
-        status=dto.status,
-        settings=dto.settings,
-        metadata=dto.metadata_,
-    )
+    return project_dto_to_response(dto)
 
 
 @router.patch("/projects/{project_id}", response_model=ProjectResponse)
@@ -218,16 +189,7 @@ async def update_project(
             **data,
         )
     )
-    return ProjectResponse(
-        id=dto.id,
-        code=dto.code,
-        name=dto.name,
-        slug=dto.slug,
-        description=dto.description,
-        status=dto.status,
-        settings=dto.settings,
-        metadata=dto.metadata_,
-    )
+    return project_dto_to_response(dto)
 
 
 @router.get("/projects/{project_id}/members", response_model=list[ProjectMemberResponse])

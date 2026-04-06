@@ -21,7 +21,7 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 | [DEPLOY_EXTERNAL_NGINX.md](./DEPLOY_EXTERNAL_NGINX.md) | Üretim: harici nginx, TLS, demo host | Sunucu deploy, reverse proxy |
 | [REMAINING_PLAN.md](./REMAINING_PLAN.md) | Kalan işler (Faz A–E), önerilen sıra | Cycle planlama, ilerleme takibi |
 | [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) | Mevcut vs hedef gap analizi | Durum özeti, eksik özellik listesi |
-| [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) | Git PR/commit ↔ artifact izlenebilirliği (API, UI, webhook fazları) | SCM gap; DevOps tek cam |
+| [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) | Git PR/commit ↔ artifact izlenebilirliği (S1–S3 üründe; S4+ backlog) | Webhook/policy ayarları için [manifest-schema.md](./manifest-schema.md); DevOps tek cam |
 | [PLAN_ADVANCED_ANALYTICS.md](./PLAN_ADVANCED_ANALYTICS.md) | Capacity, load vs capacity, forecast, okuma modeli | Planning/dashboard derinliği; P4/P5 üzeri |
 | [CONTEXTS_AND_PROGRESSION.md](./CONTEXTS_AND_PROGRESSION.md) | Bounded context’ler, ilerleyiş, roadmap | Domain/context anlayışı, sıradaki adımlar |
 | [MANIFEST_METADATA_MASTER_PLAN.md](../../docs/MANIFEST_METADATA_MASTER_PLAN.md) | Manifest/metadata tam yol haritası (tamamlananlar + kalan + tüm context’ler) | Metadata-driven borç listesi, öncelik, backfill; kök `docs/` ile aynı yerde |

@@ -26,7 +26,6 @@ from alm.project.domain.ports import ProjectRepository
 from alm.project_tag.domain.ports import ProjectTagRepository
 from alm.shared.application.query import Query, QueryHandler
 
-
 logger = structlog.get_logger()
 
 

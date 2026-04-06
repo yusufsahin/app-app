@@ -8,12 +8,12 @@ from fastapi import APIRouter, HTTPException, Query
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 from alm.quality.api.schemas import (
-    RequirementTraceabilityMatrixResponse,
-    RequirementTraceabilityMatrixSummaryResponse,
     RequirementCoverageAnalysisResponse,
     RequirementCoverageLeafResponse,
     RequirementCoverageNodeResponse,
     RequirementCoverageTestRefResponse,
+    RequirementTraceabilityMatrixResponse,
+    RequirementTraceabilityMatrixSummaryResponse,
     TraceabilityMatrixCellResponse,
     TraceabilityMatrixColumnResponse,
     TraceabilityMatrixRowResponse,

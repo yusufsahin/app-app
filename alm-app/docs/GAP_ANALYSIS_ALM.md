@@ -13,7 +13,7 @@ Bu doküman ALM uygulamasının **mevcut durum** ile **hedef** arasındaki boşl
 | **Tenant/Project** | Org, proje, RBAC, project member; Team + TeamMember (CRUD), artifact/task `team_id` + filtre | Project, teams, permissions | D1 tam MPC PolicyEngine/ACLEngine entegrasyonu (kısmen ✓); opsiyonel kapasite/availability modeli |
 | **Task** | Entity, CRUD, Linked Tasks panel; **form/list schema** (sabit schema, P3 ✓) | Sub-tasks, linked tasks | Tamamen manifest’ten task şeması (opsiyonel) |
 | **Planning** | Cycle/area, Planning + Cycle backlog; cycle bazlı **velocity** ve **burndown** (API + grafik); artifact cycle atama | Iteration, area, backlog, forecast | **Capacity** ve ileri tahmin: [PLAN_ADVANCED_ANALYTICS.md](./PLAN_ADVANCED_ANALYTICS.md) |
-| **Traceability** | ArtifactLink, API, Links paneli; LinkType manifest (`link_types`) | ArtifactLink, SCM/PR/commit ile kod izlenebilirliği | Git/CI bağlantısı ve webhook otomasyonu: [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) |
+| **Traceability** | ArtifactLink; **SCM links** (manuel API + GitHub/GitLab webhook, `task_id`, unmatched kuyruk, teslimat idempotency: `X-GitHub-Delivery` / `X-Gitlab-Event-UUID`); Kaynak sekmesi; LinkType manifest (`link_types`) | Deploy/CI olayları ile ortam izlenebilirliği (S4) | S4+ ve derin Git entegrasyonu: [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) |
 | **Board** | Kanban board (state kolonları, sürükle-bırak; type + cycle + area filtresi) | Kanban/Scrum board | — |
 | **Real-time** | WebSocket + Redis PubSub; transition sonrası toast | Live updates, presence | C1/C2 tamamlandı |
 | **Dashboard** | KPI kartları, recent activity | KPI, grafikler, activity feed | D3 temel tamam; derinleştirme: [PLAN_ADVANCED_ANALYTICS.md](./PLAN_ADVANCED_ANALYTICS.md) |

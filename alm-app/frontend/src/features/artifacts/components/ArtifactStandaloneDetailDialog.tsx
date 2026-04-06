@@ -52,6 +52,7 @@ import {
 } from "../../../shared/api/attachmentApi";
 import { useEntityHistory } from "../../../shared/api/auditApi";
 import { useCommentsByArtifact } from "../../../shared/api/commentApi";
+import { useScmLinksByArtifact } from "../../../shared/api/scmLinkApi";
 import { useOrgMembers, useProjectTeams } from "../../../shared/api/orgApi";
 import { modalApi, useModalStore } from "../../../shared/modal";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
@@ -161,6 +162,7 @@ export function ArtifactStandaloneDetailDialog({
   const reorderTasksMutation = useReorderArtifactTasks(orgSlug, projectId);
 
   const { data: comments = [] } = useCommentsByArtifact(orgSlug, projectId, detailArtifact?.id);
+  const { data: scmLinks = [] } = useScmLinksByArtifact(orgSlug, projectId, detailArtifact?.id);
   const { data: artifactLinks = [], isLoading: linksLoading } = useArtifactRelationships(
     orgSlug,
     projectId,
@@ -708,6 +710,7 @@ export function ArtifactStandaloneDetailDialog({
         void refetchImpactAnalysis();
       }}
       commentsCount={comments.length}
+      scmLinksCount={scmLinks.length}
       onOpenLinkedArtifact={openLinkedArtifact}
       onRemoveLink={(link) => {
         modalApi.openConfirm(

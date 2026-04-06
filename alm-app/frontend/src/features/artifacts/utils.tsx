@@ -22,6 +22,7 @@ import type { ListColumnSchema } from "../../shared/types/listSchema";
 import type { ListSchemaDto } from "../../shared/types/listSchema";
 import type { ManifestTreeRoot } from "../../shared/lib/manifestTreeRoots";
 import { formatDateTime as formatDateTimeShared } from "../../shared/utils/formatDateTime";
+import { getValidTransitionsFromBundle, type ManifestBundleForTransitions } from "../../shared/lib/workflowTransitions";
 
 export const formatDateTime = formatDateTimeShared;
 
@@ -425,17 +426,11 @@ export function getValidTransitions(
   artifactType: string,
   currentState: string,
 ): string[] {
-  const bundle = manifest?.manifest_bundle;
-  if (!bundle) return [];
-  const workflows = (bundle.workflows ?? []) as Array<{ id: string; transitions?: Array<{ from: string; to: string }> }>;
-  const artifactTypes = bundle.artifact_types ?? [];
-  const at = artifactTypes.find((a) => a.id === artifactType);
-  if (!at?.workflow_id) return [];
-  const wf = workflows.find((w) => w.id === at.workflow_id);
-  if (!wf?.transitions) return [];
-  return wf.transitions
-    .filter((t) => t.from === currentState)
-    .map((t) => t.to);
+  return getValidTransitionsFromBundle(
+    (manifest?.manifest_bundle as ManifestBundleForTransitions | undefined) ?? null,
+    artifactType,
+    currentState,
+  );
 }
 
 export interface ArtifactNode extends Artifact {

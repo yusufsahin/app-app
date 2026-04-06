@@ -244,6 +244,4 @@ def relationship_type_allowed(
     target_type = (target_artifact_type or "").strip().lower()
     if rel_type.allowed_source_types and source_type not in rel_type.allowed_source_types:
         return False
-    if rel_type.allowed_target_types and target_type not in rel_type.allowed_target_types:
-        return False
-    return True
+    return not (rel_type.allowed_target_types and target_type not in rel_type.allowed_target_types)

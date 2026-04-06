@@ -1,8 +1,10 @@
-import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { Copy, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useDrag, useDrop } from "react-dnd";
 import { Badge, Button, Skeleton, TabsContent, cn } from "../../../shared/components/ui";
 import type { Task } from "../../../shared/api/taskApi";
+import { useNotificationStore } from "../../../shared/stores/notificationStore";
 
 const ARTIFACT_TASK_DND = "artifact-task-detail-row";
 
@@ -49,7 +51,19 @@ function DetailTaskRow({
   orderedRef: React.MutableRefObject<Task[]>;
   onReorderCommitted?: (orderedTaskIds: string[]) => void;
 }) {
+  const { t } = useTranslation("quality");
+  const showNotification = useNotificationStore((s) => s.showNotification);
   const rowRef = useRef<HTMLLIElement | null>(null);
+
+  const copyRefsTrailerLine = useCallback(async () => {
+    const line = `Refs: ${task.id}`;
+    try {
+      await navigator.clipboard.writeText(line);
+      showNotification(t("workItemDetail.tasks.refsLineCopied"), "success");
+    } catch {
+      showNotification(t("workItemDetail.tasks.refsLineCopyFailed"), "error");
+    }
+  }, [task.id, showNotification, t]);
   const gripRef = useRef<HTMLButtonElement | null>(null);
 
   const [, drop] = useDrop({
@@ -151,6 +165,14 @@ function DetailTaskRow({
         </div>
       </div>
       <div className="flex gap-1">
+        <button
+          type="button"
+          className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"
+          aria-label={t("workItemDetail.tasks.copyRefsLineAria")}
+          onClick={() => void copyRefsTrailerLine()}
+        >
+          <Copy className="size-4" />
+        </button>
         <button
           type="button"
           className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted"

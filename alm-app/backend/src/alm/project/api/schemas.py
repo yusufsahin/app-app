@@ -22,6 +22,8 @@ class ProjectResponse(BaseModel):
     status: str | None = None
     settings: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
+    scm_webhook_github_secret_configured: bool = False
+    scm_webhook_gitlab_secret_configured: bool = False
 
 
 class UpdateProjectRequest(BaseModel):

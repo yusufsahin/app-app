@@ -71,7 +71,8 @@ services:
 
   frontend:
     build:
-      context: ../..
+      # Same repo root as backend (parent of `alm-manifest-app`).
+      context: ${ALM_DOCKER_CONTEXT:-../..}
       dockerfile: alm-manifest-app/alm-app/frontend/Dockerfile
     ports:
       - "9001:80"

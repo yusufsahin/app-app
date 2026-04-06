@@ -24,24 +24,16 @@ import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { useCadences, useAreaNodes, cadenceDisplayLabel, areaNodeDisplayLabel } from "../../../shared/api/planningApi";
 import { useArtifacts, useTransitionArtifactById } from "../../../shared/api/artifactApi";
 import { useProjectMembers } from "../../../shared/api/orgApi";
-import type { Artifact } from "../../../shared/stores/artifactStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { useRealtimeStore } from "../../../shared/stores/realtimeStore";
 import { ProjectBreadcrumbs, ProjectNotFoundView } from "../../../shared/components/Layout";
 import { artifactDetailPath, artifactsPath } from "../../../shared/utils/appPaths";
+import { buildWorkflowStateDisplayMap, isBoardSelectableArtifactType, normalizeWorkflowStateKey } from "../../../shared/lib/workflowManifest";
 import {
-  buildWorkflowStateDisplayMap,
-  getMergedWorkflowStatesForAllTypes,
-  getMergedWorkflowStatesForArtifactTypes,
-  getWorkflowStatesForType,
-  isBoardSelectableArtifactType,
-  normalizeWorkflowStateKey,
-  resolveWorkflowStateForArtifactType,
-  type ManifestBundleShape,
-} from "../../../shared/lib/workflowManifest";
-import { getValidTransitions } from "../../artifacts/utils";
-
-type WorkflowState = string;
+  flowBoardStrategy,
+  flowColumnHeadline,
+  type ManifestBundleWithBoard,
+} from "../../../shared/lib/board";
 
 const BOARD_UNASSIGNED_VALUE = "__unassigned__";
 
@@ -65,20 +57,6 @@ function getTypeVariant(type: string): "default" | "secondary" | "destructive" |
   if (t === "defect") return "destructive";
   if (t === "epic") return "secondary";
   return "outline";
-}
-
-function canDropArtifactOnColumn(
-  manifest: Parameters<typeof getValidTransitions>[0],
-  bundle: ManifestBundleShape | null | undefined,
-  artifact: Artifact,
-  targetColumnState: string,
-): boolean {
-  if (!artifact.allowed_actions?.includes("transition")) return false;
-  const newState = resolveWorkflowStateForArtifactType(bundle ?? null, artifact.artifact_type, targetColumnState);
-  if (newState == null) return false;
-  if (normalizeWorkflowStateKey(newState) === normalizeWorkflowStateKey(artifact.state)) return false;
-  const valid = getValidTransitions(manifest, artifact.artifact_type, artifact.state);
-  return valid.includes(newState);
 }
 
 export default function BoardPage() {
@@ -126,23 +104,25 @@ export default function BoardPage() {
     if (!project?.id || manifestLoading || !manifest?.manifest_bundle) return;
     if (boardTypeHydratedForProjectRef.current === project.id) return;
     boardTypeHydratedForProjectRef.current = project.id;
-    const types = (manifest.manifest_bundle as ManifestBundleShape).artifact_types ?? [];
+    const types = (manifest.manifest_bundle as ManifestBundleWithBoard).artifact_types ?? [];
     const selectable = types.filter(isBoardSelectableArtifactType);
     const validIds = new Set(
       selectable.length > 0 ? selectable.map((t) => t.id) : types.map((t) => t.id),
     );
+    const defaultTypeId =
+      selectable.length > 0 ? (selectable[0]?.id ?? "") : types[0]?.id ?? "";
     const storageKey = boardTypeStorageKey(project.id);
     let chosen: string | undefined;
     const stored = localStorage.getItem(storageKey);
-    if (stored !== null && (stored === "" || validIds.has(stored))) {
+    if (stored !== null && stored !== "" && validIds.has(stored)) {
       chosen = stored;
     }
     if (chosen === undefined) {
       const q = searchParams.get("type");
-      if (q !== null && (q === "" || validIds.has(q))) chosen = q;
+      if (q !== null && q !== "" && validIds.has(q)) chosen = q;
     }
-    if (chosen === undefined) {
-      chosen = selectable.length > 0 ? (selectable[0]?.id ?? "") : "";
+    if (chosen === undefined || chosen === "") {
+      chosen = defaultTypeId;
     }
     filterForm.setValue("typeFilter", chosen);
   }, [project?.id, manifestLoading, manifest, searchParams, filterForm]);
@@ -150,8 +130,10 @@ export default function BoardPage() {
   useEffect(() => {
     if (!project?.id) return;
     if (boardTypeHydratedForProjectRef.current !== project.id) return;
+    const t = typeFilter.trim();
+    if (!t) return;
     try {
-      localStorage.setItem(boardTypeStorageKey(project.id), typeFilter);
+      localStorage.setItem(boardTypeStorageKey(project.id), t);
     } catch {
       /* ignore quota / private mode */
     }
@@ -162,11 +144,19 @@ export default function BoardPage() {
   const assigneeIdParam =
     !assigneeUnassigned && assigneeFilter.trim() ? assigneeFilter.trim() : undefined;
 
+  const bundle = manifest?.manifest_bundle as ManifestBundleWithBoard | undefined;
+  const transitionBundle = bundle ?? null;
+  const artifactTypes = useMemo(() => bundle?.artifact_types ?? [], [bundle]);
+  const typeFilterTrimmed = typeFilter.trim();
+  /** Avoid listing all types before manifest hydration picks a concrete board type. */
+  const boardArtifactListEnabled =
+    !manifestLoading && (artifactTypes.length === 0 || typeFilterTrimmed.length > 0);
+
   const { data: artifactsData, isLoading: artifactsLoading } = useArtifacts(
     orgSlug,
     project?.id,
     undefined,
-    typeFilter.trim() ? typeFilter.trim() : undefined,
+    typeFilterTrimmed || undefined,
     "updated_at",
     "asc",
     searchTrimmed || undefined,
@@ -183,20 +173,15 @@ export default function BoardPage() {
     undefined,
     assigneeIdParam,
     assigneeUnassigned,
+    boardArtifactListEnabled,
   );
   const transitionMutation = useTransitionArtifactById(orgSlug, project?.id);
   const showNotification = useNotificationStore((s) => s.showNotification);
   const recentlyUpdatedArtifactIds = useRealtimeStore((s) => s.recentlyUpdatedArtifactIds);
   const presenceByArtifactId = useRealtimeStore((s) => s.presenceByArtifactId);
 
-  const bundle = manifest?.manifest_bundle as ManifestBundleShape | undefined;
-  const artifactTypes = useMemo(() => bundle?.artifact_types ?? [], [bundle]);
   const boardSelectableArtifactTypes = useMemo(
     () => artifactTypes.filter(isBoardSelectableArtifactType),
-    [artifactTypes],
-  );
-  const rootLikeTypeIds = useMemo(
-    () => new Set(artifactTypes.filter((at) => !isBoardSelectableArtifactType(at)).map((at) => at.id)),
     [artifactTypes],
   );
   const stateDisplayMap = useMemo(() => buildWorkflowStateDisplayMap(bundle ?? null), [bundle]);
@@ -205,82 +190,42 @@ export default function BoardPage() {
     for (const at of artifactTypes) m.set(at.id, at.name?.trim() ? at.name : at.id);
     return m;
   }, [artifactTypes]);
-  const baseStates = useMemo(
-    () =>
-      typeFilter
-        ? getWorkflowStatesForType(bundle ?? null, typeFilter)
-        : boardSelectableArtifactTypes.length > 0
-          ? getMergedWorkflowStatesForArtifactTypes(
-              bundle ?? null,
-              boardSelectableArtifactTypes.map((t) => t.id),
-            )
-          : getMergedWorkflowStatesForAllTypes(bundle ?? null),
-    [bundle, typeFilter, boardSelectableArtifactTypes],
-  );
   const allArtifacts = useMemo(() => artifactsData?.items ?? [], [artifactsData?.items]);
   const artifacts = useMemo(() => {
-    let list = allArtifacts;
-    if (!typeFilter && boardSelectableArtifactTypes.length > 0) {
-      list = allArtifacts.filter((a) => !rootLikeTypeIds.has(a.artifact_type));
-    }
-    if (typeFilter) list = list.filter((a) => a.artifact_type === typeFilter);
-    return list;
-  }, [allArtifacts, typeFilter, boardSelectableArtifactTypes, rootLikeTypeIds]);
-  const { columnStates, normToCanonical } = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of baseStates) m.set(normalizeWorkflowStateKey(s), s);
-    const extras: string[] = [];
-    const uniqArtifactStates = [...new Set(artifacts.map((a) => a.state))].sort((a, b) =>
-      String(a).localeCompare(String(b)),
-    );
-    for (const s of uniqArtifactStates) {
-      const k = normalizeWorkflowStateKey(s);
-      if (m.has(k)) continue;
-      m.set(k, s);
-      extras.push(s);
-    }
-    return { columnStates: [...baseStates, ...extras], normToCanonical: m };
-  }, [baseStates, artifacts]);
-  const byState = useMemo(() => {
-    const map = new Map<WorkflowState, Artifact[]>();
-    for (const s of columnStates) map.set(s, []);
-    for (const a of artifacts) {
-      const k = normalizeWorkflowStateKey(a.state);
-      const canon = normToCanonical.get(k) ?? a.state;
-      const list = map.get(canon);
-      if (list) list.push(a);
-      else {
-        const fallback = map.get(a.state);
-        if (fallback) fallback.push(a);
-        else map.set(a.state, [a]);
-      }
-    }
-    const sortArtifacts = (list: Artifact[]) =>
-      [...list].sort((x, y) => {
-        const rx = x.rank_order ?? 0;
-        const ry = y.rank_order ?? 0;
-        if (rx !== ry) return rx - ry;
-        const cx = x.created_at ?? "";
-        const cy = y.created_at ?? "";
-        return cx.localeCompare(cy);
-      });
-    for (const s of columnStates) {
-      const list = map.get(s) ?? [];
-      map.set(s, sortArtifacts(list));
-    }
-    return map;
-  }, [columnStates, artifacts, normToCanonical]);
+    if (!typeFilterTrimmed) return allArtifacts;
+    return allArtifacts.filter((a) => a.artifact_type === typeFilterTrimmed);
+  }, [allArtifacts, typeFilterTrimmed]);
 
-  const columnDropAllowedMap = useMemo(() => {
-    if (!draggingArtifactId) return null;
-    const art = artifacts.find((a) => a.id === draggingArtifactId);
-    if (!art) return null;
-    const m = new Map<string, boolean>();
-    for (const col of columnStates) {
-      m.set(col, canDropArtifactOnColumn(manifest, bundle, art, col));
-    }
-    return m;
-  }, [draggingArtifactId, artifacts, columnStates, manifest, bundle]);
+  const boardSurface = useMemo(() => flowBoardStrategy.getDefaultSurface(bundle ?? null), [bundle]);
+
+  const columnModel = useMemo(
+    () =>
+      flowBoardStrategy.buildColumnModel(
+        bundle ?? null,
+        typeFilterTrimmed,
+        boardSelectableArtifactTypes,
+        artifacts,
+        boardSurface,
+      ),
+    [bundle, typeFilterTrimmed, boardSelectableArtifactTypes, artifacts, boardSurface],
+  );
+
+  const byState = useMemo(
+    () => flowBoardStrategy.groupArtifacts(bundle ?? null, columnModel, artifacts),
+    [bundle, columnModel, artifacts],
+  );
+
+  const columnDropAllowedMap = useMemo(
+    () =>
+      flowBoardStrategy.buildDropAllowedMap(
+        columnModel,
+        bundle ?? null,
+        transitionBundle,
+        draggingArtifactId,
+        artifacts,
+      ),
+    [columnModel, bundle, transitionBundle, draggingArtifactId, artifacts],
+  );
 
   const handleDragStart = useCallback((e: React.DragEvent, artifactId: string, currentState: string) => {
     setDraggingArtifactId(artifactId);
@@ -293,24 +238,27 @@ export default function BoardPage() {
   }, []);
 
   const handleColumnDragOver = useCallback(
-    (e: React.DragEvent, targetColumnState: WorkflowState) => {
+    (e: React.DragEvent, targetColumnKey: string) => {
       e.preventDefault();
       if (!draggingArtifactId) {
         e.dataTransfer.dropEffect = "move";
         return;
       }
       const art = artifacts.find((a) => a.id === draggingArtifactId);
-      if (!art || !canDropArtifactOnColumn(manifest, bundle, art, targetColumnState)) {
+      if (
+        !art ||
+        !flowBoardStrategy.canDropOnColumn(bundle ?? null, transitionBundle, art, targetColumnKey, columnModel)
+      ) {
         e.dataTransfer.dropEffect = "none";
         return;
       }
       e.dataTransfer.dropEffect = "move";
     },
-    [draggingArtifactId, artifacts, manifest, bundle],
+    [draggingArtifactId, artifacts, bundle, transitionBundle, columnModel],
   );
 
   const handleDrop = useCallback(
-    (e: React.DragEvent, targetColumnState: WorkflowState) => {
+    (e: React.DragEvent, targetColumnKey: string) => {
       e.preventDefault();
       setDraggingArtifactId(null);
       if (transitionMutation.isPending) return;
@@ -320,15 +268,13 @@ export default function BoardPage() {
         const { artifactId, currentState } = JSON.parse(raw) as { artifactId: string; currentState: string };
         const art = artifacts.find((x) => x.id === artifactId);
         if (!art) return;
-        if (!canDropArtifactOnColumn(manifest, bundle, art, targetColumnState)) {
+        if (!flowBoardStrategy.canDropOnColumn(bundle ?? null, transitionBundle, art, targetColumnKey, columnModel)) {
           showNotification("That transition is not allowed for this work item.", "error");
           return;
         }
-        const newState = resolveWorkflowStateForArtifactType(
-          bundle ?? null,
-          art.artifact_type,
-          targetColumnState,
-        );
+        const colDef = columnModel.columns.find((c) => c.key === targetColumnKey);
+        if (!colDef) return;
+        const newState = flowBoardStrategy.resolveDropTargetState(bundle ?? null, art.artifact_type, colDef);
         if (newState == null) {
           showNotification("This column does not apply to this work item type.", "error");
           return;
@@ -346,7 +292,7 @@ export default function BoardPage() {
         /* ignore */
       }
     },
-    [transitionMutation, showNotification, bundle, artifacts, manifest],
+    [transitionMutation, showNotification, bundle, transitionBundle, artifacts, columnModel],
   );
 
   const transitionPending = transitionMutation.isPending;
@@ -354,10 +300,8 @@ export default function BoardPage() {
   const boardContextSummary = useMemo(() => {
     const parts: string[] = [];
     parts.push(`${artifacts.length} shown`);
-    if (typeFilter) {
-      parts.push(`Type: ${artifactTypeLabelMap.get(typeFilter) ?? typeFilter}`);
-    } else {
-      parts.push("Type: All");
+    if (typeFilterTrimmed) {
+      parts.push(`Type: ${artifactTypeLabelMap.get(typeFilterTrimmed) ?? typeFilterTrimmed}`);
     }
     if (releaseFilter) {
       const c = releaseCadences.find((x) => x.id === releaseFilter);
@@ -376,7 +320,7 @@ export default function BoardPage() {
     return parts.join(" · ");
   }, [
     artifacts.length,
-    typeFilter,
+    typeFilterTrimmed,
     artifactTypeLabelMap,
     releaseFilter,
     cycleFilter,
@@ -388,8 +332,6 @@ export default function BoardPage() {
     assigneeUnassigned,
     assigneeIdParam,
   ]);
-
-  const showAllTypesBoardHint = typeFilter === "" && boardSelectableArtifactTypes.length > 1;
 
   if (!orgSlug || !projectSlug) {
     return (
@@ -422,7 +364,7 @@ export default function BoardPage() {
             <Button variant="outline" size="sm" asChild>
               <Link
                 to={artifactsPath(orgSlug, projectSlug, {
-                  type: typeFilter || undefined,
+                  type: typeFilterTrimmed || undefined,
                   releaseFilter: releaseFilter || undefined,
                   cycleFilter: cycleFilter || undefined,
                   areaNodeFilter: areaFilter || undefined,
@@ -439,14 +381,10 @@ export default function BoardPage() {
                       name="typeFilter"
                       control={control}
                       label="Artifact type"
-                      placeholder="All"
-                      options={[
-                        { value: "", label: "All" },
-                        ...boardSelectableArtifactTypes.map((at) => ({
-                          value: at.id,
-                          label: at.name ?? at.id,
-                        })),
-                      ]}
+                      options={boardSelectableArtifactTypes.map((at) => ({
+                        value: at.id,
+                        label: at.name ?? at.id,
+                      }))}
                       selectProps={{ size: "sm" }}
                     />
                   </div>
@@ -516,21 +454,11 @@ export default function BoardPage() {
             </FormProvider>
           </div>
 
-          {showAllTypesBoardHint && (
-            <div
-              className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
-              role="status"
-            >
-              Multiple workflows are merged into one board. Choose an artifact type above for a single, clearer
-              workflow.
-            </div>
-          )}
-
           <p className="mb-4 text-sm text-muted-foreground">{boardContextSummary}</p>
 
           {manifestLoading || artifactsLoading ? (
             <Skeleton className="h-[400px] w-full rounded-lg" />
-          ) : columnStates.length === 0 ? (
+          ) : columnModel.columns.length === 0 ? (
             <div className="rounded-lg border border-border bg-card p-6 text-center">
               <p className="text-muted-foreground">
                 No workflow states in manifest. Define workflows with states in Process manifest to use the board.
@@ -546,7 +474,7 @@ export default function BoardPage() {
                   Updating work item state…
                 </p>
               )}
-              {columnStates.length > 1 && (
+              {columnModel.columns.length > 1 && (
                 <p className="mb-2 block w-full min-w-0 text-xs text-muted-foreground">
                   Scroll horizontally to see all columns.
                 </p>
@@ -555,20 +483,18 @@ export default function BoardPage() {
                 className="flex min-h-[400px] gap-2 overflow-x-auto pb-4"
                 aria-label="Kanban board"
               >
-              {columnStates.map((state, colIndex) => {
+              {columnModel.columns.map((col, colIndex) => {
                 const colColor = COLUMN_COLORS[colIndex % COLUMN_COLORS.length];
-                const colArtifacts = byState.get(state) ?? [];
-                const hasStateId = state.trim().length > 0;
-                const columnHeadline = hasStateId ? (stateDisplayMap.get(state) ?? state) : "(No state)";
-                const columnTooltip = hasStateId ? `State id: ${state}` : "Empty state id";
-                const colKey = state.length ? state : "__no_state__";
-                const dropAllowed = columnDropAllowedMap?.get(state);
+                const colArtifacts = byState.get(col.key) ?? [];
+                const { headline: columnHeadline, tooltip: columnTooltip } = flowColumnHeadline(col, stateDisplayMap);
+                const colKey = col.key.length ? col.key : "__no_state__";
+                const dropAllowed = columnDropAllowedMap?.get(col.key);
                 const columnDimmed = draggingArtifactId != null && dropAllowed === false;
                 return (
                   <div
                     key={colKey}
-                    onDragOver={(e) => handleColumnDragOver(e, state)}
-                    onDrop={(e) => handleDrop(e, state)}
+                    onDragOver={(e) => handleColumnDragOver(e, col.key)}
+                    onDrop={(e) => handleDrop(e, col.key)}
                     className={cn(
                       "flex min-h-[500px] min-w-[300px] max-w-[300px] shrink-0 flex-col rounded-xl border border-border bg-muted/30 p-4 transition-colors hover:bg-muted/50",
                       columnDimmed && "opacity-45",

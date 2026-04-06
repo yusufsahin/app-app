@@ -15,10 +15,10 @@ from alm.artifact.domain.mpc_resolver import (
 from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
 from alm.process_template.domain.ports import ProcessTemplateRepository
-from alm.project.domain.entities import Project
 from alm.project.application.services.effective_process_template_version import (
     effective_process_template_version,
 )
+from alm.project.domain.entities import Project
 
 _KEY_SUFFIX_MAP: dict[str, str] = {
     "root-requirement": "R0",

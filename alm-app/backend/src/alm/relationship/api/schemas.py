@@ -88,7 +88,7 @@ class ArtifactImpactAnalysisNodeResponse(BaseModel):
     depth: int
     has_more: bool = False
     hierarchy_path: list[ImpactHierarchyRefResponse] = Field(default_factory=list)
-    children: list["ArtifactImpactAnalysisNodeResponse"] = Field(default_factory=list)
+    children: list[ArtifactImpactAnalysisNodeResponse] = Field(default_factory=list)
 
 
 class ArtifactImpactAnalysisResponse(BaseModel):

@@ -14,11 +14,20 @@ from alm.shared.infrastructure.security.jwt import InvalidTokenError, decode_tok
 API_PREFIX = "/api/v1"
 
 
+def is_scm_provider_webhook_path(path: str) -> bool:
+    """GitHub/GitLab project webhooks are unauthenticated; do not count toward tenant JWT rate limits."""
+    p = path.rstrip("/") or path
+    return p.endswith("/webhooks/github") or p.endswith("/webhooks/gitlab")
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Apply sliding-window rate limit per tenant for /api/v1 requests. No limit when tenant cannot be determined."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if not request.url.path.startswith(API_PREFIX):
+            return await call_next(request)
+
+        if is_scm_provider_webhook_path(request.url.path):
             return await call_next(request)
 
         tenant_id: uuid.UUID | None = None

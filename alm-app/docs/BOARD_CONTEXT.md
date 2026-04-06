@@ -1,6 +1,8 @@
-# Board Context — Kanban/Scrum Taslağı
+# Board Context — Kanban / flow
 
-Board context şu an ALM’de yok; bu doküman ileride eklenebilecek **Kanban/Scrum board** kapsamını özetler. Güncel iş listesi için [REMAINING_PLAN.md](./REMAINING_PLAN.md) ve [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) kullanılır.
+Proje **Board** sayfası Kanban tarzı akış panosudur. Güncel iş listesi için [REMAINING_PLAN.md](./REMAINING_PLAN.md) ve [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) kullanılır.
+
+**Motor (frontend):** Saf mantık [`frontend/src/shared/lib/board/`](../frontend/src/shared/lib/board/) altında — `buildFlowBoardColumnModel`, `groupArtifactsByFlowColumns`, `canDropOnFlowColumn`, `flowBoardStrategy`. Geçiş kuralları `getValidTransitionsFromBundle` ile manifest `transitions` üzerinden okunur.
 
 ---
 
@@ -20,9 +22,9 @@ Veri kaynağı: Mevcut **artifact** entity + **workflow** (manifest’ten); tran
 | Artifact listesi (proje + isteğe bağlı filtre) | `GET /orgs/.../projects/.../artifacts` (state, type, cycle_id, area_node_id, release_id, q, assignee_id, unassigned_only) |
 | State’e göre geçiş | `POST .../artifacts/{id}/transition` (to_state) |
 | Workflow state listesi | Manifest’ten (artifact_type → workflow_id → states) |
-| Kolon = state | Manifest’teki workflow states ile eşleşir |
+| Kolon = state (veya kategori) | Varsayılan: workflow `states` sırası; isteğe bağlı `board.surfaces.default` ile özelleştirme ([manifest-schema.md](./manifest-schema.md) **Board** bölümü) |
 
-Yeni endpoint gerekmez; board UI mevcut list + transition API’yi kullanabilir. İsteğe bağlı: board için hafif bir “artifacts by state” aggregate endpoint (performans için).
+Yeni endpoint gerekmez; board UI mevcut list + transition API’yi kullanır. İsteğe bağlı: board için hafif bir “artifacts by state” aggregate endpoint (performans için). Manifest kaydında `board` alanı `validate_manifest_board_section` ile doğrulanır.
 
 ---
 
@@ -30,14 +32,12 @@ Yeni endpoint gerekmez; board UI mevcut list + transition API’yi kullanabilir.
 
 - **Veri:** Board, aynı artifact list endpoint’ini kullanır; kartlar listedeki öğelerdir.
 - **Görünen adlar:** Kolon başlıkları manifest workflow `states` içindeki `name` alanından (yoksa state `id`); kart rozetinde artifact type `name` (yoksa `id`). Tooltip’lerde ham id gösterilir.
-- **Varsayılan artifact type:** Proje başına `localStorage` (`alm.board.typeFilter.<projectId>`); yoksa URL `?type=`; yoksa tahta için seçilebilir tiplerden ilki; seçilebilir tip yoksa boş (All). Seçicide listelenen tipler dışında kalan (ör. `root-*` veya `is_system_root`) kayıtlı/URL değerleri geçersiz sayılır ve yukarıdaki sırayla yeniden seçilir. Kullanıcı tip değiştirince tercih kaydedilir.
-- **Sistem kökleri:** Board’daki artifact type seçici, `root-` ile başlayan ve `is_system_root: true` olan manifest tiplerini göstermez. **All** görünümünde kartlar bu kök tiplerden filtrelenir; birleşik kolonlar da yalnızca seçilebilir tiplerin bağlı workflow’larından türetilir. Projede yalnızca kök tipler varsa seçici gizlenir ve liste/kolon davranışı filtre uygulanmadan tüm tiplere göre kalır.
-- **Çoklu tip (All):** Birden fazla board-seçilebilir tip varken All seçiliyse kısa bilgi bandı gösterilir (birleşik workflow uyarısı).
+- **Varsayılan artifact type:** Her zaman geçerli bir tip seçilidir; **All / boş seçenek yok.** Sıra: proje başına `localStorage` (`alm.board.typeFilter.<projectId>`, boş değer yok sayılır); yoksa URL `?type=` (boş yok sayılır); yoksa tahta için seçilebilir tiplerden ilki; seçilebilir tip yoksa manifest’teki **ilk** artifact type. Seçicide listelenen tipler dışında kalan (ör. `root-*` veya `is_system_root`) kayıtlı/URL değerleri geçersiz sayılır ve yukarıdaki sırayla yeniden seçilir. Kullanıcı tip değiştirince dolu tercih kaydedilir.
+- **Sistem kökleri:** Board’daki artifact type seçici, `root-` ile başlayan ve `is_system_root: true` olan manifest tiplerini göstermez. Projede yalnızca bu kök tipler varsa seçici gizlenir; varsayılan tip manifest’teki ilk tip olur ve liste API’si o tipe göre filtrelenir.
 - **Sürükle-bırak:** Yalnızca `allowed_actions` içinde `transition` olan kartlar sürüklenir. Hedef kolon, manifest’teki **geçerli geçişler** (`transitions`) ile uyumlu değilse bırakma reddedilir ve kolon sürükleme sırasında soluk gösterilir.
-- **Artifact type = All:** Kolonlar, **board’da seçilebilir** artifact type’ların bağlı olduğu workflow’ların state’lerinin **birleştirilmiş** sırasıdır (sistem kök tiplerinin workflow’ları bu birleşime dahil edilmez). Workflow’lar manifest dizisi sırasına göre taranır; aynı state id tekrarlanmaz; yalnızca harf büyüklüğü farkı olan state’ler tek kolonda birleştirilebilir. Yalnızca kök tipler kaldığında birleşim, önceki gibi tüm tipler üzerinden yapılır.
-- **Belirli bir type:** Kolonlar, o type’ın workflow’undaki state sırasıdır.
+- **Kolonlar:** Varsayılan olarak seçili artifact type’ın workflow’undaki state sırasıdır; `board.surfaces.default.column_source: state_category` ise kolonlar state `category` değerleridir. `hide_state_ids` ve `column_order_override` manifest’ten uygulanır. Manifest henüz yüklenmeden veya tip alanı geçici boşken (edge) kolonlar, seçilebilir tiplerin workflow birleşimine veya tüm tiplere göre yedeklenebilir.
 - **Manifest dışı state:** Listede görünen bir artifact’ın `state` değeri bu kolon listesinde yoksa, o state için ek kolon(lar) açılır; sıra, manifest kolonlarının ardından **alfabetik** (ek state’ler arasında).
-- **Filtreler:** Arama (`q`), atanan kişi (`assignee_id` veya `unassigned_only`), release/cycle/area ve type (type filtresi istemci tarafında listeden daraltma) board’da kullanılabilir. Özet satırında seçili bağlam (tip, filtreler, gösterilen adet) gösterilir.
+- **Filtreler:** Arama (`q`), atanan kişi (`assignee_id` veya `unassigned_only`), release/cycle/area ve artifact type (API’ye `artifact_type` filtresi; manifest hydrate olana kadar liste isteği bekletilir) board’da kullanılabilir. Özet satırında seçili bağlam (tip, filtreler, gösterilen adet) gösterilir.
 
 ---
 
@@ -61,6 +61,6 @@ Yeni endpoint gerekmez; board UI mevcut list + transition API’yi kullanabilir.
 
 - [REMAINING_PLAN.md](./REMAINING_PLAN.md) — Sonraki adımlar: Board context
 - [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) — Board: “Tüm Board context” gap
-- [manifest-schema.md](./manifest-schema.md) — Workflow, artifact_types
+- [manifest-schema.md](./manifest-schema.md) — Workflow, artifact_types, **Board**
 
 — ↑ [Dokümanlar](README.md)

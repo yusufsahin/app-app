@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alm.artifact.domain.entities import Artifact
@@ -20,10 +20,10 @@ import contextlib
 
 from alm.artifact.infrastructure.models import ArtifactModel
 from alm.project_tag.infrastructure.models import ArtifactTagModel
-from alm.task.infrastructure.models import TaskModel
 from alm.shared.application.mediator import buffer_events
 from alm.shared.audit.core import ChangeType
 from alm.shared.audit.interceptor import buffer_audit
+from alm.task.infrastructure.models import TaskModel
 
 
 def _effective_fts_regconfig(explicit: str | None) -> str:
@@ -310,6 +310,24 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
                 ArtifactModel.project_id == project_id,
                 ArtifactModel.id.in_(artifact_ids),
                 ArtifactModel.deleted_at.is_(None),
+            )
+        )
+        return [self._to_entity(m) for m in result.scalars().all()]
+
+    async def list_by_project_and_artifact_keys(
+        self,
+        project_id: uuid.UUID,
+        keys: tuple[str, ...],
+    ) -> list[Artifact]:
+        uppers = [k.strip().upper() for k in keys if k.strip()]
+        if not uppers:
+            return []
+        conditions = [func.upper(ArtifactModel.artifact_key) == u for u in uppers]
+        result = await self._session.execute(
+            select(ArtifactModel).where(
+                ArtifactModel.project_id == project_id,
+                ArtifactModel.deleted_at.is_(None),
+                or_(*conditions),
             )
         )
         return [self._to_entity(m) for m in result.scalars().all()]

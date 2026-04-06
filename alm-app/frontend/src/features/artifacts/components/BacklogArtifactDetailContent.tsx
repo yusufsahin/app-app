@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { PlayCircle } from "lucide-react";
 import { Badge, Button, Skeleton, Tabs, TabsList, TabsTrigger } from "../../../shared/components/ui";
 import { qualityRunExecutePath } from "../../quality/lib/qualityRunPaths";
@@ -18,9 +19,18 @@ import { ArtifactDetailHeader } from "./ArtifactDetailHeader";
 import { ArtifactDetailImpactAnalysis } from "./ArtifactDetailImpactAnalysis";
 import { ArtifactDetailLinks } from "./ArtifactDetailLinks";
 import { ArtifactDetailTasks } from "./ArtifactDetailTasks";
+import { ArtifactDetailSource } from "./ArtifactDetailSource";
 import type { ArtifactImpactAnalysisResponse } from "../../../shared/api/relationshipApi";
 
-export type BacklogDetailTab = "details" | "tasks" | "links" | "impact" | "attachments" | "comments" | "audit";
+export type BacklogDetailTab =
+  | "details"
+  | "tasks"
+  | "links"
+  | "source"
+  | "impact"
+  | "attachments"
+  | "comments"
+  | "audit";
 
 interface TagOption {
   id: string;
@@ -77,6 +87,7 @@ interface BacklogArtifactDetailContentProps {
   onImpactToggleRelationshipType: (relationshipType: string, checked: boolean) => void;
   onRefreshImpactAnalysis: () => void;
   commentsCount: number;
+  scmLinksCount: number;
   onOpenLinkedArtifact: (artifactId: string) => void;
   onRemoveLink: (link: ArtifactRelationship) => void;
   onAddLink: () => void;
@@ -139,6 +150,7 @@ export function BacklogArtifactDetailContent({
   onImpactToggleRelationshipType,
   onRefreshImpactAnalysis,
   commentsCount,
+  scmLinksCount,
   onOpenLinkedArtifact,
   onRemoveLink,
   onAddLink,
@@ -154,6 +166,8 @@ export function BacklogArtifactDetailContent({
   entityHistoryError,
   entityHistory,
 }: BacklogArtifactDetailContentProps) {
+  const { t } = useTranslation("quality");
+
   return (
     <>
       <ArtifactDetailHeader
@@ -265,6 +279,9 @@ export function BacklogArtifactDetailContent({
                     <TabsTrigger className="shrink-0 flex-none px-2.5" value="links">
                       Links ({artifactLinks.length})
                     </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="source">
+                      {t("workItemDetail.tabs.source", { count: scmLinksCount })}
+                    </TabsTrigger>
                     <TabsTrigger className="shrink-0 flex-none px-2.5" value="impact">
                       Impact
                     </TabsTrigger>
@@ -301,6 +318,17 @@ export function BacklogArtifactDetailContent({
                     onOpenArtifact={onOpenLinkedArtifact}
                     onRemoveLink={onRemoveLink}
                     onAddLink={onAddLink}
+                  />
+                )}
+                {detailTab === "source" && (
+                  <ArtifactDetailSource
+                    orgSlug={orgSlug}
+                    projectSlug={projectSlug}
+                    projectId={projectId}
+                    artifactId={detailArtifact.id}
+                    tasks={tasks}
+                    canEdit={canEditArtifact}
+                    taskScopeId={highlightedDetailTaskId}
                   />
                 )}
                 {detailTab === "impact" && (

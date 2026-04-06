@@ -28,6 +28,7 @@ import { useProjectStore } from "../../../shared/stores/projectStore";
 import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { modalApi } from "../../../shared/modal";
 import { motion } from "motion/react";
+import { ProjectScmWebhooksCard } from "../components/ProjectScmWebhooksCard";
 
 type SettingsFormValues = {
   name: string;
@@ -295,6 +296,12 @@ export default function ProjectDetailPage() {
               </Card>
             </div>
           </div>
+
+          {orgSlug ? (
+            <div className="mt-6">
+              <ProjectScmWebhooksCard orgSlug={orgSlug} project={project} updateProject={updateProject} />
+            </div>
+          ) : null}
         </div>
       ) : (
         <p className="text-muted-foreground">No project selected.</p>

@@ -43,6 +43,14 @@ def register_query_handler(
     _query_factories[query_type] = factory
 
 
+def command_handler_is_registered(command_type: type[Command]) -> bool:
+    return command_type in _command_factories
+
+
+def query_handler_is_registered(query_type: type[Query]) -> bool:
+    return query_type in _query_factories
+
+
 def buffer_event(session: AsyncSession, event: DomainEvent) -> None:
     """Append a domain event to the session-scoped buffer.
     Called by repositories after add/update to collect aggregate events."""

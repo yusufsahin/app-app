@@ -106,6 +106,7 @@ import { useNotificationStore } from "../../../shared/stores/notificationStore";
 import { useAuthStore } from "../../../shared/stores/authStore";
 import { hasPermission } from "../../../shared/utils/permissions";
 import { useCommentsByArtifact } from "../../../shared/api/commentApi";
+import { useScmLinksByArtifact } from "../../../shared/api/scmLinkApi";
 import { useArtifactStore } from "../../../shared/stores/artifactStore";
 import { useRealtimeStore } from "../../../shared/stores/realtimeStore";
 import {
@@ -625,6 +626,8 @@ export default function BacklogWorkspacePage({
   );
 
   const { data: comments = [] } = useCommentsByArtifact(orgSlug, project?.id, detailArtifact?.id);
+
+  const { data: scmLinks = [] } = useScmLinksByArtifact(orgSlug, project?.id, detailArtifact?.id);
 
   const { data: artifactLinks = [], isLoading: linksLoading } = useArtifactRelationships(
     orgSlug,
@@ -1909,6 +1912,7 @@ export default function BacklogWorkspacePage({
         void refetchImpactAnalysis();
       }}
       commentsCount={comments.length}
+      scmLinksCount={scmLinks.length}
       onOpenLinkedArtifact={openArtifactDetail}
       onRemoveLink={(link) => {
         modalApi.openConfirm(

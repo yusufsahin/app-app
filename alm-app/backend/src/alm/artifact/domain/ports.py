@@ -140,6 +140,14 @@ class ArtifactRepository(ABC):
     ) -> list[Artifact]:
         """Non-deleted artifacts in the project whose id is in the list (any type)."""
 
+    @abstractmethod
+    async def list_by_project_and_artifact_keys(
+        self,
+        project_id: uuid.UUID,
+        keys: tuple[str, ...],
+    ) -> list[Artifact]:
+        """Artifacts in project whose artifact_key matches any hint (case-insensitive). Empty hints ignored."""
+
 
 class IArtifactTransitionMetrics(ABC):
     """Port for recording artifact transition metrics (observability). Implemented in infrastructure."""

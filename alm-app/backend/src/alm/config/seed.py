@@ -14,7 +14,6 @@ from alm.artifact.domain.entities import Artifact as ArtifactEntity
 from alm.artifact.domain.manifest_merge_defaults import merge_manifest_metadata_defaults
 from alm.artifact.domain.manifest_workflow_metadata import DEFAULT_SYSTEM_ROOT_TYPES
 from alm.artifact.domain.mpc_resolver import get_manifest_ast
-from alm.artifact.domain.ports import ArtifactRepository
 from alm.artifact.domain.quality_manifest_extension import with_quality_manifest_bundle
 from alm.artifact.domain.workflow_sm import get_initial_state as workflow_get_initial_state
 from alm.artifact.infrastructure.models import ArtifactModel
@@ -1874,7 +1873,7 @@ async def seed_process_templates(
         ProcessTemplateVersionModel,
     )
 
-    _BUILTIN_TEMPLATES = [
+    builtin_templates = [
         (
             "basic",
             "Basic",
@@ -1928,7 +1927,7 @@ async def seed_process_templates(
     try:
         async with session_factory() as session:
             created: list[str] = []
-            for slug, name, ttype, description, manifest_bundle in _BUILTIN_TEMPLATES:
+            for slug, name, ttype, description, manifest_bundle in builtin_templates:
                 existing = await session.scalar(
                     select(ProcessTemplateModel).where(ProcessTemplateModel.slug == slug).limit(1)
                 )
@@ -1973,7 +1972,6 @@ async def backfill_projects_missing_process_template(
         if default_ver is None or not (default_ver.manifest_bundle or {}):
             return
 
-        manifest_bundle = default_ver.manifest_bundle or {}
         project_repo = SqlAlchemyProjectRepository(session)
         artifact_repo = SqlAlchemyArtifactRepository(session)
 
@@ -2496,7 +2494,6 @@ async def seed_demo_data(
                 demo_feature: ArtifactEntity | None = None
 
                 root_children = _root_requirement_child_type_ids(mb)
-                issues_under_root = root_children == ["workitem"]
                 workitem_under_epic = _epic_child_type_ids(mb) == ["workitem"]
                 backlog_leaf_type = _demo_planning_leaf_type(mb)
                 st_leaf = workflow_get_initial_state(mb, backlog_leaf_type, ast=ast_seed) or "new"
@@ -2549,10 +2546,9 @@ async def seed_demo_data(
                         await artifact_repo.add(demo_feature_o11y)
 
                 if backlog_leaf_type == "workitem":
-                    if workitem_under_epic and demo_epic is not None:
-                        req_parent_id = demo_epic.id
-                    else:
-                        req_parent_id = root_req_id
+                    req_parent_id = (
+                        demo_epic.id if workitem_under_epic and demo_epic is not None else root_req_id
+                    )
                 elif backlog_leaf_type == "feature":
                     req_parent_id = demo_epic.id if demo_epic is not None else root_req_id
                 else:
