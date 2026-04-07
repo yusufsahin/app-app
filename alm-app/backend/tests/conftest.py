@@ -203,6 +203,8 @@ _ASYNC_SESSION_FACTORY_PATCH_TARGETS: tuple[str, ...] = (
     "alm.workflow_rule.infrastructure.workflow_rule_runner.async_session_factory",
     "alm.realtime.event_handlers.async_session_factory",
     "alm.admin.infrastructure.access_audit_store.async_session_factory",
+    # Event handlers that open their own DB sessions must also be patched.
+    "alm.artifact.application.stale_traceability_side_effects.async_session_factory",
     # Routes that bind async_session_factory at import time must be patched too if any test
     # imports them before the client fixture applies the test DB factory.
     "alm.orgs.api.routes_deploy_webhook.async_session_factory",
