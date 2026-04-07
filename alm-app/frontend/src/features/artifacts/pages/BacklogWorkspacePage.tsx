@@ -52,6 +52,7 @@ import {
   useBatchTransitionArtifacts,
   useBatchDeleteArtifacts,
   useRestoreArtifact,
+  useUpdateArtifact,
   type Artifact,
   type PermittedTransitionsResponse,
   type TransitionArtifactRequest,
@@ -334,6 +335,7 @@ export default function BacklogWorkspacePage({
     pageSize,
     viewMode,
     showDeleted,
+    staleTraceabilityOnly,
     selectedIds: selectedIdsList,
     detailArtifactId,
     createOpen: _createOpen,
@@ -439,6 +441,7 @@ export default function BacklogWorkspacePage({
     tagFilter,
     searchQuery,
     underFolderIdFromUrl,
+    staleTraceabilityOnly,
     setListState,
   ]);
   const { data: cadencesFlat = [] } = useCadences(orgSlug, project?.id, true);
@@ -463,6 +466,7 @@ export default function BacklogWorkspacePage({
     sortBy,
     sortOrder,
     showDeleted,
+    staleTraceabilityOnly,
     stateFilter,
     typeFilter,
     treeFilter,
@@ -518,6 +522,11 @@ export default function BacklogWorkspacePage({
     false,
     underFolderIdFromUrl,
     tagFilter || undefined,
+    undefined,
+    undefined,
+    undefined,
+    true,
+    staleTraceabilityOnly,
   );
   const artifacts = useMemo(() => listResult?.items ?? [], [listResult?.items]);
   const totalArtifacts = listResult?.total ?? 0;
@@ -619,6 +628,7 @@ export default function BacklogWorkspacePage({
   const updateTaskMutation = useUpdateTask(orgSlug, project?.id);
   const deleteTaskMutation = useDeleteTask(orgSlug, project?.id);
   const reorderTasksMutation = useReorderArtifactTasks(orgSlug, project?.id);
+  const clearStaleMutation = useUpdateArtifact(orgSlug, project?.id, detailArtifact?.id);
 
   const { data: myTasks = [], isLoading: myTasksLoading } = useMyTasksInProject(
     orgSlug,
@@ -793,6 +803,18 @@ export default function BacklogWorkspacePage({
     },
     [reorderTasksMutation, showNotification],
   );
+  const handleClearStaleTraceability = useCallback(() => {
+    clearStaleMutation.mutate(
+      { clear_stale_traceability: true },
+      {
+        onSuccess: () => showNotification(t("staleTraceability.clearedNotify"), "success"),
+        onError: (err: Error) => {
+          const problem = err as unknown as ProblemDetail & { detail?: string };
+          showNotification(problem?.detail ?? t("staleTraceability.clearFailed"), "error");
+        },
+      },
+    );
+  }, [clearStaleMutation, showNotification, t]);
   const recentlyUpdatedArtifactIds = useRealtimeStore((s) => s.recentlyUpdatedArtifactIds);
   const presenceByArtifactId = useRealtimeStore((s) => s.presenceByArtifactId);
 
@@ -2021,6 +2043,8 @@ export default function BacklogWorkspacePage({
           showNotification(t("backlogAttachments.captureFailed"), "error");
         }
       }}
+      onClearStaleTraceability={handleClearStaleTraceability}
+      clearStaleTraceabilityPending={clearStaleMutation.isPending}
       entityHistoryLoading={entityHistoryLoading}
       entityHistoryError={entityHistoryError}
       entityHistory={entityHistory}

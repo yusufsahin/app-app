@@ -25,6 +25,10 @@ export interface Artifact {
   area_path_snapshot?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  /** Linked tests may be marked stale when upstream planning items change (S4b). */
+  stale_traceability?: boolean;
+  stale_traceability_reason?: string | null;
+  stale_traceability_at?: string | null;
   /** Project work-item tags (ADO-style). */
   tags?: ArtifactTagBrief[];
   /** Permission-aware UI: actions the current user can perform (e.g. read, update, delete, transition). */
@@ -61,6 +65,8 @@ export interface ArtifactListState {
   pageSize: number;
   viewMode: ArtifactViewMode;
   showDeleted: boolean;
+  /** S4b: list only artifacts with stale traceability flag. */
+  staleTraceabilityOnly: boolean;
   selectedIds: string[];
   detailArtifactId: string | null;
   createOpen: boolean;
@@ -110,6 +116,7 @@ const defaultListState: ArtifactListState = {
   pageSize: 20,
   viewMode: "table",
   showDeleted: false,
+  staleTraceabilityOnly: false,
   selectedIds: [],
   detailArtifactId: null,
   createOpen: false,

@@ -82,6 +82,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         team_id: uuid.UUID | None = None,
         assignee_id: uuid.UUID | None = None,
         unassigned_only: bool = False,
+        stale_traceability_only: bool = False,
     ) -> Any:
         """Apply common filters for list and count."""
         if root_artifact_id is not None:
@@ -123,6 +124,8 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
                 )
             )
             q = q.where(tag_exists.exists())
+        if stale_traceability_only:
+            q = q.where(ArtifactModel.stale_traceability.is_(True))
         return q
 
     async def count_by_project(
@@ -144,6 +147,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         team_id: uuid.UUID | None = None,
         assignee_id: uuid.UUID | None = None,
         unassigned_only: bool = False,
+        stale_traceability_only: bool = False,
     ) -> int:
         q = select(func.count(ArtifactModel.id)).where(
             ArtifactModel.project_id == project_id,
@@ -164,6 +168,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             team_id=team_id,
             assignee_id=assignee_id,
             unassigned_only=unassigned_only,
+            stale_traceability_only=stale_traceability_only,
         )
         to_ex = self._root_types_to_exclude(exclude_root_artifact_types, root_type_ids_exclude)
         if to_ex:
@@ -204,6 +209,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
         team_id: uuid.UUID | None = None,
         assignee_id: uuid.UUID | None = None,
         unassigned_only: bool = False,
+        stale_traceability_only: bool = False,
     ) -> list[Artifact]:
         q = select(ArtifactModel).where(
             ArtifactModel.project_id == project_id,
@@ -224,6 +230,7 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             team_id=team_id,
             assignee_id=assignee_id,
             unassigned_only=unassigned_only,
+            stale_traceability_only=stale_traceability_only,
         )
         to_ex = self._root_types_to_exclude(exclude_root_artifact_types, root_type_ids_exclude)
         if to_ex:
@@ -351,6 +358,9 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             area_node_id=artifact.area_node_id,
             area_path_snapshot=artifact.area_path_snapshot,
             team_id=artifact.team_id,
+            stale_traceability=getattr(artifact, "stale_traceability", False),
+            stale_traceability_reason=getattr(artifact, "stale_traceability_reason", None),
+            stale_traceability_at=getattr(artifact, "stale_traceability_at", None),
         )
         self._session.add(model)
         await self._session.flush()
@@ -383,6 +393,9 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             "area_node_id": artifact.area_node_id,
             "area_path_snapshot": artifact.area_path_snapshot,
             "team_id": artifact.team_id,
+            "stale_traceability": getattr(artifact, "stale_traceability", False),
+            "stale_traceability_reason": getattr(artifact, "stale_traceability_reason", None),
+            "stale_traceability_at": getattr(artifact, "stale_traceability_at", None),
         }
         if hasattr(artifact, "deleted_at"):
             values["deleted_at"] = artifact.deleted_at
@@ -425,6 +438,9 @@ class SqlAlchemyArtifactRepository(ArtifactRepository):
             area_node_id=getattr(m, "area_node_id", None),
             area_path_snapshot=getattr(m, "area_path_snapshot", None),
             team_id=getattr(m, "team_id", None),
+            stale_traceability=bool(getattr(m, "stale_traceability", False)),
+            stale_traceability_reason=getattr(m, "stale_traceability_reason", None),
+            stale_traceability_at=getattr(m, "stale_traceability_at", None),
             created_at=getattr(m, "created_at", None),
             updated_at=getattr(m, "updated_at", None),
         )

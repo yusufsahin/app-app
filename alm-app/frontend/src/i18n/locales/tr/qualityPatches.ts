@@ -566,6 +566,24 @@ export const qualityTrPatches = {
   workItemDetail: {
     tabs: {
       source: "Kaynak ({{count}})",
+      deploy: "Ortamlar",
+    },
+    deploy: {
+      needProject: "Dağıtım özetini görmek için iş kalemını proje bağlamında açın.",
+      loading: "Dağıtım özeti yükleniyor…",
+      loadError: "Dağıtım özeti yüklenemedi.",
+      noPermission: "Bu iş kalemi için dağıtım izlenebilirliğini görüntüleme yetkiniz yok.",
+      environmentsTitle: "Son bilinen dağıtımlar",
+      environmentsIntro:
+        "Dağıtım olayları bu iş kalemi anahtarına veya Kaynak’taki commit SHA’larına göre eşleştirilir. API veya deploy webhook ile kayıt ekleyin.",
+      noEnvironments: "Bu iş kalemiyle eşleşen dağıtım olayı yok.",
+      matchedVia: "Eşleşme: {{via}}",
+      commit: "Commit",
+      image: "İmaj",
+      release: "Sürüm",
+      build: "Derleme",
+      scmLinksTitle: "Kaynak bağlantıları",
+      noScmLinks: "Bu iş kalemine Git bağlantısı yok. Kaynak sekmesinden PR veya commit URL’si ekleyin.",
     },
     tasks: {
       copyRefsLineAria: "Webhook için Refs: satırını kopyala (PR/MR veya commit mesajına yapıştırın)",
@@ -630,6 +648,22 @@ export const qualityTrPatches = {
     gitlab: "GitLab",
     copyGithubUrlAria: "GitHub webhook URL’sini kopyala",
     copyGitlabUrlAria: "GitLab webhook URL’sini kopyala",
+    deployTitle: "CI dağıtım webhook’u",
+    copyDeployUrlAria: "Dağıtım webhook URL’sini kopyala",
+    deployHint:
+      "Dağıtım alanlarını içeren JSON gövdesi POST edin (environment, build_id, …). Ham gövdeyi HMAC-SHA256 ile imzalayın: X-Hub-Signature-256 (sha256=<hex>, GitHub ile aynı). Tekrarlayan denemeler için isteğe bağlı X-ALM-Deploy-Delivery.",
+    deployCurlTitle: "Örnek: curl + OpenSSL (macOS / Linux)",
+    deployCurlCopyAria: "curl örneğini kopyala",
+    deployCurlHelp:
+      "YOUR_DEPLOY_WEBHOOK_SECRET değerini proje ayarlarına kaydettiğiniz gizli anahtarla değiştirin. Betik, gövde olarak gönderilen baytları imzalar.",
+    deployActionsTitle: "Örnek: GitHub Actions adımı",
+    deployActionsCopyAria: "GitHub Actions parçacığını kopyala",
+    deployActionsHelp:
+      "Dağıtım URL’si ve gizli anahtarı depo sırları olarak tanımlayın (örn. ALM_DEPLOY_WEBHOOK_URL, ALM_DEPLOY_WEBHOOK_SECRET). JSON alanlarını pipeline’ınıza göre uyarlayın.",
+    deploySecretLabel: "Dağıtım webhook gizli anahtarı",
+    deployPlaceholderNew: "Yeni gizli anahtar (isteğe bağlı)",
+    deployPlaceholder: "Dağıtım webhook gizli anahtarı",
+    removeDeploySecret: "Dağıtım webhook gizli anahtarını kaldır",
     payloadLimitHint:
       "Webhook istek gövdesi en fazla 1 MiB olabilir; daha büyük yüklerde API HTTP 413 döner.",
     deliveryIdempotencyHint:
@@ -689,6 +723,17 @@ export const qualityTrPatches = {
     notifyUnmatchedDismissed: "Eşleşmeyen olay kapatıldı",
     notifyUnmatchedRestored: "Eşleşmeyen olay geri alındı",
     notifyTriageError: "Triage güncellenemedi",
+  },
+  backlogFilters: {
+    staleTraceabilityOnly: "Yalnızca şüpheli izlenebilirlik",
+    staleTraceabilityOnlyAria: "Şüpheli izlenebilirlik işaretli iş kalemlerini göster",
+  },
+  staleTraceability: {
+    banner:
+      "İzlenebilirlik güncel olmayabilir: bağlı bir planlama öğesi değişti. Kapsamı gözden geçirip bağlantı hâlâ geçerliyse bu işareti temizleyin.",
+    clearAction: "İşareti temizle",
+    clearedNotify: "Şüpheli izlenebilirlik işareti kaldırıldı",
+    clearFailed: "İşaret temizlenemedi",
   },
   backlogTabular: {
     viewTask: "Görevi aç",

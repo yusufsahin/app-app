@@ -60,7 +60,10 @@ from alm.artifact.application.queries.list_artifacts import (
     ListArtifacts,
     ListArtifactsHandler,
 )
-from alm.artifact.domain.events import ArtifactCreated, ArtifactStateChanged
+from alm.artifact.application.stale_traceability_side_effects import (
+    on_upstream_planning_changed_mark_linked_tests_stale,
+)
+from alm.artifact.domain.events import ArtifactCreated, ArtifactStateChanged, ArtifactUpdated
 from alm.artifact.domain.governance_adapter import ALMGovernanceAdapter
 from alm.artifact.infrastructure.metrics import PrometheusArtifactTransitionMetrics
 from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepository
@@ -310,6 +313,20 @@ from alm.scm.application.queries.list_scm_links_by_artifact import (
 from alm.scm.application.queries.preview_scm_url import PreviewScmUrl, PreviewScmUrlHandler
 from alm.scm.infrastructure.repositories import SqlAlchemyScmLinkRepository
 
+# ── Deployment events (S4a) ──
+from alm.deployment.application.commands.create_deployment_event import (
+    CreateDeploymentEvent,
+    CreateDeploymentEventHandler,
+)
+from alm.deployment.application.queries.get_artifact_traceability_summary import (
+    GetArtifactTraceabilitySummary,
+    GetArtifactTraceabilitySummaryHandler,
+)
+from alm.deployment.application.queries.list_deployment_events import (
+    ListDeploymentEvents,
+    ListDeploymentEventsHandler,
+)
+
 # DDD Enterprise Clean Architecture: Domain Event Dispatcher
 from alm.shared.application.mediator import (
     register_command_handler,
@@ -460,6 +477,8 @@ def register_all_handlers() -> None:
     register_event_handler(ArtifactCreated, _on_artifact_created_wf)
     register_event_handler(ArtifactStateChanged, _on_artifact_state_changed_wf)
     register_event_handler(ArtifactStateChanged, on_artifact_state_changed_realtime)
+    register_event_handler(ArtifactStateChanged, on_upstream_planning_changed_mark_linked_tests_stale)
+    register_event_handler(ArtifactUpdated, on_upstream_planning_changed_mark_linked_tests_stale)
     set_domain_event_dispatcher(dispatcher)
 
     # ── Auth Commands ──
@@ -1196,6 +1215,29 @@ def register_all_handlers() -> None:
             artifact_repo=SqlAlchemyArtifactRepository(s),
             project_repo=SqlAlchemyProjectRepository(s),
             scm_repo=SqlAlchemyScmLinkRepository(s),
+        ),
+    )
+
+    register_command_handler(
+        CreateDeploymentEvent,
+        lambda s: CreateDeploymentEventHandler(
+            session=s,
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_query_handler(
+        ListDeploymentEvents,
+        lambda s: ListDeploymentEventsHandler(
+            session=s,
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_query_handler(
+        GetArtifactTraceabilitySummary,
+        lambda s: GetArtifactTraceabilitySummaryHandler(
+            session=s,
+            project_repo=SqlAlchemyProjectRepository(s),
+            artifact_repo=SqlAlchemyArtifactRepository(s),
         ),
     )
 

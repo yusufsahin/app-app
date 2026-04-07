@@ -2,7 +2,7 @@
 
 Bu doküman, [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) **Faz S4** için uygulanabilir bir **epik çerçevesi** ve **deploy event** şeması önerir. [PLAN_ADVANCED_ANALYTICS.md](./PLAN_ADVANCED_ANALYTICS.md) §6 ile uyumludur: dağıtım/ortam metrikleri burada tanımlanır; analitik dashboard’lara ikinci aşamada bağlanır.
 
-**Durum:** Tasarım / backlog — kod yok. S1–S3 tamamlandıktan sonra parça parça teslim önerilir.
+**Durum:** S4a çekirdeği (052 + deployment-events API) üründe. **S4a-4** (artifact Ortamlar UI), **traceability-summary** GET, **imzalı deploy webhook** ve **S4b** (`stale_traceability`, migration 053) uygulandı; ayrıntı [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) Faz S4.
 
 ---
 
@@ -20,11 +20,11 @@ Bu doküman, [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) **Faz S4** i
 
 | Parça | İçerik | Kabul (özet) |
 |-------|--------|----------------|
-| **S4a-1** | `deployment_event` (veya `environment_deployment`) tablosu + tenant/project scope | Kayıt kalıcı; indeks: `(project_id, environment, occurred_at)` |
-| **S4a-2** | Ingestion API: `POST` (JWT + `project:update` veya ayrı `deployment:write`) veya CI webhook (HMAC secret, SCM webhook’larına benzer) | Idempotency anahtarı: `(project_id, provider_delivery_id)` veya `(project_id, environment, commit_sha, occurred_at)` hash |
-| **S4a-3** | Okuma API: artifact veya `artifact_key` için “son bilinen ortamlar” özeti | Liste: `environment`, `commit_sha` / digest, `occurred_at`, kaynak `pipeline` |
-| **S4a-4** | UI: artifact detayda “Dağıtım / Ortamlar” sekmesi veya mevcut Kaynak sekmesi genişlemesi | En az staging + prod örnek akış dokümante |
-| **S4b-1** | Etki analizi: üst tip (ör. Requirement) değişince, bağlı test/case artifact’larına `stale_traceability` bayrağı (veya ayrı tablo) | Manifest `LinkType` + transition veya domain event ile tetikleme (ürün kararı) |
+| **S4a-1** | `deployment_events` tablosu + project scope | **Üründe:** migration 052; indeks `(project_id, environment, occurred_at)` |
+| **S4a-2** | Ingestion API: `POST` (JWT + `project:update`) veya CI webhook (HMAC) | **Üründe:** `POST …/deployment-events` + `POST …/webhooks/deploy` (HMAC, `deploy_webhook_secret`) |
+| **S4a-3** | Okuma API: proje listesi / artifact özeti | **Üründe:** `GET …/deployment-events` + `GET …/artifacts/{id}/traceability-summary` |
+| **S4a-4** | UI: artifact detayda “Dağıtım / Ortamlar” sekmesi veya mevcut Kaynak sekmesi genişlemesi | **Üründe:** Dağıtım sekmesi (traceability-summary) |
+| **S4b-1** | Etki analizi: üst tip (ör. Requirement) değişince, bağlı test/case artifact’larına `stale_traceability` bayrağı (veya ayrı tablo) | **Üründe:** migration 053; `ArtifactStateChanged` + planlama içerik güncellemesi (`ArtifactUpdated`); ilişki türleri `verifies` / `covers` / …; PATCH `clear_stale_traceability` |
 
 S4a tamamlanmadan S4b zorunlu değildir.
 

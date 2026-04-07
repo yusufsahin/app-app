@@ -19,6 +19,7 @@ import {
   useArtifact,
   usePermittedTransitions,
   useTransitionArtifact,
+  useUpdateArtifact,
   type Artifact,
   type TransitionArtifactRequest,
 } from "../../../shared/api/artifactApi";
@@ -160,6 +161,7 @@ export function ArtifactStandaloneDetailDialog({
   const updateTaskMutation = useUpdateTask(orgSlug, projectId);
   const deleteTaskMutation = useDeleteTask(orgSlug, projectId);
   const reorderTasksMutation = useReorderArtifactTasks(orgSlug, projectId);
+  const clearStaleMutation = useUpdateArtifact(orgSlug, projectId, detailArtifact?.id);
 
   const { data: comments = [] } = useCommentsByArtifact(orgSlug, projectId, detailArtifact?.id);
   const { data: scmLinks = [] } = useScmLinksByArtifact(orgSlug, projectId, detailArtifact?.id);
@@ -631,6 +633,19 @@ export function ArtifactStandaloneDetailDialog({
     [reorderTasksMutation, showNotification],
   );
 
+  const handleClearStaleTraceability = useCallback(() => {
+    clearStaleMutation.mutate(
+      { clear_stale_traceability: true },
+      {
+        onSuccess: () => showNotification(t("staleTraceability.clearedNotify"), "success"),
+        onError: (err: Error) => {
+          const problem = err as unknown as ProblemDetail & { detail?: string };
+          showNotification(problem?.detail ?? t("staleTraceability.clearFailed"), "error");
+        },
+      },
+    );
+  }, [clearStaleMutation, showNotification, t]);
+
   const openLinkedArtifact = useCallback(
     (id: string) => {
       if (!orgSlug || !projectSlug) return;
@@ -820,6 +835,8 @@ export function ArtifactStandaloneDetailDialog({
           showNotification(t("backlogAttachments.captureFailed"), "error");
         }
       }}
+      onClearStaleTraceability={handleClearStaleTraceability}
+      clearStaleTraceabilityPending={clearStaleMutation.isPending}
       entityHistoryLoading={entityHistoryLoading}
       entityHistoryError={entityHistoryError}
       entityHistory={entityHistory}

@@ -42,6 +42,13 @@ describe("listStateToFilterParams", () => {
     });
   });
 
+  it("maps staleTraceabilityOnly to stale_traceability_only when true", () => {
+    expect(listStateToFilterParams({ staleTraceabilityOnly: true })).toEqual({
+      stale_traceability_only: true,
+    });
+    expect(listStateToFilterParams({ staleTraceabilityOnly: false })).toEqual({});
+  });
+
   it("omits empty search query", () => {
     expect(listStateToFilterParams({ searchQuery: "  " })).toEqual({});
   });
@@ -81,8 +88,17 @@ describe("filterParamsToListStatePatch", () => {
       tagFilter: "",
       sortBy: "title",
       sortOrder: "asc",
+      staleTraceabilityOnly: false,
       page: 0,
     });
+  });
+
+  it("maps stale_traceability_only from saved filter_params", () => {
+    expect(
+      filterParamsToListStatePatch({
+        stale_traceability_only: true,
+      }),
+    ).toMatchObject({ staleTraceabilityOnly: true, page: 0 });
   });
 
   it("defaults sort_by to created_at and sort_order to desc", () => {
@@ -98,6 +114,7 @@ describe("filterParamsToListStatePatch", () => {
       tagFilter: "",
       sortBy: "created_at",
       sortOrder: "desc",
+      staleTraceabilityOnly: false,
       page: 0,
     });
   });

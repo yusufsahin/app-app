@@ -21,6 +21,8 @@ export interface Project {
   scm_webhook_github_secret_configured?: boolean;
   /** True when a GitLab webhook token is stored; value is never returned in settings. */
   scm_webhook_gitlab_secret_configured?: boolean;
+  /** True when a CI deploy webhook secret is stored; value is never returned in settings. */
+  deploy_webhook_secret_configured?: boolean;
 }
 
 export interface DashboardStats {

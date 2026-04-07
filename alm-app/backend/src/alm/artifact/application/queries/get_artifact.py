@@ -72,6 +72,9 @@ class GetArtifactHandler(QueryHandler[ArtifactDTO | None]):
             team_id=getattr(artifact, "team_id", None),
             created_at=getattr(artifact, "created_at", None),
             updated_at=getattr(artifact, "updated_at", None),
+            stale_traceability=getattr(artifact, "stale_traceability", False),
+            stale_traceability_reason=getattr(artifact, "stale_traceability_reason", None),
+            stale_traceability_at=getattr(artifact, "stale_traceability_at", None),
             tags=tags,
         )
 

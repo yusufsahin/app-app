@@ -30,6 +30,7 @@ from alm.orgs.api.scm_webhook_support import (
     load_tenant_id_for_slug,
     normalize_webhook_delivery_id,
     persist_webhook_unmatched_events,
+    record_push_commit_no_artifact_match,
     record_webhook_delivery_processed,
     resolve_task_id_from_refs_trailers_for_artifact,
     webhook_delivery_already_processed,
@@ -162,6 +163,7 @@ async def _github_process_push(
         )
         if artifact is None:
             no_match += 1
+            record_push_commit_no_artifact_match(provider="github")
             if len(unmatched_ctx) < SCM_WEBHOOK_MAX_UNMATCHED_RECORDS_PER_REQUEST:
                 unmatched_ctx.append(
                     {

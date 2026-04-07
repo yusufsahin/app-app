@@ -14,6 +14,10 @@ from alm.artifact.infrastructure.repositories import SqlAlchemyArtifactRepositor
 from alm.project.infrastructure.models import ProjectModel
 from alm.scm.application.artifact_key_hints import extract_artifact_key_hints
 from alm.scm.application.task_ref_trailers import iter_task_uuids_from_refs_trailers
+from alm.scm.infrastructure.metrics import (
+    alm_scm_webhook_push_commits_no_artifact_total,
+    alm_scm_webhook_unmatched_rows_persisted_total,
+)
 from alm.scm.infrastructure.models import ScmWebhookProcessedDeliveryModel, ScmWebhookUnmatchedEventModel
 from alm.task.infrastructure.repositories import SqlAlchemyTaskRepository
 from alm.tenant.infrastructure.models import TenantModel
@@ -112,16 +116,24 @@ async def persist_webhook_unmatched_events(
     kind: str,
     contexts: list[dict[str, Any]],
 ) -> None:
+    pv = provider[:32]
+    kd = kind[:64]
     for ctx in contexts[:SCM_WEBHOOK_MAX_UNMATCHED_RECORDS_PER_REQUEST]:
         session.add(
             ScmWebhookUnmatchedEventModel(
                 project_id=project_id,
-                provider=provider[:32],
-                kind=kind[:64],
+                provider=pv,
+                kind=kd,
                 context=sanitize_unmatched_context(ctx),
             )
         )
+        alm_scm_webhook_unmatched_rows_persisted_total.labels(provider=pv, kind=kd).inc()
     await session.flush()
+
+
+def record_push_commit_no_artifact_match(*, provider: str) -> None:
+    """Count push commits where artifact_for_pr_fields returned no artifact."""
+    alm_scm_webhook_push_commits_no_artifact_total.labels(provider=provider.strip().lower()[:16]).inc()
 
 
 def branch_short_name_from_ref(ref: str | None) -> str | None:
@@ -193,7 +205,11 @@ async def artifact_for_pr_fields(
     body_text: str,
     artifact_repo: SqlAlchemyArtifactRepository,
 ) -> Artifact | None:
-    """Resolve artifact: branch → title → body; first hint that matches an artifact wins."""
+    """Resolve artifact: branch → title → body; first hint that matches an artifact wins.
+
+    Push handlers pass the **full** commit message as ``title`` so subject, body, and footers
+    (e.g. ``Story:``) participate in the same order as §4 Faz S3 (branch name, then message text).
+    """
     for part in (head_ref, title, body_text):
         if not (part or "").strip():
             continue

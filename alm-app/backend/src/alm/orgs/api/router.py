@@ -8,7 +8,10 @@ from alm.orgs.api.routes_attachments_artifact_file_upload_download import router
 from alm.orgs.api.routes_capacity_p7 import router as _r17
 from alm.orgs.api.routes_comments_by_artifact import router as _r3
 from alm.orgs.api.routes_cycle_nodes_planning_tree_pamera_iterationnode_like import router as _r8
+from alm.orgs.api.routes_artifact_traceability_summary import router as _r12b
+from alm.orgs.api.routes_deploy_webhook import router as _r26
 from alm.orgs.api.routes_dashboard import router as _r12
+from alm.orgs.api.routes_deployment_events import router as _r25
 from alm.orgs.api.routes_github_webhook import router as _r21
 from alm.orgs.api.routes_gitlab_webhook import router as _r22
 from alm.orgs.api.routes_members import router as _r13
@@ -47,6 +50,7 @@ router.include_router(_r9)
 router.include_router(_r10)
 router.include_router(_r11)
 router.include_router(_r12)
+router.include_router(_r12b)
 router.include_router(_r13)
 router.include_router(_r14)
 router.include_router(_r16)
@@ -55,5 +59,7 @@ router.include_router(_r18)
 router.include_router(_r19)
 router.include_router(_r21)
 router.include_router(_r22)
+router.include_router(_r26)
 router.include_router(_r23)
 router.include_router(_r24)
+router.include_router(_r25)

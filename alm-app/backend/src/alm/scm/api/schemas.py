@@ -65,6 +65,10 @@ class ScmLinkCreateRequest(BaseModel):
     commit_sha: str | None = Field(None, max_length=64)
     pull_request_number: int | None = Field(None, ge=1)
     title: str | None = Field(None, max_length=500)
+    source: Literal["manual", "ci"] | None = Field(
+        None,
+        description="Defaults to manual. Use `ci` when a pipeline calls this API (metrics / audit).",
+    )
 
 
 class ScmWebhookUnmatchedEventResponse(BaseModel):

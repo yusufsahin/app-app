@@ -143,6 +143,9 @@ async def create_scm_link(
     _acl: None = require_manifest_acl("artifact", "update"),
     mediator: Mediator = Depends(get_mediator),
 ) -> ScmLinkResponse:
+    src = (body.source or "manual").strip().lower()
+    if src not in ("manual", "ci"):
+        src = "manual"
     dto = await mediator.send(
         CreateScmLink(
             tenant_id=org.tenant_id,
@@ -157,7 +160,7 @@ async def create_scm_link(
             commit_sha=body.commit_sha,
             pull_request_number=body.pull_request_number,
             title=body.title,
-            source="manual",
+            source=src,
         )
     )
     return scm_link_response(dto)

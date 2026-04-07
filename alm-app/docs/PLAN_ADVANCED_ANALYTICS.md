@@ -77,7 +77,7 @@ Bu olmadan “forecast” yalnızca geçmiş hıza dayalı tahmin olur; planlı 
 
 ## 6. SCM / DevOps ile kesişim
 
-- Dağıtım ve ortam metrikleri ayrı planda ([PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) Faz S4). İleri analitikte “production incident sayısı / cycle” gibi göstergeler ikinci aşamada bağlanabilir.
+- Dağıtım ve ortam metrikleri: [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) **Faz S4** ve ayrı tasarım [PLAN_SCM_S4_DEPLOY_TRACEABILITY.md](./PLAN_SCM_S4_DEPLOY_TRACEABILITY.md) (deploy event şeması, S4a/S4b epikleri). İleri analitikte “production incident sayısı / cycle” veya “deploy sıklığı × artifact” gibi göstergeler **S4a verisi** geldikten sonra bağlanabilir.
 
 ---
 
@@ -87,5 +87,6 @@ Bu olmadan “forecast” yalnızca geçmiş hıza dayalı tahmin olur; planlı 
 - [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md)
 - [PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md](./PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md)
 - [TRANSITION_OBSERVABILITY.md](./TRANSITION_OBSERVABILITY.md) — Metrik/otel ile operasyonel görünürlük
+- [PLAN_SCM_S4_DEPLOY_TRACEABILITY.md](./PLAN_SCM_S4_DEPLOY_TRACEABILITY.md) — Deploy × SCM (S4 tasarım)
 
 — ↑ [Dokümanlar](README.md)

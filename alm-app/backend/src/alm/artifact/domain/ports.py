@@ -47,6 +47,7 @@ class ArtifactRepository(ABC):
         team_id: uuid.UUID | None = None,
         assignee_id: uuid.UUID | None = None,
         unassigned_only: bool = False,
+        stale_traceability_only: bool = False,
     ) -> list[Artifact]: ...
 
     @abstractmethod
@@ -69,6 +70,7 @@ class ArtifactRepository(ABC):
         team_id: uuid.UUID | None = None,
         assignee_id: uuid.UUID | None = None,
         unassigned_only: bool = False,
+        stale_traceability_only: bool = False,
     ) -> int:
         """Count artifacts matching the same filters as list_by_project (no limit/offset).
 

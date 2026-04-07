@@ -119,6 +119,7 @@ function ToolbarHarness(harnessProps: HarnessProps = {}) {
         page: 0,
         pageSize: 20,
         showDeleted: false,
+        staleTraceabilityOnly: false,
         selectedIds: [],
         detailArtifactId: null,
         createOpen: false,

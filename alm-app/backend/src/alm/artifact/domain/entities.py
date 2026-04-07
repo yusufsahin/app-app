@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from alm.artifact.domain.events import ArtifactCreated, ArtifactStateChanged
+from alm.artifact.domain.events import ArtifactCreated, ArtifactStateChanged, ArtifactUpdated
 from alm.shared.domain.aggregate import AggregateRoot
 
 
@@ -34,6 +34,9 @@ class Artifact(AggregateRoot):
         area_node_id: uuid.UUID | None = None,
         area_path_snapshot: str | None = None,
         team_id: uuid.UUID | None = None,
+        stale_traceability: bool = False,
+        stale_traceability_reason: str | None = None,
+        stale_traceability_at: datetime | None = None,
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
     ) -> None:
@@ -54,6 +57,9 @@ class Artifact(AggregateRoot):
         self.state_reason = state_reason
         self.resolution = resolution
         self.rank_order = rank_order
+        self.stale_traceability = stale_traceability
+        self.stale_traceability_reason = stale_traceability_reason
+        self.stale_traceability_at = stale_traceability_at
         self.created_at: datetime | None = created_at
         self.updated_at: datetime | None = updated_at
 
@@ -134,6 +140,20 @@ class Artifact(AggregateRoot):
                 to_state=new_state,
             )
         )
+
+    def notify_planning_updated_for_traceability(self) -> None:
+        """Register domain event so linked tests can be marked stale (upstream planning content changed)."""
+        self._register_event(
+            ArtifactUpdated(
+                artifact_id=self.id,
+                project_id=self.project_id,
+            )
+        )
+
+    def clear_stale_traceability(self) -> None:
+        self.stale_traceability = False
+        self.stale_traceability_reason = None
+        self.stale_traceability_at = None
 
     def to_snapshot_dict(self) -> dict[str, Any]:
         """Entity snapshot for MPC PolicyEngine (domain-agnostic dict)."""

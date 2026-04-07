@@ -13,6 +13,12 @@ _BRANCH = re.compile(
     re.IGNORECASE,
 )
 
+# Git-trailer style lines (S2): catches lowercase keys that _KEY_TOKEN would miss.
+_FOOTER_LABELED_KEY = re.compile(
+    r"^\s*(?:story|implements)\s*:\s*([A-Za-z][A-Za-z0-9]{0,24}-\d{1,7})\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
 
 def _normalize_key(key: str) -> str:
     key = key.strip()
@@ -39,6 +45,10 @@ def extract_artifact_key_hints(text: str, *, limit: int = 8) -> list[str]:
         out.append(norm)
 
     for m in _KEY_TOKEN.finditer(text):
+        push(m.group(1))
+        if len(out) >= limit:
+            return out
+    for m in _FOOTER_LABELED_KEY.finditer(text):
         push(m.group(1))
         if len(out) >= limit:
             return out

@@ -1886,3 +1886,31 @@ async def test_gitlab_webhook_same_x_gitlab_event_uuid_returns_duplicate_deliver
     wh2 = await client.post(url, content=raw, headers=headers)
     assert wh2.status_code == 200, wh2.text
     assert wh2.json() == {"status": "ignored", "reason": "duplicate_delivery"}
+
+
+@pytest.mark.asyncio
+async def test_scm_link_create_accepts_source_ci(client: AsyncClient) -> None:
+    token = await _register_and_get_token(client, _unique_email(), _unique_org())
+    tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+    tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+    project_id = await _ensure_project(client, token, tenant_id)
+    root_requirement_id = await _root_id(
+        client, token, org_slug, project_id, tree="requirement", artifact_type="root-requirement"
+    )
+    work = await _create_artifact(
+        client,
+        token,
+        org_slug,
+        project_id,
+        artifact_type="workitem",
+        title="CI link",
+        parent_id=root_requirement_id,
+    )
+    pr_url = "https://github.com/acme/ci-demo/pull/7"
+    create = await client.post(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{work['id']}/scm-links",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"web_url": pr_url, "source": "ci"},
+    )
+    assert create.status_code == 201, create.text
+    assert create.json()["source"] == "ci"

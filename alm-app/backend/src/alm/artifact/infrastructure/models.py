@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Float, ForeignKey, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -57,3 +58,6 @@ class ArtifactModel(Base, TimestampMixin, SoftDeleteMixin):
         nullable=True,
         index=True,
     )
+    stale_traceability: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    stale_traceability_reason: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    stale_traceability_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

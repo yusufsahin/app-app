@@ -43,6 +43,12 @@ def test_iter_task_id_trailer() -> None:
     assert iter_task_uuids_from_refs_trailers(f"task-id:{u}") == [u]
 
 
+def test_iter_task_colon_trailer() -> None:
+    u = uuid.uuid4()
+    assert iter_task_uuids_from_refs_trailers(f"Task: {u}") == [u]
+    assert iter_task_uuids_from_refs_trailers(f"task:{u}") == [u]
+
+
 def test_iter_mixed_trailers_document_order() -> None:
     u1, u2 = uuid.uuid4(), uuid.uuid4()
     text = f"Task-ID: {u1}\nRefs: {u2}"

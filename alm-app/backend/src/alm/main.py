@@ -9,6 +9,7 @@ from prometheus_client import make_asgi_app
 
 # Import so artifact transition metrics are registered and appear in /metrics from first scrape
 import alm.artifact.infrastructure.metrics  # noqa: F401
+import alm.scm.infrastructure.metrics  # noqa: F401 — SCM Prometheus counters (links + webhook unmatched / push no_match)
 from alm.admin.api.router import router as admin_router
 from alm.auth.api.router import router as auth_router
 from alm.config.settings import settings

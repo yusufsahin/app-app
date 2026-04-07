@@ -200,3 +200,41 @@ async def test_artifact_list_route_forwards_team_filter(monkeypatch: pytest.Monk
     assert isinstance(q, ListArtifacts)
     assert q.team_id == team_id
 
+
+@pytest.mark.asyncio
+async def test_artifact_list_route_forwards_stale_traceability_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    tenant_id = uuid.uuid4()
+    project_id = uuid.uuid4()
+    user = CurrentUser(id=uuid.uuid4(), tenant_id=tenant_id, roles=["member"])
+    mediator = AsyncMock()
+    dto = ArtifactDTO(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        artifact_type="test-case",
+        title="Stale",
+        description="",
+        state="open",
+        assignee_id=None,
+        parent_id=None,
+        custom_fields={},
+    )
+    mediator.query = AsyncMock(return_value=ListArtifactsResult(items=[dto], total=1))
+
+    async def _passthrough(items, _user):
+        return items
+
+    monkeypatch.setattr(routes_projects, "mask_artifact_list_for_user", _passthrough)
+
+    resp = await list_artifacts(
+        project_id=project_id,
+        stale_traceability_only=True,
+        org=_org(tenant_id),
+        user=user,
+        _acl=None,
+        mediator=mediator,
+    )
+    assert resp.total == 1
+    q = mediator.query.await_args.args[0]
+    assert isinstance(q, ListArtifacts)
+    assert q.stale_traceability_only is True
+

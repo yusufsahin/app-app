@@ -33,6 +33,7 @@ import alm.attachment.infrastructure.models  # noqa: F401
 import alm.auth.infrastructure.models  # noqa: F401
 import alm.capacity.infrastructure.models  # noqa: F401
 import alm.comment.infrastructure.models  # noqa: F401
+import alm.deployment.infrastructure.models  # noqa: F401
 import alm.cycle.infrastructure.models  # noqa: F401
 import alm.process_template.infrastructure.models  # noqa: F401
 import alm.project.infrastructure.models  # noqa: F401
@@ -202,6 +203,12 @@ _ASYNC_SESSION_FACTORY_PATCH_TARGETS: tuple[str, ...] = (
     "alm.workflow_rule.infrastructure.workflow_rule_runner.async_session_factory",
     "alm.realtime.event_handlers.async_session_factory",
     "alm.admin.infrastructure.access_audit_store.async_session_factory",
+    # Routes that bind async_session_factory at import time must be patched too if any test
+    # imports them before the client fixture applies the test DB factory.
+    "alm.orgs.api.routes_deploy_webhook.async_session_factory",
+    "alm.orgs.api.routes_github_webhook.async_session_factory",
+    "alm.orgs.api.routes_gitlab_webhook.async_session_factory",
+    "alm.orgs.api.routes_scm_webhook_unmatched.async_session_factory",
 )
 
 

@@ -66,6 +66,13 @@ describe("buildArtifactListParams", () => {
     expect(buildArtifactListParams({ includeDeleted: false })).toEqual({});
   });
 
+  it("includes stale_traceability_only when staleTraceabilityOnly is true", () => {
+    expect(buildArtifactListParams({ staleTraceabilityOnly: true })).toEqual({
+      stale_traceability_only: true,
+    });
+    expect(buildArtifactListParams({ staleTraceabilityOnly: false })).toEqual({});
+  });
+
   it("maps cycle filter and area filter params", () => {
     expect(
       buildArtifactListParams({ cycleId: "c1", areaNodeId: "a1" }),
@@ -272,6 +279,19 @@ describe("fetchAllArtifactsPages", () => {
     expect(out.items).toHaveLength(2);
     expect(out.total).toBe(10);
     expect(getSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("passes stale_traceability_only through paged requests", async () => {
+    const getSpy = vi.spyOn(apiClient, "get").mockResolvedValueOnce({
+      data: { items: [], total: 0 },
+    } as never);
+
+    await fetchAllArtifactsPages("o1", "p1", { stale_traceability_only: true }, 50);
+
+    expect(getSpy).toHaveBeenCalledTimes(1);
+    expect(getSpy.mock.calls[0]?.[1]).toMatchObject({
+      params: { stale_traceability_only: true, limit: 50, offset: 0 },
+    });
   });
 });
 

@@ -30,3 +30,16 @@ def test_respects_limit() -> None:
 def test_empty_and_whitespace() -> None:
     assert extract_artifact_key_hints("") == []
     assert extract_artifact_key_hints("   \n") == []
+
+
+def test_story_footer_lowercase_key() -> None:
+    assert extract_artifact_key_hints("other text\n\nstory: req-88") == ["REQ-88"]
+
+
+def test_implements_footer() -> None:
+    assert extract_artifact_key_hints("Implements: BUG-3") == ["BUG-3"]
+
+
+def test_combined_multiline_like_preview_url_plus_context() -> None:
+    blob = "https://github.com/o/r/pull/12\n\nSee REQ-55 for details."
+    assert extract_artifact_key_hints(blob) == ["REQ-55"]

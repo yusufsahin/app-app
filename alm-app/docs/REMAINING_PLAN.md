@@ -145,14 +145,14 @@ Bu blok [PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md](./PLAN_IMPROVEMENTS_D1_TASK
 
 | # | Başlık | Doküman | Not |
 |---|--------|---------|-----|
-| F1 | SCM traceability (PR/commit + webhook) | [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) | **S1–S3 MVP üründe:** manuel/API SCM links, GitHub/GitLab webhook, politikalar, teslimat idempotency, unmatched kuyruk, UI. **S4+:** deploy/CI birleşimi plan içinde |
+| F1 | SCM traceability (PR/commit + webhook) | [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) | **S1–S3 MVP üründe.** **S4:** `deployment_events` API; artifact **`traceability-summary`** + Ortamlar UI; imzalı **`POST …/webhooks/deploy`**; **S4b** `stale_traceability` (migration 053) — [PLAN_SCM_S4_DEPLOY_TRACEABILITY.md](./PLAN_SCM_S4_DEPLOY_TRACEABILITY.md) |
 | F2 | İleri analitik (capacity, load vs capacity, forecast) | [PLAN_ADVANCED_ANALYTICS.md](./PLAN_ADVANCED_ANALYTICS.md) | P4/P5 üzerine; capacity [PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md](./PLAN_IMPROVEMENTS_D1_TASK_CAPACITY_TEAM.md) §3 ile uyumlu |
 
-**F1 plan notu:** SCM planı Conventional Commits ve GitHub/GitLab referans pratikleriyle hizalanmıştır; veri modelinde `task_id` / `source`, S1+ URL parse, webhook eşleme önceliği, unmatched kuyruk tercihi, teslimat idempotency (`scm_webhook_processed_deliveries`, migration 051) ve genişletilmiş ölçümler [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) içinde tanımlıdır. **S1–S3** teslimatı tamamlandı; **S4** (deploy event’leri vb.) hâlâ ileri faz.
+**F1 plan notu:** SCM planı Conventional Commits ve GitHub/GitLab referans pratikleriyle hizalanmıştır; veri modelinde `task_id` / `source` (API’de isteğe bağlı `ci`), S1+ URL parse, webhook eşleme önceliği (kod: `artifact_for_pr_fields`), unmatched kuyruk, Prometheus’ta unmatched/push no_match sayaçları, teslimat idempotency (migration 051) [PLAN_SCM_TRACEABILITY.md](./PLAN_SCM_TRACEABILITY.md) içindedir. **S4a** deploy API + tablo; özet okuma, artifact Ortamlar sekmesi, CI deploy webhook ve **S4b** stale bayrağı üründe (bkz. aynı plan ve S4 dokümanı).
 
 **Gap özeti:** [GAP_ANALYSIS_ALM.md](./GAP_ANALYSIS_ALM.md) — Traceability ve Planning satırları.
 
-**Çıktı:** İki plandan bağımsız yürütülebilir; SCM çekirdeği (F1 S1–S3) mevcut. Sonraki ağırlık: F2 (capacity/analitik) veya F1 S4 (deploy ile izlenebilirlik), ürün önceliğine göre.
+**Çıktı:** İki plandan bağımsız yürütülebilir; SCM çekirdeği (F1 S1–S3) + S4 deploy/traceability/webhook/S4b paketi mevcut. Sonraki ağırlık: F2 (capacity/analitik) veya S4 ince iyileştirmeler (ör. backlog’da stale filtresi, deploy webhook için ayrı `curl` snippet’i), ürün önceliğine göre.
 
 ---
 

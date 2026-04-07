@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,6 +30,7 @@ const GITLAB_SECRET_KEY = "scm_gitlab_webhook_secret";
 const GITHUB_WEBHOOK_ENABLED_KEY = "scm_webhook_github_enabled";
 const GITLAB_WEBHOOK_ENABLED_KEY = "scm_webhook_gitlab_enabled";
 const PUSH_BRANCH_REGEX_KEY = "scm_webhook_push_branch_regex";
+const DEPLOY_SECRET_KEY = "deploy_webhook_secret";
 
 function webhookBaseUrl(): string {
   if (typeof window === "undefined") return "";
@@ -55,6 +56,13 @@ function gitlabSecretConfigured(project: Project): boolean {
   return hasWebhookSecret(project.settings ?? undefined, GITLAB_SECRET_KEY);
 }
 
+function deploySecretConfigured(project: Project): boolean {
+  if (typeof project.deploy_webhook_secret_configured === "boolean") {
+    return project.deploy_webhook_secret_configured;
+  }
+  return hasWebhookSecret(project.settings ?? undefined, DEPLOY_SECRET_KEY);
+}
+
 export function ProjectScmWebhooksCard({
   orgSlug,
   project,
@@ -69,6 +77,42 @@ export function ProjectScmWebhooksCard({
   const base = webhookBaseUrl();
   const githubUrl = `${base}/orgs/${orgSlug}/projects/${projectId}/webhooks/github`;
   const gitlabUrl = `${base}/orgs/${orgSlug}/projects/${projectId}/webhooks/gitlab`;
+  const deployUrl = `${base}/orgs/${orgSlug}/projects/${projectId}/webhooks/deploy`;
+
+  const deployCurlExample = useMemo(() => {
+    const body = '{"environment":"prod","occurred_at":"2026-04-07T12:00:00Z","build_id":"ci-1"}';
+    return [
+      "# macOS / Linux (OpenSSL). Replace YOUR_DEPLOY_WEBHOOK_SECRET.",
+      `DEPLOY_URL='${deployUrl}'`,
+      "SECRET='YOUR_DEPLOY_WEBHOOK_SECRET'",
+      `BODY='${body}'`,
+      `SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')`,
+      'curl -sS -X POST "$DEPLOY_URL" \\',
+      '  -H "Content-Type: application/json" \\',
+      '  -H "X-Hub-Signature-256: sha256=$SIG" \\',
+      '  -H "X-ALM-Deploy-Delivery: pipeline-1" \\',
+      '  -d "$BODY"',
+    ].join("\n");
+  }, [deployUrl]);
+
+  const deployActionsExample = useMemo(
+    () =>
+      [
+        "      - name: Notify ALM deploy",
+        "        env:",
+        "          DEPLOY_URL: ${{ secrets.ALM_DEPLOY_WEBHOOK_URL }}",
+        "          SECRET: ${{ secrets.ALM_DEPLOY_WEBHOOK_SECRET }}",
+        "        run: |",
+        "          BODY='{\"environment\":\"prod\",\"occurred_at\":\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'\",\"build_id\":\"'${{ github.run_id }}'\"}'",
+        "          SIG=$(printf '%s' \"$BODY\" | openssl dgst -sha256 -hmac \"$SECRET\" | sed 's/^.* //')",
+        "          curl -sS -X POST \"$DEPLOY_URL\" \\",
+        "            -H \"Content-Type: application/json\" \\",
+        "            -H \"X-Hub-Signature-256: sha256=$SIG\" \\",
+        "            -H \"X-ALM-Deploy-Delivery: ${{ github.run_id }}-${{ github.run_attempt }}\" \\",
+        "            -d \"$BODY\"",
+      ].join("\n"),
+    [],
+  );
 
   const queryClient = useQueryClient();
   const showNotification = useNotificationStore((s) => s.showNotification);
@@ -153,8 +197,10 @@ export function ProjectScmWebhooksCard({
 
   const [githubSecret, setGithubSecret] = useState("");
   const [gitlabSecret, setGitlabSecret] = useState("");
+  const [deploySecret, setDeploySecret] = useState("");
   const [removeGithubSecret, setRemoveGithubSecret] = useState(false);
   const [removeGitlabSecret, setRemoveGitlabSecret] = useState(false);
+  const [removeDeploySecret, setRemoveDeploySecret] = useState(false);
 
   const serverGhPaused = project.settings?.[GITHUB_WEBHOOK_ENABLED_KEY] === false;
   const serverGlPaused = project.settings?.[GITLAB_WEBHOOK_ENABLED_KEY] === false;
@@ -178,6 +224,7 @@ export function ProjectScmWebhooksCard({
 
   const ghConfigured = githubSecretConfigured(project);
   const glConfigured = gitlabSecretConfigured(project);
+  const depConfigured = deploySecretConfigured(project);
 
   const policyDirty =
     ghPaused !== serverGhPaused ||
@@ -187,8 +234,10 @@ export function ProjectScmWebhooksCard({
   const canSaveSecrets =
     removeGithubSecret ||
     removeGitlabSecret ||
+    removeDeploySecret ||
     githubSecret.trim().length > 0 ||
-    gitlabSecret.trim().length > 0;
+    gitlabSecret.trim().length > 0 ||
+    deploySecret.trim().length > 0;
 
   const canSaveWebhookSettings = canSaveSecrets || policyDirty;
 
@@ -203,6 +252,11 @@ export function ProjectScmWebhooksCard({
       delete next[GITLAB_SECRET_KEY];
     } else if (gitlabSecret.trim()) {
       next[GITLAB_SECRET_KEY] = gitlabSecret.trim();
+    }
+    if (removeDeploySecret) {
+      delete next[DEPLOY_SECRET_KEY];
+    } else if (deploySecret.trim()) {
+      next[DEPLOY_SECRET_KEY] = deploySecret.trim();
     }
 
     if (ghPaused) {
@@ -229,8 +283,10 @@ export function ProjectScmWebhooksCard({
           showNotification(t("projectScmWebhooks.notifyWebhookSettingsSaved"));
           setGithubSecret("");
           setGitlabSecret("");
+          setDeploySecret("");
           setRemoveGithubSecret(false);
           setRemoveGitlabSecret(false);
+          setRemoveDeploySecret(false);
           setPolicyGhPausedOverride(undefined);
           setPolicyGlPausedOverride(undefined);
           setPushBranchRegexOverride(undefined);
@@ -288,6 +344,63 @@ export function ProjectScmWebhooksCard({
               </Button>
             </div>
           </div>
+          <div className="mt-4">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">{t("projectScmWebhooks.deployTitle")}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="max-w-full flex-1 overflow-x-auto rounded border border-border bg-muted/40 px-2 py-1.5 text-xs">
+                {deployUrl}
+              </code>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                aria-label={t("projectScmWebhooks.copyDeployUrlAria")}
+                onClick={() => copy("dep", deployUrl)}
+              >
+                {copied === "dep" ? <Check className="size-4" /> : <Copy className="size-4" />}
+              </Button>
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">{t("projectScmWebhooks.deployHint")}</p>
+            <div className="mt-3 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">{t("projectScmWebhooks.deployCurlTitle")}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  aria-label={t("projectScmWebhooks.deployCurlCopyAria")}
+                  onClick={() => copy("curl", deployCurlExample)}
+                >
+                  {copied === "curl" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+              <pre className="max-h-48 max-w-full overflow-auto rounded border border-border bg-muted/40 p-2 text-[10px] leading-relaxed">
+                {deployCurlExample}
+              </pre>
+              <p className="text-[10px] text-muted-foreground">{t("projectScmWebhooks.deployCurlHelp")}</p>
+            </div>
+            <div className="mt-4 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">{t("projectScmWebhooks.deployActionsTitle")}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  aria-label={t("projectScmWebhooks.deployActionsCopyAria")}
+                  onClick={() => copy("gha", deployActionsExample)}
+                >
+                  {copied === "gha" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+              <pre className="max-h-48 max-w-full overflow-auto rounded border border-border bg-muted/40 p-2 text-[10px] leading-relaxed">
+                {deployActionsExample}
+              </pre>
+              <p className="text-[10px] text-muted-foreground">{t("projectScmWebhooks.deployActionsHelp")}</p>
+            </div>
+          </div>
         </div>
 
         <div className="mb-6 space-y-2 text-xs text-muted-foreground">
@@ -338,7 +451,7 @@ export function ProjectScmWebhooksCard({
         <div className="mb-6 rounded-lg border border-border bg-muted/20 p-4">
           <p className="mb-3 text-sm font-medium">{t("projectScmWebhooks.webhookSecretsTitle")}</p>
           <p className="mb-4 text-xs text-muted-foreground">{t("projectScmWebhooks.webhookSecretsHelp")}</p>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Label htmlFor="scm-gh-secret">{t("projectScmWebhooks.githubSecretLabel")}</Label>
@@ -397,6 +510,37 @@ export function ProjectScmWebhooksCard({
                   }}
                 />
                 {t("projectScmWebhooks.removeGitlabSecret")}
+              </label>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="deploy-wh-secret">{t("projectScmWebhooks.deploySecretLabel")}</Label>
+                {depConfigured ? (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {t("projectScmWebhooks.configured")}
+                  </Badge>
+                ) : null}
+              </div>
+              <Input
+                id="deploy-wh-secret"
+                type="password"
+                autoComplete="off"
+                placeholder={
+                  depConfigured ? t("projectScmWebhooks.deployPlaceholderNew") : t("projectScmWebhooks.deployPlaceholder")
+                }
+                value={deploySecret}
+                onChange={(e) => setDeploySecret(e.target.value)}
+                disabled={removeDeploySecret}
+              />
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={removeDeploySecret}
+                  onCheckedChange={(v) => {
+                    setRemoveDeploySecret(v === true);
+                    if (v === true) setDeploySecret("");
+                  }}
+                />
+                {t("projectScmWebhooks.removeDeploySecret")}
               </label>
             </div>
           </div>

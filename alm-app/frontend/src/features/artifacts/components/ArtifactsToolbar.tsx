@@ -76,6 +76,7 @@ export type ToolbarFilterValues = {
   sortBy: ArtifactSortBy;
   sortOrder: ArtifactSortOrder;
   showDeleted: boolean;
+  staleTraceabilityOnly: boolean;
 };
 
 type Cadence = { id: string; path?: string; name?: string };
@@ -142,6 +143,7 @@ export interface ArtifactsToolbarProps {
     tagFilter: string;
     sortBy: ArtifactSortBy;
     sortOrder: ArtifactSortOrder;
+    staleTraceabilityOnly?: boolean;
   }) => Record<string, unknown>;
   showNotification: (message: string, severity?: "success" | "error" | "warning") => void;
   projectTagOptions?: ProjectTagOption[];
@@ -252,6 +254,7 @@ export function ArtifactsToolbar({
     areaNodeId: areaNodeFilter || null,
     tree: treeFilter || null,
     tagId: tagFilter || null,
+    staleTraceabilityOnly: listState.staleTraceabilityOnly,
   });
 
   async function handleExportAll(format: "csv" | "xlsx", scope: ArtifactIoScope) {
@@ -707,6 +710,15 @@ export function ArtifactsToolbar({
                 label="Show deleted"
                 checkboxProps={{ size: "small", "aria-label": "Show deleted backlog items" }}
               />
+              <RhfCheckbox<ToolbarFilterValues>
+                name="staleTraceabilityOnly"
+                control={toolbarForm.control}
+                label={t("backlogFilters.staleTraceabilityOnly")}
+                checkboxProps={{
+                  size: "small",
+                  "aria-label": t("backlogFilters.staleTraceabilityOnlyAria"),
+                }}
+              />
               <Button
                 size="sm"
                 variant="outline"
@@ -727,6 +739,7 @@ export function ArtifactsToolbar({
                         tagFilter,
                         sortBy,
                         sortOrder,
+                        staleTraceabilityOnly: listState.staleTraceabilityOnly,
                       });
                       createSavedQueryMutation.mutate(
                         {
@@ -759,7 +772,8 @@ export function ArtifactsToolbar({
                 cycleFilter ||
                 areaNodeFilter ||
                 tagFilter ||
-                searchInput) && (
+                searchInput ||
+                listState.staleTraceabilityOnly) && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -772,6 +786,7 @@ export function ArtifactsToolbar({
                       areaNodeFilter: "",
                       tagFilter: "",
                       searchInput: "",
+                      staleTraceabilityOnly: false,
                     });
                     toolbarForm.reset({
                       ...toolbarForm.getValues(),
@@ -780,6 +795,7 @@ export function ArtifactsToolbar({
                       releaseFilter: "",
                       areaNodeFilter: "",
                       tagFilter: "",
+                      staleTraceabilityOnly: false,
                     });
                   }}
                   aria-label="Clear filters"

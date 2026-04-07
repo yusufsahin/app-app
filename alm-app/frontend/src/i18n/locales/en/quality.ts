@@ -727,6 +727,24 @@ export const qualityEn = {
   workItemDetail: {
     tabs: {
       source: "Source ({{count}})",
+      deploy: "Environments",
+    },
+    deploy: {
+      needProject: "Open this work item in a project context to see deployments.",
+      loading: "Loading deployment summary…",
+      loadError: "Could not load deployment summary.",
+      noPermission: "You do not have permission to view deployment traceability for this work item.",
+      environmentsTitle: "Last known deployments",
+      environmentsIntro:
+        "Matches deployment events by this work item key or by commit SHAs linked under Source. Configure deploy events via the API or deploy webhook.",
+      noEnvironments: "No deployment events matched this work item yet.",
+      matchedVia: "Match: {{via}}",
+      commit: "Commit",
+      image: "Image",
+      release: "Release",
+      build: "Build",
+      scmLinksTitle: "Source links",
+      noScmLinks: "No Git links on this work item. Add PR or commit URLs under the Source tab.",
     },
     tasks: {
       copyRefsLineAria: "Copy Refs: line for webhooks (paste into PR/MR or commit message)",
@@ -791,6 +809,22 @@ export const qualityEn = {
     gitlab: "GitLab",
     copyGithubUrlAria: "Copy GitHub webhook URL",
     copyGitlabUrlAria: "Copy GitLab webhook URL",
+    deployTitle: "CI deploy webhook",
+    copyDeployUrlAria: "Copy deploy webhook URL",
+    deployHint:
+      "POST JSON with deployment fields (environment, build_id, …). Sign the raw body with HMAC-SHA256 as X-Hub-Signature-256 (prefix sha256= plus hex digest, same as GitHub). Optional X-ALM-Deploy-Delivery for idempotent retries.",
+    deployCurlTitle: "Example: curl + OpenSSL (macOS / Linux)",
+    deployCurlCopyAria: "Copy curl example",
+    deployCurlHelp:
+      "Replace YOUR_DEPLOY_WEBHOOK_SECRET with the value saved in project settings. The script signs the exact bytes sent as the body.",
+    deployActionsTitle: "Example: GitHub Actions step",
+    deployActionsCopyAria: "Copy GitHub Actions snippet",
+    deployActionsHelp:
+      "Store the deploy URL and secret as repository secrets (e.g. ALM_DEPLOY_WEBHOOK_URL, ALM_DEPLOY_WEBHOOK_SECRET). Adjust the JSON fields to match your pipeline.",
+    deploySecretLabel: "Deploy webhook secret",
+    deployPlaceholderNew: "New secret (optional)",
+    deployPlaceholder: "Deploy webhook secret",
+    removeDeploySecret: "Remove deploy webhook secret",
     payloadLimitHint:
       "Each webhook request body is limited to 1 MiB; the API responds with HTTP 413 if the payload is larger.",
     deliveryIdempotencyHint:
@@ -850,6 +884,17 @@ export const qualityEn = {
     notifyUnmatchedDismissed: "Unmatched event dismissed",
     notifyUnmatchedRestored: "Unmatched event restored",
     notifyTriageError: "Could not update unmatched triage",
+  },
+  backlogFilters: {
+    staleTraceabilityOnly: "Stale traceability only",
+    staleTraceabilityOnlyAria: "Show only work items flagged for stale traceability",
+  },
+  staleTraceability: {
+    banner:
+      "Traceability may be out of date: a linked planning item changed. Review coverage and clear this when you have confirmed the link is still valid.",
+    clearAction: "Clear flag",
+    clearedNotify: "Stale traceability flag cleared",
+    clearFailed: "Could not clear stale traceability flag",
   },
   backlogTabular: {
     viewTask: "View task",

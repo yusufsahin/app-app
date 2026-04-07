@@ -11,6 +11,10 @@ SCM_WEBHOOK_SECRET_KEYS = frozenset(
     )
 )
 
+DEPLOY_WEBHOOK_SECRET_KEY = "deploy_webhook_secret"
+
+SENSITIVE_PROJECT_SECRET_KEYS = SCM_WEBHOOK_SECRET_KEYS | frozenset((DEPLOY_WEBHOOK_SECRET_KEY,))
+
 
 def scm_webhook_secret_configured_flags(settings: dict[str, Any] | None) -> tuple[bool, bool]:
     if not settings:
@@ -22,7 +26,14 @@ def scm_webhook_secret_configured_flags(settings: dict[str, Any] | None) -> tupl
     return gh_ok, gl_ok
 
 
+def deploy_webhook_secret_configured(settings: dict[str, Any] | None) -> bool:
+    if not settings:
+        return False
+    v = settings.get(DEPLOY_WEBHOOK_SECRET_KEY)
+    return isinstance(v, str) and bool(v.strip())
+
+
 def redact_sensitive_project_settings(settings: dict[str, Any] | None) -> dict[str, Any] | None:
     if settings is None:
         return None
-    return {k: v for k, v in settings.items() if k not in SCM_WEBHOOK_SECRET_KEYS}
+    return {k: v for k, v in settings.items() if k not in SENSITIVE_PROJECT_SECRET_KEYS}

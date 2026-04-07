@@ -82,6 +82,8 @@ export interface ArtifactListParams {
   assignee_id?: string;
   /** When true, only artifacts with no assignee. */
   unassigned_only?: boolean;
+  /** S4b: only artifacts with stale_traceability=true. */
+  stale_traceability_only?: boolean;
 }
 
 /**
@@ -106,6 +108,7 @@ export function buildArtifactListParams(options: {
   teamId?: string | null;
   assigneeId?: string | null;
   unassignedOnly?: boolean;
+  staleTraceabilityOnly?: boolean;
 }): ArtifactListParams {
   const params: ArtifactListParams = {};
   const {
@@ -127,6 +130,7 @@ export function buildArtifactListParams(options: {
     teamId,
     assigneeId,
     unassignedOnly,
+    staleTraceabilityOnly,
   } = options;
   if (stateFilter) params.state = stateFilter;
   if (typeFilter) params.type = typeFilter;
@@ -154,6 +158,7 @@ export function buildArtifactListParams(options: {
     const aid = assigneeId?.trim();
     if (aid) params.assignee_id = aid;
   }
+  if (staleTraceabilityOnly) params.stale_traceability_only = true;
   return params;
 }
 
@@ -180,6 +185,7 @@ export function useArtifacts(
   unassignedOnly?: boolean,
   /** When false, the query does not run (e.g. wait for a prerequisite like defect root). */
   queryEnabled: boolean = true,
+  staleTraceabilityOnly: boolean = false,
 ) {
   const params = buildArtifactListParams({
     stateFilter,
@@ -200,6 +206,7 @@ export function useArtifacts(
     teamId,
     assigneeId,
     unassignedOnly,
+    staleTraceabilityOnly,
   });
 
   return useQuery({
@@ -228,6 +235,7 @@ export function useArtifacts(
       assigneeId?.trim() || null,
       unassignedOnly ?? false,
       queryEnabled,
+      staleTraceabilityOnly,
     ],
     queryFn: async (): Promise<ArtifactsListResult> => {
       const { data } = await apiClient.get<ArtifactsListResult>(
@@ -422,6 +430,7 @@ export interface UpdateArtifactRequest {
   parent_id?: string | null;
   custom_fields?: Record<string, unknown>;
   tag_ids?: string[];
+  clear_stale_traceability?: boolean;
 }
 
 export interface PermittedTransitionItem {
@@ -499,6 +508,9 @@ export function useUpdateArtifact(
       if (payload.parent_id !== undefined) body.parent_id = payload.parent_id ?? null;
       if (payload.custom_fields !== undefined) body.custom_fields = payload.custom_fields;
       if (payload.tag_ids !== undefined) body.tag_ids = payload.tag_ids;
+      if (payload.clear_stale_traceability !== undefined) {
+        body.clear_stale_traceability = payload.clear_stale_traceability;
+      }
       const { data } = await apiClient.patch<Artifact>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${artifactId}`,
         body,
@@ -535,6 +547,9 @@ export function useUpdateArtifactById(
       if (patch.parent_id !== undefined) body.parent_id = patch.parent_id ?? null;
       if (patch.custom_fields !== undefined) body.custom_fields = patch.custom_fields;
       if (patch.tag_ids !== undefined) body.tag_ids = patch.tag_ids;
+      if (patch.clear_stale_traceability !== undefined) {
+        body.clear_stale_traceability = patch.clear_stale_traceability;
+      }
       const { data } = await apiClient.patch<Artifact>(
         `/orgs/${orgSlug}/projects/${projectId}/artifacts/${payload.artifactId}`,
         body,

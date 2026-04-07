@@ -23,3 +23,11 @@ class ArtifactStateChanged(DomainEvent):
     project_id: uuid.UUID
     from_state: str
     to_state: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class ArtifactUpdated(DomainEvent):
+    """Planning artifact fields changed (title, description, custom_fields) — traceability may be stale."""
+
+    artifact_id: uuid.UUID
+    project_id: uuid.UUID

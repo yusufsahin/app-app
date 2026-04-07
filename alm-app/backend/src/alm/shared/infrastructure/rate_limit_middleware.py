@@ -15,9 +15,13 @@ API_PREFIX = "/api/v1"
 
 
 def is_scm_provider_webhook_path(path: str) -> bool:
-    """GitHub/GitLab project webhooks are unauthenticated; do not count toward tenant JWT rate limits."""
+    """Provider / deploy webhooks are unauthenticated; do not count toward tenant JWT rate limits."""
     p = path.rstrip("/") or path
-    return p.endswith("/webhooks/github") or p.endswith("/webhooks/gitlab")
+    return (
+        p.endswith("/webhooks/github")
+        or p.endswith("/webhooks/gitlab")
+        or p.endswith("/webhooks/deploy")
+    )
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

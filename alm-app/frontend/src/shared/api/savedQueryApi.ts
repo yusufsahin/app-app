@@ -146,6 +146,7 @@ export function listStateToFilterParams(state: {
   tagFilter?: string;
   sortBy?: string;
   sortOrder?: string;
+  staleTraceabilityOnly?: boolean;
 }): Record<string, unknown> {
   const fp: Record<string, unknown> = {};
   if (state.stateFilter) fp.state = state.stateFilter;
@@ -159,6 +160,7 @@ export function listStateToFilterParams(state: {
   if (state.tagFilter) fp.tag_id = state.tagFilter;
   if (state.sortBy) fp.sort_by = state.sortBy;
   if (state.sortOrder) fp.sort_order = state.sortOrder;
+  if (state.staleTraceabilityOnly) fp.stale_traceability_only = true;
   return fp;
 }
 
@@ -179,6 +181,7 @@ export function filterParamsToListStatePatch(
   tagFilter: string;
   sortBy: "artifact_key" | "title" | "state" | "artifact_type" | "created_at" | "updated_at";
   sortOrder: "asc" | "desc";
+  staleTraceabilityOnly: boolean;
   page: number;
 }> {
   if (!filterParams || typeof filterParams !== "object") {
@@ -197,6 +200,7 @@ export function filterParamsToListStatePatch(
   const sortOrder = (String(filterParams.sort_order ?? "desc").trim() === "asc"
     ? "asc"
     : "desc") as "asc" | "desc";
+  const staleTraceabilityOnly = Boolean(filterParams.stale_traceability_only);
   return {
     stateFilter: state,
     typeFilter: type,
@@ -209,6 +213,7 @@ export function filterParamsToListStatePatch(
     tagFilter: tag,
     sortBy: sortBy || "created_at",
     sortOrder,
+    staleTraceabilityOnly,
     page: 0,
   };
 }

@@ -85,6 +85,9 @@ class ArtifactResponse(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     tags: list[ProjectTagBrief] = Field(default_factory=list)
+    stale_traceability: bool = False
+    stale_traceability_reason: str | None = None
+    stale_traceability_at: datetime | None = None
     # Permission-aware UI: actions the current user can perform on this artifact
     allowed_actions: list[str] = Field(default_factory=list)
 
@@ -106,6 +109,7 @@ class ArtifactUpdateRequest(BaseModel):
     parent_id: uuid.UUID | None = None
     custom_fields: dict[str, Any] | None = None
     tag_ids: list[uuid.UUID] | None = None
+    clear_stale_traceability: bool | None = None
 
     @field_validator("assignee_id", "cycle_id", "area_node_id", "team_id", "parent_id", mode="before")
     @classmethod
@@ -233,5 +237,8 @@ def artifact_response_from_dto(d: ArtifactDTO) -> ArtifactResponse:
         created_at=d.created_at,
         updated_at=d.updated_at,
         tags=[ProjectTagBrief(id=t.id, name=t.name) for t in d.tags],
+        stale_traceability=d.stale_traceability,
+        stale_traceability_reason=d.stale_traceability_reason,
+        stale_traceability_at=d.stale_traceability_at,
         allowed_actions=[],
     )

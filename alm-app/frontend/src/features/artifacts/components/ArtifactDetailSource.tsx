@@ -90,6 +90,12 @@ function ArtifactDetailSourcePanel({
     previewMutation.mutate(
       { web_url: url, ...(ctx ? { context_text: ctx } : {}) },
       {
+        onSuccess: (data) => {
+          const canon = (data.canonical_web_url ?? "").trim();
+          if (canon && canon !== url) {
+            form.setValue("web_url", canon, { shouldValidate: true });
+          }
+        },
         onError: () => {
           showNotification(t("workItemDetail.source.previewFailed"), "error");
         },

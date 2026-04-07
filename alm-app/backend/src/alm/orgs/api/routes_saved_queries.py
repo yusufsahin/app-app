@@ -186,6 +186,7 @@ async def run_saved_query(
             limit=fp.get("limit", limit),
             offset=fp.get("offset", offset),
             include_deleted=False,
+            stale_traceability_only=bool(fp.get("stale_traceability_only")),
         )
     )
     items = [

@@ -8,6 +8,7 @@ from typing import Any
 
 from alm.area.domain.ports import AreaRepository
 from alm.artifact.application.dtos import ArtifactDTO
+from alm.artifact.application.stale_traceability_policy import UPSTREAM_PLANNING_TYPES
 from alm.artifact.domain.manifest_workflow_metadata import is_system_root_artifact_type
 from alm.artifact.domain.mpc_resolver import get_manifest_ast, is_valid_parent_child
 from alm.artifact.domain.ports import ArtifactRepository
@@ -70,6 +71,11 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
             raise ValidationError("Cannot update a deleted artifact")
 
         updates = dict(command.updates or {})
+        clear_stale = bool(updates.pop("clear_stale_traceability", False))
+
+        old_title = artifact.title
+        old_description = artifact.description
+        old_custom_fields = dict(artifact.custom_fields or {})
         tag_ids_raw = updates.pop("tag_ids", _TAG_IDS_OMITTED)
         manifest: dict = {}
         ast = None
@@ -172,6 +178,17 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
             except ValueError as e:
                 raise ValidationError(str(e)) from e
 
+        if clear_stale:
+            artifact.clear_stale_traceability()
+
+        atype = (artifact.artifact_type or "").strip().lower()
+        if atype in UPSTREAM_PLANNING_TYPES and (
+            artifact.title != old_title
+            or artifact.description != old_description
+            or (artifact.custom_fields or {}) != old_custom_fields
+        ):
+            artifact.notify_planning_updated_for_traceability()
+
         artifact.touch(by=command.updated_by)
         await self._artifact_repo.update(artifact)
 
@@ -197,5 +214,8 @@ class UpdateArtifactHandler(CommandHandler[ArtifactDTO]):
             team_id=getattr(artifact, "team_id", None),
             created_at=getattr(artifact, "created_at", None),
             updated_at=getattr(artifact, "updated_at", None),
+            stale_traceability=getattr(artifact, "stale_traceability", False),
+            stale_traceability_reason=getattr(artifact, "stale_traceability_reason", None),
+            stale_traceability_at=getattr(artifact, "stale_traceability_at", None),
             tags=tag_map.get(artifact.id, ()),
         )

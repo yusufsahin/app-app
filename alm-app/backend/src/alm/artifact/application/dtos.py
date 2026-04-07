@@ -32,4 +32,7 @@ class ArtifactDTO:
     team_id: uuid.UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    stale_traceability: bool = False
+    stale_traceability_reason: str | None = None
+    stale_traceability_at: datetime | None = None
     tags: tuple[ProjectTagDTO, ...] = ()

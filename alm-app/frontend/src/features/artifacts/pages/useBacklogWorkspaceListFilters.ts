@@ -27,6 +27,7 @@ interface UseBacklogWorkspaceListFiltersArgs {
   sortBy: ArtifactSortBy;
   sortOrder: ArtifactSortOrder;
   showDeleted: boolean;
+  staleTraceabilityOnly: boolean;
   stateFilter: string;
   typeFilter: string;
   treeFilter: string;
@@ -48,6 +49,7 @@ export function useBacklogWorkspaceListFilters({
   sortBy,
   sortOrder,
   showDeleted,
+  staleTraceabilityOnly,
   stateFilter,
   typeFilter,
   treeFilter,
@@ -81,6 +83,7 @@ export function useBacklogWorkspaceListFilters({
       sortBy,
       sortOrder,
       showDeleted,
+      staleTraceabilityOnly,
     },
   });
   const toolbarValues = toolbarForm.watch();
@@ -96,9 +99,11 @@ export function useBacklogWorkspaceListFilters({
       releaseFilter: "",
       areaNodeFilter: "",
       tagFilter: "",
+      staleTraceabilityOnly: false,
       page: 0,
     });
-  }, [variant, setListState]);
+    toolbarForm.setValue("staleTraceabilityOnly", false);
+  }, [variant, setListState, toolbarForm]);
 
   useEffect(() => {
     if (toolbarValues.savedQueryId) {
@@ -120,6 +125,7 @@ export function useBacklogWorkspaceListFilters({
         sortBy: toolbarValues.sortBy,
         sortOrder: toolbarValues.sortOrder,
         showDeleted: toolbarValues.showDeleted,
+        staleTraceabilityOnly: toolbarValues.staleTraceabilityOnly,
       });
       const currentQ = searchParams.get("q") ?? "";
       if (toolbarValues.searchInput !== currentQ) {
@@ -145,6 +151,7 @@ export function useBacklogWorkspaceListFilters({
     toolbarValues.sortBy,
     toolbarValues.sortOrder,
     toolbarValues.showDeleted,
+    toolbarValues.staleTraceabilityOnly,
     searchParams,
     setSearchParams,
   ]);
@@ -202,6 +209,13 @@ export function useBacklogWorkspaceListFilters({
       clearSelection();
     }
   }, [showDeleted, clearSelection, setListState]);
+
+  useEffect(() => {
+    if (staleTraceabilityOnly) {
+      setListState({ page: 0 });
+      clearSelection();
+    }
+  }, [staleTraceabilityOnly, clearSelection, setListState]);
 
   return {
     toolbarForm,

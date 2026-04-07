@@ -13,6 +13,7 @@ from alm.scm.application.dtos import ScmLinkDTO
 from alm.scm.application.url_parse import canonical_web_url, parse_scm_url
 from alm.scm.domain.entities import ScmLink
 from alm.scm.domain.ports import ScmLinkRepository
+from alm.scm.infrastructure.metrics import alm_scm_links_created_total
 from alm.shared.application.command import Command, CommandHandler
 from alm.shared.domain.exceptions import ValidationError
 from alm.task.domain.ports import TaskRepository
@@ -124,6 +125,8 @@ class CreateScmLinkHandler(CommandHandler[ScmLinkDTO]):
             raise ValidationError(
                 "This URL, pull request, or commit is already linked to this artifact.",
             ) from e
+
+        alm_scm_links_created_total.labels(source=source).inc()
 
         return ScmLinkDTO(
             id=link.id,

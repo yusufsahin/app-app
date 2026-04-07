@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { PlayCircle } from "lucide-react";
+import { AlertTriangle, PlayCircle } from "lucide-react";
 import { Badge, Button, Skeleton, Tabs, TabsList, TabsTrigger } from "../../../shared/components/ui";
 import { qualityRunExecutePath } from "../../quality/lib/qualityRunPaths";
 import { artifactDetailPath } from "../../../shared/utils/appPaths";
@@ -19,6 +19,7 @@ import { ArtifactDetailHeader } from "./ArtifactDetailHeader";
 import { ArtifactDetailImpactAnalysis } from "./ArtifactDetailImpactAnalysis";
 import { ArtifactDetailLinks } from "./ArtifactDetailLinks";
 import { ArtifactDetailTasks } from "./ArtifactDetailTasks";
+import { ArtifactDetailDeployments } from "./ArtifactDetailDeployments";
 import { ArtifactDetailSource } from "./ArtifactDetailSource";
 import type { ArtifactImpactAnalysisResponse } from "../../../shared/api/relationshipApi";
 
@@ -27,6 +28,7 @@ export type BacklogDetailTab =
   | "tasks"
   | "links"
   | "source"
+  | "deploy"
   | "impact"
   | "attachments"
   | "comments"
@@ -102,6 +104,8 @@ interface BacklogArtifactDetailContentProps {
   entityHistoryLoading: boolean;
   entityHistoryError: boolean;
   entityHistory: EntityHistoryResponse | undefined;
+  onClearStaleTraceability?: () => void;
+  clearStaleTraceabilityPending?: boolean;
 }
 
 export function BacklogArtifactDetailContent({
@@ -165,6 +169,8 @@ export function BacklogArtifactDetailContent({
   entityHistoryLoading,
   entityHistoryError,
   entityHistory,
+  onClearStaleTraceability,
+  clearStaleTraceabilityPending = false,
 }: BacklogArtifactDetailContentProps) {
   const { t } = useTranslation("quality");
 
@@ -197,6 +203,24 @@ export function BacklogArtifactDetailContent({
           </p>
           <div>
               <h3 className="mb-2 mt-1 text-lg font-semibold">{detailArtifact.title}</h3>
+              {detailArtifact.stale_traceability ? (
+                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm">
+                  <AlertTriangle className="size-4 shrink-0 text-amber-800 dark:text-amber-400" aria-hidden />
+                  <p className="min-w-0 flex-1 text-muted-foreground">{t("staleTraceability.banner")}</p>
+                  {canEditArtifact && onClearStaleTraceability ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      disabled={clearStaleTraceabilityPending}
+                      onClick={onClearStaleTraceability}
+                    >
+                      {t("staleTraceability.clearAction")}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
               {(detailArtifact.tags?.length ?? 0) > 0 && (
                 <div className="mb-2 flex flex-wrap gap-1">
                   {detailArtifact.tags!.map((t) => (
@@ -282,6 +306,9 @@ export function BacklogArtifactDetailContent({
                     <TabsTrigger className="shrink-0 flex-none px-2.5" value="source">
                       {t("workItemDetail.tabs.source", { count: scmLinksCount })}
                     </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="deploy">
+                      {t("workItemDetail.tabs.deploy")}
+                    </TabsTrigger>
                     <TabsTrigger className="shrink-0 flex-none px-2.5" value="impact">
                       Impact
                     </TabsTrigger>
@@ -329,6 +356,13 @@ export function BacklogArtifactDetailContent({
                     tasks={tasks}
                     canEdit={canEditArtifact}
                     taskScopeId={highlightedDetailTaskId}
+                  />
+                )}
+                {detailTab === "deploy" && (
+                  <ArtifactDetailDeployments
+                    orgSlug={orgSlug}
+                    projectId={projectId}
+                    artifactId={detailArtifact.id}
                   />
                 )}
                 {detailTab === "impact" && (

@@ -307,6 +307,10 @@ async def list_artifacts(
         False,
         description="When true, return only artifacts with no assignee (ignores assignee_id)",
     ),
+    stale_traceability_only: bool = Query(
+        False,
+        description="When true, return only artifacts with stale_traceability=true (S4b).",
+    ),
     org: ResolvedOrg = Depends(resolve_org),
     user: CurrentUser = require_permission("artifact:read"),
     _acl: None = require_manifest_acl("artifact", "read"),
@@ -335,6 +339,7 @@ async def list_artifacts(
             team_id=team_id,
             assignee_id=assignee_id,
             unassigned_only=unassigned_only,
+            stale_traceability_only=stale_traceability_only,
         )
     )
     items = [artifact_response_from_dto(d) for d in result.items]

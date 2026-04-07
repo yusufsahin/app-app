@@ -141,7 +141,8 @@ class PreviewScmUrlHandler(QueryHandler[ScmUrlPreviewDTO]):
                 duplicate_kind="none",
             )
 
-        hints = tuple(extract_artifact_key_hints(query.context_text or ""))
+        combined_for_hints = f"{(query.web_url or '').strip()}\n{(query.context_text or '').strip()}".strip()
+        hints = tuple(extract_artifact_key_hints(combined_for_hints))
         matches = await self._resolve_key_matches(query.project_id, query.artifact_id, hints)
         unmatched = _unmatched_key_hints(hints, matches)
 

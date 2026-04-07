@@ -308,5 +308,8 @@ class GetArtifactImpactAnalysisHandler(QueryHandler[ArtifactImpactAnalysisResult
             team_id=artifact.team_id,
             created_at=artifact.created_at,
             updated_at=artifact.updated_at,
+            stale_traceability=getattr(artifact, "stale_traceability", False),
+            stale_traceability_reason=getattr(artifact, "stale_traceability_reason", None),
+            stale_traceability_at=getattr(artifact, "stale_traceability_at", None),
             tags=(),
         )

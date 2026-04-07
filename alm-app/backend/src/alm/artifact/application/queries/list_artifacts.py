@@ -52,6 +52,7 @@ class ListArtifacts(Query):
     team_id: uuid.UUID | None = None  # filter artifacts assigned to this team
     assignee_id: uuid.UUID | None = None  # filter by assignee user
     unassigned_only: bool = False  # when True, only artifacts with no assignee
+    stale_traceability_only: bool = False  # S4b: only artifacts flagged stale_traceability
 
 
 @dataclass
@@ -153,6 +154,7 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             team_id=query.team_id,
             assignee_id=query.assignee_id,
             unassigned_only=query.unassigned_only,
+            stale_traceability_only=query.stale_traceability_only,
         )
         artifacts = await self._artifact_repo.list_by_project(
             query.project_id,
@@ -176,6 +178,7 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
             team_id=query.team_id,
             assignee_id=query.assignee_id,
             unassigned_only=query.unassigned_only,
+            stale_traceability_only=query.stale_traceability_only,
         )
         tag_map = await self._tag_repo.get_tags_by_artifact_ids([a.id for a in artifacts])
         items = [
@@ -199,6 +202,9 @@ class ListArtifactsHandler(QueryHandler[ListArtifactsResult]):
                 team_id=getattr(a, "team_id", None),
                 created_at=getattr(a, "created_at", None),
                 updated_at=getattr(a, "updated_at", None),
+                stale_traceability=getattr(a, "stale_traceability", False),
+                stale_traceability_reason=getattr(a, "stale_traceability_reason", None),
+                stale_traceability_at=getattr(a, "stale_traceability_at", None),
                 tags=tag_map.get(a.id, ()),
             )
             for a in artifacts

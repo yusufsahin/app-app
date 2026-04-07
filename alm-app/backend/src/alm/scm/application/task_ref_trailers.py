@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 import uuid
 
-# Git trailers: `Refs:` (common) and `Task-ID:` (e.g. some CI / commit hooks).
+# Git trailers: `Refs:` (common), `Task-ID:` / `Task:` (CI / commit hooks).
 _TASK_UUID_TRAILER = re.compile(
-    r"^\s*(?:refs|task-id)\s*:\s*(.+)$",
+    r"^\s*(?:refs|task-id|task)\s*:\s*(.+)$",
     re.IGNORECASE | re.MULTILINE,
 )
 

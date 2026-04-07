@@ -137,11 +137,12 @@ Kayıt sırasında backend, `board` bloğunu `validate_manifest_board_section` i
 |--------|------|
 | `scm_github_webhook_secret` | GitHub webhook gövdesi için `X-Hub-Signature-256` (HMAC-SHA256) doğrulaması |
 | `scm_gitlab_webhook_secret` | GitLab `X-Gitlab-Token` başlığı ile birebir karşılaştırma |
+| `deploy_webhook_secret` | CI dağıtım webhook’u: ham JSON gövdesi için `X-Hub-Signature-256` (HMAC-SHA256, GitHub ile aynı `sha256=` öneki) |
 | `scm_webhook_github_enabled` | `false` iken imza doğrulandıktan sonra GitHub PR/push işlenmez (`{"reason":"disabled"}`). Varsayılan: açık |
 | `scm_webhook_gitlab_enabled` | `false` iken GitLab MR/push işlenmez. Varsayılan: açık |
 | `scm_webhook_push_branch_regex` | Boş değilse yalnızca bu Python regex’i ile `re.search` eşleşen dallarda **push** commit’leri işlenir; PR/MR bu anahtardan etkilenmez. Geçersiz regex: loglanır, eşleşme **açık** (fail-open) |
 
-**Güvenlik:** Proje **GET** yanıtlarında secret değerleri dönmez; yalnızca `scm_webhook_github_secret_configured` ve `scm_webhook_gitlab_secret_configured` bayrakları ile yapılandırılmış olup olmadığı bildirilir. Politika anahtarları (`*_enabled`, `push_branch_regex`) secret değildir; `settings` içinde düz metin döner. GitHub/GitLab webhook uçları ham gövdeyi **1 MiB** üzerinde **413** ile reddeder (`SCM_WEBHOOK_MAX_BODY_BYTES`).
+**Güvenlik:** Proje **GET** yanıtlarında secret değerleri dönmez; yalnızca `scm_webhook_github_secret_configured`, `scm_webhook_gitlab_secret_configured` ve `deploy_webhook_secret_configured` bayrakları ile yapılandırılmış olup olmadığı bildirilir. Politika anahtarları (`*_enabled`, `push_branch_regex`) secret değildir; `settings` içinde düz metin döner. GitHub/GitLab webhook uçları ham gövdeyi **1 MiB** üzerinde **413** ile reddeder (`SCM_WEBHOOK_MAX_BODY_BYTES`).
 
 **İstemci başlıkları (idempotency):** GitHub `X-GitHub-Delivery`, GitLab `X-Gitlab-Event-UUID` — aynı değerle gelen ikinci istek, önceki başarılı işlemden sonra yan etkisiz şekilde `duplicate_delivery` ile sonuçlanır; ayrıntı [PLAN_SCM_TRACEABILITY.md §5](./PLAN_SCM_TRACEABILITY.md).
 
