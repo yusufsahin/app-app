@@ -118,6 +118,15 @@ export default defineConfig({
       },
       dependencies: ["setup"],
     },
+    {
+      name: "scm-traceability",
+      testMatch: /scm-traceability\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/user.json",
+      },
+      dependencies: ["setup"],
+    },
   ],
   outputDir: "e2e/test-results",
 });

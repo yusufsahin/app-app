@@ -45,5 +45,21 @@ setup("authenticate and save storage state", async ({ page }) => {
   }
 
   await page.waitForLoadState("networkidle");
+  await page.waitForFunction(
+    () => {
+      const direct = localStorage.getItem("alm_access_token");
+      if (direct && direct.length > 20) return true;
+      try {
+        const raw = localStorage.getItem("auth-storage");
+        if (!raw) return false;
+        const parsed = JSON.parse(raw) as { state?: { accessToken?: string | null } };
+        const t = parsed.state?.accessToken;
+        return typeof t === "string" && t.length > 20;
+      } catch {
+        return false;
+      }
+    },
+    { timeout: 25_000 },
+  );
   await page.context().storageState({ path: AUTH_FILE });
 });
