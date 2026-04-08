@@ -574,16 +574,12 @@ export default function AppLayout() {
                   window.open(url, "_blank", "noopener,noreferrer");
                   return;
                 }
-                if (orgSlug) {
-                  const lang = i18n.language?.toLowerCase().startsWith("tr") ? "tr" : "en";
-                  window.open(
-                    `${window.location.origin}/${orgSlug}/help/tutorial/${lang}`,
-                    "_blank",
-                    "noopener,noreferrer",
-                  );
-                  return;
-                }
-                window.open(`${window.location.origin}/help.html`, "_blank", "noopener,noreferrer");
+                const lang = i18n.language?.toLowerCase().startsWith("tr") ? "TR" : "EN";
+                window.open(
+                  `/docs/USER_TUTORIAL_${lang}.html`,
+                  "_blank",
+                  "noopener,noreferrer",
+                );
               }}
             >
               <CircleHelp className="size-4" />

@@ -6,6 +6,7 @@ WORKDIR /app
 COPY alm-manifest-app/alm-app/frontend/package*.json ./
 RUN npm install --legacy-peer-deps
 COPY alm-manifest-app/alm-app/frontend ./
+COPY alm-manifest-app/alm-app/docs /docs
 RUN npm run build
 
 FROM nginx:alpine AS runtime
