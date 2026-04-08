@@ -15,6 +15,15 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 
 `npm run build` veya `vite` dev sunucusu açılırken bu dosyalar `frontend/public/docs/` altına kopyalanır; giriş yapmış kullanıcılar uygulamada `/{orgSlug}/help/tutorial/en` veya `.../tr` adresinde **Markdown → HTML** (tablolar dahil) olarak görür. Header’daki **Help** (?) düğmesi varsayılan olarak bu sayfaya gider.
 
+### Pazarlama ve satış
+
+| Doküman | Amaç | Ne zaman kullanılır |
+|---------|------|---------------------|
+| [MARKETING_MESSAGE_FRAMEWORK_TR.md](./MARKETING_MESSAGE_FRAMEWORK_TR.md) | Ürün konumlandırma, mesaj hiyerarşisi, pitch ve iddia sınırları | Landing, satış sunumu, teklif öncesi mesaj hizası |
+| [LANDING_PAGE_COPY_TR.md](./LANDING_PAGE_COPY_TR.md) | Türkçe landing page kopyası | Web sayfası, kampanya sayfası, içerik taslağı |
+| [ONE_PAGER_TR.md](./ONE_PAGER_TR.md) | Tek sayfalık ürün özeti | Satış PDF'i, teklif eki, kısa ürün anlatımı |
+| [DEMO_SCRIPT_TR.md](./DEMO_SCRIPT_TR.md) | Demo akışı, konuşma metni ve hazırlık listesi | Canlı demo, keşif görüşmesi, satış sunumu |
+
 ### Mimari ve plan
 
 | Doküman | Amaç | Ne zaman kullanılır |
