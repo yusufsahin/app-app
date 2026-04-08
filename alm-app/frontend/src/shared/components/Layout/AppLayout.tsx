@@ -23,6 +23,7 @@ import {
   PlayCircle,
   FolderTree,
   Bug,
+  CircleHelp,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -101,7 +102,7 @@ const PROJECT_QUALITY_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "
 const PROJECT_AUTOMATION_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "automation");
 
 export default function AppLayout() {
-  const { t } = useTranslation("quality");
+  const { t, i18n } = useTranslation("quality");
   const qualitySubnavItems = useMemo((): NestedNavItem[] => {
     const keys = ["catalog", "campaign", "runs", "defects", "traceability"] as const;
     return QUALITY_SUBNAV_ICONS.map((row, i) => ({
@@ -559,6 +560,33 @@ export default function AppLayout() {
             </Button>
             <Button variant="ghost" size="icon" className="size-9" aria-label="Settings" onClick={() => navigate(orgSlug ? `/${orgSlug}/settings` : "/")}>
               <Settings className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-9"
+              aria-label="Help"
+              title="Help"
+              onClick={() => {
+                const url = import.meta.env.VITE_HELP_URL;
+                if (typeof url === "string" && url.length > 0) {
+                  window.open(url, "_blank", "noopener,noreferrer");
+                  return;
+                }
+                if (orgSlug) {
+                  const lang = i18n.language?.toLowerCase().startsWith("tr") ? "tr" : "en";
+                  window.open(
+                    `${window.location.origin}/${orgSlug}/help/tutorial/${lang}`,
+                    "_blank",
+                    "noopener,noreferrer",
+                  );
+                  return;
+                }
+                window.open(`${window.location.origin}/help.html`, "_blank", "noopener,noreferrer");
+              }}
+            >
+              <CircleHelp className="size-4" />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

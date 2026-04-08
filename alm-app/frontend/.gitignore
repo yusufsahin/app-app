@@ -1,3 +1,6 @@
+# Generated from ../docs by Vite plugin (sync-user-tutorial-markdown)
+public/docs/*.md
+
 # Playwright
 e2e/.auth/
 e2e/test-results/

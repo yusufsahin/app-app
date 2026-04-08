@@ -6,6 +6,15 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 
 ## Doküman indeksi
 
+### Kullanıcı rehberi (ürün içi HTML)
+
+| Doküman | Amaç |
+|---------|------|
+| [USER_TUTORIAL_EN.md](./USER_TUTORIAL_EN.md) | Son kullanıcı kılavuzu (İngilizce) — kaynak Markdown |
+| [USER_TUTORIAL_TR.md](./USER_TUTORIAL_TR.md) | Son kullanıcı kılavuzu (Türkçe) — kaynak Markdown |
+
+`npm run build` veya `vite` dev sunucusu açılırken bu dosyalar `frontend/public/docs/` altına kopyalanır; giriş yapmış kullanıcılar uygulamada `/{orgSlug}/help/tutorial/en` veya `.../tr` adresinde **Markdown → HTML** (tablolar dahil) olarak görür. Header’daki **Help** (?) düğmesi varsayılan olarak bu sayfaya gider.
+
 ### Mimari ve plan
 
 | Doküman | Amaç | Ne zaman kullanılır |

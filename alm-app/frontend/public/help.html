@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ALM — Help</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #0f172a; }
+      h1 { font-size: 1.25rem; }
+      p, li { color: #64748b; font-size: 0.95rem; }
+      code { background: #f1f5f9; padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.9em; }
+    </style>
+  </head>
+  <body>
+    <h1>Help</h1>
+    <p><strong>User guide (HTML):</strong> After you sign in, open your organization, then use the <strong>Help</strong> (?) button in the header. It opens the full guide rendered from <code>docs/USER_TUTORIAL_EN.md</code> and <code>docs/USER_TUTORIAL_TR.md</code> (English / Türkçe).</p>
+    <p>Direct URL pattern: <code>/{your-org-slug}/help/tutorial/en</code> or <code>.../tr</code>.</p>
+    <p>Use the header search (Ctrl+K / ⌘K) to jump to pages and projects. Your team can set <code>VITE_HELP_URL</code> at build time to open an external site instead of the in-app guide.</p>
+    <p><a href="/">Back to app</a></p>
+  </body>
+</html>
