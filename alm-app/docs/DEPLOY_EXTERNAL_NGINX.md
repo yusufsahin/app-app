@@ -7,6 +7,13 @@ Bu kılavuz, ALM’nin **ayrı bir nginx** (ör. başka uygulamalarla aynı sunu
 - **Kök şifreleri sohbet veya repoda saklamayın.** Sunucuya erişim için SSH anahtarı kullanın; sızıntı olduysa şifreyi derhal değiştirin.
 - `ALM_POSTGRES_PASSWORD` ve `ALM_JWT_SECRET_KEY` üretimde güçlü ve benzersiz olsun; `.env` dosyası **asla git’e eklenmez**.
 
+## Sunucu hazırlığı (kısa kontrol listesi)
+
+- Docker + Docker Compose v2 kurulu.
+- Repo: `alm-manifest-app` içinde `alm-app` ve `manifest-platform-core-suite` (backend imajı MPC’yi **build context** içinden kopyalar).
+- `alm-app/.env`: [prod.env.example](../prod.env.example) — güçlü Postgres parolası, `ALM_JWT_SECRET_KEY`, HTTPS `ALM_CORS_ORIGINS` / `ALM_BASE_URL`.
+- Seed: Üretimde `ALM_SEED_DEMO_DATA=false` ile demo tenant oluşmaz; privilege/şablon seed’leri yine backend açılışında çalışır. Tek sefer manuel: `docker compose exec backend python scripts/run_seed_once.py` (imajda script vardır).
+
 ## 1. Sunucu dizin yapısı ve Docker build context
 
 Backend `Dockerfile`, build context içinde **`alm-manifest-app/...`** yolunu bekler. Tipik yerleşim:

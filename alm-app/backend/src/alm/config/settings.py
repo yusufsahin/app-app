@@ -37,7 +37,8 @@ class Settings(BaseSettings):
 
     upload_dir: str = "uploads"  # Local directory for artifact attachments (ALM_UPLOAD_DIR)
 
-    seed_demo_data: bool = True  # Create demo tenant/admin when DB is empty (ALM_SEED_DEMO_DATA)
+    # Demo tenant/user/projects only; privilege + process template seeds run regardless (see run_startup_seeds).
+    seed_demo_data: bool = True  # ALM_SEED_DEMO_DATA
 
     # PostgreSQL text search config for artifact FTS (whitelist enforced in repository). ALM_FULLTEXT_SEARCH_CONFIG
     fulltext_search_config: str = "english"

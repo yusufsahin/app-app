@@ -41,10 +41,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         raise RuntimeError("jwt_secret_key must be changed in production")
     setup_tenant_rls(async_session_factory)
 
-    if settings.seed_demo_data:
-        from alm.config.seed import run_startup_seeds
+    from alm.config.seed import run_startup_seeds
 
-        await run_startup_seeds(async_session_factory)
+    await run_startup_seeds(async_session_factory)
 
     subscriber_task = asyncio.create_task(run_subscriber())
 

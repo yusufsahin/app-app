@@ -51,7 +51,7 @@ class TestLifespan:
                     pass
 
     @pytest.mark.asyncio
-    async def test_runs_seed_steps_and_cancels_subscriber(self) -> None:
+    async def test_run_startup_seeds_and_cancels_subscriber(self) -> None:
         cancelled = asyncio.Event()
 
         async def _subscriber() -> None:
@@ -61,12 +61,7 @@ class TestLifespan:
                 cancelled.set()
                 raise
 
-        async_seed_privileges = AsyncMock()
-        async_seed_templates = AsyncMock()
-        async_seed_demo = AsyncMock()
-        async_backfill = AsyncMock()
-        async_backfill_roots = AsyncMock()
-        async_hydrate = AsyncMock()
+        async_run_startup_seeds = AsyncMock()
 
         with (
             patch("alm.main.settings.debug", True),
@@ -74,69 +69,32 @@ class TestLifespan:
             patch("alm.main.settings.environment", "development"),
             patch("alm.main.setup_tenant_rls") as setup_rls,
             patch("alm.main.run_subscriber", side_effect=_subscriber),
-            patch("alm.config.seed.seed_privileges", async_seed_privileges),
-            patch("alm.config.seed.seed_process_templates", async_seed_templates),
-            patch(
-                "alm.config.seed.backfill_projects_missing_process_template",
-                async_backfill,
-            ),
-            patch(
-                "alm.config.seed.backfill_projects_missing_tree_roots",
-                async_backfill_roots,
-            ),
-            patch("alm.config.seed.seed_demo_data", async_seed_demo),
-            patch("alm.config.seed.hydrate_stranded_demo_workspace", async_hydrate),
+            patch("alm.config.seed.run_startup_seeds", async_run_startup_seeds),
         ):
             app = FastAPI()
             async with lifespan(app):
                 await asyncio.sleep(0)
 
         setup_rls.assert_called_once()
-        async_seed_privileges.assert_awaited_once()
-        async_seed_templates.assert_awaited_once()
-        async_backfill.assert_awaited()
-        async_backfill_roots.assert_awaited()
-        async_seed_demo.assert_awaited_once()
-        async_hydrate.assert_awaited_once()
+        async_run_startup_seeds.assert_awaited_once()
         assert cancelled.is_set()
 
     @pytest.mark.asyncio
-    async def test_skips_demo_seed_and_hydrate_in_production(self) -> None:
-        async_seed_privileges = AsyncMock()
-        async_seed_templates = AsyncMock()
-        async_seed_demo = AsyncMock()
-        async_backfill = AsyncMock()
-        async_backfill_roots = AsyncMock()
-        async_hydrate = AsyncMock()
+    async def test_run_startup_seeds_called_in_production_when_demo_disabled(self) -> None:
+        async_run_startup_seeds = AsyncMock()
 
         async def _subscriber() -> None:
             await asyncio.Future()
 
         with (
             patch("alm.main.settings.debug", True),
-            patch("alm.main.settings.seed_demo_data", True),
+            patch("alm.main.settings.seed_demo_data", False),
             patch("alm.main.settings.environment", "production"),
             patch("alm.main.setup_tenant_rls"),
             patch("alm.main.run_subscriber", side_effect=_subscriber),
-            patch("alm.config.seed.seed_privileges", async_seed_privileges),
-            patch("alm.config.seed.seed_process_templates", async_seed_templates),
-            patch(
-                "alm.config.seed.backfill_projects_missing_process_template",
-                async_backfill,
-            ),
-            patch(
-                "alm.config.seed.backfill_projects_missing_tree_roots",
-                async_backfill_roots,
-            ),
-            patch("alm.config.seed.seed_demo_data", async_seed_demo),
-            patch("alm.config.seed.hydrate_stranded_demo_workspace", async_hydrate),
+            patch("alm.config.seed.run_startup_seeds", async_run_startup_seeds),
         ):
             async with lifespan(FastAPI()):
                 pass
 
-        async_seed_privileges.assert_awaited_once()
-        async_seed_templates.assert_awaited_once()
-        async_backfill.assert_awaited_once()
-        async_backfill_roots.assert_awaited_once()
-        async_seed_demo.assert_not_awaited()
-        async_hydrate.assert_not_awaited()
+        async_run_startup_seeds.assert_awaited_once()

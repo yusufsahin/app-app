@@ -22,7 +22,9 @@ Local **Vite** dev remains http://localhost:5173 with API on http://localhost:80
 
 ## Demo Seed Data
 
-Boş veritabanında uygulama başlarken otomatik demo verisi oluşturulur:
+**Privilege, process template ve ilgili backfill** her ortamda uygulama **startup**’ında çalışır (`run_startup_seeds`). `ALM_SEED_DEMO_DATA` yalnızca **demo tenant** (ör. `admin@example.com`) ve tamamlayıcı demo fazını kontrol eder; üretimde `false` tutmak demo oluşturmayı kapatır, sistem seed’ler yine uygulanır.
+
+Boş veritabanında, **geliştirme / staging** (production değil) ve `ALM_SEED_DEMO_DATA=true` iken demo verisi oluşturulur:
 
 | Kaynak       | Değer                    |
 |--------------|--------------------------|

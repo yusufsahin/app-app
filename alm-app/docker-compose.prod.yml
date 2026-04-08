@@ -45,7 +45,8 @@ services:
       ALM_DATABASE_URL: "postgresql+asyncpg://${ALM_POSTGRES_USER:-alm}:${ALM_POSTGRES_PASSWORD}@db:5432/${ALM_POSTGRES_DB:-alm}"
       ALM_REDIS_URL: "redis://redis:6379/0"
       ALM_JWT_SECRET_KEY: ${ALM_JWT_SECRET_KEY}
-      ALM_SEED_DEMO_DATA: "false"
+      # Demo tenant only; backend always runs privilege/template seeds on startup (main.py).
+      ALM_SEED_DEMO_DATA: "${ALM_SEED_DEMO_DATA:-false}"
     depends_on:
       db:
         condition: service_healthy
