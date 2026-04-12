@@ -19,10 +19,18 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 
 | Doküman | Amaç | Ne zaman kullanılır |
 |---------|------|---------------------|
+| [executive-summary.html](./executive-summary.html) | **PDF'e yazdırılabilir tek sayfa yönetici özeti** — istatistik, ROI tablosu, rakip karşılaştırma, CTA | E-posta eki PDF, yönetim kurulu paketi, ilk temas |
+| [EXECUTIVE_BRIEF_TR.md](./EXECUTIVE_BRIEF_TR.md) | CEO/GM/YK seviyesi 3 dakikalık yönetici özeti — iş riski, maliyet, ROI, tek CTA | C-level ilk temas, yönetim kurulu sunumu, teklif kapak |
+| [EXECUTIVE_EMAIL_TR.md](./EXECUTIVE_EMAIL_TR.md) | CEO/GM'e soğuk erişim e-postaları, LinkedIn mesajları ve yönetici toplantı akışı | Outbound CEO outreach, konferans sonrası takip |
 | [MARKETING_MESSAGE_FRAMEWORK_TR.md](./MARKETING_MESSAGE_FRAMEWORK_TR.md) | Ürün konumlandırma, mesaj hiyerarşisi, pitch ve iddia sınırları | Landing, satış sunumu, teklif öncesi mesaj hizası |
 | [LANDING_PAGE_COPY_TR.md](./LANDING_PAGE_COPY_TR.md) | Türkçe landing page kopyası | Web sayfası, kampanya sayfası, içerik taslağı |
-| [ONE_PAGER_TR.md](./ONE_PAGER_TR.md) | Tek sayfalık ürün özeti | Satış PDF'i, teklif eki, kısa ürün anlatımı |
+| [ONE_PAGER_TR.md](./ONE_PAGER_TR.md) | Tek sayfalık ürün özeti (rekabetçi tablo + ROI özeti dahil) | Satış PDF'i, teklif eki, kısa ürün anlatımı |
 | [DEMO_SCRIPT_TR.md](./DEMO_SCRIPT_TR.md) | Demo akışı, konuşma metni ve hazırlık listesi | Canlı demo, keşif görüşmesi, satış sunumu |
+| [SALES_PITCH_DECK_TR.md](./SALES_PITCH_DECK_TR.md) | 13 slaytlık satış pitch deck yapısı ve konuşma notları | Satış sunumu, yönetim brifingi, keşif görüşmesi |
+| [COMPETITIVE_POSITIONING_TR.md](./COMPETITIVE_POSITIONING_TR.md) | Jira, Azure DevOps, Linear, TestRail karşılaştırması ve itiraz yönetimi | Satış görüşmesi, rakip soruları, konumlandırma |
+| [ROI_VALUE_ARGUMENTS_TR.md](./ROI_VALUE_ARGUMENTS_TR.md) | Araç parçalanması maliyet analizi, verimlilik ve risk argümanları | Teklif aşaması, CFO/yönetim sunumu, bütçe itirazı |
+| [EMAIL_CAMPAIGN_TR.md](./EMAIL_CAMPAIGN_TR.md) | 5 e-postalı soğuk erişim + demo talep onay nurture serisi | Outbound satış, SDR e-posta şablonları |
+| [SOCIAL_CONTENT_TR.md](./SOCIAL_CONTENT_TR.md) | 8 LinkedIn postu + X/Twitter içerik paketi ve yayın planı | Organik sosyal, ürün lansmanı, marka farkındalığı |
 
 ### Mimari ve plan
 

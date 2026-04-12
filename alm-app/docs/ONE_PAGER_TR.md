@@ -129,7 +129,32 @@ ALM, yalnızca bir issue tracker değildir. Süreç modeli tanımlanabilir, kali
 
 ---
 
-## 9. Güvenli Vaat Sınırları
+## 9. Rekabetçi Konumlandırma (Kısa)
+
+| | Jira+TestRail | Azure DevOps | Linear | **ALM** |
+| --- | --- | --- | --- | --- |
+| Test yönetimi | Eklenti | Ek lisans | ✗ | ✓ Yerleşik |
+| Manifest süreç | ✗ | ✗ | ✗ | ✓ |
+| Deploy traceability | Sınırlı | Azure-bağlı | ✗ | ✓ |
+| Tek platform | ✗ | Kısmen | ✓ | ✓ |
+
+Detaylı karşılaştırma: [COMPETITIVE_POSITIONING_TR.md](./COMPETITIVE_POSITIONING_TR.md)
+
+---
+
+## 10. Yatırım Getirisi (ROI Özeti)
+
+**Araç konsolidasyonu:** TestRail + Jira + entegrasyon maliyetine kıyasla tek platform lisansı
+
+**Verimlilik:** Sprint review hazırlığı ~2,5 saat/sprint tasarrufu; defect traceability ~14 dakika/sorgu tasarrufu
+
+**Risk:** Denetim/compliance hazırlık süresi kısalır; entegrasyon kırılma riski azalır
+
+Detaylı ROI hesabı: [ROI_VALUE_ARGUMENTS_TR.md](./ROI_VALUE_ARGUMENTS_TR.md)
+
+---
+
+## 11. Güvenli Vaat Sınırları
 
 Satışta güvenle söylenebilir:
 
@@ -146,16 +171,20 @@ Satışta dikkatli çerçevelenmeli:
 
 ---
 
-## 10. Son CTA
+## 12. Son CTA
 
 ALM'i, yaşam döngüsü boyunca kalite ve izlenebilirlik görünürlüğü arayan ekipler için değerlendirin. Özellikle backlog, test yönetimi ve traceability'yi ayrı araçlarda yürüten organizasyonlarda hızlı değer üretir.
 
 ---
 
-## 11. İlgili Dokümanlar
+## 13. İlgili Dokümanlar
 
 - [MARKETING_MESSAGE_FRAMEWORK_TR.md](./MARKETING_MESSAGE_FRAMEWORK_TR.md)
 - [LANDING_PAGE_COPY_TR.md](./LANDING_PAGE_COPY_TR.md)
 - [DEMO_SCRIPT_TR.md](./DEMO_SCRIPT_TR.md)
+- [COMPETITIVE_POSITIONING_TR.md](./COMPETITIVE_POSITIONING_TR.md)
+- [ROI_VALUE_ARGUMENTS_TR.md](./ROI_VALUE_ARGUMENTS_TR.md)
+- [SALES_PITCH_DECK_TR.md](./SALES_PITCH_DECK_TR.md)
+- [EMAIL_CAMPAIGN_TR.md](./EMAIL_CAMPAIGN_TR.md)
 
 - ↑ [Dokümanlar](README.md)
