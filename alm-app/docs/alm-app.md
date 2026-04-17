@@ -84,6 +84,18 @@ ALM uygulamasi MPC'nin bir **"consuming application"**'i olacak: `DomainMeta` ta
 | Testing       | **Vitest + Testing Library + axe**      | Unit + component + a11y tests              |
 
 
+### Mobil istemci (Expo)
+
+| Katman       | Teknoloji                                      | Neden |
+| ------------ | ---------------------------------------------- | ----- |
+| Runtime      | **Expo SDK 54 + React Native**                 | Aynı FastAPI `/api/v1` ile web paritesi |
+| Sunucu durumu | **TanStack Query v5**                         | Web ile aynı invalidation anahtarları |
+| Güvenli depolama | **expo-secure-store** (access token)     | Yerel JWT saklama |
+| Ortak tipler | **`packages/manifest-types` (`@alm/manifest-types`)** | Manifest bundle + workflow yardımcıları web ile paylaşılır |
+
+Kurulum ve `EXPO_PUBLIC_API_URL`: repo kökündeki [mobile/README.md](../mobile/README.md) ve [README.md](../README.md) §4.
+
+
 ### Ek Oneriler
 
 - **Docker Compose** (dev ortam), **Dockerfile** (multi-stage)

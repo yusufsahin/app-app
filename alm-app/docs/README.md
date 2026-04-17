@@ -78,6 +78,15 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 |---------|------|---------------------|
 | [FORMS_TEST_CHECKLIST.md](./FORMS_TEST_CHECKLIST.md) | Paylaşılan form bileşenleri (Rhf*) ile taşınan sayfa/dialog’lar için manuel test listesi | Deploy öncesi veya form değişikliği sonrası QA |
 
+### Mobil istemci (Expo)
+
+| Kaynak | Amaç |
+|--------|------|
+| [mobile/README.md](../mobile/README.md) | Expo kurulumu, `EXPO_PUBLIC_API_URL`, `npm run mobile:*` |
+| [packages/manifest-types](../packages/manifest-types) | Web ve mobil için ortak manifest / workflow TypeScript tipleri |
+
+Mimari özeti: [alm-app.md — Teknoloji yığını](./alm-app.md#2-teknoloji-yigini-tech-stack) (Mobil istemci alt başlığı).
+
 **Kök dizin:** [README.md](../README.md) (kurulum, çalıştırma), [DEPLOY.md](../DEPLOY.md) (deploy).
 
 ---

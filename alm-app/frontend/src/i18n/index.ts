@@ -3,6 +3,8 @@ import { initReactI18next } from "react-i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { qualityEn } from "./locales/en/quality";
 import { qualityTr } from "./locales/tr/quality";
+import { reportsEn } from "./locales/en/reports";
+import { reportsTr } from "./locales/tr/reports";
 
 void i18n
   .use(LanguageDetector)
@@ -11,9 +13,11 @@ void i18n
     resources: {
       en: {
         quality: qualityEn,
+        reports: reportsEn,
       },
       tr: {
         quality: qualityTr,
+        reports: reportsTr,
       },
     },
     lng: "en",
@@ -24,7 +28,7 @@ void i18n
     interpolation: {
       escapeValue: false,
     },
-    ns: ["quality"],
+    ns: ["quality", "reports"],
     defaultNS: "quality",
   });
 

@@ -7,6 +7,20 @@ updates:
     open-pull-requests-limit: 5
     labels: ["dependencies", "frontend"]
 
+  - package-ecosystem: "npm"
+    directory: "/alm-app/mobile"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "mobile"]
+
+  - package-ecosystem: "npm"
+    directory: "/alm-app/packages/manifest-types"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "shared"]
+
   - package-ecosystem: "pip"
     directory: "/alm-app/backend"
     schedule:

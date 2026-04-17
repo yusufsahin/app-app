@@ -197,3 +197,16 @@ export function qualityDefectsPath(
 export function qualityCampaignsPath(orgSlug: string, projectSlug: string): string {
   return `/${orgSlug}/${projectSlug}/quality/campaigns`;
 }
+
+/** Project reports (stored definitions, SQL / builtin, validate → publish). */
+export function projectReportsPath(orgSlug: string, projectSlug: string): string {
+  return `/${orgSlug}/${projectSlug}/reports`;
+}
+
+export function projectReportNewPath(orgSlug: string, projectSlug: string): string {
+  return `/${orgSlug}/${projectSlug}/reports/new`;
+}
+
+export function projectReportDetailPath(orgSlug: string, projectSlug: string, reportId: string): string {
+  return `/${orgSlug}/${projectSlug}/reports/${reportId}`;
+}

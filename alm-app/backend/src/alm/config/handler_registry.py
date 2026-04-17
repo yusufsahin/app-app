@@ -141,6 +141,20 @@ from alm.cycle.application.queries.list_cycles_by_project import (
     ListCadencesByProjectHandler,
 )
 from alm.cycle.infrastructure.repositories import SqlAlchemyCycleRepository
+
+# ── Deployment events (S4a) ──
+from alm.deployment.application.commands.create_deployment_event import (
+    CreateDeploymentEvent,
+    CreateDeploymentEventHandler,
+)
+from alm.deployment.application.queries.get_artifact_traceability_summary import (
+    GetArtifactTraceabilitySummary,
+    GetArtifactTraceabilitySummaryHandler,
+)
+from alm.deployment.application.queries.list_deployment_events import (
+    ListDeploymentEvents,
+    ListDeploymentEventsHandler,
+)
 from alm.form_schema.application.queries.get_form_schema import (
     GetFormSchema,
     GetFormSchemaHandler,
@@ -279,6 +293,33 @@ from alm.relationship.application.queries.list_relationships_for_artifact import
     ListRelationshipsForArtifactHandler,
 )
 from alm.relationship.infrastructure.repositories import SqlAlchemyRelationshipRepository
+from alm.report_definition.application.commands import (
+    CreateReportDefinition,
+    DeleteReportDefinition,
+    ForkReportDefinition,
+    ForkReportFromCatalog,
+    PublishReportDefinition,
+    UpdateReportDefinition,
+    ValidateReportDefinition,
+)
+from alm.report_definition.application.handlers import (
+    CreateReportDefinitionHandler,
+    DeleteReportDefinitionHandler,
+    ExecuteStoredReportHandler,
+    ForkReportDefinitionHandler,
+    ForkReportFromCatalogHandler,
+    GetReportDefinitionHandler,
+    ListReportDefinitionsHandler,
+    PublishReportDefinitionHandler,
+    UpdateReportDefinitionHandler,
+    ValidateReportDefinitionHandler,
+)
+from alm.report_definition.application.queries import (
+    ExecuteStoredReport,
+    GetReportDefinition,
+    ListReportDefinitions,
+)
+from alm.report_definition.infrastructure.repositories import SqlAlchemyReportDefinitionRepository
 
 # ── Saved query commands ──
 from alm.saved_query.application.commands.create_saved_query import (
@@ -312,20 +353,6 @@ from alm.scm.application.queries.list_scm_links_by_artifact import (
 )
 from alm.scm.application.queries.preview_scm_url import PreviewScmUrl, PreviewScmUrlHandler
 from alm.scm.infrastructure.repositories import SqlAlchemyScmLinkRepository
-
-# ── Deployment events (S4a) ──
-from alm.deployment.application.commands.create_deployment_event import (
-    CreateDeploymentEvent,
-    CreateDeploymentEventHandler,
-)
-from alm.deployment.application.queries.get_artifact_traceability_summary import (
-    GetArtifactTraceabilitySummary,
-    GetArtifactTraceabilitySummaryHandler,
-)
-from alm.deployment.application.queries.list_deployment_events import (
-    ListDeploymentEvents,
-    ListDeploymentEventsHandler,
-)
 
 # DDD Enterprise Clean Architecture: Domain Event Dispatcher
 from alm.shared.application.mediator import (
@@ -1302,6 +1329,80 @@ def register_all_handlers() -> None:
         GetSavedQuery,
         lambda s: GetSavedQueryHandler(
             saved_query_repo=SqlAlchemySavedQueryRepository(s),
+        ),
+    )
+
+    # ── Report definitions (SQL / builtin / validate → publish) ──
+    register_command_handler(
+        CreateReportDefinition,
+        lambda s: CreateReportDefinitionHandler(
+            report_repo=SqlAlchemyReportDefinitionRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_command_handler(
+        UpdateReportDefinition,
+        lambda s: UpdateReportDefinitionHandler(
+            report_repo=SqlAlchemyReportDefinitionRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_command_handler(
+        DeleteReportDefinition,
+        lambda s: DeleteReportDefinitionHandler(
+            report_repo=SqlAlchemyReportDefinitionRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_command_handler(
+        ForkReportDefinition,
+        lambda s: ForkReportDefinitionHandler(
+            report_repo=SqlAlchemyReportDefinitionRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_command_handler(
+        ForkReportFromCatalog,
+        lambda s: ForkReportFromCatalogHandler(
+            report_repo=SqlAlchemyReportDefinitionRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_command_handler(
+        ValidateReportDefinition,
+        lambda s: ValidateReportDefinitionHandler(
+            session=s,
+            report_repo=SqlAlchemyReportDefinitionRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_command_handler(
+        PublishReportDefinition,
+        lambda s: PublishReportDefinitionHandler(
+            report_repo=SqlAlchemyReportDefinitionRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_query_handler(
+        ListReportDefinitions,
+        lambda s: ListReportDefinitionsHandler(
+            report_repo=SqlAlchemyReportDefinitionRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_query_handler(
+        GetReportDefinition,
+        lambda s: GetReportDefinitionHandler(
+            report_repo=SqlAlchemyReportDefinitionRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
+        ),
+    )
+    register_query_handler(
+        ExecuteStoredReport,
+        lambda s: ExecuteStoredReportHandler(
+            session=s,
+            report_repo=SqlAlchemyReportDefinitionRepository(s),
+            project_repo=SqlAlchemyProjectRepository(s),
         ),
     )
 

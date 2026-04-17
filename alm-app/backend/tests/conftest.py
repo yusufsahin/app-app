@@ -40,6 +40,7 @@ import alm.project.infrastructure.models  # noqa: F401
 import alm.project.infrastructure.project_member_models  # noqa: F401
 import alm.project_tag.infrastructure.models  # noqa: F401 — project_tags, artifact_tags, task_tags
 import alm.relationship.infrastructure.models  # noqa: F401
+import alm.report_definition.infrastructure.models  # noqa: F401
 import alm.saved_query.infrastructure.models  # noqa: F401
 import alm.scm.infrastructure.models  # noqa: F401
 import alm.shared.audit.models  # noqa: F401

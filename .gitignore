@@ -61,3 +61,11 @@ alm-app/frontend/.claude/worktrees/
 
 # CI gate outputs (local)
 alm-app/backend/artifacts/
+
+# Cursor project metadata (local)
+alm-app/.cursor/
+
+# Docs build artifacts / binaries
+alm-app/docs/screenshots/
+alm-app/docs/*.pdf
+alm-app/docs/*.pptx

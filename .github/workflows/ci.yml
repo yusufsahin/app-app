@@ -183,6 +183,28 @@ jobs:
         working-directory: alm-app/frontend
         run: npm run test:unit
 
+  mobile_types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            alm-app/mobile/package-lock.json
+            alm-app/packages/manifest-types/package-lock.json
+
+      - name: Shared manifest types (npm ci + typecheck)
+        working-directory: alm-app/packages/manifest-types
+        run: npm ci && npm run typecheck
+
+      - name: Mobile (npm ci + typecheck)
+        working-directory: alm-app/mobile
+        run: npm ci && npm run typecheck
+
   quality-tree-smoke:
     runs-on: ubuntu-latest
     services:

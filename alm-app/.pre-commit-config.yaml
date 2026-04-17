@@ -39,3 +39,19 @@ repos:
         language: system
         pass_filenames: false
         files: ^frontend/.*\.(ts|tsx|js|jsx|mjs|cjs)$
+
+      # Shared types: requires `npm install` at repo root (workspace hoists typescript)
+      - id: manifest-types-typecheck
+        name: manifest-types tsc
+        entry: npm run typecheck:packages
+        language: system
+        pass_filenames: false
+        files: ^packages/manifest-types/
+
+      # Mobile: requires `npm run mobile:install` (or npm ci in mobile/) first
+      - id: mobile-typecheck
+        name: mobile tsc
+        entry: npm run mobile:typecheck
+        language: system
+        pass_filenames: false
+        files: ^mobile/

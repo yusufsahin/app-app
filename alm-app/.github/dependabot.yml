@@ -8,6 +8,20 @@ updates:
     open-pull-requests-limit: 5
     labels: ["dependencies", "frontend"]
 
+  - package-ecosystem: "npm"
+    directory: "/mobile"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "mobile"]
+
+  - package-ecosystem: "npm"
+    directory: "/packages/manifest-types"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels: ["dependencies", "shared"]
+
   - package-ecosystem: "pip"
     directory: "/backend"
     schedule:

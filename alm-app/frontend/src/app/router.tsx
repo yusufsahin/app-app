@@ -98,6 +98,9 @@ const QualityCampaignPage = lazy(() => import("../features/quality/pages/Quality
 const QualityRunsPage = lazy(() => import("../features/quality/pages/QualityRunsPage"));
 const QualityCampaignsPage = lazy(() => import("../features/quality/pages/QualityCampaignsPage"));
 const LegacyExecuteRedirect = lazy(() => import("../features/quality/pages/LegacyExecuteRedirect"));
+const ProjectReportsPage = lazy(() => import("../features/reporting/pages/ProjectReportsPage"));
+const ProjectReportNewPage = lazy(() => import("../features/reporting/pages/ProjectReportNewPage"));
+const ProjectReportDetailPage = lazy(() => import("../features/reporting/pages/ProjectReportDetailPage"));
 
 const OrgRedirect = lazy(() => import("./OrgRedirect"));
 
@@ -261,6 +264,18 @@ export const router = createBrowserRouter([
           {
             path: ":projectSlug/quality",
             element: withPermission("artifact:read", QualityPage),
+          },
+          {
+            path: ":projectSlug/reports/new",
+            element: withPermission("artifact:read", ProjectReportNewPage),
+          },
+          {
+            path: ":projectSlug/reports/:reportId",
+            element: withPermission("artifact:read", ProjectReportDetailPage),
+          },
+          {
+            path: ":projectSlug/reports",
+            element: withPermission("artifact:read", ProjectReportsPage),
           },
           {
             path: ":projectSlug/board",

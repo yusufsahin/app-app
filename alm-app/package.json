@@ -2,6 +2,9 @@
   "name": "alm-app",
   "private": true,
   "description": "ALM app – full lifecycle: build, test, deploy",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "build": "npm run build:fe && npm run build:be",
     "build:fe": "cd frontend && npm install && npm run build",
@@ -14,7 +17,13 @@
     "deploy": "docker compose up --build -d",
     "deploy:down": "docker compose down",
     "lifecycle": "npm run build && npm run test && npm run deploy",
-    "lifecycle:full": "npm run build && npm run test && npm run deploy && npm run test:e2e:deployed"
+    "lifecycle:full": "npm run build && npm run test && npm run deploy && npm run test:e2e:deployed",
+    "mobile:install": "npm install --prefix mobile",
+    "mobile:typecheck": "npm run typecheck --prefix mobile",
+    "mobile:start": "npm run start --prefix mobile",
+    "mobile:android": "npm run android --prefix mobile",
+    "mobile:ios": "npm run ios --prefix mobile",
+    "typecheck:packages": "npm run typecheck --prefix packages/manifest-types"
   },
   "devDependencies": {
     "cross-env": "^7.0.3"

@@ -18,7 +18,9 @@
     "noUncheckedIndexedAccess": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@alm/manifest-types": ["../packages/manifest-types/src/index.ts"],
+      "@alm/manifest-types/*": ["../packages/manifest-types/src/*"]
     }
   },
   "include": ["src"]

@@ -1,7 +1,8 @@
 /**
  * Monaco-based JSON/YAML manifest editor.
  */
-import { useRef, useEffect } from "react";
+import { useTheme } from "next-themes";
+import { useRef, useEffect, useState, type ReactNode } from "react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 
@@ -13,6 +14,8 @@ export interface ManifestEditorProps {
   height?: number;
   /** 1-based line number to highlight as error (e.g. parse error). Cleared when 0 or undefined. */
   errorLine?: number;
+  /** Overrides the default loading placeholder below the editor. */
+  loadingPlaceholder?: ReactNode;
 }
 
 export function ManifestEditor({
@@ -22,10 +25,19 @@ export function ManifestEditor({
   readOnly = false,
   height = 480,
   errorLine,
+  loadingPlaceholder,
 }: ManifestEditorProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
   const decorationIdsRef = useRef<string[]>([]);
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const monacoTheme = mounted && resolvedTheme === "dark" ? "vs-dark" : "light";
 
   const onEditorMount: OnMount = (editorInstance, monaco) => {
     editorRef.current = editorInstance;
@@ -76,6 +88,7 @@ export function ManifestEditor({
     <div className="overflow-hidden rounded-md border border-border [&_.manifest-editor-error-line]:bg-destructive/20 [&_.manifest-editor-error-glyph]:ml-1 [&_.manifest-editor-error-glyph]:w-1 [&_.manifest-editor-error-glyph]:bg-destructive">
       <Editor
         height={height}
+        theme={monacoTheme}
         language={language}
         value={value}
         onChange={onChange ? (v: string | undefined) => v != null && onChange(v) : undefined}
@@ -88,11 +101,14 @@ export function ManifestEditor({
           lineNumbers: "on",
           folding: true,
           glyphMargin: true,
+          automaticLayout: true,
         }}
         loading={
-          <div style={{ height }} className="flex items-center justify-center bg-muted/50">
-            Loading editor…
-          </div>
+          loadingPlaceholder ?? (
+            <div style={{ height }} className="flex items-center justify-center bg-muted/50">
+              Loading editor…
+            </div>
+          )
         }
       />
     </div>

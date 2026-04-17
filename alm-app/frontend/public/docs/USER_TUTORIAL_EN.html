@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>ALM User Guide</title>
+  <style>
+  :root{--primary:#6366f1;--muted:#64748b}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#0f172a;line-height:1.65}
+  .top-bar{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #e2e8f0;padding:.6rem 1.5rem;display:flex;align-items:center;gap:.75rem;font-size:.875rem}
+  .top-bar a.back{color:var(--muted);text-decoration:none;border:1px solid #e2e8f0;border-radius:6px;padding:.2rem .7rem}
+  .top-bar a.back:hover{background:#f8fafc}
+  .lang-label{color:var(--muted);margin-left:auto}
+  .lang-btn{padding:.2rem .75rem;border-radius:6px;border:1px solid #e2e8f0;background:transparent;font-size:.875rem;cursor:pointer;text-decoration:none;color:#0f172a}
+  .lang-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+  main{max-width:56rem;margin:0 auto;padding:2rem 1.5rem 5rem}
+  h1{font-size:1.875rem;font-weight:700;letter-spacing:-.025em;border-bottom:1px solid #e2e8f0;padding-bottom:.5rem;margin-bottom:1.5rem;margin-top:.5rem}
+  h2{font-size:1.35rem;font-weight:600;margin:2.5rem 0 .6rem;padding-top:.25rem}
+  h3{font-size:1.1rem;font-weight:600;margin:1.5rem 0 .4rem}
+  h4{font-weight:600;margin:.75rem 0 .25rem}
+  p{color:var(--muted);margin:.45rem 0}
+  li{color:var(--muted);margin:.2rem 0}
+  ul,ol{padding-left:1.5rem;margin:.4rem 0}
+  a{color:var(--primary);text-underline-offset:3px}
+  code{background:#f1f5f9;padding:.1em .35em;border-radius:4px;font-size:.875em;font-family:ui-monospace,monospace}
+  pre{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:1rem;overflow-x:auto;margin:.75rem 0}
+  pre code{background:transparent;padding:0;font-size:.85em}
+  blockquote{border-left:3px solid #e2e8f0;padding-left:1rem;color:var(--muted);font-style:italic;margin:.75rem 0}
+  table{width:100%;border-collapse:collapse;font-size:.9rem;margin:.75rem 0}
+  th{background:#f8fafc;border:1px solid #e2e8f0;padding:.5rem .75rem;font-weight:600;text-align:left}
+  td{border:1px solid #e2e8f0;padding:.45rem .75rem;color:var(--muted)}
+  hr{border:none;border-top:1px solid #e2e8f0;margin:1.75rem 0}
+  strong{color:#0f172a;font-weight:600}
+  img{max-width:100%;border-radius:6px}
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <a class="back" href="/">&#8592; Back to app</a>
+    <span class="lang-label">Language:</span>
+    <a class="lang-btn active" href="#">English</a>
+    <a class="lang-btn" href="USER_TUTORIAL_TR.html" target="_blank" rel="noopener noreferrer">Türkçe</a>
+  </div>
+  <main><h1>ALM User Guide</h1>
+<p><strong>Version:</strong> 1.0 &nbsp;|&nbsp; <strong>Updated:</strong> April 2026 &nbsp;|&nbsp; <strong>Demo:</strong> <a href="https://demo.pamera.app.provera.net.tr">https://demo.pamera.app.provera.net.tr</a></p>
+<hr>
+<h2>About This Guide</h2>
+<p>ALM (Application Lifecycle Management) helps you manage the full software lifecycle in one platform, from requirements analysis to test management, sprint planning, and deployment traceability.</p>
+<p>This guide explains core concepts for new users and step-by-step daily workflows for experienced users.</p>
+<blockquote>
+<p><strong>Demo environment:</strong> Sign in with <code>admin@example.com</code> / <code>Admin123!</code> to explore all features live. The demo organization includes two ready projects: <strong>Sample Project</strong> (<code>SAMP</code>) and <strong>Unima</strong> (<code>UNIMA</code>).</p>
+</blockquote>
+<hr>
+<h2>Table of Contents</h2>
+<ul>
+<li><a href="#where-should-i-start-based-on-my-role">Where Should I Start Based on My Role?</a></li>
+<li><a href="#core-concepts">Core Concepts</a></li>
+<li><a href="#section-1-interface-and-navigation">Section 1: Interface and Navigation</a></li>
+<li><a href="#section-2-sign-in-and-organization-management">Section 2: Sign-in and Organization Management</a></li>
+<li><a href="#section-3-project-setup">Section 3: Project Setup</a></li>
+<li><a href="#section-4-backlog-and-work-items">Section 4: Backlog and Work Items</a></li>
+<li><a href="#section-5-work-item-details-panel">Section 5: Work Item Details Panel</a></li>
+<li><a href="#section-6-quality-and-test-management">Section 6: Quality and Test Management</a></li>
+<li><a href="#section-7-board-and-kanban">Section 7: Board and Kanban</a></li>
+<li><a href="#section-8-planning-sprint-and-release">Section 8: Planning, Sprint, and Release</a></li>
+<li><a href="#section-9-traceability-and-impact-analysis">Section 9: Traceability and Impact Analysis</a></li>
+<li><a href="#section-10-automation-rules">Section 10: Automation Rules</a></li>
+<li><a href="#section-11-member-and-role-management">Section 11: Member and Role Management</a></li>
+<li><a href="#section-12-manifest-and-process-templates">Section 12: Manifest and Process Templates</a></li>
+<li><a href="#section-13-dashboard-and-reporting">Section 13: Dashboard and Reporting</a></li>
+<li><a href="#section-14-step-by-step-workflows">Section 14: Step-by-Step Workflows</a></li>
+<li><a href="#section-15-usage-scenarios">Section 15: Usage Scenarios</a></li>
+<li><a href="#faq">FAQ</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#glossary">Glossary</a></li>
+<li><a href="#quick-reference-card">Quick Reference Card</a></li>
+</ul>
+<hr>
+<h2>Where Should I Start Based on My Role?</h2>
+<p>If your time is limited, find your role below and jump to the related sections.</p>
+<h3>I am a Project Manager or Product Owner</h3>
+<p>Set up your project, define requirements, and track progress.</p>
+<ol>
+<li><strong>Create a project</strong> -&gt; <a href="#section-3-project-setup">Section 3</a></li>
+<li><strong>Write Epic and User Story items</strong> -&gt; <a href="#create-new-work-item">Section 4: Create New Work Item</a></li>
+<li><strong>Plan a sprint</strong> -&gt; <a href="#section-8-planning-sprint-and-release">Section 8</a></li>
+<li><strong>Track progress on Dashboard</strong> -&gt; <a href="#section-13-dashboard-and-reporting">Section 13</a></li>
+</ol>
+<h3>I am a Developer or Team Member</h3>
+<p>Manage daily work through the Board.</p>
+<ol>
+<li><strong>See your assigned items</strong> -&gt; Use the &quot;Assigned: Me&quot; filter on Board - <a href="#section-7-board-and-kanban">Section 7</a></li>
+<li><strong>Activate a work item</strong> -&gt; Move card from <code>To Do -&gt; In Progress</code></li>
+<li><strong>Link commits to work item</strong> -&gt; <a href="#tab-4-source">Section 5: Source Tab</a></li>
+<li><strong>Mark task complete</strong> -&gt; <a href="#tab-2-tasks">Section 5: Tasks Tab</a></li>
+</ol>
+<h3>I am a Test Specialist</h3>
+<p>Create test scenarios, run campaigns, and log defects.</p>
+<ol>
+<li><strong>Write test scenario</strong> -&gt; <a href="#61-test-catalog">Section 6: Test Catalog</a></li>
+<li><strong>Create and run campaign</strong> -&gt; <a href="#62-test-campaign">Section 6: Campaign</a></li>
+<li><strong>Enter results and open defect</strong> -&gt; <a href="#63-test-run">Section 6: Test Run</a></li>
+<li><strong>Check coverage</strong> -&gt; <a href="#91-traceability-matrix">Section 9: Traceability</a></li>
+</ol>
+<h3>I am an Organization Admin</h3>
+<p>Manage access control, roles, and system configuration.</p>
+<ol>
+<li><strong>Invite members</strong> -&gt; <a href="#invite-member">Section 11: Member Management</a></li>
+<li><strong>Create custom role</strong> -&gt; <a href="#role-management">Section 11: Role Management</a></li>
+<li><strong>Review access logs</strong> -&gt; <a href="#audit-log">Section 11: Audit Log</a></li>
+<li><strong>Configure process templates</strong> -&gt; <a href="#section-12-manifest-and-process-templates">Section 12</a></li>
+</ol>
+<hr>
+<h2>Core Concepts</h2>
+<p>Knowing these concepts will make the rest of the guide much easier.</p>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Organization (Tenant)</strong></td>
+<td>Isolated workspace for a company or team</td>
+<td>&quot;Demo&quot; org</td>
+</tr>
+<tr>
+<td><strong>Project</strong></td>
+<td>Independent unit under an organization; has its own backlog, board, and quality tree</td>
+<td>&quot;Sample Project&quot; (<code>SAMP</code>)</td>
+</tr>
+<tr>
+<td><strong>Artifact / Work Item</strong></td>
+<td>Anything tracked: Epic, User Story, Defect, Task</td>
+<td><code>SAMP-42</code></td>
+</tr>
+<tr>
+<td><strong>Artifact Key</strong></td>
+<td>Project code + number; unique and permanent</td>
+<td><code>SAMP-42</code></td>
+</tr>
+<tr>
+<td><strong>Manifest</strong></td>
+<td>Project rules: available work item types, allowed states and transitions</td>
+<td>Scrum template</td>
+</tr>
+<tr>
+<td><strong>Workflow / State Machine</strong></td>
+<td>States a work item can move through and transition rules between them</td>
+<td><code>New -&gt; Active -&gt; Resolved -&gt; Closed</code></td>
+</tr>
+<tr>
+<td><strong>Cycle</strong></td>
+<td>Sprint; work group in a specific date range</td>
+<td>&quot;Sprint 3&quot;</td>
+</tr>
+<tr>
+<td><strong>Release</strong></td>
+<td>Software package to be delivered</td>
+<td>&quot;v1.2.0&quot;</td>
+</tr>
+<tr>
+<td><strong>Area</strong></td>
+<td>Organizational partition by team or product</td>
+<td>&quot;Backend&quot;, &quot;Mobile&quot;</td>
+</tr>
+<tr>
+<td><strong>Campaign</strong></td>
+<td>Grouped test scenarios for a specific sprint or release</td>
+<td>&quot;Sprint 3 Acceptance Tests&quot;</td>
+</tr>
+<tr>
+<td><strong>Traceability</strong></td>
+<td>End-to-end chain from requirement to test, defect, code, and deployment</td>
+<td>-</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Important:</strong> Deleting a work item does not permanently erase it; it is archived. You can restore it using the &quot;Show deleted&quot; filter in Backlog.</p>
+</blockquote>
+<hr>
+<h2>Section 1: Interface and Navigation</h2>
+<h3>Screen Layout</h3>
+<p>The app has three main regions:</p>
+<pre><code>+------------------------------------------------------------------+
+| Demo v         [Search or type command... Ctrl+K]     Bell  YS v |
++----------------+--------------------------------------------------+
+|                |                                                  |
+| PROJECTS       |                MAIN CONTENT AREA                |
+| Dashboard      |                                                  |
+| ---------      |     (Content of selected page is shown here)    |
+| v Sample Prj   |                                                  |
+|   Backlog      |                                                  |
+|   Board        |                                                  |
+|   Planning     |                                                  |
+| v Quality      |                                                  |
+|   Catalog      |                                                  |
+|   Campaign     |                                                  |
+|   Runs         |                                                  |
+|   Defects      |                                                  |
+|   Traceability |                                                  |
+|   Automation   |                                                  |
+| ---------      |                                                  |
+| Settings       |                                                  |
++----------------+--------------------------------------------------+
+</code></pre>
+<h3>Left Navigation</h3>
+<p>The left menu has two layers: <strong>organization level</strong> (always visible) and <strong>project level</strong> (visible when a project is selected).</p>
+<p><strong>Organization level:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Projects</td>
+<td>Lists all projects</td>
+</tr>
+<tr>
+<td>Dashboard</td>
+<td>Organization-wide metrics and activity stream</td>
+</tr>
+</tbody></table>
+<p><strong>Project level</strong> (after selecting a project):</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Overview</td>
+<td>Project summary card</td>
+</tr>
+<tr>
+<td>Backlog</td>
+<td>Tree or table view of work items</td>
+</tr>
+<tr>
+<td>Board</td>
+<td>Kanban with drag-and-drop state management</td>
+</tr>
+<tr>
+<td>Planning</td>
+<td>Sprint/release cycles and area hierarchy</td>
+</tr>
+<tr>
+<td>Quality -&gt; Catalog</td>
+<td>Test scenario library</td>
+</tr>
+<tr>
+<td>Quality -&gt; Campaign</td>
+<td>Test sets</td>
+</tr>
+<tr>
+<td>Quality -&gt; Runs</td>
+<td>Test run history</td>
+</tr>
+<tr>
+<td>Quality -&gt; Defects</td>
+<td>Defect list</td>
+</tr>
+<tr>
+<td>Quality -&gt; Traceability</td>
+<td>Requirement-test coverage matrix</td>
+</tr>
+<tr>
+<td>Automation</td>
+<td>Event-based workflow rules</td>
+</tr>
+</tbody></table>
+<p><strong>Settings (organization level):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Members</td>
+<td>Member management and invitations</td>
+</tr>
+<tr>
+<td>Roles</td>
+<td>Role creation and permission assignment</td>
+</tr>
+<tr>
+<td>Permissions</td>
+<td>Read-only list of system permissions</td>
+</tr>
+<tr>
+<td>Audit</td>
+<td>Login/access records (Admin only)</td>
+</tr>
+<tr>
+<td>Manifest</td>
+<td>Process templates</td>
+</tr>
+</tbody></table>
+<h3>Top Bar</h3>
+<p><strong>Organization name (top-left):</strong> Click to switch to another organization you can access.</p>
+<p><strong>Command Palette (<code>Ctrl+K</code> / <code>Cmd+K</code>):</strong> Fastest way to navigate.</p>
+<ul>
+<li>Type any page name and press <code>Enter</code></li>
+<li>Recently visited projects are auto-listed</li>
+<li>Use arrow keys to navigate, <code>Esc</code> to close</li>
+</ul>
+<p><strong>User menu (top-right avatar):</strong> Theme (light/dark) and sign out.</p>
+<hr>
+<h2>Section 2: Sign-in and Organization Management</h2>
+<h3>Sign In</h3>
+<ol>
+<li>Open the application URL</li>
+<li>Enter <strong>Email</strong> and <strong>Password</strong></li>
+<li>Click <strong>Sign In</strong></li>
+</ol>
+<p>If you belong to multiple organizations, you will be asked to select one after login.</p>
+<blockquote>
+<p><strong>Demo account:</strong> <code>admin@example.com</code> / <code>Admin123!</code></p>
+</blockquote>
+<h3>Create a New Account</h3>
+<ol>
+<li>Click <strong>Sign Up</strong> on the login page</li>
+<li>Enter name, email, and password</li>
+<li>If email verification is enabled, complete verification</li>
+</ol>
+<h3>Switch Organization</h3>
+<p>Click the organization name in the top-left and choose from the dropdown list.</p>
+<h3>Organization Settings</h3>
+<p><strong>Settings -&gt; General:</strong></p>
+<ul>
+<li>Edit organization name and short slug</li>
+<li><strong>Danger Zone:</strong> Archive organization (irreversible)</li>
+</ul>
+<hr>
+<h2>Section 3: Project Setup</h2>
+<h3>List Projects</h3>
+<p>Click <strong>Projects</strong> in the left menu. Each project card shows name, code, member count, and summary info.</p>
+<h3>Create a New Project</h3>
+<ol>
+<li>Click <strong>+ New Project</strong></li>
+<li>Fill in the form:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Rule / Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Project Code</strong></td>
+<td>Yes</td>
+<td>2-10 chars, uppercase letters and numbers (<code>SAMP</code>, <code>MYPRJ01</code>), immutable</td>
+</tr>
+<tr>
+<td><strong>Project Name</strong></td>
+<td>Yes</td>
+<td>Meaningful name</td>
+</tr>
+<tr>
+<td><strong>Process Template</strong></td>
+<td>Yes</td>
+<td>Basic, Scrum, or custom manifest</td>
+</tr>
+<tr>
+<td><strong>Description</strong></td>
+<td>No</td>
+<td>Project scope and purpose</td>
+</tr>
+</tbody></table>
+<ol start="3">
+<li>Click <strong>Create</strong></li>
+</ol>
+<blockquote>
+<p><strong>Warning:</strong> Project code forms work item keys (<code>SAMP-1</code>, <code>SAMP-2</code>) and cannot be changed later.</p>
+</blockquote>
+<h3>Project Settings</h3>
+<p>Inside a selected project, open <strong>Settings</strong>:</p>
+<ul>
+<li><strong>General:</strong> Edit project name/description</li>
+<li><strong>Members:</strong> Add project members and assign project-level roles</li>
+<li><strong>Teams:</strong> Create teams if needed (e.g., Frontend, Backend)</li>
+</ul>
+<hr>
+<h2>Section 4: Backlog and Work Items</h2>
+<p>Backlog is the central page for managing all work items: requirements, user stories, defects, and tasks.</p>
+<h3>View Modes</h3>
+<p>Switch between two views using top-right icons:</p>
+<ul>
+<li><strong>Tree View:</strong> Visual hierarchy (Epic -&gt; Feature -&gt; User Story), supports drag-and-drop nesting</li>
+<li><strong>Table View:</strong> Fast inline editing for high-volume updates</li>
+</ul>
+<h3>Table Columns</h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Key</td>
+<td>Unique ID (<code>SAMP-42</code>)</td>
+</tr>
+<tr>
+<td>Title</td>
+<td>Work item title</td>
+</tr>
+<tr>
+<td>Type</td>
+<td>Artifact type</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>Current workflow state</td>
+</tr>
+<tr>
+<td>Assignee</td>
+<td>Responsible member</td>
+</tr>
+<tr>
+<td>Tags</td>
+<td>Multiple labels</td>
+</tr>
+<tr>
+<td>Cycle</td>
+<td>Sprint/release assignment</td>
+</tr>
+<tr>
+<td>Area</td>
+<td>Organizational area</td>
+</tr>
+<tr>
+<td>Created</td>
+<td>Created date</td>
+</tr>
+<tr>
+<td>Updated</td>
+<td>Last updated</td>
+</tr>
+</tbody></table>
+<p>Custom manifest fields (priority, story points, affected version, etc.) can appear as extra columns.</p>
+<h3>Create New Work Item</h3>
+<ol>
+<li>Click <strong>+ New</strong></li>
+<li>Select type:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Usage</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Epic</strong></td>
+<td>Large work package across multiple sprints</td>
+</tr>
+<tr>
+<td><strong>Feature</strong></td>
+<td>Subcomponent of an Epic</td>
+</tr>
+<tr>
+<td><strong>User Story</strong></td>
+<td>Single user need</td>
+</tr>
+<tr>
+<td><strong>Defect / Bug</strong></td>
+<td>Identified issue</td>
+</tr>
+<tr>
+<td><strong>Task</strong></td>
+<td>Technical sub-task</td>
+</tr>
+</tbody></table>
+<ol start="3">
+<li>Fill form fields and click <strong>Save</strong>.</li>
+</ol>
+<h3>Edit Work Item</h3>
+<ul>
+<li><strong>Inline edit (table):</strong> Click cell, update value, confirm with <code>Enter</code></li>
+<li><strong>Details panel:</strong> Click row to open full editor panel</li>
+</ul>
+<h3>Filter and Search</h3>
+<p>Backlog toolbar supports rich filtering: search, status, type, release, cycle, area, tag, assignee, sorting, deleted items, stale traceability.</p>
+<h3>Saved Queries</h3>
+<ol>
+<li>Apply filters</li>
+<li>Click <strong>Save Query</strong></li>
+<li>Name it and choose scope: <strong>Personal</strong> or <strong>Project</strong></li>
+<li>Reuse with one click</li>
+</ol>
+<h3>Bulk Actions</h3>
+<p>Select multiple rows using checkboxes, then apply bulk status change, bulk assignment, or bulk archive.</p>
+<h3>Export / Import</h3>
+<ul>
+<li><strong>Export:</strong> CSV or Excel from menu</li>
+<li><strong>Import:</strong> CSV template upload</li>
+</ul>
+<blockquote>
+<p><strong>Note:</strong> Import creates new work items; it does not update existing ones.</p>
+</blockquote>
+<hr>
+<h2>Section 5: Work Item Details Panel</h2>
+<p>Click any work item to open the right-side details panel.</p>
+<h3>Header</h3>
+<p>Shows key, status badge, active viewers count, title, type, assignee, tags, created and updated dates.</p>
+<h3>Status Transition</h3>
+<p>Click status badge to move through allowed manifest transitions. Some transitions may require reason or resolution type.</p>
+<h3>Tab 1: Details</h3>
+<p>Edit description, cycle, area, and manifest custom fields.</p>
+<h3>Tab 2: Tasks</h3>
+<p>Add and manage technical sub-tasks with assignee, team, hours, activity, and tags.</p>
+<h3>Tab 3: Links</h3>
+<p>Create relationships between work items:</p>
+<ul>
+<li><code>depends-on</code></li>
+<li><code>blocks</code></li>
+<li><code>relates-to</code></li>
+<li><code>parent</code></li>
+<li><code>implements</code></li>
+<li><code>traces-to</code></li>
+</ul>
+<h3>Tab 4: Source</h3>
+<p>If SCM integration is enabled, this tab shows branch, commits, and PR/MR info.</p>
+<h3>Tab 5: Deploy</h3>
+<p>Shows deployments that include this work item, with environment, date, version, and success/failure state.</p>
+<h3>Tab 6: Impact</h3>
+<p>Analyze downstream/upstream impact with configurable depth and relation filters.</p>
+<h3>Tab 7: Attachments</h3>
+<p>Upload/download/delete files (permission-based).</p>
+<h3>Tab 8: Comments</h3>
+<p>Add, edit, delete comments and mention users with <code>@username</code>.</p>
+<h3>Tab 9: Audit</h3>
+<p>Full change history (time, user, event, old value, new value).</p>
+<hr>
+<h2>Section 6: Quality and Test Management</h2>
+<p>Quality module has five sub-sections: <strong>Catalog</strong>, <strong>Campaign</strong>, <strong>Runs</strong>, <strong>Defects</strong>, <strong>Traceability</strong>.</p>
+<h3>6.1 Test Catalog</h3>
+<p>Create and organize test scenarios in folder hierarchy.</p>
+<h3>6.2 Test Campaign</h3>
+<p>Group test scenarios per sprint/release.</p>
+<h3>6.3 Test Run</h3>
+<p>Execute a campaign in a specific environment and record outcomes:</p>
+<ul>
+<li>Passed</li>
+<li>Failed</li>
+<li>Blocked</li>
+<li>Not Run</li>
+</ul>
+<p>Create a defect directly from failed test rows.</p>
+<h3>6.4 Defect Management</h3>
+<p>Defect-specific fields include severity, reproducibility, detected/fixed version, environment, and resolution type.</p>
+<h3>6.5 Traceability Matrix</h3>
+<p>Color states:</p>
+<ul>
+<li>Green: all linked tests passed</li>
+<li>Red: at least one failed</li>
+<li>Yellow: linked tests without result</li>
+<li>Gray: no linked tests</li>
+</ul>
+<hr>
+<h2>Section 7: Board and Kanban</h2>
+<p>Board visualizes work items by workflow status columns and supports drag-and-drop transitions.</p>
+<ul>
+<li>Filter by type, cycle, release, area, assignee, search</li>
+<li>Move cards between columns if transition is allowed</li>
+<li>Denied transitions show feedback</li>
+</ul>
+<hr>
+<h2>Section 8: Planning, Sprint, and Release</h2>
+<p>Planning has three parts: <strong>Cycles</strong>, <strong>Releases</strong>, <strong>Areas</strong>.</p>
+<ul>
+<li>Create cycles (sprints) with start/end dates</li>
+<li>Create releases with date ranges</li>
+<li>Assign work items to cycles from details, table, or bulk action</li>
+<li>Build area hierarchies for team/product organization</li>
+</ul>
+<hr>
+<h2>Section 9: Traceability and Impact Analysis</h2>
+<p>End-to-end chain:</p>
+<p>Requirement -&gt; Test Scenario -&gt; Test Run -&gt; Defect -&gt; Source Code -&gt; Deployment</p>
+<p>Use Impact tab with depth control (1-5) to inspect relationship effects.</p>
+<p>Use stale traceability filter in Backlog to find requirements without linked tests.</p>
+<hr>
+<h2>Section 10: Automation Rules</h2>
+<p>Rule model:</p>
+<p><code>[Trigger] -&gt; [Optional Condition] -&gt; [Action]</code></p>
+<p>Common triggers:</p>
+<ul>
+<li><code>artifact_state_changed</code></li>
+<li><code>artifact_assigned</code></li>
+<li><code>artifact_created</code></li>
+<li><code>artifact_commented</code></li>
+</ul>
+<p>Actions:</p>
+<ul>
+<li>Webhook (Slack, Teams, Jira, etc.)</li>
+<li>Log</li>
+</ul>
+<p>Rules can be enabled/disabled, monitored, or deleted.</p>
+<hr>
+<h2>Section 11: Member and Role Management</h2>
+<h3>Invite Member</h3>
+<p>Settings -&gt; Members -&gt; + Invite -&gt; enter email -&gt; select roles -&gt; send invite.</p>
+<h3>Create User (Admin only)</h3>
+<p>Create account directly with name, email, password, and role.</p>
+<h3>Remove Member</h3>
+<p>Members are archived, not permanently deleted, and can be restored.</p>
+<h3>Role Management</h3>
+<p>System roles:</p>
+<ul>
+<li>Admin</li>
+<li>Editor</li>
+<li>Viewer</li>
+</ul>
+<p>Create custom roles with hierarchy level and granular permissions.</p>
+<h3>Audit Log</h3>
+<p>Available to users with <code>audit:read</code>.</p>
+<p>Tracks login success/failure with timestamp, email, IP, and user agent.</p>
+<hr>
+<h2>Section 12: Manifest and Process Templates</h2>
+<p>Manifest defines work item types, workflows, and transition rules.</p>
+<p>Built-in templates:</p>
+<ul>
+<li>Basic</li>
+<li>Scrum</li>
+<li>ADO-Style</li>
+</ul>
+<p>You can version manifests, validate YAML, and activate new versions.</p>
+<blockquote>
+<p>Test manifest changes before production rollout.</p>
+</blockquote>
+<h3>SCM Integration</h3>
+<p>Configure webhook events (<code>push</code>, <code>pull_request</code>) and include work item keys in commit messages:</p>
+<pre><code class="language-text">SAMP-42: implement password reset flow
+SAMP-55 fix: resolve redirect loop after login
+</code></pre>
+<p>Commits/PRs will appear automatically in the Source tab.</p>
+<hr>
+<h2>Section 13: Dashboard and Reporting</h2>
+<p>Dashboard provides organization/project metrics, charts, and activity feed.</p>
+<p>Cards commonly include total projects, backlog items, tasks, and open defects.</p>
+<p>Charts include distribution, velocity, and burndown.</p>
+<p>Controls include project selector, time range, release filter, and project-only mode.</p>
+<hr>
+<h2>Section 14: Step-by-Step Workflows</h2>
+<h3>Flow A: Requirement -&gt; Test -&gt; Defect -&gt; Fix</h3>
+<ol>
+<li>Create Epic</li>
+<li>Add User Story</li>
+<li>Create test scenario</li>
+<li>Link test to requirement</li>
+<li>Create campaign</li>
+<li>Execute run and fail scenario</li>
+<li>Create defect</li>
+<li>Fix defect and resolve</li>
+<li>Re-run tests and pass</li>
+<li>Verify traceability matrix is green</li>
+</ol>
+<h3>Flow B: Sprint Planning and Board Tracking</h3>
+<ol>
+<li>Create sprint</li>
+<li>Assign stories to sprint</li>
+<li>Open board with sprint filter</li>
+<li>Move cards daily across statuses</li>
+<li>Track burndown on dashboard</li>
+</ol>
+<h3>Flow C: Onboarding a New Team Member</h3>
+<ol>
+<li>Create custom role</li>
+<li>Invite member</li>
+<li>Add member to project</li>
+<li>Member signs in with scoped permissions</li>
+</ol>
+<h3>Flow D: Full Traceability from Defect to Code</h3>
+<ol>
+<li>Open defect details</li>
+<li>Inspect Source tab commit/PR links</li>
+<li>Check linked story and tests</li>
+<li>Check Deploy tab for target environments</li>
+<li>Inspect Impact tab chain to Epic</li>
+</ol>
+<hr>
+<h2>Section 15: Usage Scenarios</h2>
+<ul>
+<li>UC-01: Requirement management</li>
+<li>UC-02: Defect tracking</li>
+<li>UC-03: Test planning and execution</li>
+<li>UC-04: Sprint planning</li>
+<li>UC-05: Kanban board tracking</li>
+<li>UC-06: Traceability analysis</li>
+<li>UC-07: Member and role management</li>
+<li>UC-08: SCM integration</li>
+<li>UC-09: Automation rules</li>
+<li>UC-10: Audit and security monitoring</li>
+</ul>
+<hr>
+<h2>FAQ</h2>
+<h3>How do I restore a deleted work item?</h3>
+<p>Enable <strong>Show deleted</strong> filter in Backlog and restore from item actions.</p>
+<h3>Can I change project code after creation?</h3>
+<p>No. Project code is immutable because it is part of all work item keys.</p>
+<h3>Can I move a work item to another project?</h3>
+<p>Not in current version. Create a new item in target project and link them.</p>
+<h3>Why can&#39;t I move cards on Board?</h3>
+<p>Possible reasons:</p>
+<ol>
+<li>Transition is not allowed in manifest</li>
+<li>Missing <code>artifact:transition</code> permission</li>
+</ol>
+<h3>Why is a requirement gray in Traceability Matrix?</h3>
+<p>Gray means no test scenario is linked. Add a <code>traces-to</code> link from test scenario.</p>
+<h3>Can I share saved queries?</h3>
+<p>Yes. Save query with <strong>Project</strong> scope.</p>
+<h3>Can I create a campaign without tests?</h3>
+<p>You can create an empty campaign, but cannot start runs until tests are added.</p>
+<hr>
+<h2>Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Possible Cause</th>
+<th>Resolution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Cannot sign in</td>
+<td>Wrong email/password</td>
+<td>Use forgot password</td>
+</tr>
+<tr>
+<td>Page does not load</td>
+<td>Network issue</td>
+<td>Check connection and refresh</td>
+</tr>
+<tr>
+<td>Board is empty</td>
+<td>Type filter missing</td>
+<td>Select a type filter</td>
+</tr>
+<tr>
+<td>Access denied page</td>
+<td>Missing role permission</td>
+<td>Contact admin</td>
+</tr>
+<tr>
+<td>Card cannot move</td>
+<td>Invalid transition / missing permission</td>
+<td>Check manifest and permissions</td>
+</tr>
+<tr>
+<td>All traceability rows are gray</td>
+<td>Tests not linked to requirements</td>
+<td>Add <code>traces-to</code> links</td>
+</tr>
+<tr>
+<td>Manifest activation fails</td>
+<td>Schema validation error</td>
+<td>Fix highlighted YAML lines</td>
+</tr>
+<tr>
+<td>Source tab is empty</td>
+<td>Webhook not configured</td>
+<td>Configure SCM webhook</td>
+</tr>
+<tr>
+<td>Invite email not delivered</td>
+<td>SMTP not configured</td>
+<td>Ask admin for direct invite link</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Glossary</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Artifact</td>
+<td>Any tracked work item (Epic, Story, Defect, Task)</td>
+</tr>
+<tr>
+<td>Artifact Key</td>
+<td>Project code + number (e.g., <code>SAMP-42</code>)</td>
+</tr>
+<tr>
+<td>Area</td>
+<td>Team/product-based organizational segment</td>
+</tr>
+<tr>
+<td>Backlog</td>
+<td>Master list of all project work items</td>
+</tr>
+<tr>
+<td>Board</td>
+<td>Kanban-style work management view</td>
+</tr>
+<tr>
+<td>Cycle</td>
+<td>Sprint date range</td>
+</tr>
+<tr>
+<td>Defect</td>
+<td>Software bug/issue</td>
+</tr>
+<tr>
+<td>Epic</td>
+<td>Large work package</td>
+</tr>
+<tr>
+<td>Feature</td>
+<td>Functional unit under Epic</td>
+</tr>
+<tr>
+<td>Campaign</td>
+<td>Grouped tests for sprint/release</td>
+</tr>
+<tr>
+<td>Manifest</td>
+<td>Config defining types, states, and transitions</td>
+</tr>
+<tr>
+<td>Organization</td>
+<td>Tenant-level workspace</td>
+</tr>
+<tr>
+<td>Saved Query</td>
+<td>Reusable filter combination</td>
+</tr>
+<tr>
+<td>SCM</td>
+<td>Source control management system</td>
+</tr>
+<tr>
+<td>Story Points</td>
+<td>Relative estimate of User Story size</td>
+</tr>
+<tr>
+<td>Release</td>
+<td>Target software delivery package</td>
+</tr>
+<tr>
+<td>Traceability</td>
+<td>Requirement-to-deployment relationship chain</td>
+</tr>
+<tr>
+<td>User Story</td>
+<td>User-need formatted work item</td>
+</tr>
+<tr>
+<td>Webhook</td>
+<td>Event-based HTTP callback</td>
+</tr>
+<tr>
+<td>Workflow</td>
+<td>Valid state transitions for a work item</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Quick Reference Card</h2>
+<h3>Most Common Actions</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Create new work item</td>
+<td>Backlog -&gt; + New</td>
+</tr>
+<tr>
+<td>Edit work item</td>
+<td>Click row -&gt; edit in details panel</td>
+</tr>
+<tr>
+<td>Change status</td>
+<td>Details header -&gt; status badge</td>
+</tr>
+<tr>
+<td>Assign to sprint</td>
+<td>Details panel -&gt; Cycle</td>
+</tr>
+<tr>
+<td>Enter test result</td>
+<td>Quality -&gt; Runs -&gt; mark result</td>
+</tr>
+<tr>
+<td>Create defect from failed test</td>
+<td>Failed row -&gt; Create Defect</td>
+</tr>
+<tr>
+<td>Invite member</td>
+<td>Settings -&gt; Members -&gt; + Invite</td>
+</tr>
+<tr>
+<td>Save filter set</td>
+<td>Backlog filters -&gt; Save Query</td>
+</tr>
+<tr>
+<td>Quick navigate</td>
+<td><code>Ctrl+K</code></td>
+</tr>
+<tr>
+<td>Change theme</td>
+<td>Top-right avatar -&gt; Theme</td>
+</tr>
+</tbody></table>
+<h3>Keyboard Shortcuts</h3>
+<table>
+<thead>
+<tr>
+<th>Shortcut</th>
+<th>Function</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Ctrl+K</code> / <code>Cmd+K</code></td>
+<td>Open command palette</td>
+</tr>
+<tr>
+<td><code>Esc</code></td>
+<td>Close modal/panel</td>
+</tr>
+<tr>
+<td><code>Enter</code></td>
+<td>Confirm inline edit</td>
+</tr>
+</tbody></table>
+<h3>Traceability Colors</h3>
+<table>
+<thead>
+<tr>
+<th>Color</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Green</td>
+<td>All linked tests passed</td>
+</tr>
+<tr>
+<td>Red</td>
+<td>At least one failed</td>
+</tr>
+<tr>
+<td>Yellow</td>
+<td>Linked tests without result</td>
+</tr>
+<tr>
+<td>Gray</td>
+<td>No linked test</td>
+</tr>
+</tbody></table>
+<h3>Permission Quick Map</h3>
+<table>
+<thead>
+<tr>
+<th>Desired action</th>
+<th>Required permission</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Create work item</td>
+<td><code>artifact:create</code></td>
+</tr>
+<tr>
+<td>View work item</td>
+<td><code>artifact:read</code></td>
+</tr>
+<tr>
+<td>Edit fields</td>
+<td><code>artifact:update</code></td>
+</tr>
+<tr>
+<td>Change status</td>
+<td><code>artifact:transition</code></td>
+</tr>
+<tr>
+<td>Assign owner</td>
+<td><code>artifact:assign</code></td>
+</tr>
+<tr>
+<td>Add comment</td>
+<td><code>artifact:comment</code></td>
+</tr>
+<tr>
+<td>Invite member</td>
+<td><code>member:invite</code></td>
+</tr>
+<tr>
+<td>Create role</td>
+<td><code>role:create</code></td>
+</tr>
+<tr>
+<td>Activate manifest</td>
+<td><code>manifest:activate</code></td>
+</tr>
+<tr>
+<td>View audit logs</td>
+<td><code>audit:read</code></td>
+</tr>
+</tbody></table>
+</main>
+</body>
+</html>

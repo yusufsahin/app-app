@@ -1,0 +1,2490 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>ALM Kullanıcı Kılavuzu</title>
+  <style>
+  :root{--primary:#6366f1;--muted:#64748b}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#0f172a;line-height:1.65}
+  .top-bar{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #e2e8f0;padding:.6rem 1.5rem;display:flex;align-items:center;gap:.75rem;font-size:.875rem}
+  .top-bar a.back{color:var(--muted);text-decoration:none;border:1px solid #e2e8f0;border-radius:6px;padding:.2rem .7rem}
+  .top-bar a.back:hover{background:#f8fafc}
+  .lang-label{color:var(--muted);margin-left:auto}
+  .lang-btn{padding:.2rem .75rem;border-radius:6px;border:1px solid #e2e8f0;background:transparent;font-size:.875rem;cursor:pointer;text-decoration:none;color:#0f172a}
+  .lang-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+  main{max-width:56rem;margin:0 auto;padding:2rem 1.5rem 5rem}
+  h1{font-size:1.875rem;font-weight:700;letter-spacing:-.025em;border-bottom:1px solid #e2e8f0;padding-bottom:.5rem;margin-bottom:1.5rem;margin-top:.5rem}
+  h2{font-size:1.35rem;font-weight:600;margin:2.5rem 0 .6rem;padding-top:.25rem}
+  h3{font-size:1.1rem;font-weight:600;margin:1.5rem 0 .4rem}
+  h4{font-weight:600;margin:.75rem 0 .25rem}
+  p{color:var(--muted);margin:.45rem 0}
+  li{color:var(--muted);margin:.2rem 0}
+  ul,ol{padding-left:1.5rem;margin:.4rem 0}
+  a{color:var(--primary);text-underline-offset:3px}
+  code{background:#f1f5f9;padding:.1em .35em;border-radius:4px;font-size:.875em;font-family:ui-monospace,monospace}
+  pre{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:1rem;overflow-x:auto;margin:.75rem 0}
+  pre code{background:transparent;padding:0;font-size:.85em}
+  blockquote{border-left:3px solid #e2e8f0;padding-left:1rem;color:var(--muted);font-style:italic;margin:.75rem 0}
+  table{width:100%;border-collapse:collapse;font-size:.9rem;margin:.75rem 0}
+  th{background:#f8fafc;border:1px solid #e2e8f0;padding:.5rem .75rem;font-weight:600;text-align:left}
+  td{border:1px solid #e2e8f0;padding:.45rem .75rem;color:var(--muted)}
+  hr{border:none;border-top:1px solid #e2e8f0;margin:1.75rem 0}
+  strong{color:#0f172a;font-weight:600}
+  img{max-width:100%;border-radius:6px}
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <a class="back" href="/">&#8592; Back to app</a>
+    <span class="lang-label">Language:</span>
+    <a class="lang-btn active" href="#">Türkçe</a>
+    <a class="lang-btn" href="USER_TUTORIAL_EN.html" target="_blank" rel="noopener noreferrer">English</a>
+  </div>
+  <main><h1>ALM Kullanıcı Kılavuzu</h1>
+<p><strong>Sürüm:</strong> 1.0 &nbsp;|&nbsp; <strong>Güncelleme:</strong> Nisan 2026 &nbsp;|&nbsp; <strong>Demo:</strong> <a href="https://demo.pamera.app.provera.net.tr">https://demo.pamera.app.provera.net.tr</a></p>
+<hr>
+<h2>Bu Kılavuz Hakkında</h2>
+<p>ALM (Application Lifecycle Management), yazılım projelerinin tüm yaşam döngüsünü — gereksinim analizinden test yönetimine, sprint planlamasından dağıtım izlenebilirliğine — tek bir platformda yönetmenizi sağlar.</p>
+<p>Bu kılavuz; platforma yeni başlayanlar için temel kavramları, deneyimli kullanıcılar için ise günlük iş akışlarını adım adım açıklar.</p>
+<blockquote>
+<p><strong>Demo ortamı:</strong> Demo ortamına <code>admin@example.com</code> / <code>Admin123!</code> ile giriş yaparak tüm özellikleri canlı deneyebilirsiniz. Demo organizasyonunda iki hazır proje bulunur: <strong>Sample Project</strong> (<code>SAMP</code>) ve <strong>Unima</strong> (<code>UNIMA</code>).</p>
+</blockquote>
+<hr>
+<h2>İçindekiler</h2>
+<ul>
+<li><a href="#rol%C3%BCme-g%C3%B6re-nereden-ba%C5%9Flamal%C4%B1y%C4%B1m">Rolüme Göre Nereden Başlamalıyım?</a></li>
+<li><a href="#temel-kavramlar">Temel Kavramlar</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-1-aray%C3%BCz-ve-navigasyon">Bölüm 1: Arayüz ve Navigasyon</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-2-giri%C5%9F-ve-organizasyon-y%C3%B6netimi">Bölüm 2: Giriş ve Organizasyon Yönetimi</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-3-proje-kurulumu">Bölüm 3: Proje Kurulumu</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-4-backlog-ve-i%C5%9F-kalemleri">Bölüm 4: Backlog ve İş Kalemleri</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-5-i%C5%9F-kalemi-detay-paneli">Bölüm 5: İş Kalemi Detay Paneli</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-6-kalite-ve-test-y%C3%B6netimi">Bölüm 6: Kalite ve Test Yönetimi</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-7-board-ve-kanban">Bölüm 7: Board ve Kanban</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-8-planlama-sprint-ve-s%C3%BCr%C3%BCm">Bölüm 8: Planlama, Sprint ve Sürüm</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-9-izlenebilirlik-ve-etki-analizi">Bölüm 9: İzlenebilirlik ve Etki Analizi</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-10-otomasyon-kurallar%C4%B1">Bölüm 10: Otomasyon Kuralları</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-11-%C3%BCye-ve-rol-y%C3%B6netimi">Bölüm 11: Üye ve Rol Yönetimi</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-12-manifest-ve-s%C3%BCre%C3%A7-%C5%9Fablonlar%C4%B1">Bölüm 12: Manifest ve Süreç Şablonları</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-13-dashboard-ve-raporlama">Bölüm 13: Dashboard ve Raporlama</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-14-ad%C4%B1m-ad%C4%B1m-i%C5%9F-ak%C4%B1%C5%9Flar%C4%B1">Bölüm 14: Adım Adım İş Akışları</a></li>
+<li><a href="#b%C3%B6l%C3%BCm-15-kullan%C4%B1m-senaryolar%C4%B1">Bölüm 15: Kullanım Senaryoları</a></li>
+<li><a href="#s%C4%B1k-sorulan-sorular">Sık Sorulan Sorular</a></li>
+<li><a href="#sorun-giderme">Sorun Giderme</a></li>
+<li><a href="#s%C3%B6zl%C3%BCk">Sözlük</a></li>
+<li><a href="#h%C4%B1zl%C4%B1-ba%C5%9Fvuru-kart%C4%B1">Hızlı Başvuru Kartı</a></li>
+</ul>
+<hr>
+<h2>Rolüme Göre Nereden Başlamalıyım?</h2>
+<p>Zamanınız kısıtlıysa aşağıdan kendi rolünüzü bulun ve ilgili bölümlere atlayın.</p>
+<h3>Ben bir Proje Yöneticisi veya Ürün Sahibiyim</h3>
+<p>Projenizi kurun, gereksinimleri tanımlayın ve ilerlemeyi takip edin.</p>
+<ol>
+<li><strong>Proje oluşturun</strong> → <a href="#b%C3%B6l%C3%BCm-3-proje-kurulumu">Bölüm 3</a></li>
+<li><strong>Epic ve User Story yazın</strong> → <a href="#yeni-i%C5%9F-kalemi-olu%C5%9Fturma">Bölüm 4: Yeni İş Kalemi</a></li>
+<li><strong>Sprint planlayın</strong> → <a href="#b%C3%B6l%C3%BCm-8-planlama-sprint-ve-s%C3%BCr%C3%BCm">Bölüm 8</a></li>
+<li><strong>İlerlemeyi Dashboard&#39;dan izleyin</strong> → <a href="#b%C3%B6l%C3%BCm-13-dashboard-ve-raporlama">Bölüm 13</a></li>
+</ol>
+<h3>Ben bir Geliştirici veya Takım Üyesiyim</h3>
+<p>Günlük işinizi Board üzerinden yönetin.</p>
+<ol>
+<li><strong>Üzerinize atanmış işleri görün</strong> → Board&#39;da &quot;Atanan: Ben&quot; filtresi — <a href="#b%C3%B6l%C3%BCm-7-board-ve-kanban">Bölüm 7</a></li>
+<li><strong>İş kalemini aktive edin</strong> → kartı <code>To Do → In Progress</code> sütununa taşıyın</li>
+<li><strong>Commit&#39;lerinizi iş kalemine bağlayın</strong> → <a href="#sekme-4-kaynak-kod-source">Bölüm 5: Source Sekmesi</a></li>
+<li><strong>Görevi tamamlandı olarak işaretleyin</strong> → <a href="#sekme-2-g%C3%B6revler-tasks">Bölüm 5: Görevler Sekmesi</a></li>
+</ol>
+<h3>Ben bir Test Uzmanıyım</h3>
+<p>Test senaryoları oluşturun, kampanya yürütün, hataları kaydedin.</p>
+<ol>
+<li><strong>Test senaryosu yazın</strong> → <a href="#61-test-katalogu">Bölüm 6: Test Kataloğu</a></li>
+<li><strong>Kampanya oluşturun ve çalıştırın</strong> → <a href="#62-test-kampanyasi">Bölüm 6: Kampanya</a></li>
+<li><strong>Sonuçları girin ve hata açın</strong> → <a href="#63-test-calistirma-test-run">Bölüm 6: Test Çalıştırma</a></li>
+<li><strong>Kapsama durumunu görün</strong> → <a href="#91-izlenebilirlik-matrisi">Bölüm 9: İzlenebilirlik</a></li>
+</ol>
+<h3>Ben bir Organizasyon Yöneticisiyim</h3>
+<p>Erişim kontrolü, roller ve sistem yapılandırması.</p>
+<ol>
+<li><strong>Üye davet edin</strong> → <a href="#%C3%BCye-davet-etme">Bölüm 11: Üye Yönetimi</a></li>
+<li><strong>Özel rol oluşturun</strong> → <a href="#rol-y%C3%B6netimi">Bölüm 11: Rol Yönetimi</a></li>
+<li><strong>Erişim loglarını inceleyin</strong> → <a href="#denetim-kaydi-audit-log">Bölüm 11: Denetim Kaydı</a></li>
+<li><strong>Süreç şablonu yapılandırın</strong> → <a href="#b%C3%B6l%C3%BCm-12-manifest-ve-s%C3%BCre%C3%A7-%C5%9Fablonlar%C4%B1">Bölüm 12</a></li>
+</ol>
+<hr>
+<h2>Temel Kavramlar</h2>
+<p>Bu kavramları bilmek kılavuzun geri kalanını çok daha kolay anlamanızı sağlar.</p>
+<table>
+<thead>
+<tr>
+<th>Kavram</th>
+<th>Açıklama</th>
+<th>Örnek</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Organizasyon (Tenant)</strong></td>
+<td>Şirket veya ekip çapında izole çalışma alanı</td>
+<td>&quot;Demo&quot; org</td>
+</tr>
+<tr>
+<td><strong>Proje</strong></td>
+<td>Organizasyon altındaki bağımsız iş birimi; kendi backlog&#39;u, board&#39;u ve kalite ağacı vardır</td>
+<td>&quot;Sample Project&quot; (<code>SAMP</code>)</td>
+</tr>
+<tr>
+<td><strong>Artifact / İş Kalemi</strong></td>
+<td>Takip edilen her şey: Epic, User Story, Defect, Task…</td>
+<td><code>SAMP-42</code></td>
+</tr>
+<tr>
+<td><strong>Artifact Anahtarı</strong></td>
+<td>Proje kodu + numara; benzersiz ve kalıcı</td>
+<td><code>SAMP-42</code></td>
+</tr>
+<tr>
+<td><strong>Manifest</strong></td>
+<td>Projenin &quot;kuralları&quot;: hangi iş kalemi türleri var, hangi durumlar ve geçişler izin verilmiş</td>
+<td>Scrum şablonu</td>
+</tr>
+<tr>
+<td><strong>Workflow / Durum Makinesi</strong></td>
+<td>Bir iş kaleminin geçebileceği durumlar ve aralarındaki geçiş kuralları</td>
+<td><code>New → Active → Resolved → Closed</code></td>
+</tr>
+<tr>
+<td><strong>Döngü (Cycle)</strong></td>
+<td>Sprint; belirli tarih aralığındaki iş grubu</td>
+<td>&quot;Sprint 3&quot;</td>
+</tr>
+<tr>
+<td><strong>Sürüm (Release)</strong></td>
+<td>Teslim edilecek yazılım paketi</td>
+<td>&quot;v1.2.0&quot;</td>
+</tr>
+<tr>
+<td><strong>Alan (Area)</strong></td>
+<td>Takım veya ürün bazlı organizasyonel bölüm</td>
+<td>&quot;Backend&quot;, &quot;Mobile&quot;</td>
+</tr>
+<tr>
+<td><strong>Kampanya</strong></td>
+<td>Belirli bir sürüm veya sprint için gruplanmış test senaryoları</td>
+<td>&quot;Sprint 3 Kabul Testleri&quot;</td>
+</tr>
+<tr>
+<td><strong>Traceability</strong></td>
+<td>Gereksinim → Test → Hata → Kod → Dağıtım zincirinin izlenebilirliği</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Önemli:</strong> Bir iş kalemi silindiğinde kalıcı olarak silinmez; arşivlenir. Backlog&#39;da &quot;Silinenleri göster&quot; filtresiyle geri getirilebilir.</p>
+</blockquote>
+<hr>
+<h2>Bölüm 1: Arayüz ve Navigasyon</h2>
+<h3>Ekran Düzeni</h3>
+<p>Uygulama üç ana bölgeden oluşur:</p>
+<pre><code>┌──────────────────────────────────────────────────────────────────┐
+│  Demo ▾          [🔍  Ara veya komut gir…  Ctrl+K]    🔔  YS ▾  │  ← ÜST BAR
+├────────────────┬─────────────────────────────────────────────────┤
+│                │                                                  │
+│  PROJELER      │                                                  │
+│  Dashboard     │                                                  │
+│  ─────────     │           ANA İÇERİK ALANI                      │
+│  ▾ Sample Prj  │                                                  │
+│    Backlog     │   (Seçili sayfanın içeriği burada görünür)       │
+│    Board       │                                                  │
+│    Planlama    │                                                  │
+│  ▾ Kalite      │                                                  │
+│      Katalog   │                                                  │
+│      Kampanya  │                                                  │
+│      Çalıştır  │                                                  │
+│      Hatalar   │                                                  │
+│      İzleneblr │                                                  │
+│    Otomasyon   │                                                  │
+│  ─────────     │                                                  │
+│  Ayarlar       │                                                  │
+│                │                                                  │
+└────────────────┴─────────────────────────────────────────────────┘
+</code></pre>
+<h3>Sol Menü</h3>
+<p>Sol menü iki katmanlıdır: <strong>organizasyon düzeyi</strong> (her zaman görünür) ve <strong>proje düzeyi</strong> (bir proje seçiliyken görünür).</p>
+<p><strong>Organizasyon düzeyi:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Öğe</th>
+<th>Ne yapar</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Projeler</td>
+<td>Tüm projelerin listesi</td>
+</tr>
+<tr>
+<td>Dashboard</td>
+<td>Organizasyon geneli metrikler ve aktivite akışı</td>
+</tr>
+</tbody></table>
+<p><strong>Proje düzeyi</strong> (bir proje seçildikten sonra açılır):</p>
+<table>
+<thead>
+<tr>
+<th>Öğe</th>
+<th>Ne yapar</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Genel Bakış</td>
+<td>Proje detay kartı</td>
+</tr>
+<tr>
+<td>Backlog</td>
+<td>İş kalemlerinin ağaç veya tablo görünümü</td>
+</tr>
+<tr>
+<td>Board</td>
+<td>Kanban — sürükle-bırak durum yönetimi</td>
+</tr>
+<tr>
+<td>Planlama</td>
+<td>Sprint ve sürüm döngüleri, alan hiyerarşisi</td>
+</tr>
+<tr>
+<td>Kalite → Katalog</td>
+<td>Test senaryosu kütüphanesi</td>
+</tr>
+<tr>
+<td>Kalite → Kampanya</td>
+<td>Test setleri</td>
+</tr>
+<tr>
+<td>Kalite → Çalıştırmalar</td>
+<td>Geçmiş test çalıştırmaları</td>
+</tr>
+<tr>
+<td>Kalite → Hatalar</td>
+<td>Defect listesi</td>
+</tr>
+<tr>
+<td>Kalite → İzlenebilirlik</td>
+<td>Gereksinim–test kapsama matrisi</td>
+</tr>
+<tr>
+<td>Otomasyon</td>
+<td>Olay tabanlı iş akışı kuralları</td>
+</tr>
+</tbody></table>
+<p><strong>Ayarlar (organizasyon düzeyi):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Öğe</th>
+<th>Ne yapar</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Üyeler</td>
+<td>Üye yönetimi ve davet</td>
+</tr>
+<tr>
+<td>Roller</td>
+<td>Rol oluşturma ve yetki ataması</td>
+</tr>
+<tr>
+<td>Yetkiler</td>
+<td>Sistem yetkilerinin salt okunur listesi</td>
+</tr>
+<tr>
+<td>Denetim</td>
+<td>Giriş/erişim kayıtları (yalnızca Admin)</td>
+</tr>
+<tr>
+<td>Manifest</td>
+<td>Süreç şablonları</td>
+</tr>
+</tbody></table>
+<h3>Üst Bar</h3>
+<p><strong>Organizasyon adı (sol üst):</strong> Tıklayarak erişiminiz olan başka bir organizasyona geçin.</p>
+<p><strong>Komut Paleti (<code>Ctrl+K</code> / <code>Cmd+K</code>):</strong> En hızlı gezinme yöntemi. Palet açıldığında:</p>
+<ul>
+<li>Herhangi bir sayfanın adını yazın → <code>Enter</code> ile atlayın</li>
+<li>Son ziyaret edilen projeler otomatik listelenir</li>
+<li><code>↑ ↓</code> ok tuşlarıyla seçim yapın, <code>Esc</code> ile kapatın</li>
+</ul>
+<p><strong>Kullanıcı menüsü (sağ üst avatar):</strong> Tema (aydınlık/karanlık mod) ve çıkış.</p>
+<blockquote>
+<p><strong>İpucu:</strong> Komut paletinde &quot;backlog&quot;, &quot;board&quot;, &quot;üyeler&quot; gibi Türkçe ya da İngilizce terimler çalışır.</p>
+</blockquote>
+<hr>
+<h2>Bölüm 2: Giriş ve Organizasyon Yönetimi</h2>
+<h3>Giriş Yapma</h3>
+<ol>
+<li>Uygulama URL&#39;sine gidin</li>
+<li><strong>E-posta</strong> ve <strong>Şifre</strong> girin</li>
+<li><strong>Giriş Yap</strong> butonuna tıklayın</li>
+</ol>
+<p>Birden fazla organizasyona üyeyseniz, giriş sonrası organizasyon seçim ekranı gelir — çalışmak istediğinizi seçin.</p>
+<blockquote>
+<p><strong>Demo hesabı:</strong> <code>admin@example.com</code> / <code>Admin123!</code> — tüm özelliklere erişim sağlar.</p>
+</blockquote>
+<h3>Yeni Hesap Oluşturma</h3>
+<ol>
+<li>Giriş sayfasında <strong>Kayıt Ol</strong> bağlantısına tıklayın</li>
+<li>Ad, e-posta ve şifrenizi girin</li>
+<li>E-posta doğrulaması yapılandırılmışsa gelen kutunuzu kontrol edin</li>
+</ol>
+<h3>Organizasyon Değiştirme</h3>
+<p>Sol üst köşedeki organizasyon adına tıklayın. Açılan açılır menüde erişiminiz olan tüm organizasyonlar listelenir.</p>
+<h3>Organizasyon Ayarları</h3>
+<p><strong>Ayarlar → Genel:</strong></p>
+<ul>
+<li>Organizasyon adı ve kısa adı (slug) düzenleme</li>
+<li><strong>Tehlike Bölgesi:</strong> Organizasyonu arşivleme — bu işlem geri alınamaz, dikkatli kullanın.</li>
+</ul>
+<hr>
+<h2>Bölüm 3: Proje Kurulumu</h2>
+<h3>Projeleri Listeleme</h3>
+<p>Sol menüde <strong>Projeler</strong> öğesine tıklayın. Her proje kartında ad, kod, üye sayısı ve özet bilgiler görünür.</p>
+<h3>Yeni Proje Oluşturma</h3>
+<ol>
+<li>Projeler sayfasında <strong>+ Yeni Proje</strong> butonuna tıklayın</li>
+<li>Formu doldurun:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Alan</th>
+<th>Zorunlu</th>
+<th>Kural ve Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Proje Kodu</strong></td>
+<td>Evet</td>
+<td>2–10 karakter, büyük harf ve rakam (<code>SAMP</code>, <code>MYPRJ01</code>). Sonradan değiştirilemez — dikkatli seçin.</td>
+</tr>
+<tr>
+<td><strong>Proje Adı</strong></td>
+<td>Evet</td>
+<td>Anlamlı bir isim (örn. &quot;Müşteri Portalı&quot;)</td>
+</tr>
+<tr>
+<td><strong>Süreç Şablonu</strong></td>
+<td>Evet</td>
+<td>Projenin iş akışı şablonu: Basic, Scrum veya özel manifest</td>
+</tr>
+<tr>
+<td><strong>Açıklama</strong></td>
+<td>Hayır</td>
+<td>Projenin amacı ve kapsamı</td>
+</tr>
+</tbody></table>
+<ol start="3">
+<li><strong>Oluştur</strong> butonuna tıklayın</li>
+</ol>
+<blockquote>
+<p><strong>Uyarı:</strong> Proje kodu, iş kalemlerinin birincil anahtarını oluşturur (<code>SAMP-1</code>, <code>SAMP-2</code>…). Bu kod sonradan değiştirilemez; başlangıçta doğru bir kod seçin.</p>
+</blockquote>
+<h3>Proje Ayarları</h3>
+<p>Proje seçiliyken <strong>Ayarlar</strong> bağlantısına tıklayın:</p>
+<p><strong>Genel:</strong> Proje adını ve açıklamasını düzenleyin.</p>
+<p><strong>Üyeler:</strong> Projeye ekip üyesi ekleyin ve proje bazında rol atayın. Organizasyon üyesi olmayan biri projeye eklenemez; önce Ayarlar → Üyeler üzerinden organizasyona davet edilmesi gerekir.</p>
+<p><strong>Takımlar:</strong> Birden fazla ekip varsa takım oluşturun (örn. &quot;Frontend&quot;, &quot;Backend&quot;). Görevler takımlara atanabilir.</p>
+<hr>
+<h2>Bölüm 4: Backlog ve İş Kalemleri</h2>
+<p>Backlog, projedeki tüm iş kalemlerinin — gereksinimler, kullanıcı hikayeleri, hatalar, görevler — yönetildiği merkezi sayfadır.</p>
+<h3>Görünüm Seçenekleri</h3>
+<p>Sağ üstteki ikon düğmeleriyle iki görünüm arasında geçiş yapın:</p>
+<p><strong>Ağaç Görünümü (Tree View)</strong>
+Hiyerarşik ilişkileri (Epic → Feature → User Story) görsel olarak gösterir. Bir öğeyi başka bir öğenin altına taşımak için sürükleyip bırakın.</p>
+<p><strong>Tablo Görünümü (Table View)</strong>
+Satır bazlı tablo; hücrelere tıklayarak satır içi düzenleme yapılır. Çok sayıda iş kalemini hızlı güncellemek için idealdir.</p>
+<h3>Tablo Sütunları</h3>
+<table>
+<thead>
+<tr>
+<th>Sütun</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Anahtar</td>
+<td>Benzersiz kimlik — <code>SAMP-42</code></td>
+</tr>
+<tr>
+<td>Başlık</td>
+<td>İş kaleminin adı</td>
+</tr>
+<tr>
+<td>Tür</td>
+<td>Artifact tipi</td>
+</tr>
+<tr>
+<td>Durum</td>
+<td>Güncel workflow durumu</td>
+</tr>
+<tr>
+<td>Atanan</td>
+<td>Sorumlu kişi</td>
+</tr>
+<tr>
+<td>Etiketler</td>
+<td>Çoklu etiket</td>
+</tr>
+<tr>
+<td>Döngü</td>
+<td>Sprint / sürüm ataması</td>
+</tr>
+<tr>
+<td>Alan</td>
+<td>Organizasyonel alan</td>
+</tr>
+<tr>
+<td>Oluşturulma</td>
+<td>Oluşturma tarihi</td>
+</tr>
+<tr>
+<td>Güncelleme</td>
+<td>Son değişiklik tarihi</td>
+</tr>
+</tbody></table>
+<p>Manifest&#39;te tanımlanan özel alanlar (öncelik, story puanı, etkilenen versiyon…) ek sütunlar olarak görünür.</p>
+<blockquote>
+<p><strong>İpucu:</strong> Sütun başlığına sağ tıklayarak görünür sütunları özelleştirin. Sık kullanmadığınız sütunları gizleyerek çalışma alanınızı sadeleştirin.</p>
+</blockquote>
+<h3>Yeni İş Kalemi Oluşturma</h3>
+<ol>
+<li><strong>+ Yeni</strong> butonuna tıklayın</li>
+<li>Oluşturmak istediğiniz türü seçin — liste projenin manifest&#39;ine göre değişir:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Tür</th>
+<th>Kullanım amacı</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Epic</strong></td>
+<td>Büyük iş paketi, birden fazla sprintte biter</td>
+</tr>
+<tr>
+<td><strong>Feature</strong></td>
+<td>Epic&#39;in alt bileşeni</td>
+</tr>
+<tr>
+<td><strong>User Story</strong></td>
+<td>Tek bir kullanıcı ihtiyacını ifade eder</td>
+</tr>
+<tr>
+<td><strong>Defect / Bug</strong></td>
+<td>Saptanan hata veya kusur</td>
+</tr>
+<tr>
+<td><strong>Task</strong></td>
+<td>Teknik alt görev</td>
+</tr>
+</tbody></table>
+<ol start="3">
+<li>Formu doldurun:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Alan</th>
+<th>Zorunlu</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Başlık</strong></td>
+<td>Evet</td>
+<td>Kısa ve net (örn. &quot;Kullanıcı şifresini sıfırlayabilmeli&quot;)</td>
+</tr>
+<tr>
+<td><strong>Açıklama</strong></td>
+<td>Hayır</td>
+<td>Detay, kabul kriterleri, teknik notlar</td>
+</tr>
+<tr>
+<td><strong>Atanan</strong></td>
+<td>Hayır</td>
+<td>Sorumlu ekip üyesi</td>
+</tr>
+<tr>
+<td><strong>Döngü</strong></td>
+<td>Hayır</td>
+<td>Hangi sprint&#39;e ait</td>
+</tr>
+<tr>
+<td><strong>Alan</strong></td>
+<td>Hayır</td>
+<td>Organizasyonel alan</td>
+</tr>
+<tr>
+<td><strong>Etiketler</strong></td>
+<td>Hayır</td>
+<td>Çoklu etiket</td>
+</tr>
+<tr>
+<td>Özel Alanlar</td>
+<td>Türe bağlı</td>
+<td>Öncelik, story puanı, sürüm, vb.</td>
+</tr>
+</tbody></table>
+<ol start="4">
+<li><strong>Kaydet</strong></li>
+</ol>
+<blockquote>
+<p><strong>İpucu:</strong> Ağaç görünümünde bir öğe seçiliyken <code>+ Yeni</code> butonuna basarsanız yeni iş kalemi otomatik olarak seçili öğenin altına eklenir.</p>
+</blockquote>
+<h3>İş Kalemini Düzenleme</h3>
+<p><strong>Satır içi düzenleme (tablo):</strong> Hücreye tıklayın, değeri değiştirin, <code>Enter</code> veya tablo dışına tıklayın.</p>
+<p><strong>Detay panelinde düzenleme:</strong> İş kalemi satırına tıklayın — detay paneli açılır. Herhangi bir alana tıklayarak düzenleme moduna geçin.</p>
+<h3>Filtreleme ve Arama</h3>
+<p>Backlog araç çubuğu zengin filtreleme seçenekleri sunar:</p>
+<table>
+<thead>
+<tr>
+<th>Filtre</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Arama</td>
+<td>Başlık, açıklama veya anahtar üzerinden anlık arama</td>
+</tr>
+<tr>
+<td>Durum</td>
+<td>Bir veya birden fazla workflow durumu</td>
+</tr>
+<tr>
+<td>Tür</td>
+<td>Artifact tipi</td>
+</tr>
+<tr>
+<td>Sürüm</td>
+<td>Belirli sürüme atananlar</td>
+</tr>
+<tr>
+<td>Döngü</td>
+<td>Belirli sprint&#39;e atananlar</td>
+</tr>
+<tr>
+<td>Alan</td>
+<td>Belirli alana atananlar</td>
+</tr>
+<tr>
+<td>Etiket</td>
+<td>Etiket bazlı filtreleme</td>
+</tr>
+<tr>
+<td>Atanan</td>
+<td>Kişi veya &quot;Atanmamış&quot;</td>
+</tr>
+<tr>
+<td>Sıralama</td>
+<td>Herhangi sütuna göre artan/azalan</td>
+</tr>
+<tr>
+<td>Silinenleri Göster</td>
+<td>Arşivlenmiş iş kalemlerini listele</td>
+</tr>
+<tr>
+<td>Bayat İzlenebilirlik</td>
+<td>Test bağlantısı olmayan gereksinimleri listele</td>
+</tr>
+</tbody></table>
+<p><strong>Filtre kaydetme (Saved Queries):</strong></p>
+<p>Aynı filtre kombinasyonunu tekrar tekrar kullanıyorsanız kaydedin:</p>
+<ol>
+<li>İstediğiniz filtreleri uygulayın</li>
+<li>Araç çubuğunda <strong>Sorgu Kaydet</strong> (ya da disket ikonu) butonuna tıklayın</li>
+<li>Sorguya bir ad verin ve kapsam seçin: <strong>Kişisel</strong> (yalnızca siz) veya <strong>Proje</strong> (tüm ekip)</li>
+<li>Kaydettiğiniz sorgular filtre alanının üstünde listelenir — tek tıkla uygulanır</li>
+</ol>
+<h3>Toplu İşlemler</h3>
+<p>Birden fazla iş kalemini seçip aynı anda güncelleyebilirsiniz:</p>
+<ol>
+<li>Satır başındaki onay kutucuklarına tıklayarak iş kalemlerini seçin (başlık satırındaki kutu tümünü seçer)</li>
+<li>Araç çubuğunda beliren toplu eylem butonlarından birini seçin:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Eylem</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Toplu Durum Değiştir</td>
+<td>Seçili tüm kalemleri aynı duruma geçirir</td>
+</tr>
+<tr>
+<td>Toplu Atama</td>
+<td>Sorumluyu değiştirir</td>
+</tr>
+<tr>
+<td>Toplu Sil</td>
+<td>Seçili kalemleri arşivler</td>
+</tr>
+</tbody></table>
+<h3>Dışa ve İçe Aktarma</h3>
+<p><strong>Dışa aktarma:</strong> Araç çubuğundaki <code>⋯</code> menüsü → <strong>CSV olarak dışa aktar</strong> veya <strong>Excel olarak dışa aktar</strong>.</p>
+<p><strong>İçe aktarma:</strong> <code>⋯</code> → <strong>CSV&#39;den içe aktar</strong> → şablon indirip doldurun ve yükleyin.</p>
+<blockquote>
+<p><strong>Not:</strong> İçe aktarmada mevcut iş kalemleri güncellenmez; her satır yeni bir iş kalemi olarak oluşturulur.</p>
+</blockquote>
+<hr>
+<h2>Bölüm 5: İş Kalemi Detay Paneli</h2>
+<p>Herhangi bir iş kalemine tıkladığınızda sağ tarafta detay paneli açılır. Panel, iş kalemine ilişkin tüm bilgileri sekmeler halinde sunar.</p>
+<h3>Panel Başlığı</h3>
+<pre><code>SAMP-42                                           [Durum: Active ▾]  [2 kullanıcı]
+─────────────────────────────────────────────────────────────────────────────────
+Kullanıcı şifresini e-posta ile sıfırlayabilmeli
+─────────────────────────────────────────────────────────────────────────────────
+Tür: User Story   Atanan: Ahmet Yılmaz   Etiket: auth, güvenlik
+Oluşturulma: 3 Mart 2026   Son güncelleme: 2 saat önce
+</code></pre>
+<ul>
+<li><strong>Anahtar</strong> (<code>SAMP-42</code>): Tıklayarak panoya kopyalayın</li>
+<li><strong>Durum rozeti:</strong> Tıklayarak izin verilen durumlar arasında geçiş yapın</li>
+<li><strong>Aktif kullanıcı sayısı:</strong> Aynı anda bu iş kalemini görüntüleyen kişi sayısı — gerçek zamanlı</li>
+</ul>
+<h3>Durum Geçişi</h3>
+<p>Durum rozetine tıkladığınızda, manifest&#39;in izin verdiği hedef durumlar listelenir. Bazı geçişler ek bilgi gerektirebilir:</p>
+<table>
+<thead>
+<tr>
+<th>Geçiş koşulu</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Geçiş nedeni</strong></td>
+<td>İsteğe bağlı veya zorunlu not (&quot;Neden beklemeye alındı?&quot;)</td>
+</tr>
+<tr>
+<td><strong>Çözüm tipi</strong></td>
+<td>Defect kapatılırken: <code>Fixed</code>, <code>Duplicate</code>, <code>Won&#39;t Fix</code>, <code>As Designed</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h3>Sekme 1: Detaylar</h3>
+<p>İş kaleminin tüm alanlarını gösterir ve düzenlemenizi sağlar:</p>
+<ul>
+<li><strong>Açıklama:</strong> Zengin metin editörü; başlık, liste, kalın/italik, bağlantı destekler</li>
+<li><strong>Döngü ve Alan:</strong> Açılır menüden değiştirilebilir</li>
+<li><strong>Manifest özel alanları:</strong> Projeye göre değişen ek alanlar (öncelik, story puanı, etkilenen versiyon, ortam, yeniden üretilebilirlik…)</li>
+</ul>
+<hr>
+<h3>Sekme 2: Görevler (Tasks)</h3>
+<p>İş kalemini tamamlamak için yapılması gereken teknik alt adımlar.</p>
+<p><strong>Görev ekleme:</strong></p>
+<ol>
+<li><strong>+ Görev Ekle</strong> butonuna tıklayın</li>
+<li>Formu doldurun:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Alan</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Başlık</td>
+<td>Görevin kısa adı (örn. &quot;E-posta şablonu hazırla&quot;)</td>
+</tr>
+<tr>
+<td>Açıklama</td>
+<td>Detay</td>
+</tr>
+<tr>
+<td>Atanan</td>
+<td>Sorumlu kişi</td>
+</tr>
+<tr>
+<td>Takım</td>
+<td>Proje takımı (birden fazla takım varsa görünür)</td>
+</tr>
+<tr>
+<td>Saatler</td>
+<td>Tahmini süre</td>
+</tr>
+<tr>
+<td>Aktivite</td>
+<td>Görev kategorisi (geliştirme, test, dokümantasyon…)</td>
+</tr>
+<tr>
+<td>Etiketler</td>
+<td>Çoklu etiket</td>
+</tr>
+</tbody></table>
+<ol start="3">
+<li><strong>Kaydet</strong></li>
+</ol>
+<p>Görevler sürükle-bırak ile yeniden sıralanabilir. Her görevin durum değiştirme düğmesi (<code>To Do → In Progress → Done</code>) bulunur.</p>
+<hr>
+<h3>Sekme 3: Bağlantılar (Links)</h3>
+<p>İş kalemleri arasında ilişki kurun. İki iş kalemi arasında birden fazla farklı tipte bağlantı olabilir.</p>
+<p><strong>Bağlantı ekleme:</strong></p>
+<ol>
+<li><strong>+ Bağla</strong> butonuna tıklayın</li>
+<li>İlişki tipini seçin:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>İlişki Tipi</th>
+<th>Ne anlama gelir</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>depends-on</code></td>
+<td>Bu iş kalemi, hedefi bekliyor (hedef önce tamamlanmalı)</td>
+</tr>
+<tr>
+<td><code>blocks</code></td>
+<td>Bu iş kalemi, hedefin ilerlemesini engelliyor</td>
+</tr>
+<tr>
+<td><code>relates-to</code></td>
+<td>Bağımlılık olmaksızın ilgili</td>
+</tr>
+<tr>
+<td><code>parent</code></td>
+<td>Üst öğe</td>
+</tr>
+<tr>
+<td><code>implements</code></td>
+<td>Bir gereksinimi karşılıyor</td>
+</tr>
+<tr>
+<td><code>traces-to</code></td>
+<td>İzlenebilirlik için bağlı (genellikle test → gereksinim)</td>
+</tr>
+</tbody></table>
+<ol start="3">
+<li>Hedef iş kalemini arayın (anahtar veya başlık ile)</li>
+<li><strong>Ekle</strong></li>
+</ol>
+<p><strong>Gelen bağlantılar:</strong> Başka iş kalemlerinin bu öğeye yaptığı bağlantılar ayrı bölümde &quot;Gelen Bağlantılar&quot; altında görünür.</p>
+<hr>
+<h3>Sekme 4: Kaynak Kod (Source)</h3>
+<p>SCM (Git) entegrasyonu aktifse bu sekmede commit, branch ve PR bilgileri görünür.</p>
+<ul>
+<li>Branch adı ve son commit</li>
+<li>Commit hash ve mesajı</li>
+<li>Pull Request / Merge Request başlığı ve durumu (açık/kapalı/merge)</li>
+</ul>
+<blockquote>
+<p><strong>Not:</strong> Bu sekmenin içerik göstermesi için projenizde SCM webhook yapılandırması gerekir. Bkz. <a href="#scm-entegrasyonu">Bölüm 12: SCM Entegrasyonu</a>.</p>
+</blockquote>
+<hr>
+<h3>Sekme 5: Dağıtım (Deploy)</h3>
+<p>Bu iş kaleminin hangi deployment&#39;lara dahil edildiğini gösterir:</p>
+<ul>
+<li>Deployment adı ve ortamı (Production, Staging…)</li>
+<li>Dağıtım tarihi ve sürüm etiketi</li>
+<li>Başarı/başarısız durumu</li>
+</ul>
+<hr>
+<h3>Sekme 6: Etki Analizi (Impact)</h3>
+<p>Bir iş kaleminin neleri etkilediğini veya neden etkilendiğini hiyerarşik olarak gösterir.</p>
+<p><strong>Kullanım:</strong></p>
+<ol>
+<li><strong>Derinlik:</strong> 1–5 seviye arasında seçin</li>
+<li><strong>İlişki filtreleri:</strong> Görmek istediğiniz bağlantı tiplerini seçin</li>
+<li><strong>Düğümlere tıklayın:</strong> İlgili iş kalemini ayrı panelde açın</li>
+</ol>
+<p><strong>Senaryo:</strong> Bir Epic&#39;in kapsamını değiştirmeyi planlıyorsunuz. Etki Analizi&#39;nde bu Epic&#39;e bağlı 5 User Story, 3 Test Senaryosu ve 1 açık Defect görebilirsiniz — kararı vermeden önce tüm etkiyi kavrayabilirsiniz.</p>
+<hr>
+<h3>Sekme 7: Ekler (Attachments)</h3>
+<table>
+<thead>
+<tr>
+<th>İşlem</th>
+<th>Nasıl yapılır</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dosya yükleme</td>
+<td>Sürükle-bırak veya &quot;Dosya Seç&quot; butonu</td>
+</tr>
+<tr>
+<td>İndirme</td>
+<td>Dosya satırındaki indirme ikonu</td>
+</tr>
+<tr>
+<td>Silme</td>
+<td>Dosya satırındaki çöp kutusu ikonu (izne bağlı)</td>
+</tr>
+</tbody></table>
+<p>Her dosya için: ad, boyut (KB/MB), yükleyen kişi, yüklenme tarihi gösterilir.</p>
+<hr>
+<h3>Sekme 8: Yorumlar (Comments)</h3>
+<ul>
+<li><strong>Yorum ekle:</strong> Alt kısımdaki metin alanına yazın, <strong>Gönder</strong> butonuna basın</li>
+<li>Her yorumda: avatar, kullanıcı adı, tarih ve saat</li>
+<li>Kendi yorumunuzu düzenleyebilir veya silebilirsiniz</li>
+<li><code>@kullanıcı_adı</code> yazarak birini etiketleyebilirsiniz</li>
+</ul>
+<hr>
+<h3>Sekme 9: Denetim (Audit)</h3>
+<p>Bu iş kaleminde yapılan tüm değişikliklerin tam geçmişi:</p>
+<table>
+<thead>
+<tr>
+<th>Sütun</th>
+<th>İçerik</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Zaman</td>
+<td>Değişikliğin kesin tarihi ve saati</td>
+</tr>
+<tr>
+<td>Kullanıcı</td>
+<td>Değişikliği yapan kişi</td>
+</tr>
+<tr>
+<td>Olay</td>
+<td>Oluşturuldu, güncellendi, durum değiştirildi, yorum eklendi…</td>
+</tr>
+<tr>
+<td>Eski Değer</td>
+<td>Değişiklik öncesi içerik</td>
+</tr>
+<tr>
+<td>Yeni Değer</td>
+<td>Değişiklik sonrası içerik</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Bölüm 6: Kalite ve Test Yönetimi</h2>
+<p>Kalite modülü beş alt bölümden oluşur: <strong>Katalog</strong>, <strong>Kampanya</strong>, <strong>Çalıştırmalar</strong>, <strong>Hatalar</strong>, <strong>İzlenebilirlik</strong>.</p>
+<h3>6.1 Test Kataloğu</h3>
+<p>Tüm test senaryolarının kütüphanesidir. Senaryolar hiyerarşik klasörler halinde organize edilir.</p>
+<h4>Test Senaryosu Oluşturma</h4>
+<ol>
+<li><strong>Kalite → Katalog</strong> sayfasına gidin</li>
+<li>İstediğiniz klasörü seçin (veya kök düzeyde çalışın)</li>
+<li><strong>+ Yeni Test</strong> butonuna tıklayın</li>
+<li>Formu doldurun:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Alan</th>
+<th>Zorunlu</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Başlık</td>
+<td>Evet</td>
+<td>Test senaryosunun adı</td>
+</tr>
+<tr>
+<td>Açıklama</td>
+<td>Hayır</td>
+<td>Amacı ve kapsamı</td>
+</tr>
+<tr>
+<td>Adımlar</td>
+<td>Hayır</td>
+<td>Her adım için: eylem + beklenen sonuç</td>
+</tr>
+<tr>
+<td>Parametreler</td>
+<td>Hayır</td>
+<td>Tekrar çalıştırmak için değişken tanımları</td>
+</tr>
+<tr>
+<td>Etiketler</td>
+<td>Hayır</td>
+<td>Kategorileme</td>
+</tr>
+</tbody></table>
+<ol start="5">
+<li><strong>Kaydet</strong></li>
+</ol>
+<h4>Test Adımları</h4>
+<p>Bir testi anlamlı kılan, adımlarının açıklığıdır. İyi yazılmış bir adım şöyle görünür:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Eylem</th>
+<th>Beklenen Sonuç</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Giriş sayfasını aç</td>
+<td>Sayfa yüklenir, form alanları görünür</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Geçerli e-posta ve şifre gir</td>
+<td>Alanlar dolduğu gözlemlenir</td>
+</tr>
+<tr>
+<td>3</td>
+<td>&quot;Giriş Yap&quot; butonuna tıkla</td>
+<td>Ana dashboard açılır, kullanıcı adı üst barda görünür</td>
+</tr>
+</tbody></table>
+<h4>Parametrik Test</h4>
+<p>Aynı senaryoyu farklı verilerle çalıştırmanız gerekiyorsa parametreler kullanın:</p>
+<ul>
+<li>Parametre tanımı: <code>kullanici_adi</code>, <code>sifre</code></li>
+<li>Çalıştırma sırasında her parametre için farklı değer seti girilir</li>
+<li>Sonuçlar her kombinasyon için ayrı ayrı kaydedilir</li>
+</ul>
+<h4>Testi Gereksinime Bağlama</h4>
+<ol>
+<li>Test detayında <strong>Bağlantılar</strong> sekmesine gidin</li>
+<li><strong>+ Bağla</strong> → İlişki tipi: <code>traces-to</code> veya <code>implements</code></li>
+<li>İlgili User Story veya gereksinimi arayıp seçin</li>
+<li><strong>Ekle</strong></li>
+</ol>
+<blockquote>
+<p><strong>Neden önemli?</strong> Bu bağlantı kurulmadan İzlenebilirlik Matrisi gereksinimlerinizin test edilip edilmediğini bilemez ve kapsama boşluklarını göremezsiniz.</p>
+</blockquote>
+<hr>
+<h3>6.2 Test Kampanyası</h3>
+<p>Kampanya; belirli bir sprint veya sürüm için çalıştırılacak test grubunu temsil eder. Bir test senaryosu birden fazla kampanyaya eklenebilir.</p>
+<h4>Kampanya Oluşturma</h4>
+<ol>
+<li><strong>Kalite → Kampanya → + Yeni Kampanya</strong></li>
+<li>Kampanya adını ve kapsamını girin</li>
+<li><strong>Oluştur</strong></li>
+</ol>
+<h4>Kampanyaya Test Ekleme</h4>
+<ol>
+<li>Kampanya içinde <strong>+ Test Ekle</strong></li>
+<li>Katalogdan test senaryolarını arayıp seçin — çoklu seçim desteklenir</li>
+<li><strong>Ekle</strong></li>
+</ol>
+<hr>
+<h3>6.3 Test Çalıştırma (Test Run)</h3>
+<p>Çalıştırma, bir kampanyanın belirli bir tarihte ve belirli bir ortamda gerçekleştirilmesidir.</p>
+<h4>Yeni Çalıştırma Başlatma</h4>
+<ol>
+<li>Kampanya sayfasında <strong>+ Yeni Çalıştırma</strong></li>
+<li>Formu doldurun:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Alan</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Başlık</td>
+<td>Çalıştırmanın adı (otomatik doldurulur, değiştirilebilir)</td>
+</tr>
+<tr>
+<td>Açıklama</td>
+<td>Bu çalıştırma hakkında notlar</td>
+</tr>
+<tr>
+<td>Ortam</td>
+<td>Test ortamı: Staging, UAT, Production…</td>
+</tr>
+</tbody></table>
+<ol start="3">
+<li><strong>Başlat</strong></li>
+</ol>
+<h4>Test Sonucu Girme</h4>
+<p>Her test satırı için dört seçenekten birini işaretleyin:</p>
+<table>
+<thead>
+<tr>
+<th>Simge</th>
+<th>Sonuç</th>
+<th>Ne zaman kullanılır</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>✅</td>
+<td><strong>Geçti</strong></td>
+<td>Test tam olarak beklenen şekilde çalıştı</td>
+</tr>
+<tr>
+<td>❌</td>
+<td><strong>Başarısız</strong></td>
+<td>Beklenen sonuç alınamadı</td>
+</tr>
+<tr>
+<td>⏸</td>
+<td><strong>Engellendi</strong></td>
+<td>Test çalıştırılamadı (ortam hazır değil, ön koşul sağlanamadı…)</td>
+</tr>
+<tr>
+<td>⬜</td>
+<td><strong>Çalıştırılmadı</strong></td>
+<td>Henüz yürütülmedi</td>
+</tr>
+</tbody></table>
+<h4>Başarısız Testten Hata Oluşturma</h4>
+<ol>
+<li>Başarısız (<code>❌</code>) sonucu olan test satırında <strong>Hata Oluştur</strong> butonuna tıklayın</li>
+<li>Form, testin bağlamıyla otomatik doldurulur (çalıştırma adı, adım, kaynak)</li>
+<li>Eksik alanları tamamlayın:<ul>
+<li>Önem derecesi (1-Kritik → 4-Düşük)</li>
+<li>Sorumlu kişi</li>
+</ul>
+</li>
+<li><strong>Kaydet</strong></li>
+</ol>
+<p>Yeni Defect otomatik olarak bu test senaryosuna bağlanır — İzlenebilirlik Matrisi&#39;nde görünür.</p>
+<hr>
+<h3>6.4 Hata Yönetimi (Defects)</h3>
+<p><strong>Kalite → Hatalar</strong> sayfasında projenin tüm Defect kayıtları listelenir.</p>
+<h4>Defect&#39;e Özgü Alanlar</h4>
+<p>Defect tipindeki iş kalemlerinde standart alanlara ek olarak şunlar bulunur:</p>
+<table>
+<thead>
+<tr>
+<th>Alan</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Önem Derecesi</td>
+<td>1-Kritik, 2-Yüksek, 3-Orta, 4-Düşük</td>
+</tr>
+<tr>
+<td>Yeniden Üretilebilirlik</td>
+<td>Her Zaman / Bazen / Nadiren / Üretilemedi</td>
+</tr>
+<tr>
+<td>Tespit Edilen Versiyon</td>
+<td>Hatanın ilk görüldüğü yazılım sürümü</td>
+</tr>
+<tr>
+<td>Düzeltilen Versiyon</td>
+<td>Hatanın çözüldüğü sürüm</td>
+</tr>
+<tr>
+<td>Ortam</td>
+<td>Üretim, Staging, UAT…</td>
+</tr>
+<tr>
+<td>Çözüm Tipi</td>
+<td>Fixed / Duplicate / Won&#39;t Fix / As Designed</td>
+</tr>
+</tbody></table>
+<h4>Defect Yaşam Döngüsü</h4>
+<pre><code>New ──→ Active ──→ Resolved ──→ Closed
+  ↑          │
+  └──────────┘  (yeniden açılabilir)
+</code></pre>
+<hr>
+<h3>6.5 İzlenebilirlik Matrisi</h3>
+<p><strong>Kalite → İzlenebilirlik</strong> sayfası, gereksinimlerinizin test kapsama durumunu tek bakışta gösterir.</p>
+<h4>Renk Kodlaması</h4>
+<table>
+<thead>
+<tr>
+<th>Renk</th>
+<th>Anlam</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>🟢 Yeşil</td>
+<td>Bu gereksinime bağlı tüm testler geçti</td>
+</tr>
+<tr>
+<td>🔴 Kırmızı</td>
+<td>En az bir test başarısız</td>
+</tr>
+<tr>
+<td>🟡 Sarı</td>
+<td>Bağlı test var ama henüz sonuç girilmedi</td>
+</tr>
+<tr>
+<td>⚪ Gri</td>
+<td>Bu gereksinime hiç test bağlanmamış</td>
+</tr>
+</tbody></table>
+<h4>Kullanım</h4>
+<ul>
+<li>Satıra tıklayın → o gereksinime bağlı testlerin, çalıştırma sonuçlarının ve defect&#39;lerin detayı açılır</li>
+<li><strong>Bayat İzlenebilirlik</strong> filtresi (Backlog&#39;da): hiç test bağlanmamış gereksinimleri öne çıkarır</li>
+<li>Sürüm öncesi kalite kapısı değerlendirmesinde bu sayfayı kullanın: kırmızı veya gri satır sayısının sıfır olması hedeflenir</li>
+</ul>
+<hr>
+<h2>Bölüm 7: Board ve Kanban</h2>
+<p>Board, iş kalemlerini workflow durumlarına göre sütunlar halinde görselleştirir ve sürükle-bırak ile durum değiştirmeyi sağlar.</p>
+<h3>Board Yapılandırma</h3>
+<p>Sayfa açıldığında filtre paneli görünür — en azından <strong>Tür</strong> seçmeniz gerekir:</p>
+<table>
+<thead>
+<tr>
+<th>Filtre</th>
+<th>Zorunlu</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Tür</td>
+<td>Evet</td>
+<td>Hangi artifact tipini görmek istiyorsunuz</td>
+</tr>
+<tr>
+<td>Döngü</td>
+<td>Hayır</td>
+<td>Belirli sprint</td>
+</tr>
+<tr>
+<td>Sürüm</td>
+<td>Hayır</td>
+<td>Belirli sürüm</td>
+</tr>
+<tr>
+<td>Alan</td>
+<td>Hayır</td>
+<td>Belirli alan</td>
+</tr>
+<tr>
+<td>Atanan</td>
+<td>Hayır</td>
+<td>Belirli kişi veya atanmamışlar</td>
+</tr>
+<tr>
+<td>Arama</td>
+<td>Hayır</td>
+<td>Başlık araması</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>İpucu:</strong> Kendi işlerinize odaklanmak için &quot;Atanan: Ben&quot; filtresini kullanın.</p>
+</blockquote>
+<h3>Sütun Yapısı</h3>
+<p>Her sütun bir workflow durumunu temsil eder. Sütun başlığında durum adı ve o durumdaki kart sayısı gösterilir.</p>
+<h3>Kart Bilgileri</h3>
+<p>Her kart şunları gösterir:</p>
+<ul>
+<li>Artifact anahtarı (<code>SAMP-42</code>)</li>
+<li>Başlık (uzunsa kısaltılır)</li>
+<li>Tür rozeti (renkli — Defect kırmızı, Epic mor…)</li>
+<li>Atanan kişinin avatarı</li>
+<li>Etiketler (varsa)</li>
+</ul>
+<h3>Kart İşlemleri</h3>
+<p><strong>Tıklama:</strong> Detay panelini açar.</p>
+<p><strong>Sürükle-Bırak:</strong> Kartı başka bir sütuna taşıyın — iş kaleminin durumu otomatik güncellenir.</p>
+<ul>
+<li>İzin verilmeyen geçişler engellenir ve neden izin verilmediği belirtilir</li>
+<li>Geçiş nedeni gerektiren durumlar için küçük bir form açılır; doldurup onaylayın</li>
+</ul>
+<blockquote>
+<p><strong>Not:</strong> Durum geçişleri manifest kurallarıyla sınırlıdır. Örneğin <code>Closed → Active</code> geçişi manifest&#39;te tanımlı değilse Board&#39;da o sütuna kart taşıyamazsınız.</p>
+</blockquote>
+<hr>
+<h2>Bölüm 8: Planlama, Sprint ve Sürüm</h2>
+<p><strong>Planlama</strong> sayfası üç bölümden oluşur: <strong>Döngüler</strong>, <strong>Sürümler</strong>, <strong>Alanlar</strong>.</p>
+<h3>Döngü (Sprint) Oluşturma</h3>
+<ol>
+<li><strong>Planlama → Döngüler → + Yeni Döngü</strong></li>
+<li>Formu doldurun:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Alan</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Ad</td>
+<td>Sprint adı (örn. &quot;Sprint 3&quot;)</td>
+</tr>
+<tr>
+<td>Başlangıç Tarihi</td>
+<td>Sprint başlangıcı</td>
+</tr>
+<tr>
+<td>Bitiş Tarihi</td>
+<td>Sprint sonu</td>
+</tr>
+</tbody></table>
+<ol start="3">
+<li><strong>Oluştur</strong></li>
+</ol>
+<h3>Sürüm (Release) Oluşturma</h3>
+<ol>
+<li><strong>Planlama → Sürümler → + Yeni Sürüm</strong></li>
+<li>Sürüm adı ve tarih aralığını girin</li>
+<li><strong>Oluştur</strong></li>
+</ol>
+<p>Döngüler sprint içi planlamaya, Sürümler ise birden fazla sprint kapsayan teslimat planlamasına yöneliktir.</p>
+<h3>İş Kalemlerini Döngüye Atama</h3>
+<p><strong>Yöntem A — İş kalemi detayından:</strong>
+İş kalemi detayında <strong>Döngü</strong> alanına tıklayın → listeden seçin.</p>
+<p><strong>Yöntem B — Tablo görünümünden:</strong>
+Tablo görünümünde <strong>Döngü</strong> sütunundaki hücreye tıklayın → seçin.</p>
+<p><strong>Yöntem C — Toplu atama:</strong>
+Birden fazla iş kalemini seçin → Toplu Atama → Döngü alanını güncelleyin.</p>
+<h3>Alan (Area) Yönetimi</h3>
+<p>Takım, ürün veya coğrafi bölge bazlı hiyerarşi:</p>
+<ol>
+<li><strong>Planlama → Alanlar → + Yeni Alan</strong></li>
+<li>Alan adını girin; üst alan seçebilirsiniz (örn. &quot;Ürün → Backend&quot;)</li>
+<li><strong>Oluştur</strong></li>
+</ol>
+<p>İş kalemlerinin <strong>Alan</strong> alanına tıklayarak atama yapın. Board ve Backlog&#39;da alan filtresi kullanarak yalnızca ilgili alanın iş kalemlerini görün.</p>
+<hr>
+<h2>Bölüm 9: İzlenebilirlik ve Etki Analizi</h2>
+<h3>Tam İzlenebilirlik Zinciri</h3>
+<p>ALM, yazılım yaşam döngüsü boyunca her katmanı birbirine bağlar:</p>
+<pre><code>Gereksinim  (Epic / Feature / User Story)
+     │  traces-to / implements
+     ▼
+Test Senaryosu  (Katalog)
+     │  çalıştırılınca
+     ▼
+Test Çalıştırması  →  Sonuç: ✅ / ❌ / ⏸
+     │  başarısız olunca
+     ▼
+Defect  (Hata)
+     │  düzeltilince — commit mesajı: &quot;SAMP-55: fix&quot;
+     ▼
+Kaynak Kod  (Commit / Branch / PR)
+     │  merge → deploy
+     ▼
+Deployment  (Ortam + Sürüm)
+</code></pre>
+<p>Bu zincirin her halkası, ilgili iş kaleminin detay panelinde görünür.</p>
+<h3>9.1 İzlenebilirlik Matrisi</h3>
+<p>Bkz. <a href="#65-izlenebilirlik-matrisi">Bölüm 6.5</a>.</p>
+<h3>9.2 Etki Analizi</h3>
+<p>Bir değişikliğin etkisini anlamak için:</p>
+<ol>
+<li>İş kalemi detay panelini açın</li>
+<li><strong>Etki</strong> sekmesine geçin</li>
+<li>Derinlik seviyesini ayarlayın (1 = yalnızca doğrudan bağlantılar, 5 = beş kat uzağa kadar)</li>
+<li>Ağaçtaki düğümlere tıklayarak ilgili iş kalemlerini açın</li>
+</ol>
+<h3>9.3 İzlenebilirlik Boşluklarını Kapatma</h3>
+<p><strong>Bayat İzlenebilirlik filtresi:</strong></p>
+<p>Backlog&#39;da filtreleme alanında &quot;Bayat İzlenebilirlik&quot; kutucuğunu işaretleyin. Bu filtre, hiç test senaryosu bağlantısı olmayan gereksinimleri (User Story, Feature…) listeler.</p>
+<p>Sürüm öncesi hedef: bu liste boş olmalıdır.</p>
+<hr>
+<h2>Bölüm 10: Otomasyon Kuralları</h2>
+<p>Tekrarlayan manüel adımları otomatikleştirmek için kural tabanlı otomasyon kullanın.</p>
+<h3>Kural Yapısı</h3>
+<pre><code>[Tetikleyici]  →  [Koşul (isteğe bağlı)]  →  [Aksiyon]
+</code></pre>
+<p><strong>Örnek kural:</strong></p>
+<blockquote>
+<p>&quot;Bir Defect durumu <code>Resolved</code> olarak değiştiğinde → eğer önem derecesi <code>1-Kritik</code> ise → Slack&#39;e bildirim gönder (webhook)&quot;</p>
+</blockquote>
+<h3>Kural Oluşturma</h3>
+<ol>
+<li><p><strong>Otomasyon → + Yeni Kural</strong></p>
+</li>
+<li><p><strong>Tetikleyici</strong> seçin:</p>
+</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Tetikleyici</th>
+<th>Ne zaman ateşlenir</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>artifact_state_changed</code></td>
+<td>Durum değiştiğinde</td>
+</tr>
+<tr>
+<td><code>artifact_assigned</code></td>
+<td>Atama değiştiğinde</td>
+</tr>
+<tr>
+<td><code>artifact_created</code></td>
+<td>Yeni iş kalemi oluşturulduğunda</td>
+</tr>
+<tr>
+<td><code>artifact_commented</code></td>
+<td>Yorum eklendiğinde</td>
+</tr>
+</tbody></table>
+<ol start="3">
+<li><p><strong>Koşul</strong> (isteğe bağlı): Koşul olmadan kural her tetikleme anında çalışır. Koşul ekleyerek kuralı daraltın:</p>
+<ul>
+<li>Tür = <code>Defect</code></li>
+<li>Alan = <code>Backend</code></li>
+<li>Özel alan değeri = belirli bir değer</li>
+</ul>
+</li>
+<li><p><strong>Aksiyon</strong> tanımlayın:</p>
+<ul>
+<li><strong>Webhook:</strong> Belirtilen URL&#39;ye HTTP POST gönderir — Slack, Teams, Jira entegrasyonları için kullanılır</li>
+<li><strong>Log:</strong> Sistem loguna kayıt düşer (hata ayıklama için)</li>
+</ul>
+</li>
+<li><p>Kuralı <strong>Aktif</strong> durumuna getirin</p>
+</li>
+<li><p><strong>Kaydet</strong></p>
+</li>
+</ol>
+<h3>Kuralları Yönetme</h3>
+<p>Kural listesinde her satırda:</p>
+<ul>
+<li><strong>Aktif/Pasif toggle:</strong> Kuralı geçici olarak devre dışı bırakın</li>
+<li><strong>Son tetiklenme:</strong> En son ne zaman ateşlendiği</li>
+<li><strong>Silme:</strong> Kalıcı olarak silin</li>
+</ul>
+<hr>
+<h2>Bölüm 11: Üye ve Rol Yönetimi</h2>
+<h3>Üye Davet Etme</h3>
+<ol>
+<li><strong>Ayarlar → Üyeler → + Davet Et</strong></li>
+<li>E-posta adresini girin</li>
+<li>Bir veya birden fazla rol seçin</li>
+<li><strong>Davet Gönder</strong></li>
+</ol>
+<p>SMTP yapılandırması aktifse kişiye otomatik e-posta gönderilir. Aktif değilse bağlantıyı manuel paylaşın.</p>
+<h3>Kullanıcı Oluşturma (Sadece Admin)</h3>
+<p>Davet yerine direkt hesap oluşturmak için:</p>
+<ol>
+<li><strong>+ Kullanıcı Oluştur</strong></li>
+<li>Ad, e-posta ve şifreyi girin</li>
+<li>Rol atayın</li>
+<li><strong>Oluştur</strong></li>
+</ol>
+<h3>Üye Silme</h3>
+<p>Üyeler listesinde satır sonundaki silme ikonuna tıklayın → onay penceresini onaylayın.</p>
+<blockquote>
+<p><strong>Not:</strong> Silinmiş üyeler tamamen kaldırılmaz; arşivlenir. <strong>&quot;Silinenleri göster&quot;</strong> kutucuğu ile listeye dahil edilir ve gerekirse geri getirilebilir.</p>
+</blockquote>
+<h3>Üye İstatistikleri</h3>
+<p>Sayfanın üstündeki özet kartlar:</p>
+<table>
+<thead>
+<tr>
+<th>Kart</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Toplam Üye</td>
+<td>Organizasyondaki tüm üyeler</td>
+</tr>
+<tr>
+<td>Aktif Üye</td>
+<td>Silinmemiş üyeler</td>
+</tr>
+<tr>
+<td>Silinmiş Üye</td>
+<td>Arşivlenmiş üyeler</td>
+</tr>
+</tbody></table>
+<hr>
+<h3>Rol Yönetimi</h3>
+<h4>Sistem Rolleri</h4>
+<p>Bu roller önceden tanımlıdır ve düzenlenemez:</p>
+<table>
+<thead>
+<tr>
+<th>Rol</th>
+<th>Hiyerarşi</th>
+<th>Yetki Özeti</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Admin</strong></td>
+<td>En yüksek</td>
+<td>Her şeye tam erişim; üye, rol ve organizasyon yönetimi</td>
+</tr>
+<tr>
+<td><strong>Editor</strong></td>
+<td>Orta</td>
+<td>İş kalemi oluşturma, güncelleme, test yönetimi</td>
+</tr>
+<tr>
+<td><strong>Viewer</strong></td>
+<td>Düşük</td>
+<td>Yalnızca okuma</td>
+</tr>
+</tbody></table>
+<h4>Özel Rol Oluşturma</h4>
+<p>Ekibinize özgü bir rol gerekiyorsa (örn. &quot;Test Uzmanı&quot;, &quot;Güvenlik Gözlemcisi&quot;):</p>
+<ol>
+<li><strong>Ayarlar → Roller → + Yeni Rol</strong></li>
+<li>Formu doldurun:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Alan</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Ad</td>
+<td>Rol adı</td>
+</tr>
+<tr>
+<td>Açıklama</td>
+<td>Rolün amacı</td>
+</tr>
+<tr>
+<td>Hiyerarşi Seviyesi</td>
+<td>Sayısal değer; yüksek = daha fazla yetki</td>
+</tr>
+</tbody></table>
+<ol start="3">
+<li><strong>Yetkiler</strong> sekmesine geçin ve izinleri işaretleyin:</li>
+</ol>
+<p><strong>Artifact (İş Kalemi) Yetkileri:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Yetki</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>artifact:create</code></td>
+<td>Yeni iş kalemi oluştur</td>
+</tr>
+<tr>
+<td><code>artifact:read</code></td>
+<td>İş kalemlerini görüntüle</td>
+</tr>
+<tr>
+<td><code>artifact:update</code></td>
+<td>Alanları düzenle</td>
+</tr>
+<tr>
+<td><code>artifact:delete</code></td>
+<td>Arşivle</td>
+</tr>
+<tr>
+<td><code>artifact:transition</code></td>
+<td>Durum değiştir</td>
+</tr>
+<tr>
+<td><code>artifact:assign</code></td>
+<td>Atama yap</td>
+</tr>
+<tr>
+<td><code>artifact:comment</code></td>
+<td>Yorum ekle</td>
+</tr>
+<tr>
+<td><code>artifact:read_sensitive</code></td>
+<td>Gizli / hassas alanları görüntüle</td>
+</tr>
+</tbody></table>
+<p><strong>Diğer Yetki Grupları:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Grup</th>
+<th>Örnek Yetkiler</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Proje</td>
+<td><code>project:create</code>, <code>project:read</code>, <code>project:update</code></td>
+</tr>
+<tr>
+<td>Manifest</td>
+<td><code>manifest:read</code>, <code>manifest:activate</code></td>
+</tr>
+<tr>
+<td>Üye</td>
+<td><code>member:invite</code>, <code>member:remove</code>, <code>member:change_role</code></td>
+</tr>
+<tr>
+<td>Rol</td>
+<td><code>role:create</code>, <code>role:update</code></td>
+</tr>
+<tr>
+<td>Organizasyon</td>
+<td><code>tenant:read</code>, <code>tenant:update</code></td>
+</tr>
+<tr>
+<td>Denetim</td>
+<td><code>audit:read</code></td>
+</tr>
+<tr>
+<td>Workflow</td>
+<td><code>workflow:create</code>, <code>workflow:update</code></td>
+</tr>
+<tr>
+<td>Görev</td>
+<td><code>task:create</code>, <code>task:read</code>, <code>task:update</code>, <code>task:assign</code></td>
+</tr>
+</tbody></table>
+<ol start="4">
+<li><strong>Kaydet</strong></li>
+</ol>
+<hr>
+<h3>Denetim Kaydı (Audit Log)</h3>
+<p><strong>Ayarlar → Denetim</strong> sayfası yalnızca <code>audit:read</code> yetkisine sahip kullanıcılar (varsayılan: Admin) tarafından erişilebilir.</p>
+<h4>Kayıt Türleri</h4>
+<table>
+<thead>
+<tr>
+<th>Tür</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>LOGIN_SUCCESS</code></td>
+<td>Başarılı giriş</td>
+</tr>
+<tr>
+<td><code>LOGIN_FAILURE</code></td>
+<td>Başarısız giriş denemesi</td>
+</tr>
+</tbody></table>
+<h4>Sütunlar</h4>
+<table>
+<thead>
+<tr>
+<th>Sütun</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Zaman</td>
+<td>Olayın kesin tarihi ve saati</td>
+</tr>
+<tr>
+<td>Tür</td>
+<td>Başarılı / Başarısız</td>
+</tr>
+<tr>
+<td>E-posta</td>
+<td>İşlemi gerçekleştiren kullanıcı</td>
+</tr>
+<tr>
+<td>IP Adresi</td>
+<td>Bağlantı IP&#39;si</td>
+</tr>
+<tr>
+<td>Kullanıcı Ajanı</td>
+<td>Tarayıcı ve işletim sistemi</td>
+</tr>
+</tbody></table>
+<h4>Filtreler</h4>
+<table>
+<thead>
+<tr>
+<th>Filtre</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Başlangıç Tarihi</td>
+<td>Log aralığının başı</td>
+</tr>
+<tr>
+<td>Bitiş Tarihi</td>
+<td>Log aralığının sonu</td>
+</tr>
+<tr>
+<td>Olay Türü</td>
+<td>Tümü / Başarılı Giriş / Başarısız Giriş</td>
+</tr>
+<tr>
+<td>Limit</td>
+<td>Gösterilecek kayıt sayısı (varsayılan: 200)</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Güvenlik İpucu:</strong> Belirli bir IP&#39;den art arda başarısız giriş girişimleri olup olmadığını düzenli aralıklarla kontrol edin. Bu, kaba kuvvet saldırılarının erken bir göstergesi olabilir.</p>
+</blockquote>
+<hr>
+<h2>Bölüm 12: Manifest ve Süreç Şablonları</h2>
+<p>Manifest; projedeki iş kalemi türlerini, durum makinelerini ve geçiş kurallarını tanımlayan yapılandırma dosyasıdır. Bir proje oluşturulurken bir manifest şablonu seçilir.</p>
+<h3>Yerleşik Şablonlar</h3>
+<table>
+<thead>
+<tr>
+<th>Şablon</th>
+<th>Hiyerarşi</th>
+<th>Uygun Ekipler</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Basic</strong></td>
+<td>Düz liste</td>
+<td>Küçük veya tek kişilik projeler</td>
+</tr>
+<tr>
+<td><strong>Scrum</strong></td>
+<td>Epic → Feature → User Story → Task</td>
+<td>Agile/Scrum ekipler</td>
+</tr>
+<tr>
+<td><strong>ADO-Style</strong></td>
+<td>Epic → Feature → User Story / Bug / Task</td>
+<td>Azure DevOps alışkanlığı olanlar</td>
+</tr>
+</tbody></table>
+<h3>Manifest Görüntüleme</h3>
+<p><strong>Ayarlar → Manifest</strong> sayfasında organizasyondaki tüm şablon sürümleri listelenir. Her şablonda:</p>
+<ul>
+<li>İş kalemi türleri ve hiyerarşi</li>
+<li>Her tip için durum listesi</li>
+<li>İzin verilen durum geçişleri ve koşullar</li>
+</ul>
+<h3>Manifest Versiyonlama</h3>
+<ol>
+<li>Aktif versiyonu <strong>Düzenle</strong> veya <strong>+ Yeni Versiyon</strong> ile kopyala</li>
+<li>YAML editörde değişiklik yap</li>
+<li><strong>Doğrula</strong> — şema hataları vurgulanır</li>
+<li>Hata yoksa <strong>Aktifleştir</strong> → projeye uygula</li>
+</ol>
+<blockquote>
+<p><strong>Uyarı:</strong> Manifest değişikliği tüm mevcut iş kalemlerini etkiler. Yeni bir durum eklemek zararsızdır, ancak mevcut bir durumu kaldırmak ya da geçiş kuralını değiştirmek beklenmedik sonuçlar doğurabilir. Üretim ortamına uygulamadan önce test edin.</p>
+</blockquote>
+<h3>SCM Entegrasyonu</h3>
+<p>Git commit ve PR&#39;ları iş kalemlerine otomatik bağlamak için:</p>
+<ol>
+<li>GitHub / GitLab projenizde <strong>Webhook</strong> ayarını açın</li>
+<li>ALM&#39;de <strong>Proje Ayarları → SCM</strong> bölümünden webhook URL&#39;sini alın</li>
+<li>Webhook olaylarını seçin: <code>push</code>, <code>pull_request</code></li>
+<li>Commit mesajlarınızda iş kalemi anahtarını kullanın:</li>
+</ol>
+<pre><code>SAMP-42: implement password reset flow
+SAMP-55 fix: resolve redirect loop after login
+</code></pre>
+<p>Bundan sonra her commit ve PR, ilgili iş kaleminin <strong>Source</strong> sekmesinde otomatik görünür.</p>
+<hr>
+<h2>Bölüm 13: Dashboard ve Raporlama</h2>
+<p>Dashboard, organizasyon veya proje düzeyinde özet metrikler ve aktivite akışı sunar.</p>
+<h3>Özet Kartlar</h3>
+<table>
+<thead>
+<tr>
+<th>Kart</th>
+<th>Açıklama</th>
+<th>Tıklanınca</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Toplam Proje</td>
+<td>Organizasyondaki proje sayısı</td>
+<td>Projeler sayfasına gider</td>
+</tr>
+<tr>
+<td>Backlog Kalemleri</td>
+<td>Aktif iş kalemi sayısı</td>
+<td>Backlog&#39;a gider</td>
+</tr>
+<tr>
+<td>Görevler</td>
+<td>Toplam görev sayısı</td>
+<td>Görev listesine gider</td>
+</tr>
+<tr>
+<td>Açık Hatalar</td>
+<td>Çözümlenmemiş defect sayısı</td>
+<td>Defect listesine gider</td>
+</tr>
+</tbody></table>
+<h3>Grafikler</h3>
+<p><strong>Dağılım (Pasta Grafik):</strong> Projeler, backlog, görevler ve hataların toplamda oranı.</p>
+<p><strong>Velocity (Çizgi / Alan Grafik):</strong> Sprint bazında tamamlanan iş miktarı; ekibin hızını ve trendini gösterir.</p>
+<p><strong>Burndown (Yığılmış Bar Grafik):</strong> Bir sprint içinde tamamlanan ve kalan iş kalemlerinin günlük dağılımı.</p>
+<p><strong>Aktivite Akışı:</strong> Son değişiklikler zaman sırasıyla:</p>
+<table>
+<thead>
+<tr>
+<th>Sütun</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Zaman</td>
+<td>&quot;5dk önce&quot;, &quot;2 saat önce&quot;, &quot;3 gün önce&quot;</td>
+</tr>
+<tr>
+<td>Kullanıcı</td>
+<td>İşlemi yapan kişi</td>
+</tr>
+<tr>
+<td>Olay</td>
+<td>Oluşturuldu, güncellendi, durum değiştirildi…</td>
+</tr>
+<tr>
+<td>İş Kalemi</td>
+<td>Bağlantılı iş kalemi başlığı</td>
+</tr>
+</tbody></table>
+<h3>Kontroller</h3>
+<table>
+<thead>
+<tr>
+<th>Kontrol</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Proje Seçici</td>
+<td>Tüm organizasyon veya belirli proje</td>
+</tr>
+<tr>
+<td>Zaman Aralığı</td>
+<td>Hafta / Ay / Yıl</td>
+</tr>
+<tr>
+<td>Sürüm Filtresi</td>
+<td>Tüm sürümler veya belirli sürüm</td>
+</tr>
+<tr>
+<td>Yalnızca Bu Proje</td>
+<td>Organizasyon geneli yerine seçili projeye odaklan</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Bölüm 14: Adım Adım İş Akışları</h2>
+<p>Bu bölümde gerçek demo verisi kullanılarak dört temel iş akışı uçtan uca gösterilmektedir.</p>
+<hr>
+<h3>Akış A: Gereksinim → Test → Hata → Düzeltme</h3>
+<p><strong>Senaryo:</strong> &quot;Sample Project&quot; (<code>SAMP</code>) üzerinde kullanıcı girişi özelliğini geliştiriyorsunuz.</p>
+<p><strong>1. Epic oluştur</strong></p>
+<ul>
+<li>Backlog → <strong>+ Yeni</strong> → Tür: <strong>Epic</strong></li>
+<li>Başlık: <code>Kullanıcı Kimlik Doğrulama Modülü</code></li>
+<li>Kaydet → anahtar atanır: <code>SAMP-10</code></li>
+</ul>
+<p><strong>2. User Story ekle</strong></p>
+<ul>
+<li><code>SAMP-10</code> seçiliyken <strong>+ Yeni</strong> → Tür: <strong>User Story</strong></li>
+<li>Başlık: <code>Kullanıcı e-posta ve şifre ile giriş yapabilmeli</code></li>
+<li>Atanan: Ahmet Yılmaz | Story Puanı: 3 | Döngü: Sprint 3</li>
+<li>Kaydet → <code>SAMP-11</code></li>
+</ul>
+<p><strong>3. Test senaryosu oluştur</strong></p>
+<ul>
+<li>Kalite → Katalog → <strong>+ Yeni Test</strong></li>
+<li>Başlık: <code>Geçerli kimlik bilgileri ile giriş</code></li>
+<li>Adımlar:</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Eylem</th>
+<th>Beklenen Sonuç</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Giriş sayfasını aç</td>
+<td>Form alanları görünür</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Geçerli e-posta ve şifre gir</td>
+<td>Alanlar dolduğu gözlemlenir</td>
+</tr>
+<tr>
+<td>3</td>
+<td>&quot;Giriş Yap&quot; butonuna tıkla</td>
+<td>Ana dashboard açılır</td>
+</tr>
+</tbody></table>
+<p><strong>4. Testi gereksinime bağla</strong></p>
+<ul>
+<li>Test detayı → Bağlantılar → <strong>+ Bağla</strong></li>
+<li>İlişki: <code>traces-to</code> → <code>SAMP-11</code>&#39;i seç → <strong>Ekle</strong></li>
+</ul>
+<p><strong>5. Test kampanyası oluştur</strong></p>
+<ul>
+<li>Kalite → Kampanya → <strong>+ Yeni Kampanya</strong></li>
+<li>Ad: <code>Sprint 3 Kabul Testleri</code></li>
+<li><strong>Test Ekle</strong> → &quot;Geçerli kimlik bilgileri ile giriş&quot; testini seç</li>
+</ul>
+<p><strong>6. Çalıştırma yap</strong></p>
+<ul>
+<li>Kampanya → <strong>+ Yeni Çalıştırma</strong> → Ortam: <code>Staging</code></li>
+<li>Test adımlarını uygula → Sonuç: <strong>Başarısız</strong> ❌</li>
+<li>Not: &quot;Giriş sonrası ana sayfa yerine 404 hatası veriyor&quot;</li>
+</ul>
+<p><strong>7. Defect oluştur</strong></p>
+<ul>
+<li>Başarısız test satırı → <strong>Hata Oluştur</strong></li>
+<li>Başlık: <code>Giriş sonrası yönlendirme hatası (404)</code></li>
+<li>Önem: 1-Kritik | Atanan: Zeynep Kaya</li>
+<li>Kaydet → <code>SAMP-12</code></li>
+</ul>
+<p><strong>8. Geliştirici hatayı düzeltir</strong></p>
+<ul>
+<li><code>SAMP-12</code> → Durum: <code>Active</code></li>
+<li>Kod düzeltmesi yapılır, commit: <code>SAMP-12: fix post-login redirect</code></li>
+<li><code>SAMP-12</code> → Durum: <code>Resolved</code> → Çözüm: <code>Fixed</code> → Düzeltilen Versiyon: <code>v1.1.1</code></li>
+</ul>
+<p><strong>9. Testi yeniden çalıştır</strong></p>
+<ul>
+<li>Yeni çalıştırma → Sonuç: <strong>Geçti</strong> ✅</li>
+<li><code>SAMP-12</code> → Durum: <code>Closed</code></li>
+<li><code>SAMP-11</code> → Durum: <code>Resolved</code></li>
+</ul>
+<p><strong>10. İzlenebilirlik kontrolü</strong></p>
+<ul>
+<li>Kalite → İzlenebilirlik → <code>SAMP-11</code> satırı: 🟢 Yeşil</li>
+</ul>
+<hr>
+<h3>Akış B: Sprint Planlama ve Board İzleme</h3>
+<p><strong>Senaryo:</strong> Sprint 3&#39;ü başlatıyorsunuz.</p>
+<p><strong>1. Sprint oluştur</strong></p>
+<ul>
+<li>Planlama → Döngüler → <strong>+ Yeni Döngü</strong></li>
+<li>Ad: <code>Sprint 3</code> | Başlangıç: Pazartesi | Bitiş: 2 hafta sonra Cuma</li>
+</ul>
+<p><strong>2. Backlog&#39;dan iş kalemi ata</strong></p>
+<ul>
+<li>Backlog → Filtre: Tür = User Story, Durum = New</li>
+<li>Her User Story&#39;nin Döngü alanı → <code>Sprint 3</code></li>
+<li>Toplu atama da kullanılabilir: hepsini seç → Toplu Atama → Döngü: Sprint 3</li>
+</ul>
+<p><strong>3. Board&#39;u aç</strong></p>
+<ul>
+<li>Board → Tür: User Story, Döngü: Sprint 3</li>
+<li>Tüm seçilen user story&#39;ler ilk sütunda görünür</li>
+</ul>
+<p><strong>4. Günlük takip</strong></p>
+<ul>
+<li>Geliştirici sabah Board&#39;u açar → kartını <code>To Do → In Progress</code> sütununa taşır</li>
+<li>Gün sonunda tamamlanan kart <code>Done</code> sütununa taşınır</li>
+</ul>
+<p><strong>5. Dashboard&#39;dan burndown izle</strong></p>
+<ul>
+<li>Dashboard → Sprint 3 filtresi → Burndown grafiği günlük güncellenir</li>
+</ul>
+<hr>
+<h3>Akış C: Yeni Ekip Üyesini Onboarding</h3>
+<p><strong>Senaryo:</strong> Test ekibine yeni bir Test Uzmanı katılıyor.</p>
+<p><strong>1. Özel rol oluştur</strong> (ilk kez yapıyorsanız)</p>
+<ul>
+<li>Ayarlar → Roller → <strong>+ Yeni Rol</strong></li>
+<li>Ad: <code>Test Uzmanı</code> | Hiyerarşi: 2</li>
+<li>Yetkiler: <code>artifact:create</code>, <code>artifact:read</code>, <code>artifact:update</code>, <code>artifact:transition</code>, <code>artifact:comment</code>, <code>project:read</code></li>
+<li>Kaydet</li>
+</ul>
+<p><strong>2. Üyeyi davet et</strong></p>
+<ul>
+<li>Ayarlar → Üyeler → <strong>+ Davet Et</strong></li>
+<li>E-posta: <code>yeni.uzman@sirket.com</code></li>
+<li>Rol: <code>Test Uzmanı</code></li>
+<li><strong>Davet Gönder</strong></li>
+</ul>
+<p><strong>3. Projeye üye ekle</strong></p>
+<ul>
+<li>Sample Project → Ayarlar → Üyeler → <strong>Üye Ekle</strong></li>
+<li>Yeni üyeyi seç → Rol: <code>Test Uzmanı</code></li>
+<li><strong>Ekle</strong></li>
+</ul>
+<p><strong>4. Üye giriş yapar</strong></p>
+<ul>
+<li>Yeni üye davet bağlantısından giriş yapar</li>
+<li>Yalnızca <code>Test Uzmanı</code> yetkisi kapsamındaki sayfalar ve işlemler aktif gelir</li>
+</ul>
+<hr>
+<h3>Akış D: Defect&#39;ten Kaynak Koda Tam İzlenebilirlik</h3>
+<p><strong>Senaryo:</strong> Üretimde bir hata var — nereden geldiğini tam olarak bulmak istiyorsunuz.</p>
+<ol>
+<li><strong>Defect detayını aç:</strong> <code>SAMP-12</code></li>
+<li><strong>Source sekmesi:</strong> Commit <code>a3f7b9c — SAMP-12: fix post-login redirect</code> görünür; commit tarihi, yazarı ve PR bağlantısı listelenir</li>
+<li><strong>Bağlantılar sekmesi:</strong> Bu Defect&#39;in hangi User Story&#39;ye (<code>SAMP-11</code>) ve hangi test senaryosuna bağlı olduğu görünür</li>
+<li><strong>Deploy sekmesi:</strong> Bu PR&#39;ın dahil edildiği deployment&#39;lar listelenir — ortam: Production, tarih ve sürüm etiketi</li>
+<li><strong>Etki sekmesi:</strong> <code>SAMP-11</code>&#39;in bağlı olduğu Epic <code>SAMP-10</code>&#39;a kadar tam zincir görünür</li>
+</ol>
+<hr>
+<h2>Bölüm 15: Kullanım Senaryoları</h2>
+<h3>UC-01: Gereksinim Yönetimi</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aktör</strong></td>
+<td>Proje Yöneticisi, Ürün Sahibi, Analist</td>
+</tr>
+<tr>
+<td><strong>Amaç</strong></td>
+<td>Gereksinimleri hiyerarşik tanımlamak, önceliklendirmek ve izlemek</td>
+</tr>
+<tr>
+<td><strong>Tetikleyici</strong></td>
+<td>Proje başlangıcı veya kapsam değişikliği</td>
+</tr>
+<tr>
+<td><strong>İlgili Bölümler</strong></td>
+<td><a href="#b%C3%B6l%C3%BCm-4-backlog-ve-i%C5%9F-kalemleri">Bölüm 4</a>, <a href="#b%C3%B6l%C3%BCm-9-izlenebilirlik-ve-etki-analizi">Bölüm 9</a></td>
+</tr>
+</tbody></table>
+<p><strong>Temel Akış:</strong></p>
+<ol>
+<li>Epic ile üst düzey iş paketleri oluşturulur</li>
+<li>Feature ve User Story&#39;ler Epic altına eklenir</li>
+<li>Her kalem önceliklendirilir, atanır, sprint&#39;e bağlanır</li>
+<li>Gereksinimler test senaryolarına bağlanarak kapsama izlenir</li>
+<li>Backlog&#39;da durum ve ilerleme takibi yapılır</li>
+</ol>
+<hr>
+<h3>UC-02: Hata Takibi</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aktör</strong></td>
+<td>Test Uzmanı, Geliştirici</td>
+</tr>
+<tr>
+<td><strong>Amaç</strong></td>
+<td>Hataları kayıt altına almak ve çözüm sürecini izlemek</td>
+</tr>
+<tr>
+<td><strong>Tetikleyici</strong></td>
+<td>Test çalıştırması başarısız olduğunda veya üretimde hata saptandığında</td>
+</tr>
+<tr>
+<td><strong>İlgili Bölümler</strong></td>
+<td><a href="#64-hata-y%C3%B6netimi-defects">Bölüm 6.4</a>, <a href="#ak%C4%B1%C5%9F-a-gereksinim--test--hata--d%C3%BCzeltme">Bölüm 14 Akış A</a></td>
+</tr>
+</tbody></table>
+<hr>
+<h3>UC-03: Test Planlaması ve Yürütme</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aktör</strong></td>
+<td>Test Uzmanı, Test Lideri</td>
+</tr>
+<tr>
+<td><strong>Amaç</strong></td>
+<td>Test senaryoları hazırlamak, kampanya yürütmek, sonuçları kaydetmek</td>
+</tr>
+<tr>
+<td><strong>Tetikleyici</strong></td>
+<td>Sprint başlangıcı veya sürüm hazırlığı</td>
+</tr>
+<tr>
+<td><strong>İlgili Bölümler</strong></td>
+<td><a href="#b%C3%B6l%C3%BCm-6-kalite-ve-test-y%C3%B6netimi">Bölüm 6</a></td>
+</tr>
+</tbody></table>
+<hr>
+<h3>UC-04: Sprint Planlaması</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aktör</strong></td>
+<td>Scrum Master, Proje Yöneticisi</td>
+</tr>
+<tr>
+<td><strong>Amaç</strong></td>
+<td>Sprint oluşturmak, iş kalemlerini atamak, ilerlemeyi takip etmek</td>
+</tr>
+<tr>
+<td><strong>Tetikleyici</strong></td>
+<td>Yeni sprint döngüsü başlangıcı</td>
+</tr>
+<tr>
+<td><strong>İlgili Bölümler</strong></td>
+<td><a href="#b%C3%B6l%C3%BCm-8-planlama-sprint-ve-s%C3%BCr%C3%BCm">Bölüm 8</a>, <a href="#ak%C4%B1%C5%9F-b-sprint-planlama-ve-board-izleme">Bölüm 14 Akış B</a></td>
+</tr>
+</tbody></table>
+<hr>
+<h3>UC-05: Kanban Board Takibi</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aktör</strong></td>
+<td>Geliştirici, Takım Üyesi</td>
+</tr>
+<tr>
+<td><strong>Amaç</strong></td>
+<td>Günlük iş akışını görsel olarak yönetmek</td>
+</tr>
+<tr>
+<td><strong>Tetikleyici</strong></td>
+<td>Günlük çalışma başlangıcı</td>
+</tr>
+<tr>
+<td><strong>İlgili Bölümler</strong></td>
+<td><a href="#b%C3%B6l%C3%BCm-7-board-ve-kanban">Bölüm 7</a></td>
+</tr>
+</tbody></table>
+<hr>
+<h3>UC-06: İzlenebilirlik Analizi</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aktör</strong></td>
+<td>Proje Yöneticisi, Kalite Güvence Uzmanı</td>
+</tr>
+<tr>
+<td><strong>Amaç</strong></td>
+<td>Gereksinim–Test–Hata–Kod–Dağıtım zincirini görüntülemek</td>
+</tr>
+<tr>
+<td><strong>Tetikleyici</strong></td>
+<td>Sürüm öncesi kalite kapısı değerlendirmesi</td>
+</tr>
+<tr>
+<td><strong>İlgili Bölümler</strong></td>
+<td><a href="#b%C3%B6l%C3%BCm-9-izlenebilirlik-ve-etki-analizi">Bölüm 9</a></td>
+</tr>
+</tbody></table>
+<hr>
+<h3>UC-07: Üye ve Rol Yönetimi</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aktör</strong></td>
+<td>Organizasyon Yöneticisi</td>
+</tr>
+<tr>
+<td><strong>Amaç</strong></td>
+<td>Takım üyelerini platforma davet etmek, özel roller oluşturmak</td>
+</tr>
+<tr>
+<td><strong>İlgili Bölümler</strong></td>
+<td><a href="#b%C3%B6l%C3%BCm-11-%C3%BCye-ve-rol-y%C3%B6netimi">Bölüm 11</a>, <a href="#ak%C4%B1%C5%9F-c-yeni-ekip-%C3%BCyesini-onboarding">Bölüm 14 Akış C</a></td>
+</tr>
+</tbody></table>
+<hr>
+<h3>UC-08: SCM Entegrasyonu</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aktör</strong></td>
+<td>Geliştirici</td>
+</tr>
+<tr>
+<td><strong>Amaç</strong></td>
+<td>Git commit ve PR&#39;ları iş kalemlerine bağlamak</td>
+</tr>
+<tr>
+<td><strong>İlgili Bölümler</strong></td>
+<td><a href="#scm-entegrasyonu">Bölüm 12: SCM Entegrasyonu</a>, <a href="#sekme-4-kaynak-kod-source">Bölüm 5: Source Sekmesi</a></td>
+</tr>
+</tbody></table>
+<hr>
+<h3>UC-09: Otomasyon Kuralları</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aktör</strong></td>
+<td>Proje Yöneticisi</td>
+</tr>
+<tr>
+<td><strong>Amaç</strong></td>
+<td>Tekrarlayan işlemleri otomatikleştirmek</td>
+</tr>
+<tr>
+<td><strong>İlgili Bölümler</strong></td>
+<td><a href="#b%C3%B6l%C3%BCm-10-otomasyon-kurallar%C4%B1">Bölüm 10</a></td>
+</tr>
+</tbody></table>
+<hr>
+<h3>UC-10: Denetim Kaydı ve Güvenlik İzleme</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Aktör</strong></td>
+<td>Organizasyon Yöneticisi, Güvenlik Sorumlusu</td>
+</tr>
+<tr>
+<td><strong>Amaç</strong></td>
+<td>Erişim loglarını görüntülemek, şüpheli girişleri tespit etmek</td>
+</tr>
+<tr>
+<td><strong>İlgili Bölümler</strong></td>
+<td><a href="#denetim-kaydi-audit-log">Bölüm 11: Denetim Kaydı</a></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Sık Sorulan Sorular</h2>
+<p><strong>S: Silinen bir iş kalemini nasıl geri getirebilirim?</strong></p>
+<p>Backlog&#39;da filtre alanında <strong>&quot;Silinenleri göster&quot;</strong> kutucuğunu işaretleyin. Silinen iş kalemleri kırmızı veya farklı renkte listelenir. Üzerine tıklayıp <strong>Geri Getir</strong> seçeneğini kullanın.</p>
+<hr>
+<p><strong>S: Proje kodunu oluşturduktan sonra değiştiremiyorum — ne yapmalıyım?</strong></p>
+<p>Proje kodu kalıcıdır ve değiştirilemez çünkü tüm iş kalemi anahtarları bu koda bağlıdır. Kodu değiştirmek zorundaysanız yeni bir proje oluşturup iş kalemlerini içe aktarmanız gerekir.</p>
+<hr>
+<p><strong>S: Bir iş kalemini farklı bir projeye taşıyabilir miyim?</strong></p>
+<p>Mevcut sürümde iş kalemleri projeler arası taşınamaz. Hedef projede yeni iş kalemi oluşturup bağlantı kurabilirsiniz.</p>
+<hr>
+<p><strong>S: Board&#39;da kart taşıyamıyorum — neden?</strong></p>
+<p>İki olası neden:</p>
+<ol>
+<li><strong>İzin verilmeyen geçiş:</strong> Hedef sütunun durumuna geçiş, manifest&#39;te tanımlı değil. Geçerli geçişleri Manifest sayfasından kontrol edin.</li>
+<li><strong>Eksik yetki:</strong> Hesabınızın <code>artifact:transition</code> yetkisi olmayabilir. Yöneticinizle iletişime geçin.</li>
+</ol>
+<hr>
+<p><strong>S: İzlenebilirlik Matrisi&#39;nde bir gereksinim gri görünüyor — ne yapmalıyım?</strong></p>
+<p>Gri = bu gereksinime hiç test senaryosu bağlanmamış. Kalite → Katalog&#39;da ilgili test senaryosunu açın, Bağlantılar sekmesinden <code>traces-to</code> bağlantısı oluşturun.</p>
+<hr>
+<p><strong>S: Kayıtlı sorgumu (Saved Query) başka bir kullanıcıyla paylaşabilir miyim?</strong></p>
+<p>Evet. Sorgu kaydederken <strong>Proje</strong> kapsamını seçin — bu şekilde projedeki tüm üyeler sorguyu filtre listesinde görür. <strong>Kişisel</strong> kapsamda kaydedilen sorgular yalnızca size görünür.</p>
+<hr>
+<p><strong>S: Komut paleti (<code>Ctrl+K</code>) hangi sayfaları buluyor?</strong></p>
+<p>Tüm navigasyon menüsündeki sayfalar, son ziyaret edilen projeler ve hızlı eylemler listelenebilir. Türkçe ve İngilizce arama terimlerinin ikisi de çalışır.</p>
+<hr>
+<p><strong>S: Test senaryosu olmadan kampanya oluşturabilir miyim?</strong></p>
+<p>Kampanyayı boş oluşturabilirsiniz; testleri daha sonra ekleyebilirsiniz. Ancak test eklenmeden çalıştırma başlatılamaz.</p>
+<hr>
+<h2>Sorun Giderme</h2>
+<table>
+<thead>
+<tr>
+<th>Belirti</th>
+<th>Olası Neden</th>
+<th>Çözüm</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Giriş yapamıyorum</td>
+<td>Hatalı şifre veya e-posta</td>
+<td>&quot;Şifremi Unuttum&quot; bağlantısını kullanın</td>
+</tr>
+<tr>
+<td>Sayfa yüklenmiyor</td>
+<td>Bağlantı sorunu</td>
+<td>Ağ bağlantınızı kontrol edin, sayfayı yenileyin</td>
+</tr>
+<tr>
+<td>Board boş geliyor</td>
+<td>Tür filtresi seçilmemiş</td>
+<td>Filtre panelinde &quot;Tür&quot; seçin</td>
+</tr>
+<tr>
+<td>&quot;Erişim Yok&quot; sayfası</td>
+<td>Hesabınıza gerekli yetki atanmamış</td>
+<td>Organizasyon yöneticinize başvurun</td>
+</tr>
+<tr>
+<td>Kart Board&#39;da taşınmıyor</td>
+<td>İzin verilmeyen geçiş veya eksik yetki</td>
+<td>Manifest geçişlerini kontrol edin; <code>artifact:transition</code> yetkisini doğrulayın</td>
+</tr>
+<tr>
+<td>İzlenebilirlik Matrisi tüm gri</td>
+<td>Testler gereksinime bağlanmamış</td>
+<td>Bağlantılar sekmesinden <code>traces-to</code> bağlantısı oluşturun</td>
+</tr>
+<tr>
+<td>Manifest aktifleştirme hatası</td>
+<td>Şema doğrulama hatası</td>
+<td>YAML hatası vurgulanan satırları düzeltin</td>
+</tr>
+<tr>
+<td>Source sekmesi boş</td>
+<td>Webhook yapılandırılmamış</td>
+<td>Proje Ayarları → SCM → Webhook URL&#39;sini alın ve yapılandırın</td>
+</tr>
+<tr>
+<td>Davet e-postası gelmiyor</td>
+<td>SMTP yapılandırılmamış</td>
+<td>Yöneticinizden bağlantı URL&#39;sini isteyin</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Sözlük</h2>
+<table>
+<thead>
+<tr>
+<th>Terim</th>
+<th>Tanım</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Artifact</strong></td>
+<td>ALM&#39;de takip edilen her iş kalemi: Epic, User Story, Defect, Task…</td>
+</tr>
+<tr>
+<td><strong>Artifact Anahtarı</strong></td>
+<td>Proje kodu + numara: <code>SAMP-42</code>. Benzersiz ve kalıcı.</td>
+</tr>
+<tr>
+<td><strong>Alan (Area)</strong></td>
+<td>Takım veya ürün bazlı organizasyonel bölüm</td>
+</tr>
+<tr>
+<td><strong>Backlog</strong></td>
+<td>Projenin tüm iş kalemlerinin listesi</td>
+</tr>
+<tr>
+<td><strong>Board</strong></td>
+<td>Kanban tarzı sütunlu iş yönetimi görünümü</td>
+</tr>
+<tr>
+<td><strong>Döngü (Cycle)</strong></td>
+<td>Sprint; belirli tarih aralığındaki iş grubu</td>
+</tr>
+<tr>
+<td><strong>Defect</strong></td>
+<td>Yazılımda saptanan hata veya kusur</td>
+</tr>
+<tr>
+<td><strong>Epic</strong></td>
+<td>Büyük iş paketi; birden fazla Feature veya User Story içerir</td>
+</tr>
+<tr>
+<td><strong>Feature</strong></td>
+<td>Epic altında bir ürün özelliği veya işlev</td>
+</tr>
+<tr>
+<td><strong>Kampanya</strong></td>
+<td>Belirli bir sürüm ya da sprint için gruplanmış test senaryoları</td>
+</tr>
+<tr>
+<td><strong>Manifest</strong></td>
+<td>Projenin iş kalemi türleri, durumları ve geçiş kurallarını tanımlayan yapılandırma</td>
+</tr>
+<tr>
+<td><strong>Organizasyon (Tenant)</strong></td>
+<td>Şirket veya ekip çapında izole çalışma alanı</td>
+</tr>
+<tr>
+<td><strong>Saved Query</strong></td>
+<td>Kaydedilmiş filtre kombinasyonu</td>
+</tr>
+<tr>
+<td><strong>SCM</strong></td>
+<td>Source Control Management — Git gibi kaynak kod yönetim sistemi</td>
+</tr>
+<tr>
+<td><strong>Sprint</strong></td>
+<td>Bkz. Döngü</td>
+</tr>
+<tr>
+<td><strong>Story Puanı</strong></td>
+<td>Bir User Story&#39;nin göreli iş büyüklüğünü ifade eden sayısal değer</td>
+</tr>
+<tr>
+<td><strong>Sürüm (Release)</strong></td>
+<td>Belirli tarihte teslim edilecek yazılım paketi</td>
+</tr>
+<tr>
+<td><strong>Traceability</strong></td>
+<td>Gereksinim → Test → Hata → Kod → Dağıtım zincirinin tam izlenebilirliği</td>
+</tr>
+<tr>
+<td><strong>User Story</strong></td>
+<td>Bir kullanıcı ihtiyacını &quot;… yapabilmeli&quot; formatında ifade eden iş kalemi</td>
+</tr>
+<tr>
+<td><strong>Webhook</strong></td>
+<td>Belirli bir olay gerçekleştiğinde dış sisteme HTTP POST gönderen mekanizma</td>
+</tr>
+<tr>
+<td><strong>Workflow</strong></td>
+<td>İş kaleminin geçebileceği durumların ve aralarındaki geçiş kurallarının tanımı</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Hızlı Başvuru Kartı</h2>
+<h3>En Sık Kullanılan İşlemler</h3>
+<table>
+<thead>
+<tr>
+<th>İşlem</th>
+<th>Yol</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Yeni iş kalemi</td>
+<td>Backlog → + Yeni</td>
+</tr>
+<tr>
+<td>İş kalemini düzenle</td>
+<td>Satıra tıkla → detay panelinde alan düzenle</td>
+</tr>
+<tr>
+<td>Durum değiştir</td>
+<td>Detay paneli başlığı → Durum rozetine tıkla</td>
+</tr>
+<tr>
+<td>Sprint&#39;e ata</td>
+<td>Detay paneli → Döngü alanı → seç</td>
+</tr>
+<tr>
+<td>Test sonucu gir</td>
+<td>Kalite → Çalıştırmalar → ilgili satır → ✅/❌/⏸</td>
+</tr>
+<tr>
+<td>Hata aç (testten)</td>
+<td>Başarısız test satırı → Hata Oluştur</td>
+</tr>
+<tr>
+<td>Üye davet et</td>
+<td>Ayarlar → Üyeler → + Davet Et</td>
+</tr>
+<tr>
+<td>Filtre kaydet</td>
+<td>Backlog filtreleri uygula → Sorgu Kaydet</td>
+</tr>
+<tr>
+<td>Sayfaya hızlı git</td>
+<td><code>Ctrl+K</code> → sayfanın adını yaz</td>
+</tr>
+<tr>
+<td>Temayı değiştir</td>
+<td>Sağ üst avatar → Tema</td>
+</tr>
+</tbody></table>
+<h3>Klavye Kısayolları</h3>
+<table>
+<thead>
+<tr>
+<th>Kısayol</th>
+<th>İşlev</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Ctrl+K</code> / <code>Cmd+K</code></td>
+<td>Komut paletini aç</td>
+</tr>
+<tr>
+<td><code>Esc</code></td>
+<td>Açık modal veya paneli kapat</td>
+</tr>
+<tr>
+<td><code>Enter</code></td>
+<td>Satır içi düzenlemeyi onayla</td>
+</tr>
+</tbody></table>
+<h3>İzlenebilirlik Renk Kodları</h3>
+<table>
+<thead>
+<tr>
+<th>Renk</th>
+<th>Anlam</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>🟢 Yeşil</td>
+<td>Bağlı tüm testler geçti</td>
+</tr>
+<tr>
+<td>🔴 Kırmızı</td>
+<td>En az bir test başarısız</td>
+</tr>
+<tr>
+<td>🟡 Sarı</td>
+<td>Test bağlı ama sonuç girilmemiş</td>
+</tr>
+<tr>
+<td>⚪ Gri</td>
+<td>Hiç test bağlanmamış</td>
+</tr>
+</tbody></table>
+<h3>Yetki Hızlı Başvurusu</h3>
+<table>
+<thead>
+<tr>
+<th>Yapmak istediğiniz</th>
+<th>Gereken yetki</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>İş kalemi oluştur</td>
+<td><code>artifact:create</code></td>
+</tr>
+<tr>
+<td>İş kalemi gör</td>
+<td><code>artifact:read</code></td>
+</tr>
+<tr>
+<td>Alanları düzenle</td>
+<td><code>artifact:update</code></td>
+</tr>
+<tr>
+<td>Durum değiştir</td>
+<td><code>artifact:transition</code></td>
+</tr>
+<tr>
+<td>Atama yap</td>
+<td><code>artifact:assign</code></td>
+</tr>
+<tr>
+<td>Yorum ekle</td>
+<td><code>artifact:comment</code></td>
+</tr>
+<tr>
+<td>Üye davet et</td>
+<td><code>member:invite</code></td>
+</tr>
+<tr>
+<td>Rol oluştur</td>
+<td><code>role:create</code></td>
+</tr>
+<tr>
+<td>Manifest aktifleştir</td>
+<td><code>manifest:activate</code></td>
+</tr>
+<tr>
+<td>Denetim logu gör</td>
+<td><code>audit:read</code></td>
+</tr>
+</tbody></table>
+</main>
+</body>
+</html>

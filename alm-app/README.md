@@ -79,6 +79,19 @@ npm run build
 npm run preview   # build çıktısını önizleme
 ```
 
+### 4. Mobile (Expo)
+
+React Native istemci aynı `/api/v1` sözleşmesini kullanır; kök `npm install` içinde değildir (Windows’ta RN hoisting sorunlarını önler).
+
+```bash
+npm run mobile:install   # veya: cd mobile && npm install
+# mobile/.env içinde EXPO_PUBLIC_API_URL (API kökü, örn. http://localhost:8000)
+npm run mobile:typecheck # isteğe bağlı: tsc --noEmit
+npm run mobile:start
+```
+
+Ayrıntı: [mobile/README.md](mobile/README.md). Paylaşılan tipler: `packages/manifest-types` (`@alm/manifest-types`).
+
 ## Deploy locally with Docker
 
 Backend ve frontend için ayrı `Dockerfile` (manifest-platform-core-suite üst dizinde olmalı)’lar `backend/` ve `frontend/` altında bulunur.
@@ -99,7 +112,9 @@ Migration'lar backend başlarken otomatik çalışır. Durdurmak: `docker compos
 ## Yapı
 
 - **backend/** – FastAPI, SQLAlchemy (async), Alembic, MPC (manifest-platform-core)
-- **frontend/** – React 19, TypeScript, Vite, MUI, TanStack Query
+- **frontend/** – React 19, TypeScript, Vite, TanStack Query
+- **mobile/** – Expo (React Native), aynı REST API; bağımlılıklar `mobile/` içinde kurulur
+- **packages/manifest-types/** – Web ve mobil için ortak manifest / workflow TypeScript tipleri
 - **docs/** – Mimari ve uygulama dokümanları ([giriş: docs/README.md](docs/README.md))
 
 **Frontend – Form bileşenleri:** Tüm form alanları `frontend/src/shared/components/forms/` kütüphanesinden kullanılır (RhfTextField, RhfSelect, RhfCheckbox, RhfDescriptionField, MetadataDrivenForm vb.). React Hook Form + FormProvider ile kullanın; sayfa içinde doğrudan MUI TextField/Select kullanmayın. Detay için `.cursor/rules/frontend-forms.mdc` kuralına bakın.
@@ -153,5 +168,7 @@ Kurulumdan sonra her `git commit` öncesi:
 - **pre-commit-hooks:** son boşluk, dosya sonu, YAML/JSON, merge conflict kontrolü
 - **Backend:** Ruff (lint + format) — `backend/` altındaki Python dosyaları
 - **Frontend:** ESLint — `frontend/` altında `npm run lint`
+- **`packages/manifest-types`:** `npm run typecheck:packages` — kökte bir kez `npm install` (workspace) gerekir
+- **`mobile/`:** `npm run mobile:typecheck` — önce `npm run mobile:install`
 
 Tüm dosyalarda manuel çalıştırma: `pre-commit run --all-files`
