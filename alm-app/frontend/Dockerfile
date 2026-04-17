@@ -4,7 +4,8 @@
 FROM node:22-alpine AS app-builder
 WORKDIR /app
 COPY alm-manifest-app/alm-app/frontend/package*.json ./
-RUN npm install --legacy-peer-deps
+COPY alm-manifest-app/alm-app/packages/manifest-types /tmp/manifest-types
+RUN npm install --legacy-peer-deps && npm install --legacy-peer-deps /tmp/manifest-types
 COPY alm-manifest-app/alm-app/frontend ./
 COPY alm-manifest-app/alm-app/docs /docs
 RUN npm run build

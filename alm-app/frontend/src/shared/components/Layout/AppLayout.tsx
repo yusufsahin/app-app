@@ -24,6 +24,7 @@ import {
   FolderTree,
   Bug,
   CircleHelp,
+  BarChart3,
 } from "lucide-react";
 import {
   SidebarProvider,
