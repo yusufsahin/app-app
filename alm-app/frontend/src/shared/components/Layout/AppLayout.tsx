@@ -92,12 +92,13 @@ const PROJECT_NAV_ITEMS: NavItem[] = [
   { label: "Backlog", path: "backlog", icon: <List className="size-4" />, permission: "artifact:read" },
   { label: "Quality", path: "quality", icon: <ClipboardCheck className="size-4" />, permission: "artifact:read" },
   { label: "Board", path: "board", icon: <Columns className="size-4" />, permission: "artifact:read" },
+  { label: "Reports", path: "reports", icon: <BarChart3 className="size-4" />, permission: "artifact:read" },
   { label: "Planning", path: "planning", icon: <Calendar className="size-4" />, permission: "project:read" },
   { label: "Automation", path: "automation", icon: <Sparkles className="size-4" />, permission: "project:read" },
 ];
 
 const PROJECT_OVERVIEW_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "");
-const PROJECT_WORK_ITEMS = PROJECT_NAV_ITEMS.filter((item) => ["backlog", "board", "planning"].includes(item.path));
+const PROJECT_WORK_ITEMS = PROJECT_NAV_ITEMS.filter((item) => ["backlog", "board", "planning", "reports"].includes(item.path));
 const PROJECT_QUALITY_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "quality");
 const PROJECT_AUTOMATION_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "automation");
 
@@ -207,6 +208,7 @@ export default function AppLayout() {
       if (artifactRead) {
         quickLinks.push({ id: "goto-backlog", label: "Go to Backlog", path: `/${orgSlug}/${projectSlug}/backlog`, icon: <List className="size-4" /> });
         quickLinks.push({ id: "goto-quality", label: "Go to Quality", path: `/${orgSlug}/${projectSlug}/quality`, icon: <ClipboardCheck className="size-4" /> });
+        quickLinks.push({ id: "goto-reports", label: "Go to Reports", path: `/${orgSlug}/${projectSlug}/reports`, icon: <BarChart3 className="size-4" /> });
         quickLinks.push({
           id: "goto-quality-trace",
           label: "Go to Quality traceability",
