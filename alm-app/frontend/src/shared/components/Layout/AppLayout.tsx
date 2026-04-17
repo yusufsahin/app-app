@@ -99,7 +99,8 @@ const PROJECT_NAV_ITEMS: NavItem[] = [
 ];
 
 const PROJECT_OVERVIEW_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "");
-const PROJECT_WORK_ITEMS = PROJECT_NAV_ITEMS.filter((item) => ["backlog", "board", "planning", "reports"].includes(item.path));
+const PROJECT_WORK_ITEMS = PROJECT_NAV_ITEMS.filter((item) => ["backlog", "board", "planning"].includes(item.path));
+const PROJECT_ANALYTICS_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "reports");
 const PROJECT_QUALITY_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "quality");
 const PROJECT_AUTOMATION_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "automation");
 
@@ -333,6 +334,7 @@ export default function AppLayout() {
   });
   const projectOverviewItems = PROJECT_OVERVIEW_ITEMS.filter((item) => projectNavItems.includes(item));
   const projectWorkItems = PROJECT_WORK_ITEMS.filter((item) => projectNavItems.includes(item));
+  const projectAnalyticsItems = PROJECT_ANALYTICS_ITEMS.filter((item) => projectNavItems.includes(item));
   const projectQualityItems = PROJECT_QUALITY_ITEMS.filter((item) => projectNavItems.includes(item));
   const projectAutomationItems = PROJECT_AUTOMATION_ITEMS.filter((item) => projectNavItems.includes(item));
 
@@ -458,6 +460,12 @@ export default function AppLayout() {
                   <>
                     <SidebarGroupLabel>Work Management</SidebarGroupLabel>
                     <SidebarMenu>{projectWorkItems.map(renderProjectNavItem)}</SidebarMenu>
+                  </>
+                )}
+                {projectAnalyticsItems.length > 0 && (
+                  <>
+                    <SidebarGroupLabel>Analytics</SidebarGroupLabel>
+                    <SidebarMenu>{projectAnalyticsItems.map(renderProjectNavItem)}</SidebarMenu>
                   </>
                 )}
                 {projectQualityItems.length > 0 && (
