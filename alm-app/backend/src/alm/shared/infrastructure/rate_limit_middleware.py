@@ -21,6 +21,7 @@ def is_scm_provider_webhook_path(path: str) -> bool:
         p.endswith("/webhooks/github")
         or p.endswith("/webhooks/gitlab")
         or p.endswith("/webhooks/deploy")
+        or p.endswith("/webhooks/azuredevops")
     )
 
 

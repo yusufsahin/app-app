@@ -17,6 +17,7 @@ import alm.capacity.infrastructure.models  # noqa: F401
 import alm.process_template.infrastructure.models  # noqa: F401
 import alm.relationship.infrastructure.models  # noqa: F401
 import alm.shared.audit.models  # noqa: F401
+import alm.shared.infrastructure.domain_event_outbox  # noqa: F401 — domain_event_outbox table metadata
 import alm.project_tag.infrastructure.models  # noqa: F401
 
 config = context.config

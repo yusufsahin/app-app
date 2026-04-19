@@ -25,6 +25,7 @@ import {
   Bug,
   CircleHelp,
   BarChart3,
+  Github,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -96,6 +97,7 @@ const PROJECT_NAV_ITEMS: NavItem[] = [
   { label: "Reports", path: "reports", icon: <BarChart3 className="size-4" />, permission: "artifact:read" },
   { label: "Planning", path: "planning", icon: <Calendar className="size-4" />, permission: "project:read" },
   { label: "Automation", path: "automation", icon: <Sparkles className="size-4" />, permission: "project:read" },
+  { label: "Integrations", path: "integrations", icon: <Github className="size-4" />, permission: "project:read" },
 ];
 
 const PROJECT_OVERVIEW_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "");
@@ -103,6 +105,7 @@ const PROJECT_WORK_ITEMS = PROJECT_NAV_ITEMS.filter((item) => ["backlog", "board
 const PROJECT_ANALYTICS_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "reports");
 const PROJECT_QUALITY_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "quality");
 const PROJECT_AUTOMATION_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "automation");
+const PROJECT_INTEGRATIONS_ITEMS = PROJECT_NAV_ITEMS.filter((item) => item.path === "integrations");
 
 export default function AppLayout() {
   const { t, i18n } = useTranslation("quality");
@@ -251,6 +254,12 @@ export default function AppLayout() {
       }
       if (projectRead) {
         quickLinks.push({ id: "goto-planning", label: "Go to Planning", path: `/${orgSlug}/${projectSlug}/planning`, icon: <Calendar className="size-4" /> });
+        quickLinks.push({
+          id: "goto-integrations",
+          label: "Go to Integrations",
+          path: `/${orgSlug}/${projectSlug}/integrations`,
+          icon: <Github className="size-4" />,
+        });
       }
       if (quickLinks.length > 0) {
         groups.push({ group: "Quick links", items: quickLinks });
@@ -337,6 +346,7 @@ export default function AppLayout() {
   const projectAnalyticsItems = PROJECT_ANALYTICS_ITEMS.filter((item) => projectNavItems.includes(item));
   const projectQualityItems = PROJECT_QUALITY_ITEMS.filter((item) => projectNavItems.includes(item));
   const projectAutomationItems = PROJECT_AUTOMATION_ITEMS.filter((item) => projectNavItems.includes(item));
+  const projectIntegrationsItems = PROJECT_INTEGRATIONS_ITEMS.filter((item) => projectNavItems.includes(item));
 
   const renderProjectNavItem = (item: NavItem) => {
     const basePath = orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : "";
@@ -478,6 +488,12 @@ export default function AppLayout() {
                   <>
                     <SidebarGroupLabel>Automation</SidebarGroupLabel>
                     <SidebarMenu>{projectAutomationItems.map(renderProjectNavItem)}</SidebarMenu>
+                  </>
+                )}
+                {projectIntegrationsItems.length > 0 && (
+                  <>
+                    <SidebarGroupLabel>Integrations</SidebarGroupLabel>
+                    <SidebarMenu>{projectIntegrationsItems.map(renderProjectNavItem)}</SidebarMenu>
                   </>
                 )}
               </SidebarGroup>

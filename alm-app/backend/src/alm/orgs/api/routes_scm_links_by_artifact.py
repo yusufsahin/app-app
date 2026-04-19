@@ -74,6 +74,7 @@ def scm_link_response(d: ScmLinkDTO) -> ScmLinkResponse:
         created_by=d.created_by,
         created_at=d.created_at,
         updated_at=d.updated_at,
+        key_match_source=d.key_match_source,
     )
 
 

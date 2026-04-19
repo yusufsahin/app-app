@@ -37,16 +37,16 @@ def test_redact_data_admin():
 
 def test_acl_check_viewer():
     ast = _to_ast(SAMPLE_MANIFEST)
-    allowed, reasons = acl_check(ast, "read", "artifact", ["viewer"])
+    allowed, _ = acl_check(ast, "read", "artifact", ["viewer"])
     assert allowed is True
 
-    allowed, reasons = acl_check(ast, "update", "artifact", ["viewer"])
+    allowed, _ = acl_check(ast, "update", "artifact", ["viewer"])
     assert allowed is False
 
 
 def test_acl_check_admin():
     ast = _to_ast(SAMPLE_MANIFEST)
-    allowed, reasons = acl_check(ast, "delete", "artifact", ["admin"])
+    allowed, _ = acl_check(ast, "delete", "artifact", ["admin"])
     assert allowed is True
 
 

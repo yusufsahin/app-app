@@ -1,0 +1,51 @@
+# Local Docker stack for developers who run the backend (uv) and frontend (npm) on the host.
+# Postgres is published on host port 5433 (same as full docker-compose.yml) so Alembic and asyncpg
+# match backend/.env.example.
+#
+# From alm-app:
+#   docker compose -f docker-compose.local.yml up -d
+#
+# Then:
+#   cd backend && copy .env.example .env   # Windows; or cp on Unix
+#   uv run alembic upgrade head
+#
+# Stop (keep data): docker compose -f docker-compose.local.yml down
+# Reset DB volume:   docker compose -f docker-compose.local.yml down -v
+
+name: alm-local-dev
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: alm
+      POSTGRES_PASSWORD: alm_dev_password
+      POSTGRES_DB: alm
+    ports:
+      - "5433:5432"
+    volumes:
+      - alm_local_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  alm_local_pgdata:

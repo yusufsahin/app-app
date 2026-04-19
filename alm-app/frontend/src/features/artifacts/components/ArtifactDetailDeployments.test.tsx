@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { ArtifactDetailDeployments } from "./ArtifactDetailDeployments";
 import { renderWithQualityI18n } from "../../../test/renderWithQualityI18n";
 import { useArtifactTraceabilitySummary } from "../../../shared/api/traceabilityApi";
@@ -11,6 +12,10 @@ vi.mock("../../../shared/api/traceabilityApi", () => ({
 }));
 
 const mockUseSummary = vi.mocked(useArtifactTraceabilitySummary);
+
+function renderDeployments(ui: Parameters<typeof renderWithQualityI18n>[0]) {
+  return renderWithQualityI18n(<MemoryRouter>{ui}</MemoryRouter>);
+}
 
 function problem(status: number): ProblemDetail {
   return {
@@ -36,8 +41,8 @@ describe("ArtifactDetailDeployments", () => {
       error: null,
     } as never);
 
-    renderWithQualityI18n(
-      <ArtifactDetailDeployments orgSlug="demo" projectId="p1" artifactId="a1" />,
+    renderDeployments(
+      <ArtifactDetailDeployments orgSlug="demo" projectSlug="proj" projectId="p1" artifactId="a1" />,
     );
     expect(screen.getByText("Loading deployment summary…")).toBeInTheDocument();
   });
@@ -50,8 +55,8 @@ describe("ArtifactDetailDeployments", () => {
       error: new Error("Network down"),
     } as never);
 
-    renderWithQualityI18n(
-      <ArtifactDetailDeployments orgSlug="demo" projectId="p1" artifactId="a1" />,
+    renderDeployments(
+      <ArtifactDetailDeployments orgSlug="demo" projectSlug="proj" projectId="p1" artifactId="a1" />,
     );
     expect(screen.getByText("Network down")).toBeInTheDocument();
   });
@@ -64,7 +69,9 @@ describe("ArtifactDetailDeployments", () => {
       error: null,
     } as never);
 
-    renderWithQualityI18n(<ArtifactDetailDeployments orgSlug={undefined} projectId="p1" artifactId="a1" />);
+    renderDeployments(
+      <ArtifactDetailDeployments orgSlug={undefined} projectSlug={undefined} projectId="p1" artifactId="a1" />,
+    );
     expect(
       screen.getByText("Open this work item in a project context to see deployments."),
     ).toBeInTheDocument();
@@ -78,8 +85,8 @@ describe("ArtifactDetailDeployments", () => {
       error: problem(403),
     } as never);
 
-    renderWithQualityI18n(
-      <ArtifactDetailDeployments orgSlug="demo" projectId="p1" artifactId="a1" />,
+    renderDeployments(
+      <ArtifactDetailDeployments orgSlug="demo" projectSlug="proj" projectId="p1" artifactId="a1" />,
     );
     expect(
       screen.getByText("You do not have permission to view deployment traceability for this work item."),
@@ -94,8 +101,8 @@ describe("ArtifactDetailDeployments", () => {
       error: problem(500),
     } as never);
 
-    renderWithQualityI18n(
-      <ArtifactDetailDeployments orgSlug="demo" projectId="p1" artifactId="a1" />,
+    renderDeployments(
+      <ArtifactDetailDeployments orgSlug="demo" projectSlug="proj" projectId="p1" artifactId="a1" />,
     );
     expect(screen.getByText("Could not load deployment summary.")).toBeInTheDocument();
   });
@@ -113,13 +120,18 @@ describe("ArtifactDetailDeployments", () => {
       error: null,
     } as never);
 
-    renderWithQualityI18n(
-      <ArtifactDetailDeployments orgSlug="demo" projectId="p1" artifactId="a1" />,
+    renderDeployments(
+      <ArtifactDetailDeployments orgSlug="demo" projectSlug="proj" projectId="p1" artifactId="a1" />,
     );
     expect(screen.getByText("No deployment events matched this work item yet.")).toBeInTheDocument();
     expect(
       screen.getByText("No Git links on this work item. Add PR or commit URLs under the Source tab."),
     ).toBeInTheDocument();
+    const integrationsLinks = screen.getAllByRole("link", { name: "Open Integrations" });
+    expect(integrationsLinks.length).toBeGreaterThan(0);
+    for (const link of integrationsLinks) {
+      expect(link).toHaveAttribute("href", "/demo/proj/integrations");
+    }
   });
 
   it("renders environments and scm links from summary", () => {
@@ -154,8 +166,8 @@ describe("ArtifactDetailDeployments", () => {
       error: null,
     } as never);
 
-    renderWithQualityI18n(
-      <ArtifactDetailDeployments orgSlug="demo" projectId="p1" artifactId="a1" />,
+    renderDeployments(
+      <ArtifactDetailDeployments orgSlug="demo" projectSlug="proj" projectId="p1" artifactId="a1" />,
     );
     expect(screen.getByText("Last known deployments")).toBeInTheDocument();
     expect(screen.getByText("prod")).toBeInTheDocument();

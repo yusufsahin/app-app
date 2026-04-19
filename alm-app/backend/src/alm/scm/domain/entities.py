@@ -27,6 +27,7 @@ class ScmLink(AggregateRoot):
         pull_request_number: int | None = None,
         title: str | None = None,
         source: str = "manual",
+        key_match_source: str | None = None,
         id: uuid.UUID | None = None,
         created_by: uuid.UUID | None = None,
         created_at: datetime | None = None,
@@ -44,6 +45,7 @@ class ScmLink(AggregateRoot):
         self.title = title
         self.web_url = web_url
         self.source = source
+        self.key_match_source = key_match_source
         self.created_by = created_by
         self.created_at = created_at
         self.updated_at = updated_at
@@ -63,6 +65,7 @@ class ScmLink(AggregateRoot):
         pull_request_number: int | None = None,
         title: str | None = None,
         source: str = "manual",
+        key_match_source: str | None = None,
         id: uuid.UUID | None = None,
         created_by: uuid.UUID | None = None,
     ) -> ScmLink:
@@ -78,6 +81,7 @@ class ScmLink(AggregateRoot):
             title=title,
             web_url=web_url,
             source=source,
+            key_match_source=key_match_source,
             id=id,
             created_by=created_by,
         )

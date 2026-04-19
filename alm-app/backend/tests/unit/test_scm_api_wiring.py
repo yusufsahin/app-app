@@ -37,10 +37,12 @@ def test_scm_handlers_and_repo_wiring_present() -> None:
 
     assert "scm_webhook_github_secret_configured" in ProjectResponse.model_fields
     assert "scm_webhook_gitlab_secret_configured" in ProjectResponse.model_fields
+    assert "scm_webhook_azuredevops_secret_configured" in ProjectResponse.model_fields
 
     sample = "/api/v1/orgs/acme/projects/00000000-0000-0000-0000-000000000000/webhooks/github"
     assert is_scm_provider_webhook_path(sample)
     assert is_scm_provider_webhook_path(sample.replace("github", "gitlab"))
+    assert is_scm_provider_webhook_path(sample.replace("github", "azuredevops"))
 
 
 def test_scm_routes_exposed_in_openapi() -> None:
@@ -49,5 +51,6 @@ def test_scm_routes_exposed_in_openapi() -> None:
 
     assert "/webhooks/github" in paths
     assert "/webhooks/gitlab" in paths
+    assert "/webhooks/azuredevops" in paths
     assert "/scm-links" in paths
     assert "/unmatched-events" in paths

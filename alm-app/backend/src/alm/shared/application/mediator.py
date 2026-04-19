@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -12,6 +13,9 @@ from alm.shared.domain.event_dispatcher import IDomainEventDispatcher
 from alm.shared.domain.events import DomainEvent
 
 logger = structlog.get_logger()
+
+# Domain events dispatch after DB commit. Buffered events are serialized into ``domain_event_outbox`` in the same
+# transaction as aggregates; rows are deleted after successful dispatch. Failures leave rows for the background worker.
 
 HandlerFactory = Callable[[AsyncSession], CommandHandler[Any] | QueryHandler[Any]]
 
@@ -27,6 +31,10 @@ def set_domain_event_dispatcher(dispatcher: IDomainEventDispatcher) -> None:
     """Set the domain event dispatcher used by Mediator. Call at startup."""
     global _domain_event_dispatcher
     _domain_event_dispatcher = dispatcher
+
+
+def get_domain_event_dispatcher() -> IDomainEventDispatcher | None:
+    return _domain_event_dispatcher
 
 
 def register_command_handler(
@@ -69,16 +77,26 @@ class Mediator:
         self._session = session
         self._session.info.setdefault(SESSION_EVENTS_KEY, [])
 
-    async def send(self, command: Command) -> Any:
+    async def send(self, command: Command, *, commit: bool = True) -> Any:
         factory = _command_factories.get(type(command))
         if factory is None:
             raise ValueError(f"No handler registered for command {type(command).__name__}")
         handler = factory(self._session)
         result = await handler.handle(command)
         await self._process_audit()
+        if commit:
+            await self._persist_outbox_if_buffered()
+            await self._session.commit()
+            await self._dispatch_collected_events()
+        else:
+            await self._session.flush()
+        return result
+
+    async def finalize_transaction(self) -> None:
+        """Commit buffered changes and dispatch domain events after one or more ``send(..., commit=False)`` calls."""
+        await self._persist_outbox_if_buffered()
         await self._session.commit()
         await self._dispatch_collected_events()
-        return result
 
     async def query(self, query: Query) -> Any:
         factory = _query_factories.get(type(query))
@@ -93,7 +111,18 @@ class Mediator:
         interceptor = AuditInterceptor(self._session)
         await interceptor.process()
 
+    async def _persist_outbox_if_buffered(self) -> None:
+        from alm.shared.infrastructure.domain_event_outbox import persist_buffered_domain_events
+
+        await persist_buffered_domain_events(self._session)
+
     async def _dispatch_collected_events(self) -> None:
+        from alm.shared.infrastructure.domain_event_outbox import (
+            OUTBOX_ROW_IDS_SESSION_KEY,
+            delete_synced_outbox_rows,
+        )
+
+        row_ids: list[uuid.UUID] = self._session.info.pop(OUTBOX_ROW_IDS_SESSION_KEY, [])
         events: list[DomainEvent] = self._session.info.pop(SESSION_EVENTS_KEY, [])
         self._session.info[SESSION_EVENTS_KEY] = []
         if events:
@@ -103,4 +132,16 @@ class Mediator:
                 types=[type(e).__name__ for e in events],
             )
             if _domain_event_dispatcher is not None:
-                await _domain_event_dispatcher.dispatch(events)
+                try:
+                    await _domain_event_dispatcher.dispatch(events)
+                except Exception:
+                    logger.exception(
+                        "domain_events_dispatch_failed_after_db_commit",
+                        count=len(events),
+                        types=[type(e).__name__ for e in events],
+                    )
+                    raise
+                await delete_synced_outbox_rows(self._session, row_ids)
+                if row_ids:
+                    # Mediator uses a request-scoped session that does not auto-commit after the handler; persist deletes.
+                    await self._session.commit()

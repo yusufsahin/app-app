@@ -24,6 +24,7 @@ from alm.orgs.api.scm_webhook_support import (
     SCM_WEBHOOK_MAX_PUSH_COMMITS,
     SCM_WEBHOOK_MAX_UNMATCHED_RECORDS_PER_REQUEST,
     artifact_for_pr_fields,
+    attach_reason_code_to_webhook_body,
     branch_short_name_from_ref,
     load_project_settings_for_webhook,
     load_tenant_id_for_slug,
@@ -100,9 +101,15 @@ async def _gitlab_json_record_delivery(
     project_id: uuid.UUID,
     delivery_id: str | None,
     body: dict[str, Any],
+    *,
+    mediator: Mediator | None = None,
 ) -> JSONResponse:
-    await record_webhook_delivery_processed(session, project_id, "gitlab", delivery_id)
-    return JSONResponse(body)
+    await record_webhook_delivery_processed(session, project_id, "gitlab", delivery_id, commit=False)
+    if mediator is not None:
+        await mediator.finalize_transaction()
+    else:
+        await session.commit()
+    return JSONResponse(attach_reason_code_to_webhook_body(body))
 
 
 async def _gitlab_process_push(
@@ -167,7 +174,7 @@ async def _gitlab_process_push(
         if not web_url:
             continue
 
-        artifact = await artifact_for_pr_fields(
+        artifact, key_match_source = await artifact_for_pr_fields(
             project_id=project_id,
             head_ref=branch,
             title=msg,
@@ -180,6 +187,7 @@ async def _gitlab_process_push(
             if len(unmatched_ctx) < SCM_WEBHOOK_MAX_UNMATCHED_RECORDS_PER_REQUEST:
                 unmatched_ctx.append(
                     {
+                        "reason_code": "artifact_not_found",
                         "branch": branch,
                         "commit_sha": sha,
                         "message_excerpt": msg,
@@ -213,7 +221,9 @@ async def _gitlab_process_push(
                     pull_request_number=None,
                     title=title_line,
                     source="webhook",
-                )
+                    key_match_source=key_match_source,
+                ),
+                commit=False,
             )
             created += 1
         except ValidationError as e:
@@ -230,7 +240,6 @@ async def _gitlab_process_push(
             "gitlab_push_commit",
             unmatched_ctx,
         )
-        await session.commit()
 
     logger.info(
         "gitlab_webhook_push_processed",
@@ -252,6 +261,7 @@ async def _gitlab_process_push(
             "duplicate": dup,
             "no_match": no_match,
         },
+        mediator=mediator,
     )
 
 
@@ -342,10 +352,14 @@ async def gitlab_scm_webhook(
                     reason="disabled",
                     gitlab_event=event,
                 )
-                return JSONResponse({"status": "ignored", "reason": "disabled"})
+                return JSONResponse(
+                    attach_reason_code_to_webhook_body({"status": "ignored", "reason": "disabled"}),
+                )
 
             if event not in ("Merge Request Hook", "Push Hook"):
-                return JSONResponse({"status": "ignored", "reason": "event"})
+                return JSONResponse(
+                    attach_reason_code_to_webhook_body({"status": "ignored", "reason": "event"}),
+                )
 
             try:
                 payload: dict[str, Any] = json.loads(body.decode("utf-8"))
@@ -371,7 +385,9 @@ async def gitlab_scm_webhook(
                         project_id=str(project_id),
                         webhook_delivery_id=normalize_webhook_delivery_id(gl_delivery_header),
                     )
-                    return JSONResponse({"status": "ignored", "reason": "duplicate_delivery"})
+                    return JSONResponse(
+                        attach_reason_code_to_webhook_body({"status": "ignored", "reason": "duplicate_delivery"}),
+                    )
                 return await _gitlab_process_push(
                     session=session,
                     tenant_id=tenant_id,
@@ -399,7 +415,9 @@ async def gitlab_scm_webhook(
                     project_id=str(project_id),
                     webhook_delivery_id=normalize_webhook_delivery_id(gl_delivery_header),
                 )
-                return JSONResponse({"status": "ignored", "reason": "duplicate_delivery"})
+                return JSONResponse(
+                    attach_reason_code_to_webhook_body({"status": "ignored", "reason": "duplicate_delivery"}),
+                )
 
             obj = payload.get("object_attributes") or {}
             action = str(obj.get("action") or "")
@@ -422,7 +440,7 @@ async def gitlab_scm_webhook(
             mr_description = (obj.get("description") or "").strip()
 
             artifact_repo = SqlAlchemyArtifactRepository(session)
-            artifact = await artifact_for_pr_fields(
+            artifact, key_match_source = await artifact_for_pr_fields(
                 project_id=project_id,
                 head_ref=head_ref,
                 title=mr_title,
@@ -437,6 +455,7 @@ async def gitlab_scm_webhook(
                     "gitlab_merge_request",
                     [
                         {
+                            "reason_code": "artifact_not_found",
                             "branch": head_ref,
                             "web_url": web_url,
                             "title": mr_title,
@@ -446,7 +465,6 @@ async def gitlab_scm_webhook(
                         }
                     ],
                 )
-                await session.commit()
                 return await _gitlab_json_record_delivery(
                     session, project_id, gl_delivery_header, {"status": "no_match"}
                 )
@@ -486,7 +504,9 @@ async def gitlab_scm_webhook(
                         pull_request_number=pull_request_number,
                         title=mr_title or None,
                         source="webhook",
-                    )
+                        key_match_source=key_match_source,
+                    ),
+                    commit=False,
                 )
             except ValidationError as e:
                 if "already linked" in e.detail.lower():
@@ -502,6 +522,12 @@ async def gitlab_scm_webhook(
                 artifact_id=str(artifact.id),
                 webhook_delivery_id=normalize_webhook_delivery_id(gl_delivery_header),
             )
-            return await _gitlab_json_record_delivery(session, project_id, gl_delivery_header, {"status": "created"})
+            return await _gitlab_json_record_delivery(
+                session,
+                project_id,
+                gl_delivery_header,
+                {"status": "created"},
+                mediator=mediator,
+            )
     finally:
         set_current_tenant_id(prev_tenant)

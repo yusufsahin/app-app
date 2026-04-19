@@ -175,13 +175,16 @@ async def deploy_webhook(
                         source="ci_webhook",
                         raw_context=parsed.raw_context,
                         idempotency_key=parsed.idempotency_key,
-                    )
+                    ),
+                    commit=False,
                 )
             except ValidationError as e:
                 return JSONResponse({"detail": str(e)}, status_code=422)
 
             if delivery:
-                await record_webhook_delivery_processed(session, project_id, "deploy", delivery)
+                await record_webhook_delivery_processed(session, project_id, "deploy", delivery, commit=False)
+
+            await mediator.finalize_transaction()
 
             return JSONResponse({"status": "created"})
     finally:

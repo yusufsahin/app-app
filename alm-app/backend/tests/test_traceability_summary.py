@@ -41,7 +41,7 @@ async def test_traceability_summary_key_and_sha(client: AsyncClient) -> None:
     )
     aid = work["id"]
     sha = "b" * 40
-    pr_url = f"https://github.com/acme/ts/pull/3"
+    pr_url = "https://github.com/acme/ts/pull/3"
     link = await client.post(
         f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{aid}/scm-links",
         headers={"Authorization": f"Bearer {token}"},

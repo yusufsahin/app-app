@@ -23,7 +23,7 @@ export function downloadReportCsv(
   columns: string[],
   rows: Record<string, unknown>[],
 ): void {
-  const safe = filenameBase.replace(/[^\w\-]+/g, "_").slice(0, 80) || "report";
+  const safe = filenameBase.replace(/[^\w-]+/g, "_").slice(0, 80) || "report";
   const content = buildReportCsvContent(columns, rows);
   const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -39,7 +39,7 @@ export function downloadReportCsv(
 
 /** Browser download of pretty-printed JSON (UTF-8). */
 export function downloadJsonFile(filenameBase: string, value: unknown): void {
-  const safe = filenameBase.replace(/[^\w\-]+/g, "_").slice(0, 80) || "export";
+  const safe = filenameBase.replace(/[^\w-]+/g, "_").slice(0, 80) || "export";
   const text = JSON.stringify(value, null, 2);
   const blob = new Blob([text], { type: "application/json;charset=utf-8;" });
   const url = URL.createObjectURL(blob);

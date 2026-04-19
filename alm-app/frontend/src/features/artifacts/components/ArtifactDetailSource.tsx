@@ -1,11 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ExternalLink, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controller, FormProvider, useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { z } from "zod";
-import { Button, Input, Label, TabsContent } from "../../../shared/components/ui";
+import { Badge, Button, Input, Label, TabsContent } from "../../../shared/components/ui";
 import { cn } from "../../../shared/components/ui/utils";
 import { RhfSelect } from "../../../shared/components/forms";
 import {
@@ -27,6 +27,8 @@ interface ArtifactDetailSourceProps {
   projectSlug: string | undefined;
   projectId: string | undefined;
   artifactId: string | undefined;
+  /** Work item key for SCM matching hints (branch/commit examples). */
+  artifactKey?: string | null;
   tasks: Task[];
   canEdit: boolean;
   /** When set (e.g. backlog tree task focus), list + default add scope filter to this task. */
@@ -38,17 +40,30 @@ function ArtifactDetailSourcePanel({
   projectSlug,
   projectId,
   artifactId,
+  artifactKey,
   tasks,
   canEdit,
   taskScopeId,
 }: ArtifactDetailSourceProps) {
   const { t } = useTranslation("quality");
+  const exampleKeyForHints = (artifactKey ?? "").trim() || "REQ-42";
   const showNotification = useNotificationStore((s) => s.showNotification);
   const [showAllScmLinks, setShowAllScmLinks] = useState(false);
 
   const listTaskFilter =
     taskScopeId && taskScopeId.trim() && !showAllScmLinks ? taskScopeId.trim() : undefined;
   const { data: links = [], isLoading } = useScmLinksByArtifact(orgSlug, projectId, artifactId, listTaskFilter);
+
+  const keyMatchLabel = useCallback(
+    (src: string | null | undefined) => {
+      if (!src) return "";
+      if (src === "branch") return t("workItemDetail.source.keyMatchBranch");
+      if (src === "title") return t("workItemDetail.source.keyMatchTitle");
+      if (src === "body") return t("workItemDetail.source.keyMatchBody");
+      return src;
+    },
+    [t],
+  );
 
   const scopedTaskTitle = useMemo(() => {
     if (!taskScopeId?.trim()) return "";
@@ -162,6 +177,9 @@ function ArtifactDetailSourcePanel({
         </div>
       ) : null}
       <p className="mb-3 text-sm text-muted-foreground">{t("workItemDetail.source.intro")}</p>
+      <p className="mb-2 text-xs text-muted-foreground">
+        {t("workItemDetail.source.matchPriorityHint", { exampleKey: exampleKeyForHints })}
+      </p>
       <p className="mb-4 text-xs text-muted-foreground">{t("workItemDetail.source.webhookRefsHint")}</p>
       {canEdit && (
         <FormProvider {...form}>
@@ -215,7 +233,7 @@ function ArtifactDetailSourcePanel({
                           {!previewMutation.data.recognized && (
                             <p>{t("workItemDetail.source.previewUnrecognized")}</p>
                           )}
-                          {previewMutation.data.canonical_web_url !== "" && (
+                          {(previewMutation.data.canonical_web_url ?? "").trim() !== "" && (
                             <p>
                               {t("workItemDetail.source.previewStoredAs", {
                                 url: previewMutation.data.canonical_web_url,
@@ -320,7 +338,7 @@ function ArtifactDetailSourcePanel({
               label={t("workItemDetail.source.scopeLabel")}
               options={taskOptions}
             />
-            <Button type="submit" size="sm" disabled={createMutation.isPending}>
+            <Button type="submit" size="sm" disabled={createMutation.isPending || previewMutation.isPending}>
               {createMutation.isPending ? t("workItemDetail.source.adding") : t("workItemDetail.source.add")}
             </Button>
           </form>
@@ -328,9 +346,19 @@ function ArtifactDetailSourcePanel({
       )}
       {isLoading && <p className="text-sm text-muted-foreground">{t("workItemDetail.source.loading")}</p>}
       {!isLoading && links.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          {listTaskFilter ? t("workItemDetail.source.emptyScoped") : t("workItemDetail.source.empty")}
-        </p>
+        <div className="space-y-2 rounded-md border border-dashed border-border bg-muted/20 p-3">
+          <p className="text-sm text-muted-foreground">
+            {listTaskFilter ? t("workItemDetail.source.emptyScoped") : t("workItemDetail.source.empty")}
+          </p>
+          {!listTaskFilter && orgSlug && projectSlug ? (
+            <>
+              <p className="text-sm text-muted-foreground">{t("workItemDetail.source.emptyIntegrationsCta")}</p>
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/${orgSlug}/${projectSlug}/integrations`}>{t("workItemDetail.source.integrationsLinkLabel")}</Link>
+              </Button>
+            </>
+          ) : null}
+        </div>
       )}
       <ul className="space-y-2">
         {links.map((link) => (
@@ -348,6 +376,13 @@ function ArtifactDetailSourcePanel({
                 <span className="truncate">{link.title ?? link.web_url}</span>
                 <ExternalLink className="size-3.5 shrink-0 opacity-70" aria-hidden />
               </a>
+              {link.source === "webhook" && link.key_match_source ? (
+                <div className="mt-1">
+                  <Badge variant="outline" className="text-[10px] font-normal">
+                    {keyMatchLabel(link.key_match_source)}
+                  </Badge>
+                </div>
+              ) : null}
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {link.provider} · {link.repo_full_name}
                 {link.pull_request_number != null ? ` · PR #${link.pull_request_number}` : ""}

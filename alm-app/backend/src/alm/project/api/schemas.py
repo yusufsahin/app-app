@@ -24,6 +24,7 @@ class ProjectResponse(BaseModel):
     metadata: dict[str, Any] | None = None
     scm_webhook_github_secret_configured: bool = False
     scm_webhook_gitlab_secret_configured: bool = False
+    scm_webhook_azuredevops_secret_configured: bool = False
     deploy_webhook_secret_configured: bool = False
 
 

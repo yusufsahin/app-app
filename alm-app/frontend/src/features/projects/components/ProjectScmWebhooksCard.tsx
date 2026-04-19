@@ -29,6 +29,8 @@ const GITHUB_SECRET_KEY = "scm_github_webhook_secret";
 const GITLAB_SECRET_KEY = "scm_gitlab_webhook_secret";
 const GITHUB_WEBHOOK_ENABLED_KEY = "scm_webhook_github_enabled";
 const GITLAB_WEBHOOK_ENABLED_KEY = "scm_webhook_gitlab_enabled";
+const AZURE_DEVOPS_SECRET_KEY = "scm_azuredevops_webhook_secret";
+const AZURE_DEVOPS_WEBHOOK_ENABLED_KEY = "scm_webhook_azuredevops_enabled";
 const PUSH_BRANCH_REGEX_KEY = "scm_webhook_push_branch_regex";
 const DEPLOY_SECRET_KEY = "deploy_webhook_secret";
 
@@ -63,6 +65,13 @@ function deploySecretConfigured(project: Project): boolean {
   return hasWebhookSecret(project.settings ?? undefined, DEPLOY_SECRET_KEY);
 }
 
+function azureDevopsSecretConfigured(project: Project): boolean {
+  if (typeof project.scm_webhook_azuredevops_secret_configured === "boolean") {
+    return project.scm_webhook_azuredevops_secret_configured;
+  }
+  return hasWebhookSecret(project.settings ?? undefined, AZURE_DEVOPS_SECRET_KEY);
+}
+
 export function ProjectScmWebhooksCard({
   orgSlug,
   project,
@@ -77,6 +86,7 @@ export function ProjectScmWebhooksCard({
   const base = webhookBaseUrl();
   const githubUrl = `${base}/orgs/${orgSlug}/projects/${projectId}/webhooks/github`;
   const gitlabUrl = `${base}/orgs/${orgSlug}/projects/${projectId}/webhooks/gitlab`;
+  const azureDevopsUrl = `${base}/orgs/${orgSlug}/projects/${projectId}/webhooks/azuredevops`;
   const deployUrl = `${base}/orgs/${orgSlug}/projects/${projectId}/webhooks/deploy`;
 
   const deployCurlExample = useMemo(() => {
@@ -95,6 +105,11 @@ export function ProjectScmWebhooksCard({
     ].join("\n");
   }, [deployUrl]);
 
+  const exampleArtifactKey = (project.code ?? "").trim() || "REQ-42";
+  const branchTemplate = useMemo(() => `feature/${exampleArtifactKey}-short-description`, [exampleArtifactKey]);
+  const commitTemplate = useMemo(() => `feat(${exampleArtifactKey}): short summary`, [exampleArtifactKey]);
+  const refsTemplate = useMemo(() => "Refs: 00000000-0000-0000-0000-000000000001", []);
+
   const deployActionsExample = useMemo(
     () =>
       [
@@ -110,6 +125,49 @@ export function ProjectScmWebhooksCard({
         "            -H \"X-Hub-Signature-256: sha256=$SIG\" \\",
         "            -H \"X-ALM-Deploy-Delivery: ${{ github.run_id }}-${{ github.run_attempt }}\" \\",
         "            -d \"$BODY\"",
+      ].join("\n"),
+    [],
+  );
+
+  const deployAzurePipelinesExample = useMemo(
+    () =>
+      [
+        "    - bash: |",
+        "        set -euo pipefail",
+        "        BODY='{\"environment\":\"prod\",\"occurred_at\":\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'\",\"build_id\":\"'\"${BUILD_BUILDID}\"'\"}'",
+        "        SIG=$(printf '%s' \"$BODY\" | openssl dgst -sha256 -hmac \"$SECRET\" | sed 's/^.* //')",
+        "        curl -sS -X POST \"$DEPLOY_URL\" \\",
+        "          -H \"Content-Type: application/json\" \\",
+        "          -H \"X-Hub-Signature-256: sha256=$SIG\" \\",
+        "          -H \"X-ALM-Deploy-Delivery: ${BUILD_BUILDID}\" \\",
+        "          -d \"$BODY\"",
+        "      displayName: Notify ALM deploy",
+        "      env:",
+        "        DEPLOY_URL: $(ALM_DEPLOY_WEBHOOK_URL)",
+        "        SECRET: $(ALM_DEPLOY_WEBHOOK_SECRET)",
+      ].join("\n"),
+    [],
+  );
+
+  const deployGitlabCiExample = useMemo(
+    () =>
+      [
+        "notify_alm_deploy:",
+        "  stage: deploy",
+        "  image: alpine:3.20",
+        "  variables:",
+        "    DEPLOY_URL: $ALM_DEPLOY_WEBHOOK_URL",
+        "    SECRET: $ALM_DEPLOY_WEBHOOK_SECRET",
+        "  script:",
+        "    - apk add --no-cache curl openssl",
+        "    - |",
+        "        BODY=\"{\\\"environment\\\":\\\"prod\\\",\\\"occurred_at\\\":\\\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\\",\\\"build_id\\\":\\\"$CI_PIPELINE_ID\\\"}\"",
+        "        SIG=$(printf '%s' \"$BODY\" | openssl dgst -sha256 -hmac \"$SECRET\" | sed 's/^.* //')",
+        "        curl -sS -X POST \"$DEPLOY_URL\" \\",
+        "          -H \"Content-Type: application/json\" \\",
+        "          -H \"X-Hub-Signature-256: sha256=$SIG\" \\",
+        "          -H \"X-ALM-Deploy-Delivery: $CI_PIPELINE_ID-$CI_JOB_ID\" \\",
+        "          -d \"$BODY\"",
       ].join("\n"),
     [],
   );
@@ -197,13 +255,16 @@ export function ProjectScmWebhooksCard({
 
   const [githubSecret, setGithubSecret] = useState("");
   const [gitlabSecret, setGitlabSecret] = useState("");
+  const [azureDevopsSecret, setAzureDevopsSecret] = useState("");
   const [deploySecret, setDeploySecret] = useState("");
   const [removeGithubSecret, setRemoveGithubSecret] = useState(false);
   const [removeGitlabSecret, setRemoveGitlabSecret] = useState(false);
+  const [removeAzureDevopsSecret, setRemoveAzureDevopsSecret] = useState(false);
   const [removeDeploySecret, setRemoveDeploySecret] = useState(false);
 
   const serverGhPaused = project.settings?.[GITHUB_WEBHOOK_ENABLED_KEY] === false;
   const serverGlPaused = project.settings?.[GITLAB_WEBHOOK_ENABLED_KEY] === false;
+  const serverAzurePaused = project.settings?.[AZURE_DEVOPS_WEBHOOK_ENABLED_KEY] === false;
   const serverPushRegex =
     typeof project.settings?.[PUSH_BRANCH_REGEX_KEY] === "string"
       ? (project.settings[PUSH_BRANCH_REGEX_KEY] as string).trim()
@@ -211,10 +272,12 @@ export function ProjectScmWebhooksCard({
 
   const [policyGhPausedOverride, setPolicyGhPausedOverride] = useState<boolean | undefined>(undefined);
   const [policyGlPausedOverride, setPolicyGlPausedOverride] = useState<boolean | undefined>(undefined);
+  const [policyAzurePausedOverride, setPolicyAzurePausedOverride] = useState<boolean | undefined>(undefined);
   const [pushBranchRegexOverride, setPushBranchRegexOverride] = useState<string | undefined>(undefined);
 
   const ghPaused = policyGhPausedOverride !== undefined ? policyGhPausedOverride : serverGhPaused;
   const glPaused = policyGlPausedOverride !== undefined ? policyGlPausedOverride : serverGlPaused;
+  const azurePaused = policyAzurePausedOverride !== undefined ? policyAzurePausedOverride : serverAzurePaused;
   const pushBranchRegex =
     pushBranchRegexOverride !== undefined
       ? pushBranchRegexOverride
@@ -224,19 +287,23 @@ export function ProjectScmWebhooksCard({
 
   const ghConfigured = githubSecretConfigured(project);
   const glConfigured = gitlabSecretConfigured(project);
+  const adoConfigured = azureDevopsSecretConfigured(project);
   const depConfigured = deploySecretConfigured(project);
 
   const policyDirty =
     ghPaused !== serverGhPaused ||
     glPaused !== serverGlPaused ||
+    azurePaused !== serverAzurePaused ||
     pushBranchRegex.trim() !== serverPushRegex;
 
   const canSaveSecrets =
     removeGithubSecret ||
     removeGitlabSecret ||
+    removeAzureDevopsSecret ||
     removeDeploySecret ||
     githubSecret.trim().length > 0 ||
     gitlabSecret.trim().length > 0 ||
+    azureDevopsSecret.trim().length > 0 ||
     deploySecret.trim().length > 0;
 
   const canSaveWebhookSettings = canSaveSecrets || policyDirty;
@@ -252,6 +319,11 @@ export function ProjectScmWebhooksCard({
       delete next[GITLAB_SECRET_KEY];
     } else if (gitlabSecret.trim()) {
       next[GITLAB_SECRET_KEY] = gitlabSecret.trim();
+    }
+    if (removeAzureDevopsSecret) {
+      delete next[AZURE_DEVOPS_SECRET_KEY];
+    } else if (azureDevopsSecret.trim()) {
+      next[AZURE_DEVOPS_SECRET_KEY] = azureDevopsSecret.trim();
     }
     if (removeDeploySecret) {
       delete next[DEPLOY_SECRET_KEY];
@@ -269,6 +341,11 @@ export function ProjectScmWebhooksCard({
     } else {
       delete next[GITLAB_WEBHOOK_ENABLED_KEY];
     }
+    if (azurePaused) {
+      next[AZURE_DEVOPS_WEBHOOK_ENABLED_KEY] = false;
+    } else {
+      delete next[AZURE_DEVOPS_WEBHOOK_ENABLED_KEY];
+    }
     const rx = pushBranchRegex.trim();
     if (rx) {
       next[PUSH_BRANCH_REGEX_KEY] = rx;
@@ -283,12 +360,15 @@ export function ProjectScmWebhooksCard({
           showNotification(t("projectScmWebhooks.notifyWebhookSettingsSaved"));
           setGithubSecret("");
           setGitlabSecret("");
+          setAzureDevopsSecret("");
           setDeploySecret("");
           setRemoveGithubSecret(false);
           setRemoveGitlabSecret(false);
+          setRemoveAzureDevopsSecret(false);
           setRemoveDeploySecret(false);
           setPolicyGhPausedOverride(undefined);
           setPolicyGlPausedOverride(undefined);
+          setPolicyAzurePausedOverride(undefined);
           setPushBranchRegexOverride(undefined);
           queryClient.invalidateQueries({
             queryKey: ["orgs", orgSlug, "projects", projectId, "webhooks"],
@@ -306,6 +386,74 @@ export function ProjectScmWebhooksCard({
           {t("projectScmWebhooks.title")}
         </p>
         <p className="mb-4 text-sm text-muted-foreground">{t("projectScmWebhooks.intro")}</p>
+
+        <div className="mb-6 rounded-md border border-border bg-muted/20 p-4">
+          <p className="mb-1 text-sm font-medium">{t("projectScmWebhooks.devTemplatesTitle")}</p>
+          <p className="mb-3 text-xs text-muted-foreground">
+            {t("projectScmWebhooks.devTemplatesIntro", { exampleKey: exampleArtifactKey })}
+          </p>
+          <div className="mb-3 space-y-2">
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">{t("projectScmWebhooks.devTemplatesBranchLabel")}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="max-w-full flex-1 overflow-x-auto rounded border border-border bg-background px-2 py-1.5 text-xs">
+                  {branchTemplate}
+                </code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  aria-label={t("projectScmWebhooks.copyBranchExampleAria")}
+                  onClick={() => copy("tpl-branch", branchTemplate)}
+                >
+                  {copied === "tpl-branch" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">{t("projectScmWebhooks.devTemplatesCommitLabel")}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="max-w-full flex-1 overflow-x-auto rounded border border-border bg-background px-2 py-1.5 text-xs">
+                  {commitTemplate}
+                </code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  aria-label={t("projectScmWebhooks.copyCommitExampleAria")}
+                  onClick={() => copy("tpl-commit", commitTemplate)}
+                >
+                  {copied === "tpl-commit" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">{t("projectScmWebhooks.devTemplatesRefsLabel")}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="max-w-full flex-1 overflow-x-auto rounded border border-border bg-background px-2 py-1.5 text-xs">
+                  {refsTemplate}
+                </code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  aria-label={t("projectScmWebhooks.copyRefsExampleAria")}
+                  onClick={() => copy("tpl-refs", refsTemplate)}
+                >
+                  {copied === "tpl-refs" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">{t("projectScmWebhooks.devTemplatesRefsHelp")}</p>
+            </div>
+          </div>
+          <div className="border-t border-border pt-3">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">{t("projectScmWebhooks.devTemplatesMatchTitle")}</p>
+            <p className="text-xs text-muted-foreground">{t("projectScmWebhooks.devTemplatesMatchBody")}</p>
+          </div>
+        </div>
 
         <div className="mb-6 space-y-3">
           <div>
@@ -343,6 +491,25 @@ export function ProjectScmWebhooksCard({
                 {copied === "gl" ? <Check className="size-4" /> : <Copy className="size-4" />}
               </Button>
             </div>
+          </div>
+          <div>
+            <p className="mb-1 text-xs font-medium text-muted-foreground">{t("projectScmWebhooks.azuredevops")}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="max-w-full flex-1 overflow-x-auto rounded border border-border bg-muted/40 px-2 py-1.5 text-xs">
+                {azureDevopsUrl}
+              </code>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                aria-label={t("projectScmWebhooks.copyAzuredevopsUrlAria")}
+                onClick={() => copy("ado", azureDevopsUrl)}
+              >
+                {copied === "ado" ? <Check className="size-4" /> : <Copy className="size-4" />}
+              </Button>
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">{t("projectScmWebhooks.azureSetupHint")}</p>
           </div>
           <div className="mt-4">
             <p className="mb-1 text-xs font-medium text-muted-foreground">{t("projectScmWebhooks.deployTitle")}</p>
@@ -400,6 +567,44 @@ export function ProjectScmWebhooksCard({
               </pre>
               <p className="text-[10px] text-muted-foreground">{t("projectScmWebhooks.deployActionsHelp")}</p>
             </div>
+            <div className="mt-4 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">{t("projectScmWebhooks.deployAzurePipelinesTitle")}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  aria-label={t("projectScmWebhooks.deployAzurePipelinesCopyAria")}
+                  onClick={() => copy("azp", deployAzurePipelinesExample)}
+                >
+                  {copied === "azp" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+              <pre className="max-h-48 max-w-full overflow-auto rounded border border-border bg-muted/40 p-2 text-[10px] leading-relaxed">
+                {deployAzurePipelinesExample}
+              </pre>
+              <p className="text-[10px] text-muted-foreground">{t("projectScmWebhooks.deployAzurePipelinesHelp")}</p>
+            </div>
+            <div className="mt-4 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">{t("projectScmWebhooks.deployGitlabCiTitle")}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  aria-label={t("projectScmWebhooks.deployGitlabCiCopyAria")}
+                  onClick={() => copy("glci", deployGitlabCiExample)}
+                >
+                  {copied === "glci" ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+              <pre className="max-h-48 max-w-full overflow-auto rounded border border-border bg-muted/40 p-2 text-[10px] leading-relaxed">
+                {deployGitlabCiExample}
+              </pre>
+              <p className="text-[10px] text-muted-foreground">{t("projectScmWebhooks.deployGitlabCiHelp")}</p>
+            </div>
           </div>
         </div>
 
@@ -433,6 +638,13 @@ export function ProjectScmWebhooksCard({
               />
               {t("projectScmWebhooks.pauseGitlab")}
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={azurePaused}
+                onCheckedChange={(v) => setPolicyAzurePausedOverride(v === true)}
+              />
+              {t("projectScmWebhooks.pauseAzuredevops")}
+            </label>
             <div className="space-y-1.5">
               <Label htmlFor="scm-push-branch-regex">{t("projectScmWebhooks.pushBranchRegexLabel")}</Label>
               <Input
@@ -451,7 +663,10 @@ export function ProjectScmWebhooksCard({
         <div className="mb-6 rounded-lg border border-border bg-muted/20 p-4">
           <p className="mb-3 text-sm font-medium">{t("projectScmWebhooks.webhookSecretsTitle")}</p>
           <p className="mb-4 text-xs text-muted-foreground">{t("projectScmWebhooks.webhookSecretsHelp")}</p>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
+            {t("projectScmWebhooks.secretRotationHint")}
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Label htmlFor="scm-gh-secret">{t("projectScmWebhooks.githubSecretLabel")}</Label>
@@ -510,6 +725,37 @@ export function ProjectScmWebhooksCard({
                   }}
                 />
                 {t("projectScmWebhooks.removeGitlabSecret")}
+              </label>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="scm-ado-secret">{t("projectScmWebhooks.azuredevopsTokenLabel")}</Label>
+                {adoConfigured ? (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {t("projectScmWebhooks.configured")}
+                  </Badge>
+                ) : null}
+              </div>
+              <Input
+                id="scm-ado-secret"
+                type="password"
+                autoComplete="off"
+                placeholder={
+                  adoConfigured ? t("projectScmWebhooks.azurePlaceholderNew") : t("projectScmWebhooks.azurePlaceholder")
+                }
+                value={azureDevopsSecret}
+                onChange={(e) => setAzureDevopsSecret(e.target.value)}
+                disabled={removeAzureDevopsSecret}
+              />
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={removeAzureDevopsSecret}
+                  onCheckedChange={(v) => {
+                    setRemoveAzureDevopsSecret(v === true);
+                    if (v === true) setAzureDevopsSecret("");
+                  }}
+                />
+                {t("projectScmWebhooks.removeAzuredevopsSecret")}
               </label>
             </div>
             <div className="space-y-2">
@@ -584,6 +830,7 @@ export function ProjectScmWebhooksCard({
                 <tr>
                   <th className="px-2 py-2 font-medium">{t("projectScmWebhooks.colWhen")}</th>
                   <th className="px-2 py-2 font-medium">{t("projectScmWebhooks.colKind")}</th>
+                  <th className="px-2 py-2 font-medium">{t("projectScmWebhooks.colReason")}</th>
                   <th className="px-2 py-2 font-medium">{t("projectScmWebhooks.colSummary")}</th>
                   <th className="px-2 py-2 font-medium">{t("projectScmWebhooks.colLink")}</th>
                   {canTriageUnmatched ? <th className="px-2 py-2 font-medium">{t("projectScmWebhooks.colTriage")}</th> : null}
@@ -594,6 +841,13 @@ export function ProjectScmWebhooksCard({
                   const url = typeof row.context.web_url === "string" ? row.context.web_url : "";
                   const isDismissed = Boolean(row.dismissed_at);
                   const busy = triagePendingId === row.id;
+                  const reasonCode = typeof row.context.reason_code === "string" ? row.context.reason_code : "";
+                  const reasonLabel =
+                    reasonCode === "artifact_not_found"
+                      ? t("projectScmWebhooks.unmatchedReasonArtifactNotFound")
+                      : reasonCode
+                        ? t("projectScmWebhooks.unmatchedReasonUnknown", { code: reasonCode })
+                        : t("projectScmWebhooks.dash");
                   return (
                     <tr key={row.id} className="border-b border-border/80 last:border-0">
                       <td className="whitespace-nowrap px-2 py-2 text-muted-foreground">{formatUnmatchedTime(row.created_at)}</td>
@@ -606,6 +860,18 @@ export function ProjectScmWebhooksCard({
                             </Badge>
                           ) : null}
                         </div>
+                      </td>
+                      <td className="max-w-[140px] px-2 py-2 align-top text-muted-foreground">
+                        {reasonCode ? (
+                          <span className="block text-[10px] leading-snug" title={reasonLabel}>
+                            <Badge variant="secondary" className="mb-0.5 font-mono text-[9px]">
+                              {reasonCode}
+                            </Badge>
+                            <span className="line-clamp-3">{reasonLabel}</span>
+                          </span>
+                        ) : (
+                          t("projectScmWebhooks.dash")
+                        )}
                       </td>
                       <td className="max-w-[240px] px-2 py-2 text-muted-foreground">{contextSnippet(row.context)}</td>
                       <td className="px-2 py-2">

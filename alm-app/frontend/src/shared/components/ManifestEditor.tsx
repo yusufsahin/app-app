@@ -34,7 +34,9 @@ export function ManifestEditor({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    queueMicrotask(() => {
+      setMounted(true);
+    });
   }, []);
 
   const monacoTheme = mounted && resolvedTheme === "dark" ? "vs-dark" : "light";

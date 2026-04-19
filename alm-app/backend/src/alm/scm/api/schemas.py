@@ -24,6 +24,7 @@ class ScmLinkResponse(BaseModel):
     created_by: uuid.UUID | None
     created_at: str | None
     updated_at: str | None
+    key_match_source: str | None = None
 
     model_config = {"from_attributes": True}
 

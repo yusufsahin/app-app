@@ -21,6 +21,7 @@ import { ArtifactDetailLinks } from "./ArtifactDetailLinks";
 import { ArtifactDetailTasks } from "./ArtifactDetailTasks";
 import { ArtifactDetailDeployments } from "./ArtifactDetailDeployments";
 import { ArtifactDetailSource } from "./ArtifactDetailSource";
+import { ArtifactDetailTraceability } from "./ArtifactDetailTraceability";
 import type { ArtifactImpactAnalysisResponse } from "../../../shared/api/relationshipApi";
 
 export type BacklogDetailTab =
@@ -28,6 +29,7 @@ export type BacklogDetailTab =
   | "tasks"
   | "links"
   | "source"
+  | "traceability"
   | "deploy"
   | "impact"
   | "attachments"
@@ -306,6 +308,9 @@ export function BacklogArtifactDetailContent({
                     <TabsTrigger className="shrink-0 flex-none px-2.5" value="source">
                       {t("workItemDetail.tabs.source", { count: scmLinksCount })}
                     </TabsTrigger>
+                    <TabsTrigger className="shrink-0 flex-none px-2.5" value="traceability">
+                      {t("workItemDetail.tabs.traceability")}
+                    </TabsTrigger>
                     <TabsTrigger className="shrink-0 flex-none px-2.5" value="deploy">
                       {t("workItemDetail.tabs.deploy")}
                     </TabsTrigger>
@@ -353,6 +358,19 @@ export function BacklogArtifactDetailContent({
                     projectSlug={projectSlug}
                     projectId={projectId}
                     artifactId={detailArtifact.id}
+                    artifactKey={detailArtifact.artifact_key}
+                    tasks={tasks}
+                    canEdit={canEditArtifact}
+                    taskScopeId={highlightedDetailTaskId}
+                  />
+                )}
+                {detailTab === "traceability" && (
+                  <ArtifactDetailTraceability
+                    orgSlug={orgSlug}
+                    projectSlug={projectSlug}
+                    projectId={projectId}
+                    artifactId={detailArtifact.id}
+                    artifactKey={detailArtifact.artifact_key}
                     tasks={tasks}
                     canEdit={canEditArtifact}
                     taskScopeId={highlightedDetailTaskId}
@@ -361,6 +379,7 @@ export function BacklogArtifactDetailContent({
                 {detailTab === "deploy" && (
                   <ArtifactDetailDeployments
                     orgSlug={orgSlug}
+                    projectSlug={projectSlug}
                     projectId={projectId}
                     artifactId={detailArtifact.id}
                   />

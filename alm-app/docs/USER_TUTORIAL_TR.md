@@ -1045,19 +1045,27 @@ Manifest; projedeki iş kalemi türlerini, durum makinelerini ve geçiş kuralla
 
 ### SCM Entegrasyonu
 
-Git commit ve PR'ları iş kalemlerine otomatik bağlamak için:
+Proje seçiliyken sol menüden **Proje → Entegrasyonlar** sayfasına gidin. GitHub, GitLab veya Azure DevOps webhook adreslerini kopyalayıp depo veya Service Hook ayarlarınıza yapıştırın; ardından ALM'de eşleşen gizli anahtarı kaydedin (Azure DevOps için kartta anlatıldığı gibi `X-ALM-AzureDevOps-Token` başlığı).
 
-1. GitHub / GitLab projenizde **Webhook** ayarını açın
-2. ALM'de **Proje Ayarları → SCM** bölümünden webhook URL'sini alın
-3. Webhook olaylarını seçin: `push`, `pull_request`
-4. Commit mesajlarınızda iş kalemi anahtarını kullanın:
+Webhook olayları: GitHub `push`, `pull_request`; GitLab `Push Hook`, `Merge Request Hook`; Azure DevOps `git.push` ve PR birleştirme. Eşleşme sırası: **dal adı**, **başlık**, **açıklama** (PR/MR) veya push'ta **tam commit mesajı**. Dal veya mesajda **iş kalemi anahtarını** (proje kodu + numara) kullanın.
+
+Örnekler:
 
 ```
-SAMP-42: implement password reset flow
-SAMP-55 fix: resolve redirect loop after login
+Dal:     feature/SAMP-42-password-reset
+Commit:  feat(SAMP-42): implement password reset flow
+PR gövde: SAMP-55 fix: resolve redirect loop after login
 ```
 
-Bundan sonra her commit ve PR, ilgili iş kaleminin **Source** sekmesinde otomatik görünür.
+İsteğe bağlı: Görevler sekmesindeki bir görev için **Refs:** satırını (UUID ile) PR veya commit mesajına ekleyin.
+
+**Eşleşmeyen teslimatlar:** `project:update` yetkisi olanlar Entegrasyonlar sayfasındaki tabloyu inceler, dal/başlık kurallarını düzeltir, satırları çözüldükten sonra kapatır.
+
+Webhook olmadan da **Kaynak** sekmesinden PR/commit URL'si elle eklenebilir.
+
+İş kaleminde **İzlenebilirlik** sekmesi **Kaynak** ve **Ortamlar** özetini bir arada gösterir. GitHub Actions, Azure Pipelines ve GitLab CI için dağıtım örnekleri Entegrasyonlar kartında deploy webhook adresinin yanındadır.
+
+Operasyon metrikleri ve Grafana tarzı paneller için `docs/SCM_PROMETHEUS_AND_GRAFANA.md`; gizli anahtar rotasyonu için `docs/SCM_WEBHOOK_SECRET_ROTATION.md` dosyasına bakın.
 
 ---
 
@@ -1420,6 +1428,12 @@ Kampanyayı boş oluşturabilirsiniz; testleri daha sonra ekleyebilirsiniz. Anca
 
 ---
 
+**S: Git webhook'larını nereden ayarlarım?**
+
+Proje seçtikten sonra **Proje → Entegrasyonlar**. URL'leri GitHub, GitLab veya Azure DevOps'a yapıştırıp eşleşen gizli anahtarı veya Azure başlık jetonunu ALM'de kaydedin.
+
+---
+
 ## Sorun Giderme
 
 | Belirti | Olası Neden | Çözüm |
@@ -1431,7 +1445,7 @@ Kampanyayı boş oluşturabilirsiniz; testleri daha sonra ekleyebilirsiniz. Anca
 | Kart Board'da taşınmıyor | İzin verilmeyen geçiş veya eksik yetki | Manifest geçişlerini kontrol edin; `artifact:transition` yetkisini doğrulayın |
 | İzlenebilirlik Matrisi tüm gri | Testler gereksinime bağlanmamış | Bağlantılar sekmesinden `traces-to` bağlantısı oluşturun |
 | Manifest aktifleştirme hatası | Şema doğrulama hatası | YAML hatası vurgulanan satırları düzeltin |
-| Source sekmesi boş | Webhook yapılandırılmamış | Proje Ayarları → SCM → Webhook URL'sini alın ve yapılandırın |
+| Source sekmesi boş | Webhook yok veya Git metninde anahtar yok | Proje → Entegrasyonlar; veya Kaynak sekmesinden URL ekleyin; dal/mesajda iş kalemi anahtarı kullanın |
 | Davet e-postası gelmiyor | SMTP yapılandırılmamış | Yöneticinizden bağlantı URL'sini isteyin |
 
 ---

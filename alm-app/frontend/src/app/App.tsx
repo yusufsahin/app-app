@@ -3,7 +3,7 @@ import { router } from "./router";
 
 export function App() {
   return (
-    <div className="flex min-h-svh">
+    <div className="min-h-svh w-full">
       <RouterProvider router={router} />
     </div>
   );

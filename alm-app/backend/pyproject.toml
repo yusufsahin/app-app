@@ -40,7 +40,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.0",
-    "pytest-asyncio>=0.24.0",
+    "pytest-asyncio>=1.3.0,<2",
     "httpx>=0.28.0",
     "factory-boy>=3.3.0",
     "ruff>=0.8.0",
@@ -52,6 +52,7 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/alm"]
 
+# CI/Gate Ruff: `uv run python scripts/lint_src.py` and `scripts/lint_tests.py` (single source for test rule sets).
 [tool.ruff]
 target-version = "py312"
 line-length = 120

@@ -6,10 +6,10 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from tests.support.manifests import CREATE_PROJECT_ROOTS_MANIFEST_BUNDLE
 
 from alm.project.application.services.ensure_project_tree_roots import ensure_project_tree_roots
 from alm.project.domain.entities import Project
-from tests.support.manifests import CREATE_PROJECT_ROOTS_MANIFEST_BUNDLE
 
 
 @pytest.mark.asyncio

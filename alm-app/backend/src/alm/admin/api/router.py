@@ -12,6 +12,8 @@ from pydantic import BaseModel, EmailStr
 from alm.admin.infrastructure.access_audit_store import AccessAuditStore
 from alm.config.dependencies import get_mediator
 from alm.shared.application.mediator import Mediator
+from alm.shared.infrastructure.db.session import async_session_factory
+from alm.shared.infrastructure.domain_event_outbox import requeue_exhausted_outbox_rows
 from alm.shared.infrastructure.security.dependencies import CurrentUser, require_any_role
 from alm.tenant.application.commands.create_user_by_admin import (
     CreateUserByAdmin,
@@ -39,6 +41,10 @@ class CreateUserByAdminResponse(BaseModel):
     display_name: str
 
 
+class RequeueExhaustedOutboxResponse(BaseModel):
+    requeued: int
+
+
 class AdminUserResponse(BaseModel):
     user_id: str
     email: str
@@ -49,6 +55,25 @@ class AdminUserResponse(BaseModel):
 
 def _get_access_audit_store() -> AccessAuditStore:
     return AccessAuditStore()
+
+
+@router.post("/domain-event-outbox/requeue-exhausted", response_model=RequeueExhaustedOutboxResponse)
+async def requeue_exhausted_domain_event_outbox(
+    _user: Annotated[CurrentUser, require_any_role("admin")],
+    limit: int = Query(
+        50,
+        ge=1,
+        le=10_000,
+        description="Requested batch size (capped server-side by ALM_DOMAIN_EVENT_OUTBOX_REQUEUE_MAX_PER_REQUEST).",
+    ),
+) -> RequeueExhaustedOutboxResponse:
+    """Reset exhausted domain-event outbox rows so the background worker retries them.
+
+    The ``domain_event_outbox`` table is global (not tenant-scoped); use only for platform operations.
+    Rows chosen are those with ``attempts >= max_attempts``, oldest first.
+    """
+    n = await requeue_exhausted_outbox_rows(async_session_factory, limit=limit)
+    return RequeueExhaustedOutboxResponse(requeued=n)
 
 
 @router.get("/users", response_model=list[AdminUserResponse])

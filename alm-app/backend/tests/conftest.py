@@ -26,28 +26,29 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-import alm.admin.infrastructure.models  # noqa: F401
-import alm.area.infrastructure.models  # noqa: F401
-import alm.artifact.infrastructure.models  # noqa: F401
-import alm.attachment.infrastructure.models  # noqa: F401
-import alm.auth.infrastructure.models  # noqa: F401
-import alm.capacity.infrastructure.models  # noqa: F401
-import alm.comment.infrastructure.models  # noqa: F401
-import alm.deployment.infrastructure.models  # noqa: F401
-import alm.cycle.infrastructure.models  # noqa: F401
-import alm.process_template.infrastructure.models  # noqa: F401
-import alm.project.infrastructure.models  # noqa: F401
-import alm.project.infrastructure.project_member_models  # noqa: F401
-import alm.project_tag.infrastructure.models  # noqa: F401 — project_tags, artifact_tags, task_tags
-import alm.relationship.infrastructure.models  # noqa: F401
-import alm.report_definition.infrastructure.models  # noqa: F401
-import alm.saved_query.infrastructure.models  # noqa: F401
-import alm.scm.infrastructure.models  # noqa: F401
-import alm.shared.audit.models  # noqa: F401
-import alm.task.infrastructure.models  # noqa: F401
-import alm.team.infrastructure.models  # noqa: F401
-import alm.tenant.infrastructure.models  # noqa: F401
-import alm.workflow_rule.infrastructure.models  # noqa: F401
+import alm.admin.infrastructure.models
+import alm.area.infrastructure.models
+import alm.artifact.infrastructure.models
+import alm.attachment.infrastructure.models
+import alm.auth.infrastructure.models
+import alm.capacity.infrastructure.models
+import alm.comment.infrastructure.models
+import alm.cycle.infrastructure.models
+import alm.deployment.infrastructure.models
+import alm.process_template.infrastructure.models
+import alm.project.infrastructure.models
+import alm.project.infrastructure.project_member_models
+import alm.project_tag.infrastructure.models
+import alm.relationship.infrastructure.models
+import alm.report_definition.infrastructure.models
+import alm.saved_query.infrastructure.models
+import alm.scm.infrastructure.models
+import alm.shared.audit.models
+import alm.shared.infrastructure.domain_event_outbox
+import alm.task.infrastructure.models
+import alm.team.infrastructure.models
+import alm.tenant.infrastructure.models
+import alm.workflow_rule.infrastructure.models  # noqa: F401 — ORM side effect (table metadata)
 from alm.shared.infrastructure.db.base_model import Base
 
 _TEST_DB_URL_ENV = os.environ.get("ALM_TEST_DATABASE_URL", "").strip()
@@ -115,7 +116,7 @@ def postgres_url() -> Generator[str, None, None]:
                 yield _asyncpg_url(url)
             finally:
                 container.stop()
-            return
+            return  # noqa: TRY300 — generator fixture: stop container then exit branch
         except ImportError:
             pass
         except Exception:
@@ -195,6 +196,11 @@ async def _noop_subscriber() -> None:
     return
 
 
+async def _noop_domain_event_outbox_worker(_session_factory: object) -> None:
+    """No-op so integration tests don't run the outbox polling loop."""
+    return
+
+
 # ``from session import async_session_factory`` binds the factory at import time in each module below.
 # Patching only ``alm.shared.infrastructure.db.session`` leaves stale references → requests hit prod URL / wrong DB.
 _ASYNC_SESSION_FACTORY_PATCH_TARGETS: tuple[str, ...] = (
@@ -208,9 +214,11 @@ _ASYNC_SESSION_FACTORY_PATCH_TARGETS: tuple[str, ...] = (
     "alm.artifact.application.stale_traceability_side_effects.async_session_factory",
     # Routes that bind async_session_factory at import time must be patched too if any test
     # imports them before the client fixture applies the test DB factory.
+    "alm.admin.api.router.async_session_factory",
     "alm.orgs.api.routes_deploy_webhook.async_session_factory",
     "alm.orgs.api.routes_github_webhook.async_session_factory",
     "alm.orgs.api.routes_gitlab_webhook.async_session_factory",
+    "alm.orgs.api.routes_azuredevops_webhook.async_session_factory",
     "alm.orgs.api.routes_scm_webhook_unmatched.async_session_factory",
 )
 
@@ -227,6 +235,7 @@ async def client(test_engine, test_session_factory) -> AsyncGenerator[AsyncClien
             )
         )
         stack.enter_context(patch("alm.main.run_subscriber", _noop_subscriber))
+        stack.enter_context(patch("alm.main.run_domain_event_outbox_worker", _noop_domain_event_outbox_worker))
         # Rate limit middleware uses Redis; integration tests run without Redis by default.
         stack.enter_context(
             patch(

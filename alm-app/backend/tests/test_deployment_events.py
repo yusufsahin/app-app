@@ -23,7 +23,7 @@ async def _register_and_get_token(client: AsyncClient, email: str, org: str) -> 
         json={
             "email": email,
             "password": "SecurePass123",
-            "display_name": email.split("@")[0],
+            "display_name": email.split("@", maxsplit=1)[0],
             "org_name": org,
         },
     )

@@ -3,7 +3,7 @@ import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate, Link } from "react-router-dom";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Loader2, Mail } from "lucide-react";
 import { Card, CardContent, Button } from "../../../shared/components/ui";
 import { RhfTextField } from "../../../shared/components/forms";
 import { useRegister } from "../../../shared/api/authApi";
@@ -61,8 +61,8 @@ export default function RegisterPage() {
   const isPending = registerMutation.isPending;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-[480px] p-6">
+    <div className="flex min-h-svh w-full items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-[480px] shrink-0 p-6">
         <CardContent className="space-y-6 pb-6">
           <div className="text-center" id="register-heading">
             <h1 className="text-2xl font-semibold text-primary">ALM Manifest</h1>
@@ -111,6 +111,11 @@ export default function RegisterPage() {
                 fullWidth
                 autoComplete="email"
                 disabled={isPending}
+                slotProps={{
+                  input: {
+                    startAdornment: <Mail className="size-4 shrink-0" aria-hidden />,
+                  },
+                }}
               />
               <RhfTextField<RegisterFormData>
                 name="org_name"
@@ -129,6 +134,7 @@ export default function RegisterPage() {
                 disabled={isPending}
                 slotProps={{
                   input: {
+                    startAdornment: <KeyRound className="size-4 shrink-0" aria-hidden />,
                     endAdornment: (
                       <button
                         type="button"
@@ -152,6 +158,7 @@ export default function RegisterPage() {
                 disabled={isPending}
                 slotProps={{
                   input: {
+                    startAdornment: <KeyRound className="size-4 shrink-0" aria-hidden />,
                     endAdornment: (
                       <button
                         type="button"

@@ -55,7 +55,11 @@ jobs:
 
       - name: Backend lint (ruff)
         working-directory: alm-app/backend
-        run: uv run ruff check src
+        run: uv run python scripts/lint_src.py
+
+      - name: Backend lint tests (ruff +TRY+PTH)
+        working-directory: alm-app/backend
+        run: uv run python scripts/lint_tests.py
 
       - name: validate_artifacts
         working-directory: alm-app/backend

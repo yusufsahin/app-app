@@ -566,7 +566,14 @@ export const qualityTrPatches = {
   workItemDetail: {
     tabs: {
       source: "Kaynak ({{count}})",
+      traceability: "İzlenebilirlik",
       deploy: "Ortamlar",
+    },
+    traceability: {
+      intro:
+        "Bu iş kalemi için Git bağlantıları ile son dağıtım özetini tek yerde görün. Bağlantıları Kaynak sekmesinden düzenleyin; webhook’ları Proje → Entegrasyonlar altında yapılandırın.",
+      sourceHeading: "Kaynak (Git)",
+      deployHeading: "Ortamlar",
     },
     deploy: {
       needProject: "Dağıtım özetini görmek için iş kalemını proje bağlamında açın.",
@@ -577,6 +584,9 @@ export const qualityTrPatches = {
       environmentsIntro:
         "Dağıtım olayları bu iş kalemi anahtarına veya Kaynak’taki commit SHA’larına göre eşleştirilir. API veya deploy webhook ile kayıt ekleyin.",
       noEnvironments: "Bu iş kalemiyle eşleşen dağıtım olayı yok.",
+      noEnvironmentsIntegrationsCta:
+        "CI’dan dağıtım bildirmek için deploy webhook’unu kullanın (Proje → Entegrasyonlar) veya iş kalemi anahtarıyla deployment-events API’sine POST edin.",
+      integrationsLinkLabel: "Entegrasyonlar’a git",
       matchedVia: "Eşleşme: {{via}}",
       commit: "Commit",
       image: "İmaj",
@@ -584,6 +594,8 @@ export const qualityTrPatches = {
       build: "Derleme",
       scmLinksTitle: "Kaynak bağlantıları",
       noScmLinks: "Bu iş kalemine Git bağlantısı yok. Kaynak sekmesinden PR veya commit URL’si ekleyin.",
+      noScmLinksIntegrationsCta:
+        "Git’ten otomatik bağlantı için Proje → Entegrasyonlar altında webhook yapılandırın.",
     },
     tasks: {
       copyRefsLineAria: "Webhook için Refs: satırını kopyala (PR/MR veya commit mesajına yapıştırın)",
@@ -607,6 +619,14 @@ export const qualityTrPatches = {
       showAllScmLinks: "Tüm bağlantıları göster",
       showTaskScopedLinks: "Yalnızca görev bağlantıları",
       emptyScoped: "Bu görev için henüz kaynak bağlantısı yok.",
+      emptyIntegrationsCta:
+        "GitHub veya GitLab webhook’larını Proje → Entegrasyonlar altında yapılandırın veya aşağıya PR/commit URL’si ekleyin.",
+      integrationsLinkLabel: "Entegrasyonlar’a git",
+      matchPriorityHint:
+        "Otomatik eşleme sırası: dal adı, ardından başlık, sonra açıklama (PR/MR) veya tam commit mesajı (push). Dal veya mesajda iş kalemi anahtarını (ör. {{exampleKey}}) kullanın.",
+      keyMatchBranch: "Webhook eşlemesi: dal adı",
+      keyMatchTitle: "Webhook eşlemesi: başlık veya commit mesajı",
+      keyMatchBody: "Webhook eşlemesi: PR/MR açıklaması",
       urlRequired: "Bir PR veya commit URL’si yapıştırın",
       urlLabel: "PR veya commit URL’si",
       urlPlaceholder: "https://github.com/org/repo/pull/123",
@@ -643,11 +663,29 @@ export const qualityTrPatches = {
   projectScmWebhooks: {
     title: "Git webhook’ları",
     intro:
-      "Bu adresleri GitHub veya GitLab’da kaydedin. Gizli anahtarlar proje ayarlarında saklanır (kaydettikten sonra ekranda gösterilmez).",
+      "Bu adresleri GitHub, GitLab veya Azure DevOps’ta kaydedin. Gizli anahtarlar proje ayarlarında saklanır (kaydettikten sonra ekranda gösterilmez).",
+    devTemplatesTitle: "Geliştirici kuralları (kopyala/yapıştır)",
+    devTemplatesIntro:
+      "Webhook’ların eşleşmesi için dal adı, commit veya PR metninde iş kalemi anahtarını (proje kodu veya {{exampleKey}} gibi) kullanın.",
+    devTemplatesBranchLabel: "Örnek dal adı",
+    devTemplatesCommitLabel: "Örnek commit konusu (Conventional Commits)",
+    devTemplatesRefsLabel: "Örnek görev trailer’ı (isteğe bağlı)",
+    devTemplatesRefsHelp:
+      "UUID’yi bu iş kaleminin Görevler bölümündeki görev satırından kopyalayın (Kopyala). Yanlış UUID’ler yok sayılır.",
+    devTemplatesMatchTitle: "Otomatik eşleşme nasıl çalışır",
+    devTemplatesMatchBody:
+      "Her teslimatta sunucu sırayla dener: dal adı, başlık, gövde (PR/MR) veya tam commit mesajı (push). Bu projede bulunan ilk iş kalemi anahtarı kazanır.",
+    copyBranchExampleAria: "Örnek dal adını kopyala",
+    copyCommitExampleAria: "Örnek commit konusunu kopyala",
+    copyRefsExampleAria: "Örnek Refs satırını kopyala",
     github: "GitHub",
     gitlab: "GitLab",
+    azuredevops: "Azure DevOps",
     copyGithubUrlAria: "GitHub webhook URL’sini kopyala",
     copyGitlabUrlAria: "GitLab webhook URL’sini kopyala",
+    copyAzuredevopsUrlAria: "Azure DevOps webhook URL’sini kopyala",
+    azureSetupHint:
+      "Azure DevOps’ta: Proje ayarları → Service hooks → Abonelik oluştur → Web Hooks. Kod → Push ve Pull request merge olaylarını gönderin. Aşağıya kaydettiğiniz değerle aynı olan X-ALM-AzureDevOps-Token HTTP başlığını ekleyin.",
     deployTitle: "CI dağıtım webhook’u",
     copyDeployUrlAria: "Dağıtım webhook URL’sini kopyala",
     deployHint:
@@ -660,6 +698,14 @@ export const qualityTrPatches = {
     deployActionsCopyAria: "GitHub Actions parçacığını kopyala",
     deployActionsHelp:
       "Dağıtım URL’si ve gizli anahtarı depo sırları olarak tanımlayın (örn. ALM_DEPLOY_WEBHOOK_URL, ALM_DEPLOY_WEBHOOK_SECRET). JSON alanlarını pipeline’ınıza göre uyarlayın.",
+    deployAzurePipelinesTitle: "Örnek: Azure Pipelines adımı (bash)",
+    deployAzurePipelinesCopyAria: "Azure Pipelines parçacığını kopyala",
+    deployAzurePipelinesHelp:
+      "ALM_DEPLOY_WEBHOOK_URL ve ALM_DEPLOY_WEBHOOK_SECRET değişkenlerini pipeline veya değişken grubunda gizli olarak tanımlayın. İmzalama kuralları GitHub ile aynıdır (ham JSON gövdesi üzerinde HMAC-SHA256).",
+    deployGitlabCiTitle: "Örnek: GitLab CI işi (bash)",
+    deployGitlabCiCopyAria: "GitLab CI parçacığını kopyala",
+    deployGitlabCiHelp:
+      "ALM_DEPLOY_WEBHOOK_URL ve ALM_DEPLOY_WEBHOOK_SECRET CI/CD değişkenlerini tanımlayın (maskeli/korumalı gerektiği gibi). curl + openssl örneğiyle aynı yaklaşım.",
     deploySecretLabel: "Dağıtım webhook gizli anahtarı",
     deployPlaceholderNew: "Yeni gizli anahtar (isteğe bağlı)",
     deployPlaceholder: "Dağıtım webhook gizli anahtarı",
@@ -667,7 +713,7 @@ export const qualityTrPatches = {
     payloadLimitHint:
       "Webhook istek gövdesi en fazla 1 MiB olabilir; daha büyük yüklerde API HTTP 413 döner.",
     deliveryIdempotencyHint:
-      "GitHub her teslimatta X-GitHub-Delivery, GitLab ise X-Gitlab-Event-UUID gönderir. Başarılı yanıttan sonra aynı kimlik tekrar gelirse duplicate_delivery döner; böylece sağlayıcı yeniden denemeleri çift SCM satırı oluşturmaz.",
+      "GitHub X-GitHub-Delivery, GitLab X-Gitlab-Event-UUID ve Azure DevOps JSON gövdesinde notificationId gönderir. Başarılı yanıttan sonra aynı kimlik tekrar gelirse duplicate_delivery döner; sağlayıcı yeniden denemeleri çift SCM satırı oluşturmaz.",
     refsHintStrong: "Göreve özel bağlantılar —",
     refsHintBeforeCode:
       "İş kalemi dal, başlık veya açıklamadan eşlendikten sonra SCM satırını bir göreve bağlamak için şuna benzer bir satır ekleyin",
@@ -678,14 +724,21 @@ export const qualityTrPatches = {
       "Gizli anahtarları kaldırmadan otomasyonu duraklatın. Dal regex’i yalnızca push olaylarına uygulanır (PR/MR değil). Gizli anahtar geçerliyken ping yine başarılı döner.",
     pauseGithub: "GitHub PR ve push işlemeyi duraklat",
     pauseGitlab: "GitLab MR ve push işlemeyi duraklat",
+    pauseAzuredevops: "Azure DevOps push ve PR işlemeyi duraklat",
     pushBranchRegexLabel: "Push dal filtresi (Python regex, isteğe bağlı)",
     pushBranchRegexPlaceholder: "örn. ^feature/ veya release/.+",
     pushBranchRegexHelp: "Boş = tüm dallar. Geçersiz regex sunucuda yok sayılır (teslimatlar engellenmez).",
     webhookSecretsTitle: "Webhook gizli anahtarları",
     webhookSecretsHelp:
       "Mevcut gizli anahtarı korumak için boş bırakın. Silmek için «Kaldır» işaretleyin. Değiştirmek için yeni değer girin.",
+    secretRotationHint:
+      "Gizli anahtar rotasyonu: yeni değer üretin, buraya kaydedin, ardından sağlayıcıyı (GitHub/GitLab/Azure DevOps/GitHub Actions) yeni anahtarı kullanacak şekilde güncelleyin; eskiyi kaldırmadan önce trafiğin yeni anahtarla geldiğini doğrulayın. Kısa runbook: docs/SCM_WEBHOOK_SECRET_ROTATION.md.",
     githubSecretLabel: "GitHub gizli anahtarı",
     gitlabTokenLabel: "GitLab jetonu",
+    azuredevopsTokenLabel: "Azure DevOps jetonu (başlık)",
+    azurePlaceholderNew: "Yeni jeton (isteğe bağlı)",
+    azurePlaceholder: "X-ALM-AzureDevOps-Token başlığıyla aynı değer",
+    removeAzuredevopsSecret: "Azure DevOps jetonunu kaldır",
     configured: "yapılandırıldı",
     githubPlaceholderNew: "Yeni gizli anahtar (isteğe bağlı)",
     githubPlaceholder: "Webhook gizli anahtarı",
@@ -705,6 +758,10 @@ export const qualityTrPatches = {
     unmatchedEmpty: "Henüz eşleşmeyen webhook satırı yok.",
     colWhen: "Zaman",
     colKind: "Tür",
+    colReason: "Neden",
+    unmatchedReasonArtifactNotFound:
+      "Bu projede dal/başlık/gövdeyle eşleşen iş kalemi anahtarı bulunamadı.",
+    unmatchedReasonUnknown: "Kod: {{code}}",
     colSummary: "Özet",
     colLink: "Bağlantı",
     colTriage: "Triage",

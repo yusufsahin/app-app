@@ -20,6 +20,7 @@ class ScmLinkDTO:
     title: str | None
     web_url: str
     source: str
+    key_match_source: str | None
     created_by: uuid.UUID | None
     created_at: str | None
     updated_at: str | None

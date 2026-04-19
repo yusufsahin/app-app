@@ -27,7 +27,7 @@ async def _register_and_get_token(client: AsyncClient, email: str, org: str) -> 
         json={
             "email": email,
             "password": "SecurePass123",
-            "display_name": email.split("@")[0],
+            "display_name": email.split("@", maxsplit=1)[0],
             "org_name": org,
         },
     )
@@ -993,6 +993,65 @@ async def test_github_webhook_push_creates_commit_link(client: AsyncClient) -> N
     assert rows[0]["commit_sha"] == sha.lower()[:64]
     assert rows[0]["provider"] == "github"
     assert "github.com/acme/gh-push-repo/commit/" in rows[0]["web_url"]
+    assert rows[0].get("key_match_source") == "branch"
+
+
+@pytest.mark.asyncio
+async def test_github_webhook_push_key_match_source_title_when_branch_has_no_key(client: AsyncClient) -> None:
+    token = await _register_and_get_token(client, _unique_email(), _unique_org())
+    tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+    tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+    project_id = await _ensure_project(client, token, tenant_id)
+
+    secret = "whsec-push-title-slot"
+    patch = await client.patch(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"settings": {"scm_github_webhook_secret": secret}},
+    )
+    assert patch.status_code == 200, patch.text
+
+    root_requirement_id = await _root_id(
+        client, token, org_slug, project_id, tree="requirement", artifact_type="root-requirement"
+    )
+    work = await _create_artifact(
+        client,
+        token,
+        org_slug,
+        project_id,
+        artifact_type="workitem",
+        title="Title-slot story",
+        parent_id=root_requirement_id,
+        artifact_key="TS-303",
+    )
+    artifact_id = work["id"]
+
+    sha = "b" * 40
+    raw = _github_push_payload(
+        ref="refs/heads/develop",
+        commits=[{"id": sha, "message": "fix(TS-303): key only in message", "distinct": True}],
+    )
+    sig = hmac.new(secret.encode("utf-8"), raw, hashlib.sha256).hexdigest()
+
+    wh = await client.post(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/webhooks/github",
+        content=raw,
+        headers={
+            "X-GitHub-Event": "push",
+            "X-Hub-Signature-256": f"sha256={sig}",
+            "Content-Type": "application/json",
+        },
+    )
+    assert wh.status_code == 200, wh.text
+    assert wh.json()["created"] == 1
+
+    links = await client.get(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{artifact_id}/scm-links",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    rows = links.json()
+    assert len(rows) == 1
+    assert rows[0].get("key_match_source") == "title"
 
 
 @pytest.mark.asyncio
@@ -1299,6 +1358,7 @@ async def test_github_webhook_pr_no_match_persists_unmatched_listable(client: As
     )
     assert wh.status_code == 200, wh.text
     assert wh.json()["status"] == "no_match"
+    assert wh.json().get("reason_code") == "artifact_not_found"
 
     listed = await client.get(
         f"/api/v1/orgs/{org_slug}/projects/{project_id}/webhooks/unmatched-events",
@@ -1310,6 +1370,7 @@ async def test_github_webhook_pr_no_match_persists_unmatched_listable(client: As
     assert items[0]["kind"] == "github_pull_request"
     assert items[0]["provider"] == "github"
     assert items[0]["context"]["web_url"] == pr_url
+    assert items[0]["context"].get("reason_code") == "artifact_not_found"
     assert items[0]["context"]["branch"] == "feature/no-work-item-key"
     assert items[0]["dismissed_at"] is None
     event_id = items[0]["id"]
@@ -1885,7 +1946,99 @@ async def test_gitlab_webhook_same_x_gitlab_event_uuid_returns_duplicate_deliver
 
     wh2 = await client.post(url, content=raw, headers=headers)
     assert wh2.status_code == 200, wh2.text
-    assert wh2.json() == {"status": "ignored", "reason": "duplicate_delivery"}
+    assert wh2.json()["status"] == "ignored"
+    assert wh2.json()["reason"] == "duplicate_delivery"
+    assert wh2.json().get("reason_code") == "duplicate_delivery"
+
+
+def _ado_git_push_payload(*, branch: str, commit_msg: str, commit_url: str, sha: str) -> bytes:
+    payload = {
+        "subscriptionId": str(uuid.uuid4()),
+        "notificationId": 9001,
+        "eventType": "git.push",
+        "resource": {
+            "refUpdates": [{"name": f"refs/heads/{branch}", "oldObjectId": "0" * 40, "newObjectId": sha}],
+            "commits": [
+                {
+                    "commitId": sha,
+                    "comment": commit_msg,
+                    "url": commit_url,
+                }
+            ],
+            "repository": {
+                "name": "repo",
+                "webUrl": "https://dev.azure.com/org/proj/_git/repo",
+            },
+        },
+    }
+    return json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+
+@pytest.mark.asyncio
+async def test_azuredevops_webhook_git_push_creates_scm_link(client: AsyncClient) -> None:
+    token = await _register_and_get_token(client, _unique_email(), _unique_org())
+    tenants = (await client.get("/api/v1/tenants/", headers={"Authorization": f"Bearer {token}"})).json()
+    tenant_id, org_slug = tenants[0]["id"], tenants[0]["slug"]
+    project_id = await _ensure_project(client, token, tenant_id)
+
+    ado_secret = "ado-shared-token-xyz"
+    patch = await client.patch(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"settings": {"scm_azuredevops_webhook_secret": ado_secret}},
+    )
+    assert patch.status_code == 200, patch.text
+    patch_body = patch.json()
+    assert patch_body.get("scm_webhook_azuredevops_secret_configured") is True
+    assert "scm_azuredevops_webhook_secret" not in (patch_body.get("settings") or {})
+
+    root_requirement_id = await _root_id(
+        client, token, org_slug, project_id, tree="requirement", artifact_type="root-requirement"
+    )
+    work = await _create_artifact(
+        client,
+        token,
+        org_slug,
+        project_id,
+        artifact_type="workitem",
+        title="ADO push story",
+        parent_id=root_requirement_id,
+        artifact_key="ADO-88",
+    )
+    artifact_id = work["id"]
+
+    sha = "a" * 40
+    commit_url = "https://dev.azure.com/org/proj/_git/repo/commit/" + sha
+    raw = _ado_git_push_payload(
+        branch="feature/ADO-88-desc",
+        commit_msg="feat(ADO-88): from ado",
+        commit_url=commit_url,
+        sha=sha,
+    )
+
+    wh = await client.post(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/webhooks/azuredevops",
+        content=raw,
+        headers={
+            "X-ALM-AzureDevOps-Token": ado_secret,
+            "Content-Type": "application/json",
+        },
+    )
+    assert wh.status_code == 200, wh.text
+    assert wh.json()["status"] == "ok"
+    assert wh.json()["created"] == 1
+
+    links = await client.get(
+        f"/api/v1/orgs/{org_slug}/projects/{project_id}/artifacts/{artifact_id}/scm-links",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert links.status_code == 200
+    rows = links.json()
+    assert len(rows) == 1
+    assert rows[0]["web_url"] == commit_url
+    assert rows[0]["source"] == "webhook"
+    assert rows[0]["provider"] == "azuredevops"
+    assert rows[0].get("key_match_source") == "branch"
 
 
 @pytest.mark.asyncio
@@ -1914,3 +2067,4 @@ async def test_scm_link_create_accepts_source_ci(client: AsyncClient) -> None:
     )
     assert create.status_code == 201, create.text
     assert create.json()["source"] == "ci"
+    assert create.json().get("key_match_source") in (None, "")

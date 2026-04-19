@@ -34,6 +34,7 @@ class CreateScmLink(Command):
     pull_request_number: int | None = None
     title: str | None = None
     source: str = "manual"
+    key_match_source: str | None = None
 
 
 class CreateScmLinkHandler(CommandHandler[ScmLinkDTO]):
@@ -66,8 +67,8 @@ class CreateScmLinkHandler(CommandHandler[ScmLinkDTO]):
 
         parsed = parse_scm_url(web_url)
         provider = (command.provider or (parsed.provider if parsed else None) or "other").strip().lower()
-        if provider not in ("github", "gitlab", "other"):
-            raise ValidationError("provider must be github, gitlab, or other")
+        if provider not in ("github", "gitlab", "azuredevops", "other"):
+            raise ValidationError("provider must be github, gitlab, azuredevops, or other")
 
         repo_full_name = (command.repo_full_name or (parsed.repo_full_name if parsed else "") or "").strip()
         if not repo_full_name:
@@ -104,6 +105,10 @@ class CreateScmLinkHandler(CommandHandler[ScmLinkDTO]):
         if source not in ("manual", "webhook", "ci"):
             raise ValidationError("source must be manual, webhook, or ci")
 
+        key_match_source = (command.key_match_source or "").strip().lower() or None
+        if key_match_source is not None and key_match_source not in ("branch", "title", "body"):
+            raise ValidationError("key_match_source must be branch, title, or body")
+
         link = ScmLink.create(
             project_id=command.project_id,
             artifact_id=command.artifact_id,
@@ -116,6 +121,7 @@ class CreateScmLinkHandler(CommandHandler[ScmLinkDTO]):
             pull_request_number=pr_num,
             title=title,
             source=source,
+            key_match_source=key_match_source,
             created_by=command.created_by,
         )
 
@@ -141,6 +147,7 @@ class CreateScmLinkHandler(CommandHandler[ScmLinkDTO]):
             title=link.title,
             web_url=link.web_url,
             source=link.source,
+            key_match_source=link.key_match_source,
             created_by=link.created_by,
             created_at=link.created_at.isoformat() if link.created_at else None,
             updated_at=link.updated_at.isoformat() if link.updated_at else None,

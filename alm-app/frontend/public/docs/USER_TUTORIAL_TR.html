@@ -1654,17 +1654,18 @@ Deployment  (Ortam + Sürüm)
 <p><strong>Uyarı:</strong> Manifest değişikliği tüm mevcut iş kalemlerini etkiler. Yeni bir durum eklemek zararsızdır, ancak mevcut bir durumu kaldırmak ya da geçiş kuralını değiştirmek beklenmedik sonuçlar doğurabilir. Üretim ortamına uygulamadan önce test edin.</p>
 </blockquote>
 <h3>SCM Entegrasyonu</h3>
-<p>Git commit ve PR&#39;ları iş kalemlerine otomatik bağlamak için:</p>
-<ol>
-<li>GitHub / GitLab projenizde <strong>Webhook</strong> ayarını açın</li>
-<li>ALM&#39;de <strong>Proje Ayarları → SCM</strong> bölümünden webhook URL&#39;sini alın</li>
-<li>Webhook olaylarını seçin: <code>push</code>, <code>pull_request</code></li>
-<li>Commit mesajlarınızda iş kalemi anahtarını kullanın:</li>
-</ol>
-<pre><code>SAMP-42: implement password reset flow
-SAMP-55 fix: resolve redirect loop after login
+<p>Proje seçiliyken sol menüden <strong>Proje → Entegrasyonlar</strong> sayfasına gidin. GitHub, GitLab veya Azure DevOps webhook adreslerini kopyalayıp depo veya Service Hook ayarlarınıza yapıştırın; ardından ALM&#39;de eşleşen gizli anahtarı kaydedin (Azure DevOps için kartta anlatıldığı gibi <code>X-ALM-AzureDevOps-Token</code> başlığı).</p>
+<p>Webhook olayları: GitHub <code>push</code>, <code>pull_request</code>; GitLab <code>Push Hook</code>, <code>Merge Request Hook</code>; Azure DevOps <code>git.push</code> ve PR birleştirme. Eşleşme sırası: <strong>dal adı</strong>, <strong>başlık</strong>, <strong>açıklama</strong> (PR/MR) veya push&#39;ta <strong>tam commit mesajı</strong>. Dal veya mesajda <strong>iş kalemi anahtarını</strong> (proje kodu + numara) kullanın.</p>
+<p>Örnekler:</p>
+<pre><code>Dal:     feature/SAMP-42-password-reset
+Commit:  feat(SAMP-42): implement password reset flow
+PR gövde: SAMP-55 fix: resolve redirect loop after login
 </code></pre>
-<p>Bundan sonra her commit ve PR, ilgili iş kaleminin <strong>Source</strong> sekmesinde otomatik görünür.</p>
+<p>İsteğe bağlı: Görevler sekmesindeki bir görev için <strong>Refs:</strong> satırını (UUID ile) PR veya commit mesajına ekleyin.</p>
+<p><strong>Eşleşmeyen teslimatlar:</strong> <code>project:update</code> yetkisi olanlar Entegrasyonlar sayfasındaki tabloyu inceler, dal/başlık kurallarını düzeltir, satırları çözüldükten sonra kapatır.</p>
+<p>Webhook olmadan da <strong>Kaynak</strong> sekmesinden PR/commit URL&#39;si elle eklenebilir.</p>
+<p>İş kaleminde <strong>İzlenebilirlik</strong> sekmesi <strong>Kaynak</strong> ve <strong>Ortamlar</strong> özetini bir arada gösterir. GitHub Actions, Azure Pipelines ve GitLab CI için dağıtım örnekleri Entegrasyonlar kartında deploy webhook adresinin yanındadır.</p>
+<p>Operasyon metrikleri ve Grafana tarzı paneller için <code>docs/SCM_PROMETHEUS_AND_GRAFANA.md</code>; gizli anahtar rotasyonu için <code>docs/SCM_WEBHOOK_SECRET_ROTATION.md</code> dosyasına bakın.</p>
 <hr>
 <h2>Bölüm 13: Dashboard ve Raporlama</h2>
 <p>Dashboard, organizasyon veya proje düzeyinde özet metrikler ve aktivite akışı sunar.</p>
@@ -2190,6 +2191,9 @@ SAMP-55 fix: resolve redirect loop after login
 <p><strong>S: Test senaryosu olmadan kampanya oluşturabilir miyim?</strong></p>
 <p>Kampanyayı boş oluşturabilirsiniz; testleri daha sonra ekleyebilirsiniz. Ancak test eklenmeden çalıştırma başlatılamaz.</p>
 <hr>
+<p><strong>S: Git webhook&#39;larını nereden ayarlarım?</strong></p>
+<p>Proje seçtikten sonra <strong>Proje → Entegrasyonlar</strong>. URL&#39;leri GitHub, GitLab veya Azure DevOps&#39;a yapıştırıp eşleşen gizli anahtarı veya Azure başlık jetonunu ALM&#39;de kaydedin.</p>
+<hr>
 <h2>Sorun Giderme</h2>
 <table>
 <thead>
@@ -2236,8 +2240,8 @@ SAMP-55 fix: resolve redirect loop after login
 </tr>
 <tr>
 <td>Source sekmesi boş</td>
-<td>Webhook yapılandırılmamış</td>
-<td>Proje Ayarları → SCM → Webhook URL&#39;sini alın ve yapılandırın</td>
+<td>Webhook yok veya Git metninde anahtar yok</td>
+<td>Proje → Entegrasyonlar; veya Kaynak sekmesinden URL ekleyin; dal/mesajda iş kalemi anahtarı kullanın</td>
 </tr>
 <tr>
 <td>Davet e-postası gelmiyor</td>

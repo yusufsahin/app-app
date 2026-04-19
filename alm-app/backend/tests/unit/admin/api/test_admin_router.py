@@ -1,14 +1,14 @@
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from alm.admin.api.router import router, _get_access_audit_store
+from alm.admin.api.router import _get_access_audit_store, router
 from alm.config.dependencies import get_mediator
 from alm.shared.infrastructure.error_handler import register_exception_handlers
-from alm.shared.infrastructure.security.dependencies import get_current_user, CurrentUser
+from alm.shared.infrastructure.security.dependencies import CurrentUser, get_current_user
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def mock_audit_store() -> AsyncMock:
 async def test_list_users_success(app: FastAPI, mock_user: CurrentUser, mock_mediator: AsyncMock):
     # Arrange
     from alm.tenant.application.queries.list_users_for_admin import AdminUserSummary
-    
+
     user_id = uuid.uuid4()
     mock_mediator.query.return_value = [
         AdminUserSummary(
@@ -53,15 +53,15 @@ async def test_list_users_success(app: FastAPI, mock_user: CurrentUser, mock_med
             role_slugs=["member"]
         )
     ]
-    
+
     app.dependency_overrides[get_current_user] = lambda: mock_user
     app.dependency_overrides[get_mediator] = lambda: mock_mediator
-    
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Act
         response = await client.get("/admin/users")
-        
+
         # Assert
         assert response.status_code == 200
         data = response.json()
@@ -74,17 +74,17 @@ async def test_list_users_success(app: FastAPI, mock_user: CurrentUser, mock_med
 async def test_create_user_success(app: FastAPI, mock_user: CurrentUser, mock_mediator: AsyncMock):
     # Arrange
     from alm.tenant.application.commands.create_user_by_admin import CreateUserByAdminResult
-    
+
     user_id = uuid.uuid4()
     mock_mediator.send.return_value = CreateUserByAdminResult(
         user_id=user_id,
         email="new@example.com",
         display_name="New User"
     )
-    
+
     app.dependency_overrides[get_current_user] = lambda: mock_user
     app.dependency_overrides[get_mediator] = lambda: mock_mediator
-    
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Act
@@ -94,7 +94,7 @@ async def test_create_user_success(app: FastAPI, mock_user: CurrentUser, mock_me
             "display_name": "New User",
             "role_slug": "member"
         })
-        
+
         # Assert
         assert response.status_code == 201
         data = response.json()
@@ -107,15 +107,15 @@ async def test_delete_user_success(app: FastAPI, mock_user: CurrentUser, mock_me
     # Arrange
     target_user_id = uuid.uuid4()
     mock_mediator.send.return_value = None
-    
+
     app.dependency_overrides[get_current_user] = lambda: mock_user
     app.dependency_overrides[get_mediator] = lambda: mock_mediator
-    
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Act
         response = await client.delete(f"/admin/users/{target_user_id}")
-        
+
         # Assert
         assert response.status_code == 204
         mock_mediator.send.assert_called_once()
@@ -127,15 +127,15 @@ async def test_get_access_audit_success(app: FastAPI, mock_user: CurrentUser, mo
     mock_audit_store.list_entries.return_value = [
         {"timestamp": "2024-01-01T10:00:00", "type": "LOGIN_SUCCESS", "user_email": "test@example.com"}
     ]
-    
+
     app.dependency_overrides[get_current_user] = lambda: mock_user
     app.dependency_overrides[_get_access_audit_store] = lambda: mock_audit_store
-    
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Act
         response = await client.get("/admin/audit/access?from_date=2024-01-01&limit=50")
-        
+
         # Assert
         assert response.status_code == 200
         data = response.json()
@@ -152,14 +152,14 @@ async def test_admin_router_requires_admin_role(app: FastAPI):
         tenant_id=uuid.uuid4(),
         roles=["member"]
     )
-    
+
     app.dependency_overrides[get_current_user] = lambda: non_admin_user
-    
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Act
         response = await client.get("/admin/users")
-        
+
         # Assert
         assert response.status_code == 403
         assert response.json()["title"] == "Access Denied"

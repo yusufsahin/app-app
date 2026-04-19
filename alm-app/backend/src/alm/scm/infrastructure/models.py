@@ -62,6 +62,7 @@ class ScmLinkModel(Base, TimestampMixin):
     title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     web_url: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(String(32), nullable=False, server_default="manual")
+    key_match_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class ScmWebhookProcessedDeliveryModel(Base):

@@ -4,19 +4,19 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from alm.artifact.domain.entities import Artifact
-from alm.relationship.domain.entities import Relationship
 from alm.quality.application.queries import requirement_coverage_analysis as rca_mod
 from alm.quality.application.queries.requirement_coverage_analysis import (
     MAX_COVERAGE_ARTIFACTS_WITHOUT_UNDER,
     RequirementCoverageAnalysis,
     RequirementCoverageAnalysisHandler,
 )
+from alm.relationship.domain.entities import Relationship
 from alm.shared.domain.exceptions import ValidationError
 
 
@@ -226,7 +226,7 @@ async def test_single_requirement_with_verifies_and_passed_run() -> None:
                 }
             )
         },
-        updated_at=datetime(2025, 3, 1, 10, 0, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 3, 1, 10, 0, 0, tzinfo=UTC),
     )
 
     vlink = Relationship.create(

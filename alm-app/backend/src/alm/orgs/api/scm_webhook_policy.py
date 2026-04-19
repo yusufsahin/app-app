@@ -9,8 +9,12 @@ import structlog
 
 logger = structlog.get_logger()
 
+# Bound regex size and execution surface (pathological patterns can DoS the webhook worker).
+_SCM_WEBHOOK_BRANCH_REGEX_MAX_LEN = 256
+
 SCM_WEBHOOK_GITHUB_ENABLED_KEY = "scm_webhook_github_enabled"
 SCM_WEBHOOK_GITLAB_ENABLED_KEY = "scm_webhook_gitlab_enabled"
+SCM_WEBHOOK_AZUREDEVOPS_ENABLED_KEY = "scm_webhook_azuredevops_enabled"
 SCM_WEBHOOK_PUSH_BRANCH_REGEX_KEY = "scm_webhook_push_branch_regex"
 
 
@@ -29,8 +33,19 @@ def scm_webhook_gitlab_processing_enabled(settings: dict[str, Any] | None) -> bo
     return v is not False
 
 
+def scm_webhook_azuredevops_processing_enabled(settings: dict[str, Any] | None) -> bool:
+    if not settings:
+        return True
+    v = settings.get(SCM_WEBHOOK_AZUREDEVOPS_ENABLED_KEY)
+    return v is not False
+
+
 def scm_webhook_push_branch_matches_policy(branch: str, settings: dict[str, Any] | None) -> bool:
-    """If `scm_webhook_push_branch_regex` is a non-empty string, branch must match (re.search). Empty/absent = all branches."""
+    """If `scm_webhook_push_branch_regex` is set, branch must match.
+
+    Empty/absent regex = all branches allowed. Invalid or oversized regex **denies** matches (fail-closed)
+    so operators notice misconfiguration instead of silently accepting every branch.
+    """
     if not settings or not branch:
         return True
     raw = settings.get(SCM_WEBHOOK_PUSH_BRANCH_REGEX_KEY)
@@ -38,12 +53,24 @@ def scm_webhook_push_branch_matches_policy(branch: str, settings: dict[str, Any]
         return True
     if not isinstance(raw, str):
         logger.warning("scm_webhook_push_branch_regex_wrong_type", type_name=type(raw).__name__)
-        return True
+        return False
     pattern = raw.strip()
     if not pattern:
         return True
+    if len(pattern) > _SCM_WEBHOOK_BRANCH_REGEX_MAX_LEN:
+        logger.warning(
+            "scm_webhook_push_branch_regex_too_long",
+            length=len(pattern),
+            limit=_SCM_WEBHOOK_BRANCH_REGEX_MAX_LEN,
+        )
+        return False
     try:
-        return re.search(pattern, branch) is not None
+        cre = re.compile(pattern)
     except re.error as e:
         logger.warning("scm_webhook_push_branch_regex_invalid", error=str(e), pattern=pattern[:80])
-        return True
+        return False
+    try:
+        return cre.search(branch[:4096]) is not None
+    except Exception as e:
+        logger.warning("scm_webhook_push_branch_regex_match_failed", error=str(e))
+        return False

@@ -21,6 +21,7 @@ export interface TraceabilityScmLinkSummaryItem {
   commit_sha: string | null;
   provider: string;
   title: string | null;
+  key_match_source?: string | null;
 }
 
 export interface ArtifactTraceabilitySummary {

@@ -34,6 +34,25 @@ roles:
       - "member:read"
       - "member:invite"
 
+  - name: Member
+    slug: member
+    description: Standard collaborative tenant member (default for admin-created users)
+    is_system: true
+    hierarchy_level: 15
+    privileges:
+      - "project:read"
+      - "artifact:read"
+      - "artifact:update"
+      - "artifact:comment"
+      - "artifact:transition"
+      - "task:create"
+      - "task:read"
+      - "task:update"
+      - "task:delete"
+      - "task:assign"
+      - "workflow:read"
+      - "manifest:read"
+
   - name: Developer
     slug: developer
     description: Work on assigned artifacts and tasks

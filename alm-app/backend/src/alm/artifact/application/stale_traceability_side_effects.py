@@ -88,9 +88,7 @@ async def _mark_linked_quality_stale(
 
 
 async def on_upstream_planning_changed_mark_linked_tests_stale(event: DomainEvent) -> None:
-    if isinstance(event, ArtifactStateChanged):
-        aid, pid = event.artifact_id, event.project_id
-    elif isinstance(event, ArtifactUpdated):
+    if isinstance(event, (ArtifactStateChanged, ArtifactUpdated)):
         aid, pid = event.artifact_id, event.project_id
     else:
         return

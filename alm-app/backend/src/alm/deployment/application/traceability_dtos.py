@@ -13,6 +13,7 @@ class ScmLinkSummaryItemDTO:
     commit_sha: str | None
     provider: str
     title: str | None
+    key_match_source: str | None = None
 
 
 @dataclass(frozen=True)

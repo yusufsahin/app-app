@@ -68,7 +68,7 @@ export default function TenantSelectorPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
+    <div className="flex min-h-svh w-full flex-col items-center justify-center bg-background p-6">
       <h1 className="text-2xl font-semibold text-primary">ALM Manifest</h1>
       <p className="mb-4 mt-2 text-lg text-muted-foreground">Select an organization</p>
 

@@ -78,6 +78,7 @@ class GetArtifactTraceabilitySummaryHandler(QueryHandler[ArtifactTraceabilitySum
                 commit_sha=link.commit_sha,
                 provider=link.provider,
                 title=link.title,
+                key_match_source=link.key_match_source,
             )
             for link in scm_entities
         ]

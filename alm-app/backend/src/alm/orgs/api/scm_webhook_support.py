@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import exists, select
 from sqlalchemy.exc import IntegrityError
@@ -24,6 +24,7 @@ from alm.tenant.infrastructure.models import TenantModel
 
 SCM_GITHUB_WEBHOOK_SECRET_KEY = "scm_github_webhook_secret"
 SCM_GITLAB_WEBHOOK_SECRET_KEY = "scm_gitlab_webhook_secret"
+SCM_AZURE_DEVOPS_WEBHOOK_SECRET_KEY = "scm_azuredevops_webhook_secret"
 
 # Reject oversized payloads before JSON parse (metadata-only webhooks; tune via reverse proxy if needed).
 SCM_WEBHOOK_MAX_BODY_BYTES = 1024 * 1024
@@ -33,6 +34,8 @@ SCM_WEBHOOK_MAX_PUSH_COMMITS = 32
 
 # Cap persisted unmatched rows per webhook delivery (avoid flooding on huge pushes).
 SCM_WEBHOOK_MAX_UNMATCHED_RECORDS_PER_REQUEST = 20
+
+ScmKeyMatchSource = Literal["branch", "title", "body"]
 
 # GitHub X-GitHub-Delivery / GitLab X-Gitlab-Event-UUID (enterprise idempotency).
 SCM_WEBHOOK_MAX_DELIVERY_ID_LEN = 128
@@ -75,8 +78,14 @@ async def record_webhook_delivery_processed(
     project_id: uuid.UUID,
     provider: str,
     delivery_id: str | None,
+    *,
+    commit: bool = True,
 ) -> None:
-    """Persist delivery id after a terminal 200 outcome (separate commit; safe after Mediator.commit)."""
+    """Stage processed delivery id for commit.
+
+    Use ``commit=False`` when combining with ``Mediator.send(..., commit=False)`` so SCM rows and idempotency
+    rows commit together (see webhook routes). When ``commit=True``, commits immediately (legacy callers).
+    """
     did = normalize_webhook_delivery_id(delivery_id)
     if did is None:
         return
@@ -89,10 +98,28 @@ async def record_webhook_delivery_processed(
             delivery_id=did,
         )
     )
+    await session.flush()
+    if not commit:
+        return
     try:
         await session.commit()
     except IntegrityError:
         await session.rollback()
+
+
+def attach_reason_code_to_webhook_body(body: dict[str, Any]) -> dict[str, Any]:
+    """Normalize API JSON with stable reason_code for ignored/no_match responses."""
+    out = dict(body)
+    if out.get("reason_code") is not None:
+        return out
+    st = out.get("status")
+    if st == "no_match":
+        out["reason_code"] = "artifact_not_found"
+        return out
+    if st == "ignored" and isinstance(out.get("reason"), str):
+        out["reason_code"] = out["reason"]
+        return out
+    return out
 
 
 def sanitize_unmatched_context(raw: dict[str, Any], *, max_str: int = 500) -> dict[str, Any]:
@@ -127,13 +154,17 @@ async def persist_webhook_unmatched_events(
                 context=sanitize_unmatched_context(ctx),
             )
         )
-        alm_scm_webhook_unmatched_rows_persisted_total.labels(provider=pv, kind=kd).inc()
+        raw_reason = ctx.get("reason_code")
+        reason = raw_reason.strip().lower()[:64] if isinstance(raw_reason, str) and raw_reason.strip() else "unspecified"
+        alm_scm_webhook_unmatched_rows_persisted_total.labels(provider=pv, kind=kd, reason=reason).inc()
     await session.flush()
 
 
-def record_push_commit_no_artifact_match(*, provider: str) -> None:
+def record_push_commit_no_artifact_match(*, provider: str, reason: str = "artifact_not_found") -> None:
     """Count push commits where artifact_for_pr_fields returned no artifact."""
-    alm_scm_webhook_push_commits_no_artifact_total.labels(provider=provider.strip().lower()[:16]).inc()
+    pv = provider.strip().lower()[:16]
+    rs = (reason or "artifact_not_found").strip().lower()[:64] or "artifact_not_found"
+    alm_scm_webhook_push_commits_no_artifact_total.labels(provider=pv, reason=rs).inc()
 
 
 def branch_short_name_from_ref(ref: str | None) -> str | None:
@@ -204,13 +235,18 @@ async def artifact_for_pr_fields(
     title: str,
     body_text: str,
     artifact_repo: SqlAlchemyArtifactRepository,
-) -> Artifact | None:
+) -> tuple[Artifact | None, ScmKeyMatchSource | None]:
     """Resolve artifact: branch → title → body; first hint that matches an artifact wins.
 
     Push handlers pass the **full** commit message as ``title`` so subject, body, and footers
     (e.g. ``Story:``) participate in the same order as §4 Faz S3 (branch name, then message text).
+
+    Returns ``(artifact, key_match_source)`` where ``key_match_source`` is which text slot produced
+    the winning key (``branch``, ``title``, or ``body``). For push events the commit message is
+    scanned under the ``title`` slot by convention.
     """
-    for part in (head_ref, title, body_text):
+    slots: tuple[tuple[ScmKeyMatchSource, str], ...] = (("branch", head_ref), ("title", title), ("body", body_text))
+    for slot, part in slots:
         if not (part or "").strip():
             continue
         hints = extract_artifact_key_hints(part)
@@ -221,5 +257,5 @@ async def artifact_for_pr_fields(
         for h in hints:
             art = by_upper.get(h.strip().upper())
             if art is not None:
-                return art
-    return None
+                return art, slot
+    return None, None

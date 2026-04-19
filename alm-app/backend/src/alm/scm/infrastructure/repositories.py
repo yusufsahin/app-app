@@ -48,6 +48,7 @@ class SqlAlchemyScmLinkRepository(ScmLinkRepository):
             title=link.title,
             web_url=link.web_url,
             source=link.source,
+            key_match_source=link.key_match_source,
             created_by=link.created_by,
         )
         self._session.add(model)
@@ -74,6 +75,7 @@ class SqlAlchemyScmLinkRepository(ScmLinkRepository):
             title=m.title,
             web_url=m.web_url,
             source=m.source,
+            key_match_source=m.key_match_source,
             created_by=m.created_by,
             created_at=m.created_at,
             updated_at=m.updated_at,

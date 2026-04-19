@@ -11,7 +11,7 @@ async def test_find_version_by_template_slug():
     # Arrange
     session = AsyncMock()
     repo = SqlAlchemyProcessTemplateRepository(session)
-    
+
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = MagicMock(
         id=uuid.uuid4(),
@@ -20,10 +20,10 @@ async def test_find_version_by_template_slug():
         manifest_bundle={}
     )
     session.execute.return_value = mock_result
-    
+
     # Act
     result = await repo.find_version_by_template_slug("basic")
-    
+
     # Assert
     assert result is not None
     assert result.version == "v1"
@@ -36,17 +36,17 @@ async def test_add_version():
     session = AsyncMock()
     session.add = Mock()
     repo = SqlAlchemyProcessTemplateRepository(session)
-    
+
     version = MagicMock(
         id=uuid.uuid4(),
         template_id=uuid.uuid4(),
         version="v2",
         manifest_bundle={}
     )
-    
+
     # Act
     result = await repo.add_version(version)
-    
+
     # Assert
     assert result == version
     session.add.assert_called()

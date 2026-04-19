@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
 
-from alm.relationship.domain.entities import Relationship
 from alm.quality.application.execution_linked_tests import linked_execution_test_ids_for_run
+from alm.relationship.domain.entities import Relationship
 
 pid = uuid.uuid4()
 

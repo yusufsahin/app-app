@@ -57,6 +57,7 @@ class ListScmLinksByArtifactHandler(QueryHandler[list[ScmLinkDTO]]):
                 title=r.title,
                 web_url=r.web_url,
                 source=r.source,
+                key_match_source=r.key_match_source,
                 created_by=r.created_by,
                 created_at=r.created_at.isoformat() if r.created_at else None,
                 updated_at=r.updated_at.isoformat() if r.updated_at else None,

@@ -26,7 +26,7 @@ cd backend
 
 Ortam için `.env` oluşturun (örnek: `cp .env.example .env`) ve gerekirse düzenleyin:
 
-- `ALM_DATABASE_URL` – PostgreSQL bağlantı URL’i
+- `ALM_DATABASE_URL` – PostgreSQL bağlantı URL’i (Docker ile yerel DB için varsayılan: `localhost:5433`, bkz. aşağı)
 - `ALM_REDIS_URL` – Redis URL’i
 - `ALM_JWT_SECRET_KEY` – Üretimde mutlaka değiştirin
 
@@ -42,6 +42,14 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 ```
+
+**Docker ile sadece Postgres + Redis + MailHog (uv / npm host’ta):** `alm-app` kökünde:
+
+```bash
+docker compose -f docker-compose.local.yml up -d
+```
+
+Ardından `backend/.env` içinde `ALM_DATABASE_URL` ... `@localhost:5433/alm` olmalıdır (`backend/.env.example` ile uyumludur). Durdurma: `docker compose -f docker-compose.local.yml down` (veriyi silmek: `-v`).
 
 Veritabanı migrasyonları:
 
@@ -107,7 +115,9 @@ docker compose up --build -d
 
 On Windows, use `.\docker-build-local.ps1` from `alm-app` so `ALM_DOCKER_CONTEXT` points at the directory that contains `alm-manifest-app` (see `DEPLOY.md`).
 
-Migration'lar backend başlarken otomatik çalışır. Durdurmak: `docker compose down` (verileri silmek: `-v`). Sadece DB/Redis: `docker compose up -d db redis mailhog`.
+Migration'lar backend başlarken otomatik çalışır. Durdurmak: `docker compose down` (verileri silmek: `-v`).
+
+**Host’ta backend çalıştırıyorsanız** tam `docker compose` yerine yalnızca altyapı için `docker compose -f docker-compose.local.yml up -d` kullanın; Redis bu dosyada `6379` portunda yayınlanır (ana `docker-compose.yml` içinde Redis host portu kapalı olabilir).
 
 ## Yapı
 

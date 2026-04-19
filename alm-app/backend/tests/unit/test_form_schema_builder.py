@@ -12,6 +12,8 @@ from alm.form_schema.application.builders.manifest_form_schema_builder import (
 )
 from tests.support.manifests import (
     FORM_SCHEMA_BUILDER_MANIFEST as SAMPLE_MANIFEST,
+)
+from tests.support.manifests import (
     FORM_SCHEMA_TASK_WORKFLOW_MANIFEST,
 )
 

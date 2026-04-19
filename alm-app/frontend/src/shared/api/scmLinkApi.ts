@@ -17,6 +17,8 @@ export interface ScmLink {
   title: string | null;
   web_url: string;
   source: string;
+  /** Webhook-only: which text slot produced the winning artifact key (branch, title, body). */
+  key_match_source?: string | null;
   created_by: string | null;
   created_at: string | null;
   updated_at: string | null;

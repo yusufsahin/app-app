@@ -2,9 +2,9 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from tests.support.mocks import empty_project_tag_repo, simple_manifest_ast
 
 from alm.artifact.application.commands.create_artifact import CreateArtifact, CreateArtifactHandler
-from tests.support.mocks import empty_project_tag_repo, simple_manifest_ast
 from alm.shared.domain.exceptions import ValidationError
 
 
@@ -41,11 +41,13 @@ async def test_create_artifact_success():
     )
 
     # Act
-    with patch("alm.artifact.application.commands.create_artifact.get_manifest_ast", return_value=simple_manifest_ast()):
-        with patch("alm.artifact.application.commands.create_artifact.workflow_get_initial_state", return_value="Open"):
-            with patch("alm.artifact.application.commands.create_artifact.is_valid_parent_child", return_value=True):
-                result = await handler.handle(command)
-    
+    with (
+        patch("alm.artifact.application.commands.create_artifact.get_manifest_ast", return_value=simple_manifest_ast()),
+        patch("alm.artifact.application.commands.create_artifact.workflow_get_initial_state", return_value="Open"),
+        patch("alm.artifact.application.commands.create_artifact.is_valid_parent_child", return_value=True),
+    ):
+        result = await handler.handle(command)
+
     # Assert
     assert result.title == "New Req"
     assert result.artifact_key == "PRJ-101"
@@ -59,18 +61,18 @@ async def test_create_artifact_invalid_parent():
     tenant_id = uuid.uuid4()
     project_id = uuid.uuid4()
     parent_id = uuid.uuid4()
-    
+
     project = MagicMock(tenant_id=tenant_id, process_template_version_id=uuid.uuid4())
     project_repo = AsyncMock()
     project_repo.find_by_id.return_value = project
-    
+
     parent = MagicMock(artifact_type="defect", project_id=project_id)
     artifact_repo = AsyncMock()
     artifact_repo.find_by_id.return_value = parent
-    
+
     process_template_repo = AsyncMock()
     process_template_repo.find_version_by_id.return_value = MagicMock(manifest_bundle={})
-    
+
     tag_repo = empty_project_tag_repo()
     handler = CreateArtifactHandler(artifact_repo, project_repo, process_template_repo, AsyncMock(), tag_repo)
     command = CreateArtifact(
@@ -80,13 +82,15 @@ async def test_create_artifact_invalid_parent():
         title="Invalid Parent",
         parent_id=parent_id
     )
-    
+
     # Act & Assert
-    with patch("alm.artifact.application.commands.create_artifact.get_manifest_ast", return_value=simple_manifest_ast()):
-        with patch("alm.artifact.application.commands.create_artifact.workflow_get_initial_state", return_value="Open"):
-            with patch("alm.artifact.application.commands.create_artifact.is_valid_parent_child", return_value=False):
-                with pytest.raises(ValidationError, match="cannot be child of"):
-                    await handler.handle(command)
+    with (
+        patch("alm.artifact.application.commands.create_artifact.get_manifest_ast", return_value=simple_manifest_ast()),
+        patch("alm.artifact.application.commands.create_artifact.workflow_get_initial_state", return_value="Open"),
+        patch("alm.artifact.application.commands.create_artifact.is_valid_parent_child", return_value=False),
+        pytest.raises(ValidationError, match="cannot be child of"),
+    ):
+        await handler.handle(command)
 
 
 @pytest.mark.asyncio
@@ -126,20 +130,17 @@ async def test_create_defect_without_parent_resolves_root_defect():
     with patch(
         "alm.artifact.application.commands.create_artifact.get_manifest_ast",
         return_value=simple_manifest_ast(),
+    ), patch(
+        "alm.artifact.application.commands.create_artifact.workflow_get_initial_state",
+        return_value="new",
+    ), patch(
+        "alm.artifact.application.commands.create_artifact.get_artifact_type_def",
+        return_value={"parent_types": ["root-defect"]},
+    ), patch(
+        "alm.artifact.application.commands.create_artifact.is_valid_parent_child",
+        return_value=True,
     ):
-        with patch(
-            "alm.artifact.application.commands.create_artifact.workflow_get_initial_state",
-            return_value="new",
-        ):
-            with patch(
-                "alm.artifact.application.commands.create_artifact.get_artifact_type_def",
-                return_value={"parent_types": ["root-defect"]},
-            ):
-                with patch(
-                    "alm.artifact.application.commands.create_artifact.is_valid_parent_child",
-                    return_value=True,
-                ):
-                    result = await handler.handle(command)
+        result = await handler.handle(command)
 
     assert result.parent_id == root_defect_id
     created = artifact_repo.add.call_args[0][0]
@@ -166,15 +167,17 @@ async def test_create_system_root_via_api_rejected():
         title="Extra root",
         parent_id=None,
     )
-    with patch("alm.artifact.application.commands.create_artifact.get_manifest_ast", return_value=simple_manifest_ast()):
-        with patch(
+    with (
+        patch("alm.artifact.application.commands.create_artifact.get_manifest_ast", return_value=simple_manifest_ast()),
+        patch(
             "alm.artifact.application.commands.create_artifact.workflow_get_initial_state",
             return_value="Active",
-        ):
-            with patch(
-                "alm.artifact.application.commands.create_artifact.get_artifact_type_def",
-                return_value={"child_types": []},
-            ):
-                with pytest.raises(ValidationError, match="System tree roots"):
-                    await handler.handle(command)
+        ),
+        patch(
+            "alm.artifact.application.commands.create_artifact.get_artifact_type_def",
+            return_value={"child_types": []},
+        ),
+        pytest.raises(ValidationError, match="System tree roots"),
+    ):
+        await handler.handle(command)
     artifact_repo.add.assert_not_awaited()

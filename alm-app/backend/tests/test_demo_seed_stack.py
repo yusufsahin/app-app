@@ -21,25 +21,25 @@ from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-import alm.admin.infrastructure.models  # noqa: F401
-import alm.area.infrastructure.models  # noqa: F401
-import alm.artifact.infrastructure.models  # noqa: F401
-import alm.attachment.infrastructure.models  # noqa: F401
-import alm.auth.infrastructure.models  # noqa: F401
-import alm.capacity.infrastructure.models  # noqa: F401
-import alm.comment.infrastructure.models  # noqa: F401
-import alm.cycle.infrastructure.models  # noqa: F401
-import alm.process_template.infrastructure.models  # noqa: F401
-import alm.project.infrastructure.models  # noqa: F401
-import alm.project.infrastructure.project_member_models  # noqa: F401
-import alm.project_tag.infrastructure.models  # noqa: F401
-import alm.relationship.infrastructure.models  # noqa: F401
-import alm.saved_query.infrastructure.models  # noqa: F401
-import alm.shared.audit.models  # noqa: F401
-import alm.task.infrastructure.models  # noqa: F401
-import alm.team.infrastructure.models  # noqa: F401
-import alm.tenant.infrastructure.models  # noqa: F401
-import alm.workflow_rule.infrastructure.models  # noqa: F401
+import alm.admin.infrastructure.models
+import alm.area.infrastructure.models
+import alm.artifact.infrastructure.models
+import alm.attachment.infrastructure.models
+import alm.auth.infrastructure.models
+import alm.capacity.infrastructure.models
+import alm.comment.infrastructure.models
+import alm.cycle.infrastructure.models
+import alm.process_template.infrastructure.models
+import alm.project.infrastructure.models
+import alm.project.infrastructure.project_member_models
+import alm.project_tag.infrastructure.models
+import alm.relationship.infrastructure.models
+import alm.saved_query.infrastructure.models
+import alm.shared.audit.models
+import alm.task.infrastructure.models
+import alm.team.infrastructure.models
+import alm.tenant.infrastructure.models
+import alm.workflow_rule.infrastructure.models  # noqa: F401 — ORM side effect (table metadata)
 from alm.config.seed import DEMO_EMAIL, DEMO_PASSWORD, run_startup_seeds
 from alm.shared.infrastructure.db.base_model import Base
 
@@ -104,7 +104,7 @@ async def _ensure_database(url: str) -> None:
                 log.info("demo_seed_isolated_db_exists database=%s", db_name)
         finally:
             await conn.close()
-    except Exception as exc:  # noqa: BLE001 — surface as pytest failure context
+    except Exception as exc:
         pytest.fail(f"Could not ensure isolated demo DB {db_name!r}: {exc}")
 
 
@@ -113,16 +113,16 @@ async def _noop_subscriber() -> None:
 
 
 class _FakePermissionCache:
-    async def get(self, tenant_id, user_id):  # noqa: ANN001
+    async def get(self, tenant_id, user_id):
         return None
 
-    async def set(self, tenant_id, user_id, codes):  # noqa: ANN001
+    async def set(self, tenant_id, user_id, codes):
         pass
 
-    async def invalidate_user(self, tenant_id, user_id):  # noqa: ANN001
+    async def invalidate_user(self, tenant_id, user_id):
         pass
 
-    async def invalidate_tenant(self, tenant_id):  # noqa: ANN001
+    async def invalidate_tenant(self, tenant_id):
         pass
 
 

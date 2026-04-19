@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -163,7 +163,7 @@ async def test_list_relationships_for_artifact_builds_incoming_and_outgoing_view
         target_artifact_id=target_id,
         relationship_type="verifies",
         id=uuid.uuid4(),
-        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
         sort_order=3,
     )
     incoming_relationship = Relationship(
@@ -172,7 +172,7 @@ async def test_list_relationships_for_artifact_builds_incoming_and_outgoing_view
         target_artifact_id=current_id,
         relationship_type="blocks",
         id=uuid.uuid4(),
-        created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        created_at=datetime(2026, 1, 2, tzinfo=UTC),
     )
 
     project_repo = AsyncMock()

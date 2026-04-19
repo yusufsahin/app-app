@@ -86,7 +86,7 @@ export default function ProjectReportsPage() {
   const [quickRunError, setQuickRunError] = useState<string | null>(null);
   const [quickRunRowLimit, setQuickRunRowLimit] = useState(5000);
 
-  const definitionRows = definitions ?? [];
+  const definitionRows = useMemo(() => definitions ?? [], [definitions]);
   const filteredDefinitions = useMemo(() => {
     const q = listSearch.trim().toLowerCase();
     let rows = [...definitionRows];
@@ -104,30 +104,27 @@ export default function ProjectReportsPage() {
   }, [definitionRows, listSearch, listSort]);
 
   const defaultRegistryId = registry[0]?.id ?? "";
+  const effectiveQuickReportId = quickReportId || defaultRegistryId;
   const selectedRegistryItem = useMemo(
-    () => registry.find((r) => r.id === quickReportId) ?? null,
-    [registry, quickReportId],
+    () => registry.find((r) => r.id === effectiveQuickReportId) ?? null,
+    [registry, effectiveQuickReportId],
   );
 
   useEffect(() => {
-    if (!quickReportId && defaultRegistryId) {
-      setQuickReportId(defaultRegistryId);
-    }
-  }, [quickReportId, defaultRegistryId]);
-
-  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset row limit when switching registry report
     setQuickRunRowLimit(5000);
   }, [quickReportId]);
 
   const paramsTouched = useRef(false);
   useEffect(() => {
-    if (!projectId || !quickReportId || paramsTouched.current) return;
+    if (!projectId || !effectiveQuickReportId || paramsTouched.current) return;
     if (paramsJson.trim() !== "{}") return;
     const defaults = selectedRegistryItem
       ? registryDefaultParams(selectedRegistryItem.parameter_schema, { projectId })
       : { project_id: projectId };
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialize JSON defaults once registry selection resolves
     setParamsJson(Object.keys(defaults).length ? JSON.stringify(defaults, null, 2) : "{}");
-  }, [projectId, quickReportId, selectedRegistryItem, paramsJson]);
+  }, [projectId, effectiveQuickReportId, selectedRegistryItem, paramsJson]);
 
   const quickRunSeriesExport = useMemo(
     () => (lastRegistryResult ? registrySeriesTable(lastRegistryResult.data) : null),
@@ -158,13 +155,13 @@ export default function ProjectReportsPage() {
       setParamsError(t("new.invalidJson"));
       return;
     }
-    if (!quickReportId) {
+    if (!effectiveQuickReportId) {
       setParamsError(t("new.builtinRequired"));
       return;
     }
     try {
       const res = await runRegistry.mutateAsync({
-        report_id: quickReportId,
+        report_id: effectiveQuickReportId,
         parameters,
         row_limit: quickRunRowLimit,
       });

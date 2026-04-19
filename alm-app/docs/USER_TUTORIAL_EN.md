@@ -517,14 +517,27 @@ You can version manifests, validate YAML, and activate new versions.
 
 ### SCM Integration
 
-Configure webhook events (`push`, `pull_request`) and include work item keys in commit messages:
+Open **Project → Integrations** (sidebar under the selected project). Copy the GitHub, GitLab, or Azure DevOps webhook URLs into your repository or service hook settings, then save the matching secret in ALM (GitHub/GitLab shared secret; Azure DevOps uses HTTP header `X-ALM-AzureDevOps-Token` as documented on the card).
+
+Configure webhook events (`push`, `pull_request` on GitHub; `Push Hook` / `Merge Request Hook` on GitLab; Azure DevOps `git.push` and pull request merge). Include your **work item key** (project code + number) in branch names, commit subjects, or PR descriptions. Matching order is: **branch name**, then **title**, then **description** (or full commit message on push).
+
+Example patterns:
 
 ```text
-SAMP-42: implement password reset flow
-SAMP-55 fix: resolve redirect loop after login
+Branch:  feature/SAMP-42-password-reset
+Commit:  feat(SAMP-42): implement password reset flow
+PR body: SAMP-55 fix: resolve redirect loop after login
 ```
 
-Commits/PRs will appear automatically in the Source tab.
+Optional: add a `Refs:` line with a **task UUID** from the work item Tasks tab so the SCM link attaches to that task.
+
+**Unmatched deliveries triage:** Project owners with `project:update` review the unmatched table on Integrations, fix branch/title conventions, then dismiss rows when resolved.
+
+Commits/PRs appear under the work item **Source** tab when a key matches; you can always add a PR or commit URL manually there without webhooks.
+
+The work item **Traceability** tab shows **Source** and **Environments** together for a quick end-to-end view. CI examples for GitHub Actions, Azure Pipelines, and GitLab CI live on the Integrations card next to the deploy webhook URL.
+
+For operations metrics and Grafana-style dashboards, see `docs/SCM_PROMETHEUS_AND_GRAFANA.md`. For rotating webhook secrets safely, see `docs/SCM_WEBHOOK_SECRET_ROTATION.md`.
 
 ---
 
@@ -628,6 +641,10 @@ Yes. Save query with **Project** scope.
 
 You can create an empty campaign, but cannot start runs until tests are added.
 
+### Where do I configure Git webhooks?
+
+**Project → Integrations** after selecting the project. Use the copied URLs in GitHub, GitLab, or Azure DevOps and save the matching secrets (or Azure DevOps header token) in ALM.
+
 ---
 
 ## Troubleshooting
@@ -641,7 +658,7 @@ You can create an empty campaign, but cannot start runs until tests are added.
 | Card cannot move | Invalid transition / missing permission | Check manifest and permissions |
 | All traceability rows are gray | Tests not linked to requirements | Add `traces-to` links |
 | Manifest activation fails | Schema validation error | Fix highlighted YAML lines |
-| Source tab is empty | Webhook not configured | Configure SCM webhook |
+| Source tab is empty | Webhook not configured / no key in git metadata | Project → Integrations for webhooks; or paste PR/commit URL on Source tab; include work item key in branch or message |
 | Invite email not delivered | SMTP not configured | Ask admin for direct invite link |
 
 ---

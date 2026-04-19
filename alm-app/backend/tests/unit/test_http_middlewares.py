@@ -170,9 +170,9 @@ class TestTenantContextMiddleware:
                 return_value=SimpleNamespace(tid=tenant_id),
             ),
             patch("alm.shared.infrastructure.tenant_middleware.set_current_tenant_id") as set_tenant,
+            pytest.raises(RuntimeError, match="boom"),
         ):
-            with pytest.raises(RuntimeError, match="boom"):
-                await middleware.dispatch(request, call_next)
+            await middleware.dispatch(request, call_next)
 
         assert set_tenant.call_args_list == [call(tenant_id), call(None)]
 

@@ -35,6 +35,9 @@ const ProjectsPage = lazy(
 const ProjectDetailPage = lazy(
   () => import("../features/projects/pages/ProjectDetailPage"),
 );
+const ProjectIntegrationsPage = lazy(
+  () => import("../features/projects/pages/ProjectIntegrationsPage"),
+);
 const MemberManagementPage = lazy(
   () => import("../features/settings/pages/MemberManagementPage"),
 );
@@ -284,6 +287,10 @@ export const router = createBrowserRouter([
           {
             path: ":projectSlug/automation",
             element: withPermission("project:read", AutomationPage),
+          },
+          {
+            path: ":projectSlug/integrations",
+            element: withPermission("project:read", ProjectIntegrationsPage),
           },
           { path: ":projectSlug", element: withPermission("project:read", ProjectDetailPage) },
         ],

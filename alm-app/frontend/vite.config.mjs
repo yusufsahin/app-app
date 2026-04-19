@@ -92,6 +92,12 @@ function syncUserTutorialMarkdown() {
 
 export default defineConfig({
   plugins: [syncUserTutorialMarkdown(), react(), tailwindcss()],
+  resolve: {
+    alias: {
+      // Matches tsconfig paths; ensures Docker/production builds resolve the workspace package without relying on npm symlinks.
+      "@alm/manifest-types": path.resolve(__dirname, "../packages/manifest-types/src/index.ts"),
+    },
+  },
   build: {
     chunkSizeWarningLimit: 600,
     rollupOptions: {

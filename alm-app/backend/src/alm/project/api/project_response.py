@@ -10,7 +10,7 @@ from alm.project.application.dtos import ProjectDTO
 
 
 def project_dto_to_response(dto: ProjectDTO) -> ProjectResponse:
-    gh, gl = scm_webhook_secret_configured_flags(dto.settings)
+    gh, gl, ado = scm_webhook_secret_configured_flags(dto.settings)
     dep = deploy_webhook_secret_configured(dto.settings)
     return ProjectResponse(
         id=dto.id,
@@ -23,5 +23,6 @@ def project_dto_to_response(dto: ProjectDTO) -> ProjectResponse:
         metadata=dto.metadata_,
         scm_webhook_github_secret_configured=gh,
         scm_webhook_gitlab_secret_configured=gl,
+        scm_webhook_azuredevops_secret_configured=ado,
         deploy_webhook_secret_configured=dep,
     )

@@ -66,6 +66,8 @@ export default function ProjectReportDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
+    // Reset preview row limit when navigating between reports.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset when `reportId` changes
     setPreviewRowLimit(5000);
   }, [reportId]);
 

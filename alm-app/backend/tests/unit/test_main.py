@@ -41,14 +41,31 @@ class TestCreateApp:
 
 class TestLifespan:
     @pytest.mark.asyncio
-    async def test_rejects_default_jwt_secret_in_non_debug(self) -> None:
+    async def test_rejects_default_jwt_secret_in_production(self) -> None:
+        strong_secret = "x" * 32
         with (
-            patch("alm.main.settings.debug", False),
+            patch("alm.main.settings.environment", "production"),
             patch("alm.main.settings.jwt_secret_key", "CHANGE-ME-IN-PRODUCTION"),
+            patch("alm.main.settings.seed_demo_data", False),pytest.raises(RuntimeError, match="JWT_SECRET_KEY")
         ):
-            with pytest.raises(RuntimeError, match="jwt_secret_key must be changed in production"):
-                async with lifespan(FastAPI()):
-                    pass
+            async with lifespan(FastAPI()):
+                pass
+
+        with (
+            patch("alm.main.settings.environment", "production"),
+            patch("alm.main.settings.jwt_secret_key", strong_secret),
+            patch("alm.main.settings.seed_demo_data", True),pytest.raises(RuntimeError, match="SEED_DEMO_DATA")
+        ):
+            async with lifespan(FastAPI()):
+                pass
+
+        with (
+            patch("alm.main.settings.environment", "production"),
+            patch("alm.main.settings.jwt_secret_key", "short"),
+            patch("alm.main.settings.seed_demo_data", False),pytest.raises(RuntimeError, match="32 characters")
+        ):
+            async with lifespan(FastAPI()):
+                pass
 
     @pytest.mark.asyncio
     async def test_run_startup_seeds_and_cancels_subscriber(self) -> None:
@@ -90,6 +107,7 @@ class TestLifespan:
             patch("alm.main.settings.debug", True),
             patch("alm.main.settings.seed_demo_data", False),
             patch("alm.main.settings.environment", "production"),
+            patch("alm.main.settings.jwt_secret_key", "p" * 32),
             patch("alm.main.setup_tenant_rls"),
             patch("alm.main.run_subscriber", side_effect=_subscriber),
             patch("alm.config.seed.run_startup_seeds", async_run_startup_seeds),

@@ -25,6 +25,7 @@ from alm.orgs.api.scm_webhook_support import (
     SCM_WEBHOOK_MAX_PUSH_COMMITS,
     SCM_WEBHOOK_MAX_UNMATCHED_RECORDS_PER_REQUEST,
     artifact_for_pr_fields,
+    attach_reason_code_to_webhook_body,
     branch_short_name_from_ref,
     load_project_settings_for_webhook,
     load_tenant_id_for_slug,
@@ -86,9 +87,16 @@ async def _github_json_record_delivery(
     project_id: uuid.UUID,
     delivery_id: str | None,
     body: dict[str, Any],
+    *,
+    mediator: Mediator | None = None,
 ) -> JSONResponse:
-    await record_webhook_delivery_processed(session, project_id, "github", delivery_id)
-    return JSONResponse(body)
+    """Persist delivery idempotency row together with pending mediator changes when ``mediator`` is provided."""
+    await record_webhook_delivery_processed(session, project_id, "github", delivery_id, commit=False)
+    if mediator is not None:
+        await mediator.finalize_transaction()
+    else:
+        await session.commit()
+    return JSONResponse(attach_reason_code_to_webhook_body(body))
 
 
 async def _github_process_push(
@@ -104,9 +112,7 @@ async def _github_process_push(
     ref = payload.get("ref")
     branch = branch_short_name_from_ref(ref if isinstance(ref, str) else None)
     if branch is None:
-        return await _github_json_record_delivery(
-            session, project_id, delivery_id, {"status": "ignored", "reason": "ref"}
-        )
+        return await _github_json_record_delivery(session, project_id, delivery_id, {"status": "ignored", "reason": "ref"})
     if not scm_webhook_push_branch_matches_policy(branch, settings):
         logger.info(
             "github_webhook_ignored",
@@ -115,16 +121,12 @@ async def _github_process_push(
             reason="branch_policy",
             branch=branch,
         )
-        return await _github_json_record_delivery(
-            session, project_id, delivery_id, {"status": "ignored", "reason": "branch_policy"}
-        )
+        return await _github_json_record_delivery(session, project_id, delivery_id, {"status": "ignored", "reason": "branch_policy"})
 
     repo = payload.get("repository") or {}
     repo_full = (repo.get("full_name") or "").strip()
     if not repo_full:
-        return await _github_json_record_delivery(
-            session, project_id, delivery_id, {"status": "ignored", "reason": "payload"}
-        )
+        return await _github_json_record_delivery(session, project_id, delivery_id, {"status": "ignored", "reason": "payload"})
 
     raw_commits = payload.get("commits")
     if not isinstance(raw_commits, list):
@@ -135,9 +137,7 @@ async def _github_process_push(
     ]
 
     if not commits:
-        return await _github_json_record_delivery(
-            session, project_id, delivery_id, {"status": "ignored", "reason": "commits"}
-        )
+        return await _github_json_record_delivery(session, project_id, delivery_id, {"status": "ignored", "reason": "commits"})
 
     artifact_repo = SqlAlchemyArtifactRepository(session)
     created = dup = no_match = 0
@@ -154,7 +154,7 @@ async def _github_process_push(
         msg = (c.get("message") or "").strip() if isinstance(c.get("message"), str) else ""
         web_url = f"https://github.com/{repo_full}/commit/{sha}"
 
-        artifact = await artifact_for_pr_fields(
+        artifact, key_match_source = await artifact_for_pr_fields(
             project_id=project_id,
             head_ref=branch,
             title=msg,
@@ -167,6 +167,7 @@ async def _github_process_push(
             if len(unmatched_ctx) < SCM_WEBHOOK_MAX_UNMATCHED_RECORDS_PER_REQUEST:
                 unmatched_ctx.append(
                     {
+                        "reason_code": "artifact_not_found",
                         "branch": branch,
                         "commit_sha": sha,
                         "message_excerpt": msg,
@@ -200,7 +201,9 @@ async def _github_process_push(
                     pull_request_number=None,
                     title=title_line,
                     source="webhook",
-                )
+                    key_match_source=key_match_source,
+                ),
+                commit=False,
             )
             created += 1
         except ValidationError as e:
@@ -217,7 +220,6 @@ async def _github_process_push(
             "github_push_commit",
             unmatched_ctx,
         )
-        await session.commit()
 
     logger.info(
         "github_webhook_push_processed",
@@ -239,6 +241,7 @@ async def _github_process_push(
             "duplicate": dup,
             "no_match": no_match,
         },
+        mediator=mediator,
     )
 
 
@@ -325,7 +328,9 @@ async def github_scm_webhook(
                 return JSONResponse({"status": "ok"})
 
             if event not in ("pull_request", "push"):
-                return JSONResponse({"status": "ignored", "reason": "event"})
+                return JSONResponse(
+                    attach_reason_code_to_webhook_body({"status": "ignored", "reason": "event"}),
+                )
 
             if not scm_webhook_github_processing_enabled(settings):
                 logger.info(
@@ -335,7 +340,9 @@ async def github_scm_webhook(
                     reason="disabled",
                     github_event=event,
                 )
-                return JSONResponse({"status": "ignored", "reason": "disabled"})
+                return JSONResponse(
+                    attach_reason_code_to_webhook_body({"status": "ignored", "reason": "disabled"}),
+                )
 
             try:
                 payload: dict[str, Any] = json.loads(body.decode("utf-8"))
@@ -352,7 +359,9 @@ async def github_scm_webhook(
                     project_id=str(project_id),
                     webhook_delivery_id=normalize_webhook_delivery_id(gh_delivery_header),
                 )
-                return JSONResponse({"status": "ignored", "reason": "duplicate_delivery"})
+                return JSONResponse(
+                    attach_reason_code_to_webhook_body({"status": "ignored", "reason": "duplicate_delivery"}),
+                )
 
             if event == "push":
                 return await _github_process_push(
@@ -393,7 +402,7 @@ async def github_scm_webhook(
             pr_body = (pr.get("body") or "").strip()
 
             artifact_repo = SqlAlchemyArtifactRepository(session)
-            artifact = await artifact_for_pr_fields(
+            artifact, key_match_source = await artifact_for_pr_fields(
                 project_id=project_id,
                 head_ref=head_ref,
                 title=pr_title,
@@ -408,6 +417,7 @@ async def github_scm_webhook(
                     "github_pull_request",
                     [
                         {
+                            "reason_code": "artifact_not_found",
                             "branch": head_ref,
                             "web_url": html_url,
                             "title": pr_title,
@@ -417,7 +427,6 @@ async def github_scm_webhook(
                         }
                     ],
                 )
-                await session.commit()
                 return await _github_json_record_delivery(
                     session, project_id, gh_delivery_header, {"status": "no_match"}
                 )
@@ -451,7 +460,9 @@ async def github_scm_webhook(
                         pull_request_number=pull_request_number,
                         title=pr_title or None,
                         source="webhook",
-                    )
+                        key_match_source=key_match_source,
+                    ),
+                    commit=False,
                 )
             except ValidationError as e:
                 if "already linked" in e.detail.lower():
@@ -467,6 +478,12 @@ async def github_scm_webhook(
                 artifact_id=str(artifact.id),
                 webhook_delivery_id=normalize_webhook_delivery_id(gh_delivery_header),
             )
-            return await _github_json_record_delivery(session, project_id, gh_delivery_header, {"status": "created"})
+            return await _github_json_record_delivery(
+                session,
+                project_id,
+                gh_delivery_header,
+                {"status": "created"},
+                mediator=mediator,
+            )
     finally:
         set_current_tenant_id(prev_tenant)

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, BarChart3, Loader2 } from "lucide-react";
@@ -65,26 +65,20 @@ export default function ProjectReportNewPage() {
   const [builtinParamsErrorLine, setBuiltinParamsErrorLine] = useState<number | undefined>();
 
   const defaultBuiltinId = useMemo(() => registry[0]?.id ?? "", [registry]);
+  const effectiveBuiltinId = builtinId || defaultBuiltinId;
 
-  useEffect(() => {
-    if (!builtinId && defaultBuiltinId) {
-      setBuiltinId(defaultBuiltinId);
-    }
-  }, [builtinId, defaultBuiltinId]);
-
-  useEffect(() => {
+  const handleTabChange = (value: string) => {
+    const next = value as "sql" | "builtin";
+    setTab(next);
     setJsonError(null);
     setChartSpecErrorLine(undefined);
     setBuiltinParamsErrorLine(undefined);
-  }, [tab]);
-
-  useEffect(() => {
-    if (tab !== "builtin" || !projectId) return;
-    setBuiltinParamsJson((cur) => {
-      if (cur.trim() === "{}") return JSON.stringify({ project_id: projectId }, null, 2);
-      return cur;
-    });
-  }, [tab, projectId]);
+    if (next === "builtin" && projectId) {
+      setBuiltinParamsJson((cur) =>
+        cur.trim() === "{}" ? JSON.stringify({ project_id: projectId }, null, 2) : cur,
+      );
+    }
+  };
 
   useLayoutEffect(() => {
     if (!orgSlug || !projectSlug || !projectId) {
@@ -138,7 +132,7 @@ export default function ProjectReportNewPage() {
       setJsonError(t("new.invalidJson"));
       return;
     }
-    if (!builtinId) {
+    if (!effectiveBuiltinId) {
       setJsonError(t("new.builtinRequired"));
       return;
     }
@@ -148,7 +142,7 @@ export default function ProjectReportNewPage() {
         description: description.trim(),
         visibility,
         query_kind: "builtin",
-        builtin_report_id: builtinId,
+        builtin_report_id: effectiveBuiltinId,
         builtin_parameters,
         sql_text: null,
         chart_spec: {},
@@ -197,7 +191,7 @@ export default function ProjectReportNewPage() {
               </Button>
             </div>
           ) : null}
-          <Tabs value={tab} onValueChange={(v) => setTab(v as "sql" | "builtin")}>
+          <Tabs value={tab} onValueChange={handleTabChange}>
             <TabsList className="mb-4">
               <TabsTrigger value="sql">{t("new.tabSql")}</TabsTrigger>
               <TabsTrigger value="builtin">{t("new.tabBuiltin")}</TabsTrigger>
@@ -321,7 +315,7 @@ export default function ProjectReportNewPage() {
               {jsonError && tab === "builtin" ? <p className="text-sm text-destructive">{jsonError}</p> : null}
               <Button
                 type="button"
-                disabled={createMut.isPending || !name.trim() || !builtinId || registry.length === 0}
+                disabled={createMut.isPending || !name.trim() || !effectiveBuiltinId || registry.length === 0}
                 onClick={() => void handleCreateBuiltin()}
               >
                 {createMut.isPending ? t("new.creating") : t("new.create")}

@@ -56,8 +56,10 @@ class TestEventDispatcher:
 
         event = SampleEvent(name="bad")
 
-        with patch("alm.shared.infrastructure.event_dispatcher.logger.exception") as log_exception:
-            with pytest.raises(RuntimeError, match="boom"):
-                await DomainEventDispatcher().dispatch([event])
+        with (
+            patch("alm.shared.infrastructure.event_dispatcher.logger.exception") as log_exception,
+            pytest.raises(RuntimeError, match="boom"),
+        ):
+            await DomainEventDispatcher().dispatch([event])
 
         log_exception.assert_called_once()

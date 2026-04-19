@@ -58,7 +58,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def get_mediator(
     credentials: HTTPAuthorizationCredentials | None = Depends(_optional_bearer),
 ) -> AsyncGenerator[Mediator, None]:
-    """Request-scoped Mediator. Commands auto-commit via Mediator.send().
+    """Request-scoped Mediator. Uses the same commit/rollback pattern as ``get_db``.
+
+    Commands typically auto-commit inside ``Mediator.send()``; any work left open on the session
+    (including post-commit outbox deletes) is committed when the request handler returns successfully.
 
     Automatically injects actor/tenant context from the bearer token
     (when present) so the audit interceptor can attribute changes.
@@ -72,4 +75,9 @@ async def get_mediator(
                     session.info[TENANT_ID_KEY] = payload.tid
             except InvalidTokenError:
                 pass
-        yield Mediator(session)
+        try:
+            yield Mediator(session)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise

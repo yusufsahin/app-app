@@ -10,6 +10,7 @@ from prometheus_client import make_asgi_app
 # Import so artifact transition metrics are registered and appear in /metrics from first scrape
 import alm.artifact.infrastructure.metrics  # noqa: F401
 import alm.scm.infrastructure.metrics  # noqa: F401 — SCM Prometheus counters (links + webhook unmatched / push no_match)
+import alm.shared.infrastructure.outbox_metrics  # noqa: F401 — transactional outbox worker counters
 from alm.admin.api.router import router as admin_router
 from alm.auth.api.router import router as auth_router
 from alm.config.settings import settings
@@ -23,6 +24,10 @@ from alm.shared.audit.api.router import router as audit_router
 from alm.shared.infrastructure.correlation import CorrelationIdMiddleware
 from alm.shared.infrastructure.db.session import async_session_factory
 from alm.shared.infrastructure.db.tenant_context import setup_tenant_rls
+from alm.shared.infrastructure.domain_event_outbox import (
+    refresh_outbox_prometheus_gauges,
+    run_domain_event_outbox_worker,
+)
 from alm.shared.infrastructure.error_handler import register_exception_handlers
 from alm.shared.infrastructure.health import health_router
 from alm.shared.infrastructure.rate_limit_middleware import RateLimitMiddleware
@@ -37,18 +42,26 @@ logger = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("application_starting", version="0.1.0")
-    if not settings.debug and settings.jwt_secret_key == "CHANGE-ME-IN-PRODUCTION":
-        raise RuntimeError("jwt_secret_key must be changed in production")
+    settings.validate_production_config()
     setup_tenant_rls(async_session_factory)
 
     from alm.config.seed import run_startup_seeds
 
     await run_startup_seeds(async_session_factory)
 
+    try:
+        await refresh_outbox_prometheus_gauges(async_session_factory)
+    except Exception:
+        logger.exception("outbox_prometheus_gauges_startup_failed")
+
     subscriber_task = asyncio.create_task(run_subscriber())
+    outbox_task = asyncio.create_task(run_domain_event_outbox_worker(async_session_factory))
 
     yield
 
+    outbox_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await outbox_task
     subscriber_task.cancel()
     with suppress(asyncio.CancelledError):
         await subscriber_task

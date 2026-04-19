@@ -13,7 +13,14 @@ from alm.deployment.api.schemas import (
     TraceabilityScmLinkSummaryItem,
 )
 from alm.deployment.application.queries.get_artifact_traceability_summary import GetArtifactTraceabilitySummary
-from alm.orgs.api._router_deps import CurrentUser, Mediator, ResolvedOrg, require_manifest_acl, require_permission, resolve_org
+from alm.orgs.api._router_deps import (
+    CurrentUser,
+    Mediator,
+    ResolvedOrg,
+    require_manifest_acl,
+    require_permission,
+    resolve_org,
+)
 
 router = APIRouter(tags=["Deployment"])
 
@@ -42,6 +49,7 @@ def _to_response(dto) -> ArtifactTraceabilitySummaryResponse:
                 commit_sha=s.commit_sha,
                 provider=s.provider,
                 title=s.title,
+                key_match_source=s.key_match_source,
             )
             for s in dto.scm_links
         ],

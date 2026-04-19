@@ -1,16 +1,17 @@
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from alm.artifact.domain.entities import Artifact
-from alm.relationship.domain.entities import Relationship
 from alm.quality.application.queries.batch_last_test_execution_status import (
+    MAX_TEST_IDS,
     BatchLastTestExecutionStatus,
     BatchLastTestExecutionStatusHandler,
-    MAX_TEST_IDS,
 )
+from alm.relationship.domain.entities import Relationship
 from alm.shared.domain.exceptions import ValidationError
 
 
@@ -38,7 +39,6 @@ async def test_handler_too_many_ids():
         artifact_repo=AsyncMock(),
         relationship_repo=AsyncMock(),
     )
-    tid = uuid.uuid4()
     ids = [uuid.uuid4() for _ in range(MAX_TEST_IDS + 1)]
     with pytest.raises(ValidationError):
         await h.handle(
@@ -113,7 +113,7 @@ async def test_handler_returns_status_and_step_results_from_run_metrics():
         state="in_progress",
         id=run_id,
         custom_fields={"run_metrics_json": json.dumps(metrics)},
-        updated_at=datetime(2025, 1, 2, 12, 0, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 1, 2, 12, 0, 0, tzinfo=UTC),
     )
 
     link_direct = Relationship.create(
@@ -173,7 +173,7 @@ async def test_scope_run_id_wrong_artifact_raises():
         state="active",
         id=scope_run,
         custom_fields={},
-        updated_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 1, 1, tzinfo=UTC),
     )
 
     artifact_repo = AsyncMock()
@@ -216,7 +216,7 @@ async def test_scope_run_id_skips_candidate_query_uses_only_that_run():
         state="completed",
         id=run_id,
         custom_fields={"run_metrics_json": json.dumps(metrics)},
-        updated_at=datetime(2025, 1, 3, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 1, 3, tzinfo=UTC),
     )
 
     link_direct = Relationship.create(
@@ -276,7 +276,7 @@ async def test_scope_suite_id_filters_candidates():
         state="completed",
         id=run_kept,
         custom_fields={"run_metrics_json": json.dumps(metrics)},
-        updated_at=datetime(2025, 1, 5, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 1, 5, tzinfo=UTC),
     )
     dropped_metrics = {"v": 1, "results": [{"testId": str(test_id), "status": "failed"}]}
     dropped_art = Artifact(
@@ -286,7 +286,7 @@ async def test_scope_suite_id_filters_candidates():
         state="completed",
         id=run_dropped,
         custom_fields={"run_metrics_json": json.dumps(dropped_metrics)},
-        updated_at=datetime(2025, 1, 10, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 1, 10, tzinfo=UTC),
     )
 
     link_kept = Relationship.create(
@@ -295,7 +295,7 @@ async def test_scope_suite_id_filters_candidates():
         target_artifact_id=test_id,
         relationship_type="includes_test",
     )
-    link_dropped = Relationship.create(
+    Relationship.create(
         project_id=proj,
         source_artifact_id=run_dropped,
         target_artifact_id=test_id,
@@ -399,7 +399,7 @@ async def test_scope_campaign_id_filters_via_campaign_suites():
         state="completed",
         id=run_id,
         custom_fields={"run_metrics_json": json.dumps(metrics)},
-        updated_at=datetime(2025, 1, 4, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 1, 4, tzinfo=UTC),
     )
 
     link_run = Relationship.create(
@@ -470,7 +470,7 @@ async def test_scope_configuration_id_filters_matching_metrics_row():
         state="completed",
         id=run_id,
         custom_fields={"run_metrics_json": json.dumps(metrics)},
-        updated_at=datetime(2025, 1, 2, 12, 0, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 1, 2, 12, 0, 0, tzinfo=UTC),
     )
 
     link_direct = Relationship.create(

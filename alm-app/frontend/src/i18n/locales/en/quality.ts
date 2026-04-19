@@ -727,17 +727,31 @@ export const qualityEn = {
   workItemDetail: {
     tabs: {
       source: "Source ({{count}})",
+      traceability: "Traceability",
       deploy: "Environments",
+    },
+    traceability: {
+      intro:
+        "One place to review Git links and the latest deployment summary for this work item. Edit links on Source; configure webhooks under Project → Integrations.",
+      sourceHeading: "Source (Git)",
+      deployHeading: "Environments",
     },
     deploy: {
       needProject: "Open this work item in a project context to see deployments.",
       loading: "Loading deployment summary…",
       loadError: "Could not load deployment summary.",
+      loadErrorRetry: "Something went wrong loading deployments. You can try again.",
+      errorNotFound: "Deployment summary was not found (it may have been removed).",
+      errorServer: "The server failed while loading deployments. Try again in a moment.",
+      retry: "Retry",
       noPermission: "You do not have permission to view deployment traceability for this work item.",
       environmentsTitle: "Last known deployments",
       environmentsIntro:
         "Matches deployment events by this work item key or by commit SHAs linked under Source. Configure deploy events via the API or deploy webhook.",
       noEnvironments: "No deployment events matched this work item yet.",
+      noEnvironmentsIntegrationsCta:
+        "Send deployment events from CI using the deploy webhook (Project → Integrations), or POST deployment-events with your work item key.",
+      integrationsLinkLabel: "Open Integrations",
       matchedVia: "Match: {{via}}",
       commit: "Commit",
       image: "Image",
@@ -745,6 +759,8 @@ export const qualityEn = {
       build: "Build",
       scmLinksTitle: "Source links",
       noScmLinks: "No Git links on this work item. Add PR or commit URLs under the Source tab.",
+      noScmLinksIntegrationsCta:
+        "For automatic links from Git, configure webhooks under Project → Integrations.",
     },
     tasks: {
       copyRefsLineAria: "Copy Refs: line for webhooks (paste into PR/MR or commit message)",
@@ -768,6 +784,14 @@ export const qualityEn = {
       showAllScmLinks: "Show all links",
       showTaskScopedLinks: "Show task links only",
       emptyScoped: "No source links for this task yet.",
+      emptyIntegrationsCta:
+        "Configure GitHub or GitLab webhooks under Project → Integrations, or add a PR/commit URL below.",
+      integrationsLinkLabel: "Open Integrations",
+      matchPriorityHint:
+        "Automatic linking checks, in order: branch name, then title, then description (PR/MR) or full commit message (push). Include your work item key (e.g. {{exampleKey}}) in the branch or message.",
+      keyMatchBranch: "Webhook match: branch name",
+      keyMatchTitle: "Webhook match: title or commit message",
+      keyMatchBody: "Webhook match: PR/MR description",
       urlRequired: "Paste a PR or commit URL",
       urlLabel: "PR or commit URL",
       urlPlaceholder: "https://github.com/org/repo/pull/123",
@@ -804,11 +828,29 @@ export const qualityEn = {
   projectScmWebhooks: {
     title: "Git webhooks",
     intro:
-      "Register these URLs in GitHub or GitLab. Secrets are stored in project settings (never shown after save).",
+      "Register these URLs in GitHub, GitLab, or Azure DevOps. Secrets are stored in project settings (never shown after save).",
+    devTemplatesTitle: "Developer conventions (copy/paste)",
+    devTemplatesIntro:
+      "Use your work item key (project code or key like {{exampleKey}}) in branch names, commits, and PR descriptions so webhooks can match automatically.",
+    devTemplatesBranchLabel: "Example branch",
+    devTemplatesCommitLabel: "Example commit subject (Conventional Commits)",
+    devTemplatesRefsLabel: "Example task trailer (optional)",
+    devTemplatesRefsHelp:
+      "Replace the UUID with a task id from the Tasks section of this work item (use Copy on a task row). Wrong UUIDs are ignored.",
+    devTemplatesMatchTitle: "How automatic matching works",
+    devTemplatesMatchBody:
+      "For each delivery, the server tries hints in order: branch name, then title, then body (PR/MR) or full commit message (push). The first work item key that exists in this project wins.",
+    copyBranchExampleAria: "Copy example branch name",
+    copyCommitExampleAria: "Copy example commit subject",
+    copyRefsExampleAria: "Copy example Refs line",
     github: "GitHub",
     gitlab: "GitLab",
+    azuredevops: "Azure DevOps",
     copyGithubUrlAria: "Copy GitHub webhook URL",
     copyGitlabUrlAria: "Copy GitLab webhook URL",
+    copyAzuredevopsUrlAria: "Copy Azure DevOps webhook URL",
+    azureSetupHint:
+      "In Azure DevOps: Project settings → Service hooks → Create subscription → Web Hooks. Send Code → Push and Pull request merge events. Add HTTP header X-ALM-AzureDevOps-Token with the same value you save below.",
     deployTitle: "CI deploy webhook",
     copyDeployUrlAria: "Copy deploy webhook URL",
     deployHint:
@@ -821,6 +863,14 @@ export const qualityEn = {
     deployActionsCopyAria: "Copy GitHub Actions snippet",
     deployActionsHelp:
       "Store the deploy URL and secret as repository secrets (e.g. ALM_DEPLOY_WEBHOOK_URL, ALM_DEPLOY_WEBHOOK_SECRET). Adjust the JSON fields to match your pipeline.",
+    deployAzurePipelinesTitle: "Example: Azure Pipelines step (bash)",
+    deployAzurePipelinesCopyAria: "Copy Azure Pipelines snippet",
+    deployAzurePipelinesHelp:
+      "Define ALM_DEPLOY_WEBHOOK_URL and ALM_DEPLOY_WEBHOOK_SECRET as secret variables on the pipeline or variable group. Reuse the same signing rules as GitHub (HMAC-SHA256 over the raw JSON body).",
+    deployGitlabCiTitle: "Example: GitLab CI job (bash)",
+    deployGitlabCiCopyAria: "Copy GitLab CI snippet",
+    deployGitlabCiHelp:
+      "Store CI/CD variables ALM_DEPLOY_WEBHOOK_URL and ALM_DEPLOY_WEBHOOK_SECRET (masked, protected as needed). Uses curl + openssl like the curl example.",
     deploySecretLabel: "Deploy webhook secret",
     deployPlaceholderNew: "New secret (optional)",
     deployPlaceholder: "Deploy webhook secret",
@@ -828,7 +878,7 @@ export const qualityEn = {
     payloadLimitHint:
       "Each webhook request body is limited to 1 MiB; the API responds with HTTP 413 if the payload is larger.",
     deliveryIdempotencyHint:
-      "GitHub sends X-GitHub-Delivery and GitLab sends X-Gitlab-Event-UUID on each delivery. After a successful response, the same id is answered with duplicate_delivery so provider retries do not create duplicate SCM rows.",
+      "GitHub sends X-GitHub-Delivery, GitLab sends X-Gitlab-Event-UUID, and Azure DevOps includes notificationId in the JSON body. After a successful response, the same id is answered with duplicate_delivery so provider retries do not create duplicate SCM rows.",
     refsHintStrong: "Task-scoped links —",
     refsHintBeforeCode:
       "After a work item is matched from the branch, title, or description, you can bind the SCM row to a task by adding a line such as",
@@ -839,14 +889,21 @@ export const qualityEn = {
       "Pause automation without removing secrets. Push branch regex applies only to push events (not PR/MR). Ping still returns OK when the secret is valid.",
     pauseGithub: "Pause GitHub PR and push processing",
     pauseGitlab: "Pause GitLab MR and push processing",
+    pauseAzuredevops: "Pause Azure DevOps push and PR processing",
     pushBranchRegexLabel: "Push branch filter (Python regex, optional)",
     pushBranchRegexPlaceholder: "e.g. ^feature/ or release/.+",
     pushBranchRegexHelp: "Empty = all branches. Invalid regex is ignored server-side (deliveries are not blocked).",
     webhookSecretsTitle: "Webhook secrets",
     webhookSecretsHelp:
       'Leave blank to keep the current secret. Check "Remove" to delete a secret. Replacing requires entering a new value.',
+    secretRotationHint:
+      "Rotating a secret: generate a new value, save it here, then update the provider (GitHub/GitLab/Azure DevOps/GitHub Actions) to use the new secret before removing the old one. See docs/SCM_WEBHOOK_SECRET_ROTATION.md for a short runbook.",
     githubSecretLabel: "GitHub secret",
     gitlabTokenLabel: "GitLab token",
+    azuredevopsTokenLabel: "Azure DevOps token (header)",
+    azurePlaceholderNew: "New token (optional)",
+    azurePlaceholder: "Same value as HTTP header X-ALM-AzureDevOps-Token",
+    removeAzuredevopsSecret: "Remove Azure DevOps token",
     configured: "configured",
     githubPlaceholderNew: "New secret (optional)",
     githubPlaceholder: "Webhook secret",
@@ -866,6 +923,9 @@ export const qualityEn = {
     unmatchedEmpty: "No unmatched webhook rows yet.",
     colWhen: "When",
     colKind: "Kind",
+    colReason: "Reason",
+    unmatchedReasonArtifactNotFound: "No work item key in this project matched branch/title/body.",
+    unmatchedReasonUnknown: "Code: {{code}}",
     colSummary: "Summary",
     colLink: "Link",
     colTriage: "Triage",

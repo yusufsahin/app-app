@@ -12,7 +12,7 @@ async def _register_and_get_token(client: AsyncClient, email: str, org: str) -> 
         json={
             "email": email,
             "password": "SecurePass123",
-            "display_name": email.split("@")[0],
+            "display_name": email.split("@", maxsplit=1)[0],
             "org_name": org,
         },
     )
@@ -62,6 +62,7 @@ class TestRoleManagement:
         assert isinstance(roles, list)
         role_slugs = [r["slug"] for r in roles]
         assert "admin" in role_slugs
+        assert "member" in role_slugs
         assert "project_manager" in role_slugs
 
     async def test_list_privileges(self, client: AsyncClient):
