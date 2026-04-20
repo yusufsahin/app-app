@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alm.scm.domain.entities import ScmLink
@@ -52,8 +53,12 @@ class SqlAlchemyScmLinkRepository(ScmLinkRepository):
             created_by=link.created_by,
         )
         self._session.add(model)
-        await self._session.flush()
-        await self._session.refresh(model)
+        try:
+            await self._session.flush()
+            await self._session.refresh(model)
+        except IntegrityError:
+            await self._session.rollback()
+            raise
         return SqlAlchemyScmLinkRepository._to_entity(model)
 
     async def delete(self, link_id: uuid.UUID) -> bool:

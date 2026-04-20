@@ -21,6 +21,13 @@ def _unique_org() -> str:
     return f"ScmOrg-{uuid.uuid4().hex[:8]}"
 
 
+def _assert_webhook_ignored(payload: dict[str, object], *, reason: str) -> None:
+    """Responses include ``reason_code`` (mirrors ``reason``) for stable API clients."""
+    assert payload.get("status") == "ignored"
+    assert payload.get("reason") == reason
+    assert payload.get("reason_code") == reason
+
+
 async def _register_and_get_token(client: AsyncClient, email: str, org: str) -> str:
     reg = await client.post(
         "/api/v1/auth/register",
@@ -1523,7 +1530,7 @@ async def test_github_webhook_push_ignored_when_processing_disabled(client: Asyn
         },
     )
     assert wh.status_code == 200, wh.text
-    assert wh.json() == {"status": "ignored", "reason": "disabled"}
+    _assert_webhook_ignored(wh.json(), reason="disabled")
 
 
 @pytest.mark.asyncio
@@ -1562,7 +1569,7 @@ async def test_github_webhook_pr_ignored_when_processing_disabled(client: AsyncC
         },
     )
     assert wh.status_code == 200, wh.text
-    assert wh.json() == {"status": "ignored", "reason": "disabled"}
+    _assert_webhook_ignored(wh.json(), reason="disabled")
 
 
 @pytest.mark.asyncio
@@ -1601,7 +1608,7 @@ async def test_github_webhook_push_ignored_branch_policy(client: AsyncClient) ->
         },
     )
     assert wh.status_code == 200, wh.text
-    assert wh.json() == {"status": "ignored", "reason": "branch_policy"}
+    _assert_webhook_ignored(wh.json(), reason="branch_policy")
 
 
 @pytest.mark.asyncio
@@ -1701,7 +1708,7 @@ async def test_gitlab_webhook_push_ignored_when_processing_disabled(client: Asyn
         },
     )
     assert wh.status_code == 200, wh.text
-    assert wh.json() == {"status": "ignored", "reason": "disabled"}
+    _assert_webhook_ignored(wh.json(), reason="disabled")
 
 
 @pytest.mark.asyncio
@@ -1739,7 +1746,7 @@ async def test_gitlab_webhook_mr_ignored_when_processing_disabled(client: AsyncC
         },
     )
     assert wh.status_code == 200, wh.text
-    assert wh.json() == {"status": "ignored", "reason": "disabled"}
+    _assert_webhook_ignored(wh.json(), reason="disabled")
 
 
 @pytest.mark.asyncio
@@ -1777,7 +1784,7 @@ async def test_gitlab_webhook_push_ignored_branch_policy(client: AsyncClient) ->
         },
     )
     assert wh.status_code == 200, wh.text
-    assert wh.json() == {"status": "ignored", "reason": "branch_policy"}
+    _assert_webhook_ignored(wh.json(), reason="branch_policy")
 
 
 @pytest.mark.asyncio
@@ -1894,7 +1901,7 @@ async def test_github_webhook_same_x_github_delivery_returns_duplicate_delivery(
         headers=headers,
     )
     assert wh2.status_code == 200, wh2.text
-    assert wh2.json() == {"status": "ignored", "reason": "duplicate_delivery"}
+    _assert_webhook_ignored(wh2.json(), reason="duplicate_delivery")
 
 
 @pytest.mark.asyncio

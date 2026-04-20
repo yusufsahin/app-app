@@ -18,6 +18,20 @@ from alm.shared.domain.exceptions import ValidationError
 logger = logging.getLogger(__name__)
 
 
+def _semantic_error_blocks_publish(err: object) -> bool:
+    """MPC semantic validator mixes warnings (workflow reachability hints) with errors.
+
+    Those warnings must not block manifest updates — otherwise round-trips (GET → edit → PUT) fail for
+    valid templates. Only ``error`` / ``fatal`` (and missing severity, MPC default) are blocking.
+    """
+    sev = getattr(err, "severity", None)
+    if sev is None:
+        return True
+    normalized = str(sev).strip().lower()
+    # Non-blocking severities from MPC semantic checks (dead-end hints, etc.).
+    return normalized not in ("warning", "warn", "info")
+
+
 @dataclass(frozen=True)
 class UpdateProjectManifest(Command):
     tenant_id: uuid.UUID
@@ -52,8 +66,9 @@ class UpdateProjectManifestHandler(CommandHandler[dict[str, Any] | None]):
                 try:
                     ast = normalize(bundle)
                     sem_errors = validate_semantic(ast)
-                    if sem_errors:
-                        msgs = [getattr(e, "message", str(e)) for e in sem_errors[:15]]
+                    blocking = [e for e in sem_errors if _semantic_error_blocks_publish(e)]
+                    if blocking:
+                        msgs = [getattr(e, "message", str(e)) for e in blocking[:15]]
                         raise ValidationError("Manifest validation failed: " + "; ".join(msgs))
                 except ValidationError:
                     raise

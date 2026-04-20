@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, patch
 from urllib.parse import urlparse
 
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -127,7 +128,7 @@ def postgres_url() -> Generator[str, None, None]:
     yield _asyncpg_url(_DEFAULT_LOCAL_URL)
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def test_engine(postgres_url: str):
     """Session-scoped async engine using postgres_url (container or ALM_TEST_DATABASE_URL)."""
     engine = create_async_engine(
@@ -158,9 +159,9 @@ async def test_engine(postgres_url: str):
         pass
 
     yield engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
+    # Avoid async teardown that touches the engine: pytest-asyncio may run session teardown while other
+    # collected tests still need this engine, which led to UndefinedTableError mid-suite. Tables are wiped
+    # at the next session setup (drop_all/create_all). Process exit closes remaining connections.
 
 
 @pytest.fixture(scope="session")
@@ -168,7 +169,7 @@ def test_session_factory(test_engine):
     return async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_session(test_session_factory) -> AsyncGenerator[AsyncSession, None]:
     async with test_session_factory() as session:
         yield session
@@ -223,7 +224,7 @@ _ASYNC_SESSION_FACTORY_PATCH_TARGETS: tuple[str, ...] = (
 )
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client(test_engine, test_session_factory) -> AsyncGenerator[AsyncClient, None]:
     with ExitStack() as stack:
         for target in _ASYNC_SESSION_FACTORY_PATCH_TARGETS:

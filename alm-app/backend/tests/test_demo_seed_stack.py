@@ -29,18 +29,23 @@ import alm.auth.infrastructure.models
 import alm.capacity.infrastructure.models
 import alm.comment.infrastructure.models
 import alm.cycle.infrastructure.models
+import alm.deployment.infrastructure.models
 import alm.process_template.infrastructure.models
 import alm.project.infrastructure.models
 import alm.project.infrastructure.project_member_models
 import alm.project_tag.infrastructure.models
 import alm.relationship.infrastructure.models
+import alm.report_definition.infrastructure.models
 import alm.saved_query.infrastructure.models
+import alm.scm.infrastructure.models
 import alm.shared.audit.models
+import alm.shared.infrastructure.domain_event_outbox
 import alm.task.infrastructure.models
 import alm.team.infrastructure.models
 import alm.tenant.infrastructure.models
 import alm.workflow_rule.infrastructure.models  # noqa: F401 — ORM side effect (table metadata)
 from alm.config.seed import DEMO_EMAIL, DEMO_PASSWORD, run_startup_seeds
+from alm.config.settings import settings
 from alm.shared.infrastructure.db.base_model import Base
 
 _DEMO_ISOLATED_DB = "alm_demo_seed_e2e"
@@ -54,6 +59,13 @@ _ASYNC_SESSION_FACTORY_PATCH_TARGETS: tuple[str, ...] = (
     "alm.workflow_rule.infrastructure.workflow_rule_runner.async_session_factory",
     "alm.realtime.event_handlers.async_session_factory",
     "alm.admin.infrastructure.access_audit_store.async_session_factory",
+    "alm.artifact.application.stale_traceability_side_effects.async_session_factory",
+    "alm.admin.api.router.async_session_factory",
+    "alm.orgs.api.routes_deploy_webhook.async_session_factory",
+    "alm.orgs.api.routes_github_webhook.async_session_factory",
+    "alm.orgs.api.routes_gitlab_webhook.async_session_factory",
+    "alm.orgs.api.routes_azuredevops_webhook.async_session_factory",
+    "alm.orgs.api.routes_scm_webhook_unmatched.async_session_factory",
 )
 
 
@@ -112,6 +124,10 @@ async def _noop_subscriber() -> None:
     return
 
 
+async def _noop_domain_event_outbox_worker(_session_factory: object) -> None:
+    return
+
+
 class _FakePermissionCache:
     async def get(self, tenant_id, user_id):
         return None
@@ -127,8 +143,9 @@ class _FakePermissionCache:
 
 
 @pytest.mark.asyncio
-async def test_run_startup_seeds_demo_backlog_end_to_end(postgres_url: str) -> None:
+async def test_run_startup_seeds_demo_backlog_end_to_end(postgres_url: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """Empty isolated DB → run_startup_seeds → tree=requirement lists seeded workitems."""
+    monkeypatch.setattr(settings, "seed_demo_data", True)
     url = _replace_database_in_url(postgres_url, _DEMO_ISOLATED_DB)
     log.info(
         "demo_seed_stack_start database=%s host=%s",
@@ -163,6 +180,7 @@ async def test_run_startup_seeds_demo_backlog_end_to_end(postgres_url: str) -> N
                 )
             )
             stack.enter_context(patch("alm.main.run_subscriber", _noop_subscriber))
+            stack.enter_context(patch("alm.main.run_domain_event_outbox_worker", _noop_domain_event_outbox_worker))
             stack.enter_context(
                 patch(
                     "alm.shared.infrastructure.rate_limit_middleware.check_sliding_window",
