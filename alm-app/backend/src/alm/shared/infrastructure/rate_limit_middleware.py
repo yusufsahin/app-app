@@ -8,6 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from alm.config.settings import settings
 from alm.shared.infrastructure.rate_limiter import check_sliding_window
 from alm.shared.infrastructure.security.jwt import InvalidTokenError, decode_token
 
@@ -46,6 +47,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 pass
 
         if tenant_id is None:
+            return await call_next(request)
+
+        if settings.debug:
             return await call_next(request)
 
         allowed, retry_after = await check_sliding_window(tenant_id)

@@ -1,6 +1,16 @@
-import axios from "axios";
+import axios, { type InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "../stores/authStore";
 import type { ProblemDetail } from "./types";
+
+const MAX_429_RETRIES = 3;
+
+type ConfigWithRateLimitRetry = InternalAxiosRequestConfig & { __rl429Retry?: number };
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 export const apiClient = axios.create({
   baseURL: "/api/v1",
@@ -47,9 +57,21 @@ function isTenantContextError(problem: ProblemDetail | undefined, requestUrl: st
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (axios.isAxiosError(error) && error.response) {
       const status = error.response.status;
+      const config = error.config as ConfigWithRateLimitRetry | undefined;
+      if (status === 429 && config) {
+        const attempt = config.__rl429Retry ?? 0;
+        if (attempt < MAX_429_RETRIES) {
+          const ra = error.response.headers["retry-after"];
+          const sec = ra != null && ra !== "" ? Number.parseInt(String(ra), 10) : 1;
+          const delay = Math.min(30_000, (Number.isFinite(sec) && sec > 0 ? sec : 1) * 1000);
+          config.__rl429Retry = attempt + 1;
+          await sleepMs(delay);
+          return apiClient(config);
+        }
+      }
       if (status === 401) {
         redirectToLogin("session-expired");
         return Promise.reject(error);

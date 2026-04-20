@@ -100,12 +100,39 @@ class TestRateLimitMiddleware:
         check.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_bypasses_rate_limit_when_debug(self) -> None:
+        """ALM_DEBUG=true: local dev should not 429 on parallel SPA requests."""
+        middleware = RateLimitMiddleware(app=AsyncMock())
+        tenant_id = uuid.uuid4()
+        request = _request("/api/v1/projects", authorization="Bearer token")
+        call_next = AsyncMock(side_effect=_ok_response)
+
+        with (
+            patch("alm.shared.infrastructure.rate_limit_middleware.settings") as s,
+            patch(
+                "alm.shared.infrastructure.rate_limit_middleware.decode_token",
+                return_value=SimpleNamespace(tid=tenant_id),
+            ),
+            patch(
+                "alm.shared.infrastructure.rate_limit_middleware.check_sliding_window",
+                new=AsyncMock(),
+            ) as check,
+        ):
+            s.debug = True
+            response = await middleware.dispatch(request, call_next)
+
+        assert response.status_code == 200
+        check.assert_not_awaited()
+        call_next.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_returns_429_when_limit_exceeded(self) -> None:
         middleware = RateLimitMiddleware(app=AsyncMock())
         tenant_id = uuid.uuid4()
         request = _request("/api/v1/projects", authorization="Bearer token")
 
         with (
+            patch("alm.shared.infrastructure.rate_limit_middleware.settings") as s,
             patch(
                 "alm.shared.infrastructure.rate_limit_middleware.decode_token",
                 return_value=SimpleNamespace(tid=tenant_id),
@@ -115,6 +142,7 @@ class TestRateLimitMiddleware:
                 new=AsyncMock(return_value=(False, 12)),
             ) as check,
         ):
+            s.debug = False
             response = await middleware.dispatch(request, AsyncMock(side_effect=_ok_response))
 
         assert response.status_code == 429
