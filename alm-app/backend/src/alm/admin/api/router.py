@@ -11,6 +11,9 @@ from pydantic import BaseModel, EmailStr
 
 from alm.admin.infrastructure.access_audit_store import AccessAuditStore
 from alm.config.dependencies import get_mediator
+from alm.config.settings import settings
+from alm.shared.infrastructure.domain_event_outbox import requeue_exhausted_outbox_rows
+from alm.shared.infrastructure.db.session import async_session_factory as async_session_factory
 from alm.shared.application.mediator import Mediator
 from alm.shared.infrastructure.security.dependencies import CurrentUser, require_any_role
 from alm.tenant.application.commands.create_user_by_admin import (
@@ -24,6 +27,9 @@ from alm.tenant.application.queries.list_users_for_admin import (
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+# Backward-compat symbol for tests that patch module-level session factory references.
+__all__ = ["router", "async_session_factory"]
 
 
 class CreateUserByAdminRequest(BaseModel):
@@ -45,6 +51,10 @@ class AdminUserResponse(BaseModel):
     display_name: str
     deleted_at: str | None
     role_slugs: list[str]
+
+
+class OutboxRequeueResponse(BaseModel):
+    requeued: int
 
 
 def _get_access_audit_store() -> AccessAuditStore:
@@ -133,3 +143,13 @@ async def get_access_audit(
         type_filter=type_filter,
         limit=limit,
     )
+
+
+@router.post("/domain-event-outbox/requeue-exhausted", response_model=OutboxRequeueResponse)
+async def requeue_exhausted_outbox(
+    _user: Annotated[CurrentUser, require_any_role("admin")],
+    limit: int = Query(100, ge=1, le=settings.domain_event_outbox_requeue_max_per_request),
+) -> OutboxRequeueResponse:
+    """Reset exhausted outbox rows so background worker can retry dispatch."""
+    requeued = await requeue_exhausted_outbox_rows(async_session_factory, limit=limit)
+    return OutboxRequeueResponse(requeued=requeued)

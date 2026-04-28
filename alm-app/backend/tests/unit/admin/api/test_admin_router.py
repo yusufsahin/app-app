@@ -5,7 +5,9 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from alm.admin.api import router as admin_router_module
 from alm.admin.api.router import _get_access_audit_store, router
+from alm.config.settings import settings
 from alm.config.dependencies import get_mediator
 from alm.shared.infrastructure.error_handler import register_exception_handlers
 from alm.shared.infrastructure.security.dependencies import CurrentUser, get_current_user
@@ -163,3 +165,35 @@ async def test_admin_router_requires_admin_role(app: FastAPI):
         # Assert
         assert response.status_code == 403
         assert response.json()["title"] == "Access Denied"
+
+
+@pytest.mark.asyncio
+async def test_requeue_exhausted_outbox_success(app: FastAPI, mock_user: CurrentUser, monkeypatch: pytest.MonkeyPatch):
+    requeue_mock = AsyncMock(return_value=7)
+    monkeypatch.setattr(admin_router_module, "requeue_exhausted_outbox_rows", requeue_mock)
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/admin/domain-event-outbox/requeue-exhausted?limit=7")
+
+    assert response.status_code == 200
+    assert response.json() == {"requeued": 7}
+    requeue_mock.assert_awaited_once_with(admin_router_module.async_session_factory, limit=7)
+
+
+@pytest.mark.asyncio
+async def test_requeue_exhausted_outbox_limit_validation(app: FastAPI, mock_user: CurrentUser):
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/admin/domain-event-outbox/requeue-exhausted?limit={settings.domain_event_outbox_requeue_max_per_request + 1}"
+        )
+
+    assert response.status_code == 422
+
+
+def test_admin_router_exports_async_session_factory_for_patch_targets():
+    assert hasattr(admin_router_module, "async_session_factory")
