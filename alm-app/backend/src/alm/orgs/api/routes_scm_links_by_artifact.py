@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from alm.config.dependencies import get_mediator
 from alm.orgs.api._router_deps import (
@@ -169,7 +169,7 @@ async def create_scm_link(
 
 @router.delete(
     "/projects/{project_id}/artifacts/{artifact_id}/scm-links/{link_id}",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
     summary="Delete SCM link",
 )
 async def delete_scm_link(

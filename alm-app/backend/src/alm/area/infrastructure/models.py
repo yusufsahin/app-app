@@ -22,7 +22,7 @@ class AreaNodeModel(Base, TimestampMixin):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+    parent_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey("area_nodes.id", ondelete="CASCADE"),
         nullable=True,

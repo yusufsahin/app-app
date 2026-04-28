@@ -13,18 +13,18 @@ class Base(DeclarativeBase):
 
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True, default=None)
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=True, default=None)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
-    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True, default=None)
+    updated_by: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=True, default=None)
 
 
 class SoftDeleteMixin:
-    deleted_at: Mapped[datetime | None] = mapped_column(
+    deleted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None, index=True
     )
-    deleted_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True, default=None)
+    deleted_by: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=True, default=None)
 
     @property
     def is_deleted(self) -> bool:

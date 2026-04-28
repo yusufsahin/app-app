@@ -22,9 +22,9 @@ class ProcessTemplateModel(Base, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_builtin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    configuration: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=True)
+    type: Mapped[str] = mapped_column(String(50), nullable=True)
+    configuration: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=True)
 
     versions: Mapped[list[ProcessTemplateVersionModel]] = relationship(
         "ProcessTemplateVersionModel",

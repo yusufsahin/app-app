@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 from alm.project_tag.api.schemas import (
@@ -85,7 +85,7 @@ async def rename_project_tag(
     return _tag_dto_to_response(dto)
 
 
-@router.delete("/projects/{project_id}/tags/{tag_id}", status_code=204)
+@router.delete("/projects/{project_id}/tags/{tag_id}", status_code=204, response_model=None, response_class=Response)
 async def delete_project_tag(
     project_id: uuid.UUID,
     tag_id: uuid.UUID,

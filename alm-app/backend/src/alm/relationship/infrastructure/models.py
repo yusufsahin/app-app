@@ -42,4 +42,4 @@ class RelationshipModel(Base, TimestampMixin):
         index=True,
     )
     relationship_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    sort_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=True)

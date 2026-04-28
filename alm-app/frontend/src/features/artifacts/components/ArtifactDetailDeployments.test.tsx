@@ -104,7 +104,9 @@ describe("ArtifactDetailDeployments", () => {
     renderDeployments(
       <ArtifactDetailDeployments orgSlug="demo" projectSlug="proj" projectId="p1" artifactId="a1" />,
     );
-    expect(screen.getByText("Could not load deployment summary.")).toBeInTheDocument();
+    expect(
+      screen.getByText("The server failed while loading deployments. Try again in a moment."),
+    ).toBeInTheDocument();
   });
 
   it("renders empty-state copy when environments and scm links are empty", () => {

@@ -28,7 +28,7 @@ class TenantModel(Base, TimestampMixin, SoftDeleteMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     tier: Mapped[str] = mapped_column(String(50), nullable=False, default="free")
-    settings: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    settings: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=True)
 
     memberships: Mapped[list[TenantMembershipModel]] = relationship(back_populates="tenant", lazy="selectin")
     roles: Mapped[list[RoleModel]] = relationship(back_populates="tenant", lazy="selectin")
@@ -41,7 +41,7 @@ class TenantMembershipModel(Base, TimestampMixin, SoftDeleteMixin):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"), nullable=False, index=True)
     tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tenants.id"), nullable=False, index=True)
-    invited_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
+    invited_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     tenant: Mapped[TenantModel] = relationship(back_populates="memberships", lazy="joined")
@@ -98,7 +98,7 @@ class MembershipRoleModel(Base):
     )
     role_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
     assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    assigned_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
+    assigned_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
 
     membership: Mapped[TenantMembershipModel] = relationship(back_populates="membership_roles", lazy="joined")
     role: Mapped[RoleModel] = relationship(lazy="joined")
@@ -113,7 +113,7 @@ class InvitationModel(Base, TimestampMixin, SoftDeleteMixin):
     invited_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"), nullable=False)
     token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
     invitation_roles: Mapped[list[InvitationRoleModel]] = relationship(
         back_populates="invitation", lazy="selectin", cascade="all, delete-orphan"

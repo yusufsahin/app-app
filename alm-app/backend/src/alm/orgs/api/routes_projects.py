@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alm.artifact.api.schemas import ArtifactImportResponse, ArtifactImportResponseRow
@@ -231,7 +231,7 @@ async def add_project_member(
     )
 
 
-@router.delete("/projects/{project_id}/members/{user_id}", status_code=204)
+@router.delete("/projects/{project_id}/members/{user_id}", status_code=204, response_model=None, response_class=Response)
 async def remove_project_member(
     project_id: uuid.UUID,
     user_id: uuid.UUID,
@@ -584,7 +584,7 @@ async def transition_artifact(
 
 @router.delete(
     "/projects/{project_id}/artifacts/{artifact_id}",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def delete_artifact(
     project_id: uuid.UUID,

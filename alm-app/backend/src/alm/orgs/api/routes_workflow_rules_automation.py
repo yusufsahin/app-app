@@ -1,6 +1,6 @@
 """Org API routes: Workflow rules (automation)."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 
@@ -115,7 +115,7 @@ async def update_workflow_rule(
 
 @router.delete(
     "/projects/{project_id}/workflow-rules/{rule_id}",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def delete_workflow_rule(
     project_id: uuid.UUID,

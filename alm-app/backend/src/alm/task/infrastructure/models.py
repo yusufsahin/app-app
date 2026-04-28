@@ -29,19 +29,19 @@ class TaskModel(Base, TimestampMixin, SoftDeleteMixin):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     state: Mapped[str] = mapped_column(String(50), nullable=False, server_default="todo")
     description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
-    assignee_id: Mapped[uuid.UUID | None] = mapped_column(
+    assignee_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    rank_order: Mapped[float | None] = mapped_column(Float, nullable=True)
-    team_id: Mapped[uuid.UUID | None] = mapped_column(
+    rank_order: Mapped[float] = mapped_column(Float, nullable=True)
+    team_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey("teams.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    original_estimate_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
-    remaining_work_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
-    activity: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    original_estimate_hours: Mapped[float] = mapped_column(Float, nullable=True)
+    remaining_work_hours: Mapped[float] = mapped_column(Float, nullable=True)
+    activity: Mapped[str] = mapped_column(String(64), nullable=True)

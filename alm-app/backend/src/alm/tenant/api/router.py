@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from alm.config.dependencies import get_mediator
 from alm.shared.api.schemas import MessageResponse
@@ -128,7 +128,7 @@ async def update_tenant(
     return TenantResponse(id=dto.id, name=dto.name, slug=dto.slug, tier=dto.tier)
 
 
-@router.delete("/{tenant_id}", status_code=204)
+@router.delete("/{tenant_id}", status_code=204, response_model=None, response_class=Response)
 async def archive_tenant(
     tenant_id: uuid.UUID,
     user: CurrentUser = require_any_role("admin"),

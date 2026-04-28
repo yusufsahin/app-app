@@ -44,15 +44,15 @@ class DeploymentEventModel(Base):
     )
     environment: Mapped[str] = mapped_column(String(64), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    image_digest: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    repo_full_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    artifact_keys: Mapped[list[str] | None] = mapped_column(ARRAY(String(128)), nullable=True)
-    release_label: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    build_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    commit_sha: Mapped[str] = mapped_column(String(64), nullable=True)
+    image_digest: Mapped[str] = mapped_column(String(512), nullable=True)
+    repo_full_name: Mapped[str] = mapped_column(String(512), nullable=True)
+    artifact_keys: Mapped[list[str]] = mapped_column(ARRAY(String(128)), nullable=True)
+    release_label: Mapped[str] = mapped_column(String(256), nullable=True)
+    build_id: Mapped[str] = mapped_column(String(256), nullable=True)
     source: Mapped[str] = mapped_column(String(32), nullable=False)
-    raw_context: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    raw_context: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

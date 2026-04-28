@@ -1,6 +1,6 @@
 """Org API routes: Teams (P6)."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 
@@ -104,7 +104,7 @@ async def update_team(
 
 @router.delete(
     "/projects/{project_id}/teams/{team_id}",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def delete_team(
     project_id: uuid.UUID,

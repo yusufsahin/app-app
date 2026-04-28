@@ -30,7 +30,7 @@ class AttachmentModel(Base, TimestampMixin):
     content_type: Mapped[str] = mapped_column(String(255), nullable=False, server_default="application/octet-stream")
     size: Mapped[int] = mapped_column(Integer, nullable=False)
     storage_key: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True)
-    created_by: Mapped[uuid.UUID | None] = mapped_column(
+    created_by: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,

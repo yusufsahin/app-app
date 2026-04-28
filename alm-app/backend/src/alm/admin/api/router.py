@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel, EmailStr
 
 from alm.admin.infrastructure.access_audit_store import AccessAuditStore
@@ -107,7 +107,7 @@ async def create_user(
     )
 
 
-@router.delete("/users/{user_id}", status_code=204)
+@router.delete("/users/{user_id}", status_code=204, response_model=None, response_class=Response)
 async def delete_user(
     user_id: uuid.UUID,
     user: Annotated[CurrentUser, require_any_role("admin")],

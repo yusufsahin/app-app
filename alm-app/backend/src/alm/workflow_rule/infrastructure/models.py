@@ -24,6 +24,6 @@ class WorkflowRuleModel(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     trigger_event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    condition_expression: Mapped[str | None] = mapped_column(Text, nullable=True)
+    condition_expression: Mapped[str] = mapped_column(Text, nullable=True)
     actions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, server_default="[]")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")

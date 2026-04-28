@@ -22,15 +22,15 @@ class CycleNodeModel(Base, TimestampMixin):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+    parent_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey("cycle_nodes.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
     path: Mapped[str] = mapped_column(String(512), nullable=False)
-    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    start_date: Mapped[date] = mapped_column(Date, nullable=True)
+    end_date: Mapped[date] = mapped_column(Date, nullable=True)
     depth: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     goal: Mapped[str] = mapped_column(Text, nullable=False, default="")

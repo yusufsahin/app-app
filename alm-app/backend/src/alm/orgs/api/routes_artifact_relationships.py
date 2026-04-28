@@ -1,6 +1,6 @@
 """Org API routes: artifact relationships."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 
@@ -301,7 +301,7 @@ async def bulk_delete_artifact_relationships(
 
 @router.patch(
     "/projects/{project_id}/artifacts/{artifact_id}/relationships/reorder",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def reorder_artifact_relationships(
     project_id: uuid.UUID,
@@ -331,7 +331,7 @@ async def reorder_artifact_relationships(
 
 @router.delete(
     "/projects/{project_id}/artifacts/{artifact_id}/relationships/{relationship_id}",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def delete_artifact_relationship(
     project_id: uuid.UUID,

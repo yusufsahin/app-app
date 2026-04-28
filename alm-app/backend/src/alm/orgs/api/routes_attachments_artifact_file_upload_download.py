@@ -1,6 +1,6 @@
 """Org API routes: Attachments (artifact file upload/download)."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 
@@ -118,7 +118,7 @@ async def download_attachment(
 
 @router.delete(
     "/projects/{project_id}/artifacts/{artifact_id}/attachments/{attachment_id}",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def delete_attachment(
     project_id: uuid.UUID,

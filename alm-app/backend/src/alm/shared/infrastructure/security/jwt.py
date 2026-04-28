@@ -4,7 +4,8 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from jose import JWTError, jwt  # type: ignore[import-untyped]
+import jwt
+from jwt.exceptions import PyJWTError
 
 from alm.config.settings import settings
 from alm.shared.domain.ports import ITokenService
@@ -77,5 +78,5 @@ def decode_token(token: str) -> TokenPayload:
             roles=payload.get("roles", []),
             token_type=payload.get("type", "access"),
         )
-    except (JWTError, KeyError, ValueError) as exc:
+    except (PyJWTError, KeyError, ValueError) as exc:
         raise InvalidTokenError(str(exc)) from exc

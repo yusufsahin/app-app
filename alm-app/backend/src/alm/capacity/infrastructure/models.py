@@ -23,19 +23,19 @@ class CapacityModel(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    cycle_id: Mapped[uuid.UUID | None] = mapped_column(
+    cycle_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey("cycle_nodes.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    team_id: Mapped[uuid.UUID | None] = mapped_column(
+    team_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey("teams.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    user_id: Mapped[uuid.UUID | None] = mapped_column(
+    user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,

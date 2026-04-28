@@ -17,8 +17,8 @@ class AuditCommitModel(Base):
     __tablename__ = "audit_commits"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    author_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    author_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=True)
     committed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     properties: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 

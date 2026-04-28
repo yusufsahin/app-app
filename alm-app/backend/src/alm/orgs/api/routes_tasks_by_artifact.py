@@ -1,6 +1,6 @@
 """Org API routes: Tasks scoped by artifact/project."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 
@@ -93,7 +93,7 @@ async def create_task(
 
 @router.post(
     "/projects/{project_id}/artifacts/{artifact_id}/tasks/reorder",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def reorder_tasks_for_artifact(
     project_id: uuid.UUID,
@@ -178,7 +178,7 @@ async def update_task(
 
 @router.delete(
     "/projects/{project_id}/artifacts/{artifact_id}/tasks/{task_id}",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def delete_task(
     project_id: uuid.UUID,

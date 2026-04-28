@@ -202,6 +202,11 @@ async def _noop_domain_event_outbox_worker(_session_factory: object) -> None:
     return
 
 
+async def _noop_publish_event(_tenant_id: uuid.UUID, _payload: dict[str, object]) -> None:
+    """No-op so integration tests do not wait on Redis realtime publish calls."""
+    return
+
+
 # ``from session import async_session_factory`` binds the factory at import time in each module below.
 # Patching only ``alm.shared.infrastructure.db.session`` leaves stale references → requests hit prod URL / wrong DB.
 _ASYNC_SESSION_FACTORY_PATCH_TARGETS: tuple[str, ...] = (
@@ -245,6 +250,7 @@ async def client(test_engine, test_session_factory) -> AsyncGenerator[AsyncClien
                 return_value=(True, 0),
             )
         )
+        stack.enter_context(patch("alm.realtime.event_handlers.publish_event", _noop_publish_event))
 
         from alm.main import create_app
 

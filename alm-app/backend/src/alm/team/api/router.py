@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 
 from alm.config.dependencies import get_mediator
 from alm.shared.application.mediator import Mediator
@@ -152,7 +152,12 @@ async def update_team(
     )
 
 
-@router.delete("/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{team_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    response_class=Response,
+)
 async def delete_team(
     tenant_id: uuid.UUID,
     project_id: uuid.UUID,
@@ -186,7 +191,12 @@ async def add_team_member(
     return TeamMemberResponse(team_id=dto.team_id, user_id=dto.user_id, role=dto.role)
 
 
-@router.delete("/{team_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{team_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    response_class=Response,
+)
 async def remove_team_member(
     tenant_id: uuid.UUID,
     project_id: uuid.UUID,

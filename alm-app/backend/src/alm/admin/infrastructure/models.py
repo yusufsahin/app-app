@@ -1,7 +1,5 @@
 """SQLAlchemy model for access audit (G5)."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import datetime
 
@@ -17,6 +15,6 @@ class AccessAuditModel(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=True)
+    ip: Mapped[str] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str] = mapped_column(String(512), nullable=True)

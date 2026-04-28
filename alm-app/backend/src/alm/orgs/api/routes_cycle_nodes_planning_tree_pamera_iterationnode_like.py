@@ -1,6 +1,6 @@
 """Org API routes: cadences (release/cycle planning tree)."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 
@@ -137,7 +137,7 @@ async def update_cadence(
 
 @router.delete(
     "/projects/{project_id}/cadences/{cadence_id}",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def delete_cadence(
     project_id: uuid.UUID,

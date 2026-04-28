@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 from alm.report_definition.api.schemas import (
@@ -195,7 +195,7 @@ async def update_report_definition(
     return report_definition_dto_to_response(dto)
 
 
-@router.delete("/projects/{project_id}/report-definitions/{report_id}", status_code=204)
+@router.delete("/projects/{project_id}/report-definitions/{report_id}", status_code=204, response_model=None, response_class=Response)
 async def delete_report_definition(
     project_id: uuid.UUID,
     report_id: uuid.UUID,

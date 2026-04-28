@@ -1,6 +1,6 @@
 """Org API routes: Saved queries."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 
@@ -128,7 +128,7 @@ async def update_saved_query(
 
 @router.delete(
     "/projects/{project_id}/saved-queries/{query_id}",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def delete_saved_query(
     project_id: uuid.UUID,

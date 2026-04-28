@@ -48,7 +48,7 @@ class ScmLinkModel(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    task_id: Mapped[uuid.UUID | None] = mapped_column(
+    task_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey("tasks.id", ondelete="SET NULL"),
         nullable=True,
@@ -56,13 +56,13 @@ class ScmLinkModel(Base, TimestampMixin):
     )
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     repo_full_name: Mapped[str] = mapped_column(String(512), nullable=False)
-    ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    pull_request_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    ref: Mapped[str] = mapped_column(String(255), nullable=True)
+    commit_sha: Mapped[str] = mapped_column(String(64), nullable=True)
+    pull_request_number: Mapped[int] = mapped_column(Integer, nullable=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=True)
     web_url: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(String(32), nullable=False, server_default="manual")
-    key_match_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    key_match_source: Mapped[str] = mapped_column(String(16), nullable=True)
 
 
 class ScmWebhookProcessedDeliveryModel(Base):
@@ -114,8 +114,8 @@ class ScmWebhookUnmatchedEventModel(Base):
         server_default=func.now(),
         nullable=False,
     )
-    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    dismissed_by: Mapped[uuid.UUID | None] = mapped_column(
+    dismissed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    dismissed_by: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,

@@ -11,7 +11,7 @@ version = "0.1.0"
 description = "ALM - Application Lifecycle Management"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115.0",
+    "fastapi>=0.136.0",
     "uvicorn[standard]>=0.32.0",
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30.0",
@@ -20,7 +20,7 @@ dependencies = [
     "pydantic-settings>=2.7.0",
     "redis[hiredis]>=5.2.0",
     "structlog>=24.4.0",
-    "python-jose[cryptography]>=3.3.0",
+    "PyJWT>=2.8,<3",
     "bcrypt>=4.0.0",
     "taskiq>=0.12.1",
     "taskiq-redis>=1.0.0",
@@ -80,3 +80,10 @@ plugins = ["pydantic.mypy"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
+# Python 3.14+: third-party asyncio API deprecations; narrow message match avoids hiding other deprecations.
+filterwarnings = [
+    "ignore:.*asyncio\\.iscoroutinefunction.*:DeprecationWarning",
+    "ignore:.*asyncio\\.get_event_loop_policy.*:DeprecationWarning",
+    "ignore:.*asyncio\\.set_event_loop_policy.*:DeprecationWarning",
+    "ignore::jwt.warnings.InsecureKeyLengthWarning",
+]

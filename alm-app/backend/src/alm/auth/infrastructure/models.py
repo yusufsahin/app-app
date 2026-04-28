@@ -29,6 +29,6 @@ class RefreshTokenModel(Base, TimestampMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"), nullable=False, index=True)
     token_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[UserModel] = relationship(back_populates="refresh_tokens", lazy="joined")

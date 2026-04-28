@@ -1,6 +1,6 @@
 """Org API routes: Area nodes (project area tree, pamera AreaNode-like)."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 
@@ -121,7 +121,7 @@ async def update_area_node(
 
 @router.delete(
     "/projects/{project_id}/area-nodes/{area_node_id}",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def delete_area_node(
     project_id: uuid.UUID,

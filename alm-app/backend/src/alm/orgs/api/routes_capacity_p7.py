@@ -1,6 +1,6 @@
 """Org API routes: Capacity (hybrid team/user ownership)."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from alm.orgs.api._router_deps import *  # noqa: F403
 
@@ -88,7 +88,7 @@ async def update_capacity(
 
 @router.delete(
     "/projects/{project_id}/capacity/{capacity_id}",
-    status_code=204,
+    status_code=204, response_model=None, response_class=Response,
 )
 async def delete_capacity(
     project_id: uuid.UUID,
