@@ -24,7 +24,7 @@ Bu doküman, mevcut durum özetinden sonra kalan işleri öncelik sırasıyla li
 
 **Referans:** Aşama planının tam listesi için [alm-app.md §12](./alm-app.md#12-asama-plani-phases) kullanılır.
 
-**Visera referansı:** `@visera` ürün, mimari, güvenlik, AI ve entegrasyon dokümanları için [@visera Docs Index](../../visera/docs/INDEX.md).
+**Visera referansı:** `@visera` ürün, mimari, güvenlik, AI ve entegrasyon dokümanları için [@visera Docs Index](https://github.com/yusufsahin/visera/blob/main/docs/INDEX.md).
 
 ---
 

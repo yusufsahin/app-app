@@ -126,7 +126,7 @@ Migration'lar backend başlarken otomatik çalışır. Durdurmak: `docker compos
 - **mobile/** – Expo (React Native), aynı REST API; bağımlılıklar `mobile/` içinde kurulur
 - **packages/manifest-types/** – Web ve mobil için ortak manifest / workflow TypeScript tipleri
 - **docs/** – Mimari ve uygulama dokümanları ([giriş: docs/README.md](docs/README.md))
-- **visera/docs/** – `@visera` ürün ve entegrasyon dokümanları ([giriş: visera/docs/INDEX.md](../visera/docs/INDEX.md))
+- **@visera (ayrı repo)** – `@visera` ürün ve entegrasyon dokümanları ([giriş: visera/docs/INDEX.md](https://github.com/yusufsahin/visera/blob/main/docs/INDEX.md))
 
 **Frontend – Form bileşenleri:** Tüm form alanları `frontend/src/shared/components/forms/` kütüphanesinden kullanılır (RhfTextField, RhfSelect, RhfCheckbox, RhfDescriptionField, MetadataDrivenForm vb.). React Hook Form + FormProvider ile kullanın; sayfa içinde doğrudan MUI TextField/Select kullanmayın. Detay için `.cursor/rules/frontend-forms.mdc` kuralına bakın.
 
