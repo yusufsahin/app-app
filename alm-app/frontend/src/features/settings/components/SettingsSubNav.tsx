@@ -5,6 +5,7 @@ import {
   ShieldCheck,
   History,
   Network,
+  Sparkles,
 } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useAuthStore } from "../../../shared/stores/authStore";
@@ -21,6 +22,7 @@ const NAV_ITEMS: {
   { path: "roles", label: "Roles", icon: <Shield className="size-4" /> },
   { path: "privileges", label: "Privileges", icon: <ShieldCheck className="size-4" /> },
   { path: "manifest", label: "Process manifest", icon: <Network className="size-4" />, adminOnly: true },
+  { path: "settings/ai", label: "AI Providers", icon: <Sparkles className="size-4" />, adminOnly: true },
   { path: "audit", label: "Access audit", icon: <History className="size-4" />, adminOnly: true },
 ];
 

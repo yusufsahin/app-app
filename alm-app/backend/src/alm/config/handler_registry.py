@@ -7,6 +7,26 @@ Each factory receives an AsyncSession and returns a fully-wired handler.
 from __future__ import annotations
 
 from alm.area.application.commands.activate_area import ActivateAreaNode, ActivateAreaNodeHandler
+from alm.ai.application.commands.execute_pending_action import (
+    ExecutePendingAction,
+    ExecutePendingActionHandler,
+)
+from alm.ai.application.commands.generate_artifact_content import (
+    GenerateArtifactContent,
+    GenerateArtifactContentHandler,
+)
+from alm.ai.application.commands.run_agent_turn import RunAgentTurn, RunAgentTurnHandler
+from alm.ai.application.commands.upsert_provider_config import (
+    UpsertProviderConfig,
+    UpsertProviderConfigHandler,
+)
+from alm.ai.application.queries.get_conversation import GetConversation, GetConversationHandler
+from alm.ai.application.queries.list_ai_insights import ListAiInsights, ListAiInsightsHandler
+from alm.ai.application.queries.list_conversations import (
+    ListConversations,
+    ListConversationsHandler,
+)
+from alm.ai.infrastructure.repositories import SqlAlchemyAiRepository
 
 # ── Area (project area tree) commands ──
 from alm.area.application.commands.create_area import CreateAreaNode, CreateAreaNodeHandler
@@ -356,6 +376,7 @@ from alm.scm.infrastructure.repositories import SqlAlchemyScmLinkRepository
 
 # DDD Enterprise Clean Architecture: Domain Event Dispatcher
 from alm.shared.application.mediator import (
+    Mediator,
     register_command_handler,
     register_query_handler,
     set_domain_event_dispatcher,
@@ -507,6 +528,52 @@ def register_all_handlers() -> None:
     register_event_handler(ArtifactStateChanged, on_upstream_planning_changed_mark_linked_tests_stale)
     register_event_handler(ArtifactUpdated, on_upstream_planning_changed_mark_linked_tests_stale)
     set_domain_event_dispatcher(dispatcher)
+
+    # ── AI Commands / Queries ──
+    register_command_handler(
+        UpsertProviderConfig,
+        lambda s: UpsertProviderConfigHandler(
+            repo=SqlAlchemyAiRepository(s),
+        ),
+    )
+    register_command_handler(
+        GenerateArtifactContent,
+        lambda s: GenerateArtifactContentHandler(
+            repo=SqlAlchemyAiRepository(s),
+        ),
+    )
+    register_command_handler(
+        RunAgentTurn,
+        lambda s: RunAgentTurnHandler(
+            repo=SqlAlchemyAiRepository(s),
+            mediator=Mediator(s),
+        ),
+    )
+    register_command_handler(
+        ExecutePendingAction,
+        lambda s: ExecutePendingActionHandler(
+            repo=SqlAlchemyAiRepository(s),
+            mediator=Mediator(s),
+        ),
+    )
+    register_query_handler(
+        ListConversations,
+        lambda s: ListConversationsHandler(
+            repo=SqlAlchemyAiRepository(s),
+        ),
+    )
+    register_query_handler(
+        GetConversation,
+        lambda s: GetConversationHandler(
+            repo=SqlAlchemyAiRepository(s),
+        ),
+    )
+    register_query_handler(
+        ListAiInsights,
+        lambda s: ListAiInsightsHandler(
+            repo=SqlAlchemyAiRepository(s),
+        ),
+    )
 
     # ── Auth Commands ──
 

@@ -32,8 +32,7 @@ export default defineConfig({
           ...(shouldStartBackend
             ? [
                 {
-                  command:
-                    "cd ../backend && set ALM_DEBUG=true&& set ALM_JWT_SECRET_KEY=dev-e2e-secret&& uvicorn alm.main:create_app --factory --host 0.0.0.0 --port 8000",
+                  command: "npm run e2e:backend",
                   url: "http://localhost:8000/health/ready",
                   reuseExistingServer: !process.env.CI,
                   timeout: 120_000,
@@ -121,6 +120,15 @@ export default defineConfig({
     {
       name: "scm-traceability",
       testMatch: /scm-traceability\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/user.json",
+      },
+      dependencies: ["setup"],
+    },
+    {
+      name: "ai-smoke",
+      testMatch: /ai-smoke\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: "e2e/.auth/user.json",
