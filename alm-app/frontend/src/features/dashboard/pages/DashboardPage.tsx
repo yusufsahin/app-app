@@ -45,6 +45,8 @@ import { useProjectManifest } from "../../../shared/api/manifestApi";
 import { useCadences } from "../../../shared/api/planningApi";
 import { StandardPageLayout } from "../../../shared/components/Layout";
 import { useProjectStore } from "../../../shared/stores/projectStore";
+import { useAiInsights } from "../../../shared/api/aiApi";
+import { AiInsightCard } from "../../aiAssistant/components/AiInsightCard";
 import {
   AreaChart,
   Area,
@@ -200,6 +202,7 @@ export default function DashboardPage() {
   } = useProjectBurndown(orgSlug, selectedProject?.id, { lastN });
 
   const { data: projectManifest } = useProjectManifest(orgSlug, selectedProject?.id);
+  const { data: aiInsights = [] } = useAiInsights(orgSlug ?? "", selectedProject?.id ?? null);
   /** Task rows use `task_workflow_id` + Task entity (`artifact_id`), not artifact type `task`. */
   const manifestSupportsTasks = useMemo(() => {
     const b = projectManifest?.manifest_bundle as { task_workflow_id?: string } | undefined;
@@ -576,6 +579,17 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+
+        {aiInsights.length > 0 ? (
+          <div className="mb-6 rounded-lg border border-border bg-card p-4">
+            <h3 className="mb-3 text-lg font-semibold">AI Insights</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              {aiInsights.slice(0, 4).map((insight) => (
+                <AiInsightCard key={insight.id} insight={insight} />
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {/* Projects and Activity */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">

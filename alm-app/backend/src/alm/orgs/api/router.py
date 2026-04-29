@@ -3,6 +3,10 @@
 from fastapi import APIRouter
 
 from alm.orgs.api.routes_area_nodes_project_area_tree_pamera_areanode_like import router as _r11
+from alm.ai.api.routes_ai_chat import router as _r29
+from alm.ai.api.routes_ai_generate import router as _r30
+from alm.ai.api.routes_ai_insights import router as _r31
+from alm.ai.api.routes_ai_providers import router as _r32
 from alm.orgs.api.routes_artifact_relationships import router as _r20
 from alm.orgs.api.routes_artifact_traceability_summary import router as _r12b
 from alm.orgs.api.routes_attachments_artifact_file_upload_download import router as _r5
@@ -69,3 +73,7 @@ router.include_router(_r26)
 router.include_router(_r23)
 router.include_router(_r24)
 router.include_router(_r25)
+router.include_router(_r29)
+router.include_router(_r30)
+router.include_router(_r31)
+router.include_router(_r32)

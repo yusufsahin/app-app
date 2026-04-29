@@ -71,6 +71,17 @@ class Settings(BaseSettings):
     # strict: deny policy/ACL when MPC missing; degraded|disabled: permissive fallback + audit (non-prod only)
     mpc_mode: Literal["strict", "degraded", "disabled"] = "degraded"
 
+    # ── AI / LLM ──
+    enable_ai_features: bool = False  # ALM_ENABLE_AI_FEATURES
+    # Fernet key for encrypting provider API keys at rest. Generate with: Fernet.generate_key().decode()
+    ai_encryption_key: str = ""  # ALM_AI_ENCRYPTION_KEY
+    ai_max_conversation_turns: int = 10  # ALM_AI_MAX_CONVERSATION_TURNS
+    ai_max_prompt_chars: int = 12000  # ALM_AI_MAX_PROMPT_CHARS
+    ai_default_model: str = "anthropic/claude-sonnet-4-6"  # ALM_AI_DEFAULT_MODEL
+    ai_enable_auto_mode: bool = False  # ALM_AI_ENABLE_AUTO_MODE
+    ai_blocked_tools: list[str] = []  # ALM_AI_BLOCKED_TOOLS (comma-separated supported by pydantic)
+    ai_background_analysis_enabled: bool = False  # ALM_AI_BACKGROUND_ANALYSIS_ENABLED
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"

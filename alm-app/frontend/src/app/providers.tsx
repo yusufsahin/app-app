@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { LayoutUIProvider } from "../shared/contexts/LayoutUIContext";
 import { useNotificationStore } from "../shared/stores/notificationStore";
 import { Toaster } from "../shared/components/ui/sonner";
+import { AiChatPanel } from "../features/aiAssistant/components/AiChatPanel";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,6 +54,7 @@ export function Providers({ children }: ProvidersProps) {
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <LayoutUIProvider>
           {children}
+          <AiChatPanel />
           <ToastBridge />
           <Toaster />
         </LayoutUIProvider>
