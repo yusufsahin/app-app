@@ -10,7 +10,7 @@ Tüm mimari ve süreç dokümanları **tek dizinde** (`docs/`) toplanır. Bu dos
 
 | Doküman | Amaç | Ne zaman kullanılır |
 |---------|------|---------------------|
-| [@visera Docs Index](../../visera/docs/INDEX.md) | `@visera` ürün, mimari, güvenlik, AI ve entegrasyon doküman giriş noktası | Visera kapsamı, roadmap, backlog ve entegrasyon tasarımına başlarken |
+| [@visera Docs Index](https://github.com/yusufsahin/visera/blob/main/docs/INDEX.md) | `@visera` ürün, mimari, güvenlik, AI ve entegrasyon doküman giriş noktası | Visera kapsamı, roadmap, backlog ve entegrasyon tasarımına başlarken |
 
 ### Kullanıcı rehberi (ürün içi HTML)
 
